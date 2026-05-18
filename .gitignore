@@ -1,0 +1,40 @@
+# =============================================================================
+# Skyzentech.com unified .gitignore
+# Top-level legacy PHP site + careers/ (Spring Boot backend + Next.js frontend)
+# =============================================================================
+
+# === Secrets (CRITICAL) ======================================================
+dbconn.php
+careers/backend/run-dev.ps1
+careers/backend/.env
+careers/backend/.env.*
+careers/frontend/.env.local
+careers/frontend/.env*.local
+careers/frontend/.env.production
+
+# === Java / Maven (for careers/backend) ======================================
+careers/backend/target/
+careers/backend/.mvn/
+careers/backend/*.class
+careers/backend/dependency-reduced-pom.xml
+
+# === Node / Next.js (for careers/frontend) ===================================
+careers/frontend/node_modules/
+careers/frontend/.next/
+careers/frontend/out/
+careers/frontend/.vercel
+
+# === IDE =====================================================================
+.idea/
+.vscode/
+*.iml
+
+# === OS ======================================================================
+.DS_Store
+Thumbs.db
+ehthumbs.db
+
+# === Misc ====================================================================
+*.log
+*.swp
+*~

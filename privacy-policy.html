@@ -1,0 +1,374 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Privacy Policy | Skyzen Technologies LLC</title>
+  <meta name="description" content="Privacy Policy for Skyzen Technologies LLC.">
+  <link rel="icon" type="image/png" href="images/skyzen-logo.png">
+  <link rel="stylesheet" href="plugins/bootstrap/css/bootstrap.min.css">
+  <link rel="stylesheet" href="plugins/icofont/icofont.min.css">
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+
+<style>
+:root {
+  --dark:    #080d1a;
+  --dark2:   #0c1221;
+  --dark3:   #111827;
+  --orange:  #fb9b47;
+  --orange2: #ff7c20;
+  --white:   #ffffff;
+  --text:    #e2e8f0;
+  --muted:   #8a9ab5;
+  --border:  rgba(255,255,255,0.08);
+}
+*, *::before, *::after { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body {
+  font-family: 'Poppins', sans-serif;
+  background: var(--dark);
+  color: var(--text);
+  margin: 0; overflow-x: hidden;
+}
+a, a:hover, a:focus, a:active { text-decoration: none; }
+img { max-width: 100%; }
+
+/* HEADER */
+header {
+  position: fixed; top: 0; left: 0; right: 0;
+  z-index: 1000;
+}
+.top-bar {
+  background: rgba(8,13,26,0.95);
+  border-bottom: 1px solid var(--border);
+  padding: 8px 0; font-size: 13px;
+}
+.top-bar a { color: var(--muted); transition: color 0.2s; }
+.top-bar a:hover { color: var(--orange); }
+.top-bar i { margin-right: 5px; color: var(--orange); }
+.top-bar .social-link {
+  width: 28px; height: 28px; border-radius: 50%;
+  border: 1px solid var(--border);
+  display: inline-flex; align-items: center; justify-content: center;
+  color: var(--muted); transition: all 0.2s;
+}
+.top-bar .social-link:hover { border-color: var(--orange); color: var(--orange); }
+
+.main-nav { padding: 12px 0; }
+.main-nav .nav-inner {
+  max-width: 1280px; width: calc(100% - 60px); margin: 0 auto;
+  display: flex; align-items: center; justify-content: space-between;
+  background: #2a2d35;
+  border: 1px solid rgba(255,255,255,0.10);
+  border-radius: 50px; padding: 10px 28px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+}
+.nav-brand {
+  display: inline-flex; align-items: center; gap: 10px; text-decoration: none;
+}
+.brand-icon {
+  width: 42px; height: 42px; border-radius: 9px;
+  display: flex; align-items: center; justify-content: center;
+  overflow: hidden;
+}
+.brand-icon img { width: 36px; height: 36px; object-fit: contain; }
+.brand-name { font-size: 18px; font-weight: 800; letter-spacing: 1px; line-height: 1.1; text-transform: uppercase; }
+.brand-name .sky { color: #fff; }
+.brand-name .zen { color: var(--orange); }
+.brand-name small { display: block; font-size: 10px; font-weight: 400; color: rgba(255,255,255,0.5); letter-spacing: 1.5px; text-transform: uppercase; }
+.nav-links { list-style: none; margin: 0; padding: 0; display: flex; align-items: center; gap: 2px; }
+.nav-links li a {
+  color: rgba(255,255,255,0.75); font-size: 12px; font-weight: 500;
+  padding: 7px 11px; border-radius: 8px; letter-spacing: 0.3px;
+  transition: all 0.2s; display: block; white-space: nowrap;
+}
+.nav-links li a:hover { color: #fff; background: rgba(255,255,255,0.07); }
+.nav-links li a.active { color: #fff; background: rgba(255,255,255,0.1); }
+.nav-cta {
+  background: linear-gradient(135deg, var(--orange), var(--orange2));
+  color: var(--white) !important; padding: 9px 22px !important;
+  border-radius: 30px !important; font-weight: 600 !important;
+  box-shadow: 0 4px 18px rgba(251,155,71,0.35);
+}
+.nav-cta:hover { box-shadow: 0 6px 24px rgba(251,155,71,0.5); }
+
+/* Mobile toggle */
+.nav-toggle {
+  display: none; background: none; border: 1px solid var(--border);
+  color: var(--text); padding: 6px 10px; border-radius: 8px; cursor: pointer;
+}
+
+/* PAGE BANNER */
+.page-banner {
+  padding: 180px 0 60px;
+  background: var(--dark2);
+  text-align: center;
+  border-bottom: 1px solid var(--border);
+}
+.page-banner h1 {
+  font-size: 36px; font-weight: 700; color: var(--white); margin: 0;
+}
+.page-banner .breadcrumb-text {
+  color: var(--muted); font-size: 14px; margin-top: 10px;
+}
+.page-banner .breadcrumb-text a { color: var(--orange); }
+
+/* CONTENT */
+.privacy-content {
+  padding: 60px 0 100px;
+}
+.privacy-content p {
+  line-height: 1.9; color: var(--muted); font-size: 15px; margin-bottom: 16px;
+}
+.privacy-content h4 {
+  font-size: 20px; font-weight: 600 !important; color: var(--white); margin: 40px 0 14px;
+}
+.privacy-content a { color: var(--orange); }
+
+/* FOOTER */
+footer {
+  background: #050a14; border-top: 1px solid var(--border);
+  padding: 60px 0 0;
+}
+footer .brand-icon { border-radius: 9px; }
+.footer-brand .nav-brand { margin-bottom: 16px; }
+.footer-brand p { font-size: 14px; color: var(--muted); line-height: 1.8; max-width: 260px; }
+.footer-socials { display: flex; gap: 10px; margin-top: 20px; }
+.footer-socials a {
+  width: 36px; height: 36px; border-radius: 10px;
+  border: 1px solid var(--border); color: var(--muted);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 15px; transition: all 0.2s;
+}
+.footer-socials a:hover { border-color: var(--orange); color: var(--orange); background: rgba(251,155,71,0.08); }
+.footer-col h6 {
+  font-size: 12px; font-weight: 700; letter-spacing: 1.5px;
+  text-transform: uppercase; color: var(--white); margin-bottom: 20px;
+}
+.footer-links { list-style: none; padding: 0; margin: 0; }
+.footer-links li { margin-bottom: 10px; }
+.footer-links a { font-size: 14px; color: var(--muted); transition: color 0.2s; }
+.footer-links a:hover { color: var(--orange); }
+.footer-contact-item { display: flex; align-items: flex-start; gap: 10px; margin-bottom: 14px; }
+.footer-contact-item i { color: var(--orange); font-size: 15px; margin-top: 3px; }
+.footer-contact-item span, .footer-contact-item a { font-size: 13px; color: var(--muted); line-height: 1.6; }
+.footer-contact-item a:hover { color: var(--orange); }
+.footer-bottom {
+  border-top: 1px solid var(--border); margin-top: 48px;
+  padding: 20px 0; display: flex; align-items: center; justify-content: space-between;
+}
+.footer-bottom span { font-size: 13px; color: var(--muted); }
+.footer-bottom a { font-size: 13px; color: var(--muted); transition: color 0.2s; }
+.footer-bottom a:hover { color: var(--orange); }
+
+@media (max-width: 991px) {
+  .nav-toggle { display: block; }
+  .nav-links {
+    display: none; flex-direction: column; position: absolute;
+    top: 100%; left: 0; right: 0; background: #1e2128;
+    border: 1px solid var(--border); border-radius: 12px;
+    padding: 16px; margin-top: 8px; gap: 4px;
+  }
+  .nav-links.open { display: flex; }
+  .nav-links li { position: static; }
+  .nav-links li a { padding: 10px 14px; }
+  .footer-col { margin-bottom: 36px; }
+  .footer-bottom { flex-direction: column; gap: 8px; text-align: center; }
+}
+</style>
+</head>
+
+<body id="top">
+
+<!-- HEADER -->
+<header>
+  <div class="top-bar">
+    <div class="container">
+      <div class="d-flex align-items-center justify-content-between">
+        <div style="display:flex; gap:24px; flex-wrap:wrap;">
+          <a href="mailto:info@skyzentech.com"><i class="icofont-email"></i>info@skyzentech.com</a>
+          <a href="tel:4699453339"><i class="icofont-phone"></i>+1 469-945-3339</a>
+        </div>
+        <div class="d-flex gap-2">
+          <a href="https://www.linkedin.com/company/skyzen-tech-llc/" target="_blank" class="social-link">
+            <i class="icofont-linkedin"></i>
+          </a>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <nav class="main-nav">
+    <div class="container">
+    <div class="nav-inner">
+      <a href="index.html" class="nav-brand">
+        <div class="brand-icon"><img src="images/skyzen-logo.png" alt="Skyzen"></div>
+        <div class="brand-name"><span class="sky">SKY</span><span class="zen">ZEN</span><small>Technologies LLC</small></div>
+      </a>
+
+      <button class="nav-toggle" id="navToggle" aria-label="Toggle menu">
+        <i class="icofont-navigation-menu"></i>
+      </button>
+
+      <ul class="nav-links" id="navLinks">
+        <li><a href="index.html">HOME</a></li>
+        <li><a href="index.html#what-we-do">SERVICES</a></li>
+        <li><a href="index.html#why-we">WHY WE?</a></li>
+        <li><a href="index.html#our-expertise">OUR EXPERTISE</a></li>
+        <li><a href="index.html#career-support">CAREER SUPPORT</a></li>
+        <li><a href="index.html#contact" class="nav-cta">HIRE TALENT</a></li>
+      </ul>
+    </div>
+    </div>
+  </nav>
+</header>
+
+<!-- PAGE BANNER -->
+<div class="page-banner">
+  <div class="container">
+    <h1>Privacy Policy</h1>
+    <p class="breadcrumb-text"><a href="index.html">Home</a> &nbsp;/&nbsp; Privacy Policy</p>
+  </div>
+</div>
+
+<!-- CONTENT -->
+<div class="container privacy-content">
+
+<p>At Skyzen Technologies LLC, we are dedicated to safeguarding the privacy and security of
+our users' personal information. Our privacy policy outlines the steps we take to collect,
+protect, and utilize any data gathered through our website and services. We adhere to
+industry-leading practices and comply with all relevant privacy laws and regulations to
+ensure the confidentiality of your information. By using our website and services, you agree
+to the terms of this policy, including how we collect and use your data, as described below.</p>
+
+<h4>Data Collection Methods</h4>
+<p>Skyzen Technologies LLC employs various methods to collect data aimed at enhancing our
+services. This may include direct interaction with our website through form submissions,
+inquiries, or the use of cookies and other tracking technologies. Additionally, we may receive
+information from partners, service providers, publicly available sources, or other users
+engaging on our platforms. We prioritize transparent and lawful data collection while
+protecting your privacy rights.</p>
+
+<h4>Utilization of Your Data</h4>
+<p>We leverage the data we collect to improve our services and provide an enhanced user
+experience. This includes website management, user interaction, request fulfillment,
+behavior analysis, content personalization, advertisement targeting, and system security.
+Your data may also be used to meet legal obligations, enforce our policies, or protect our
+rights and interests. We handle your data with care and in compliance with our Privacy
+Policy and your expectations.</p>
+
+<h4>Data Protection Measures</h4>
+<p>Protecting the security and confidentiality of your data is paramount at Skyzen Technologies
+LLC. We have implemented comprehensive security measures, including encryption, access
+controls, firewalls, regular security assessments, and continuous system monitoring. Access
+to your data is restricted to authorized personnel with a legitimate need, and we continuously
+strive to enhance our security protocols. While no online data transmission method is entirely
+foolproof, we are dedicated to safeguarding your information to the best of our abilities.</p>
+
+<h4>Disclosure of Personal Data</h4>
+<p>While we prioritize the confidentiality of your personal information, there are circumstances
+where disclosure may be necessary. This includes sharing data with trusted third-party
+service providers assisting in website maintenance and service provision. Additionally, we
+may disclose data to fulfill legal obligations, enforce policies, address legal inquiries, or
+protect our rights. We ensure that personal information is disclosed only as necessary and in
+accordance with applicable privacy laws and regulations.</p>
+
+<h4>Updates to Our Privacy Policy</h4>
+<p>Skyzen Technologies LLC may update our Privacy Policy periodically to reflect changes in
+practices, legal obligations, or business activities. Any updates will be clearly communicated
+on our website, along with the date of implementation. We encourage you to review this
+policy regularly to stay informed about our data handling practices. By continuing to use our
+website and services, you consent to the updated terms outlined in the Privacy Policy.</p>
+
+<h4>Contact Us</h4>
+<p>If you have any questions or concerns regarding our Privacy Policy or data practices at
+Skyzen Technologies LLC, please don't hesitate to contact us at <a href="mailto:info@skyzentech.com">info@skyzentech.com</a>. Your
+privacy is important to us, and we are dedicated to addressing any inquiries or issues
+promptly. Thank you for choosing Skyzen Technologies LLC.</p>
+
+<h4>Terms &amp; Conditions</h4>
+<p>By providing my phone number to Skyzen Technologies LLC, I agree and acknowledge that
+Skyzen Technologies LLC may send text messages to my wireless phone number for any
+purpose. Message and data rates may apply. We will only send one SMS as a reply to you,
+and you will be able to opt out by replying "STOP".</p>
+
+<p>No mobile information will be shared with third parties/affiliates for marketing/promotional
+purposes. All the above categories exclude text messaging originator opt-in data and
+consent; this information will not be shared with any third parties.</p>
+
+</div>
+
+<!-- FOOTER -->
+<footer>
+  <div class="container">
+    <div class="row g-4">
+      <div class="col-lg-4 footer-col">
+        <div class="footer-brand">
+          <a href="index.html" class="nav-brand">
+            <div class="brand-icon"><img src="images/skyzen-logo.png" alt="Skyzen"></div>
+            <div class="brand-name"><span class="sky">SKY</span><span class="zen">ZEN</span><small>Technologies LLC</small></div>
+          </a>
+          <p>Skyzen Technologies LLC — where technology meets excellence. Premier IT consulting, staffing, and training in Plano, TX.</p>
+          <div class="footer-socials">
+            <a href="https://www.linkedin.com/company/skyzen-tech-llc/" target="_blank"><i class="icofont-linkedin"></i></a>
+          </div>
+        </div>
+      </div>
+
+      <div class="col-lg-2 col-sm-4 footer-col">
+        <h6>Navigation</h6>
+        <ul class="footer-links">
+          <li><a href="index.html">Home</a></li>
+          <li><a href="index.html#what-we-do">Services</a></li>
+          <li><a href="index.html#why-we">Why We</a></li>
+          <li><a href="index.html#our-expertise">Our Expertise</a></li>
+          <li><a href="index.html#career-support">Career Support</a></li>
+          <li><a href="index.html#contact">Contact</a></li>
+        </ul>
+      </div>
+
+      <div class="col-lg-2 col-sm-4 footer-col">
+        <h6>Services</h6>
+        <ul class="footer-links">
+          <li><a href="index.html#what-we-do">IT Consulting</a></li>
+          <li><a href="index.html#what-we-do">Software Dev</a></li>
+          <li><a href="index.html#what-we-do">Training</a></li>
+          <li><a href="index.html#what-we-do">Staffing</a></li>
+          <li><a href="privacy-policy.html">Privacy Policy</a></li>
+        </ul>
+      </div>
+
+      <div class="col-lg-4 col-sm-4 footer-col">
+        <h6>Contact Info</h6>
+        <div class="footer-contact-item">
+          <i class="icofont-phone"></i>
+          <a href="tel:4699453339">+1 469-945-3339</a>
+        </div>
+        <div class="footer-contact-item">
+          <i class="icofont-email"></i>
+          <a href="mailto:info@skyzentech.com">info@skyzentech.com</a>
+        </div>
+        <div class="footer-contact-item">
+          <i class="icofont-location-pin"></i>
+          <span>5465 Legacy Drive, Suite 650,<br>Plano, TX 75024</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="footer-bottom">
+      <span>&copy; 2025 Skyzen Technologies LLC. All rights reserved.</span>
+      <a href="privacy-policy.html">Privacy Policy</a>
+    </div>
+  </div>
+</footer>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.1.1/jquery.min.js"></script>
+<script src="plugins/bootstrap/js/bootstrap.min.js"></script>
+<script>
+document.getElementById('navToggle').addEventListener('click', function() {
+  document.getElementById('navLinks').classList.toggle('open');
+});
+</script>
+
+</body>
+</html>

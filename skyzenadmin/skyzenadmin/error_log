@@ -1,0 +1,2 @@
+[19-Mar-2026 17:24:53 UTC] PHP Notice:  session_start(): Ignoring session_start() because a session is already active in /home/wd13h0idm6v0/public_html/skyzentech.com/skyzenadmin/auth.php on line 3
+[19-Mar-2026 17:25:00 UTC] PHP Notice:  session_start(): Ignoring session_start() because a session is already active in /home/wd13h0idm6v0/public_html/skyzentech.com/skyzenadmin/auth.php on line 3
