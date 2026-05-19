@@ -39,6 +39,8 @@ const ROLE_LINKS: Record<UserRole, NavLink[]> = {
     { icon: FileSignature, label: 'Offers', href: '/careers/candidate/offers' },
     { icon: FileText, label: 'My Resumes', href: '/careers/candidate/resumes' },
     { icon: ListChecks, label: 'Onboarding', href: '/careers/candidate/onboarding' },
+    { icon: ShieldCheck, label: 'I-9 Form', href: '/careers/candidate/i9' },
+    { icon: FileBadge, label: 'Training Plan', href: '/careers/candidate/training-plans' },
   ],
   RECRUITER: [
     { icon: KanbanSquare, label: 'Pipeline', href: '/careers/recruiter' },

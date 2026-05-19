@@ -94,17 +94,38 @@ public class I983Service {
 
     @Transactional
     public I983Plan createPlan(CreateI983Request req, User creator) {
-        Candidate candidate = candidateRepository.findById(req.getCandidateId())
-                .orElseThrow(() -> new ResourceNotFoundException(
-                        "Candidate not found: " + req.getCandidateId()));
+        // Either candidateId or applicationId must be provided. If only the
+        // applicationId is given, derive candidateId from the application's FK.
+        if (req.getCandidateId() == null && req.getApplicationId() == null) {
+            throw new BadRequestException(
+                    "Either candidateId or applicationId is required");
+        }
 
-        // Resolve application: explicit ID, or candidate's most recent ACCEPTED.
         Application application = null;
+        Candidate candidate;
+
         if (req.getApplicationId() != null) {
             application = applicationRepository.findById(req.getApplicationId())
                     .orElseThrow(() -> new ResourceNotFoundException(
                             "Application not found: " + req.getApplicationId()));
+            // If both IDs were sent, the explicit candidateId wins; otherwise
+            // derive from the application's candidate FK.
+            UUID resolvedCandidateId = req.getCandidateId() != null
+                    ? req.getCandidateId()
+                    : (application.getCandidate() != null
+                            ? application.getCandidate().getId()
+                            : null);
+            if (resolvedCandidateId == null) {
+                throw new BadRequestException(
+                        "Application has no candidate — cannot create I-983 plan");
+            }
+            candidate = candidateRepository.findById(resolvedCandidateId)
+                    .orElseThrow(() -> new ResourceNotFoundException(
+                            "Candidate not found: " + resolvedCandidateId));
         } else {
+            candidate = candidateRepository.findById(req.getCandidateId())
+                    .orElseThrow(() -> new ResourceNotFoundException(
+                            "Candidate not found: " + req.getCandidateId()));
             application = applicationRepository.findByCandidateId(candidate.getId())
                     .stream()
                     .filter(a -> a.getStatus() == ApplicationStatus.ACCEPTED)

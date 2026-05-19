@@ -582,3 +582,198 @@ export interface EVerifyHistoryEntryResponse {
   performedByRole?: string;
   summary: string;
 }
+
+// === Form I-983 (STEM OPT Training Plan) =====================================
+
+export type I983Status =
+  | 'DRAFT'
+  | 'COMPLETE'
+  | 'SUBMITTED_TO_DSO'
+  | 'DSO_APPROVED'
+  | 'DSO_REJECTED'
+  | 'AMENDMENT_REQUESTED';
+
+export type DegreeLevel = 'BACHELORS' | 'MASTERS' | 'DOCTORATE';
+
+export type DsoApprovalStatus =
+  | 'NOT_SUBMITTED'
+  | 'SUBMITTED'
+  | 'APPROVED'
+  | 'REJECTED'
+  | 'AMENDMENT_REQUESTED';
+
+export interface I983PlanResponse {
+  id: Uuid;
+  candidateId?: Uuid;
+  candidateName?: string;
+  candidateEmail?: string;
+  applicationId?: Uuid;
+  offerId?: Uuid;
+  entityId?: Uuid;
+  entityName?: string;
+  status: I983Status;
+
+  // Section 1
+  studentLastName?: string;
+  studentFirstName?: string;
+  studentMiddleName?: string;
+  sevisId?: string;
+  uscisNumber?: string;
+  studentEmail?: string;
+  degreeAwarded?: string;
+  degreeLevel?: DegreeLevel;
+  universityName?: string;
+  universityCipCode?: string;
+  dateOfDegreeAward?: string;
+  optStartDate?: string;
+  optEndDate?: string;
+
+  // Section 2
+  employerName?: string;
+  employerEin?: string;
+  employerAddress?: string;
+  employerWebsite?: string;
+  employerNaicsCode?: string;
+  employerNumberOfFullTimeEmployees?: number;
+  employerOfficialName?: string;
+  employerOfficialTitle?: string;
+  employerOfficialEmail?: string;
+  employerOfficialPhone?: string;
+
+  // Section 3
+  jobTitle?: string;
+  trainingStartDate?: string;
+  trainingEndDate?: string;
+  hoursPerWeek?: number;
+  compensationAmount?: number | string;
+  compensationFrequency?: CompensationFrequency;
+  compensationCurrency?: string;
+  supervisorName?: string;
+  supervisorTitle?: string;
+  supervisorEmail?: string;
+  supervisorPhone?: string;
+
+  // Section 4
+  trainingProgramDescription?: string;
+  howTrainingRelatesToDegree?: string;
+  trainingGoalsAndObjectives?: string;
+  performanceEvaluationMethod?: string;
+  reportingRequirements?: string;
+  skillsKnowledgeLearned?: string;
+  resourcesEquipmentMaterials?: string;
+  supervisorCommitments?: string;
+
+  // Signatures
+  employerSignedAt?: IsoDateTime;
+  employerSignedByName?: string;
+  employerSignedName?: string;
+  studentSignedAt?: IsoDateTime;
+  studentSignedName?: string;
+
+  // DSO tracking
+  dsoSubmittedAt?: IsoDateTime;
+  dsoSubmittedByName?: string;
+  dsoApprovalStatus: DsoApprovalStatus;
+  dsoApprovalNotes?: string;
+  dsoRespondedAt?: IsoDateTime;
+
+  // Computed — Jackson serializes the boolean isFullySigned() getter as "fullySigned".
+  fullySigned: boolean;
+  daysSinceCreation?: number;
+  daysOverdue?: number;
+
+  createdAt: IsoDateTime;
+  updatedAt: IsoDateTime;
+  createdByName?: string;
+}
+
+export interface I983SummaryResponse {
+  id: Uuid;
+  candidateId?: Uuid;
+  candidateName?: string;
+  entityName?: string;
+  jobTitle?: string;
+  status: I983Status;
+  dsoApprovalStatus: DsoApprovalStatus;
+  /** Jackson serializes boolean isEmployerSigned() as "employerSigned". */
+  employerSigned: boolean;
+  /** Jackson serializes boolean isStudentSigned() as "studentSigned". */
+  studentSigned: boolean;
+  trainingStartDate?: string;
+  createdAt: IsoDateTime;
+  updatedAt: IsoDateTime;
+}
+
+export interface CreateI983Request {
+  /** Optional when applicationId is provided — backend derives from the application. */
+  candidateId?: Uuid;
+  applicationId?: Uuid;
+  offerId?: Uuid;
+}
+
+export interface UpdateI983Request {
+  // Section 1
+  studentLastName?: string;
+  studentFirstName?: string;
+  studentMiddleName?: string;
+  sevisId?: string;
+  uscisNumber?: string;
+  studentEmail?: string;
+  degreeAwarded?: string;
+  degreeLevel?: DegreeLevel;
+  universityName?: string;
+  universityCipCode?: string;
+  dateOfDegreeAward?: string;
+  optStartDate?: string;
+  optEndDate?: string;
+  // Section 2
+  employerName?: string;
+  employerEin?: string;
+  employerAddress?: string;
+  employerWebsite?: string;
+  employerNaicsCode?: string;
+  employerNumberOfFullTimeEmployees?: number;
+  employerOfficialName?: string;
+  employerOfficialTitle?: string;
+  employerOfficialEmail?: string;
+  employerOfficialPhone?: string;
+  // Section 3
+  jobTitle?: string;
+  trainingStartDate?: string;
+  trainingEndDate?: string;
+  hoursPerWeek?: number;
+  compensationAmount?: number;
+  compensationFrequency?: CompensationFrequency;
+  compensationCurrency?: string;
+  supervisorName?: string;
+  supervisorTitle?: string;
+  supervisorEmail?: string;
+  supervisorPhone?: string;
+  // Section 4
+  trainingProgramDescription?: string;
+  howTrainingRelatesToDegree?: string;
+  trainingGoalsAndObjectives?: string;
+  performanceEvaluationMethod?: string;
+  reportingRequirements?: string;
+  skillsKnowledgeLearned?: string;
+  resourcesEquipmentMaterials?: string;
+  supervisorCommitments?: string;
+}
+
+export interface SubmitToDsoRequest {
+  submissionNotes?: string;
+}
+
+export interface DsoResponseRequest {
+  approvalStatus: 'APPROVED' | 'REJECTED' | 'AMENDMENT_REQUESTED';
+  notes?: string;
+}
+
+export interface I983HistoryEntryResponse {
+  auditId: Uuid;
+  timestamp: IsoDateTime;
+  action: string;
+  performedByName?: string;
+  performedByRole?: string;
+  summary: string;
+}
