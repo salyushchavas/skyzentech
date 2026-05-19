@@ -51,7 +51,7 @@ export default function ProtectedRoute({ children, requiredRoles }: Props) {
       <div className="flex min-h-[40vh] items-center justify-center">
         <div
           aria-label="Loading"
-          className="h-10 w-10 animate-spin rounded-full border-4 border-blue-600 border-t-transparent"
+          className="h-10 w-10 animate-spin rounded-full border-4 border-accent border-t-transparent"
         />
       </div>
     );

@@ -23,7 +23,7 @@ function Spinner() {
     <div className="flex min-h-[40vh] items-center justify-center">
       <div
         aria-label="Loading"
-        className="h-10 w-10 animate-spin rounded-full border-4 border-blue-600 border-t-transparent"
+        className="h-10 w-10 animate-spin rounded-full border-4 border-accent border-t-transparent"
       />
     </div>
   );
@@ -87,7 +87,7 @@ function ApplicationsList() {
           </p>
           <Link
             href="/careers/openings"
-            className="inline-block rounded bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
+            className="inline-block rounded-full bg-gradient-to-r from-accent to-accent-dark px-5 py-2.5 text-sm font-semibold text-white shadow-glow-accent transition hover:shadow-glow-accent-lg"
           >
             Browse open internships
           </Link>
@@ -113,7 +113,7 @@ function ApplicationsList() {
                     <td className="px-4 py-3">
                       <Link
                         href={`/careers/openings/${a.jobPostingId}`}
-                        className="font-medium text-blue-600 hover:underline"
+                        className="font-medium text-primary-700 hover:text-primary-800 hover:underline"
                       >
                         {a.jobPostingTitle ?? '(untitled)'}
                       </Link>
@@ -143,7 +143,7 @@ function ApplicationsList() {
               >
                 <Link
                   href={`/careers/openings/${a.jobPostingId}`}
-                  className="block font-medium text-blue-600"
+                  className="block font-medium text-primary-700 hover:text-primary-800"
                 >
                   {a.jobPostingTitle ?? '(untitled)'}
                 </Link>

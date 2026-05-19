@@ -21,7 +21,7 @@ export default function JobPostingCard({ posting }: Props) {
   return (
     <Link
       href={`/careers/openings/${posting.slug}`}
-      className="group block rounded-lg border border-slate-200 bg-white p-6 transition hover:border-blue-300 hover:shadow-md"
+      className="group block rounded-lg border border-slate-200 bg-white p-6 transition hover:border-accent/40 hover:shadow-md"
     >
       <div className="mb-3 flex flex-wrap items-center gap-2">
         {posting.entityName && (
@@ -29,18 +29,18 @@ export default function JobPostingCard({ posting }: Props) {
             {posting.entityName}
           </span>
         )}
-        <span className="inline-block rounded-md bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-700">
+        <span className="inline-block rounded-md bg-accent/10 px-2 py-0.5 text-xs font-medium text-primary-700">
           {EMPLOYMENT_LABEL[posting.employmentType] ?? posting.employmentType}
         </span>
       </div>
-      <h3 className="mb-2 text-lg font-semibold text-slate-900 group-hover:text-blue-700">
+      <h3 className="mb-2 text-lg font-semibold text-slate-900 group-hover:text-primary-800">
         {posting.title}
       </h3>
       <p className="mb-3 text-sm text-slate-500">{posting.location}</p>
       <p className="mb-4 line-clamp-2 text-sm text-slate-600">
         {descriptionExcerpt(posting.description)}
       </p>
-      <span className="inline-flex items-center text-sm font-medium text-blue-600 group-hover:underline">
+      <span className="inline-flex items-center text-sm font-medium text-primary-700 group-hover:text-primary-800 group-hover:underline">
         View details &rarr;
       </span>
     </Link>

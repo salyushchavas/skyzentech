@@ -80,7 +80,7 @@ export default async function JobPostingDetailPage({ params }: Props) {
         </p>
         <Link
           href="/careers/openings"
-          className="inline-block rounded bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
+          className="inline-block rounded-full bg-gradient-to-r from-accent to-accent-dark px-5 py-2.5 text-sm font-semibold text-white shadow-glow-accent transition hover:shadow-glow-accent-lg"
         >
           Back to all openings
         </Link>
@@ -97,7 +97,7 @@ export default async function JobPostingDetailPage({ params }: Props) {
       <div className="mb-3">
         <Link
           href="/careers/openings"
-          className="text-sm text-blue-600 hover:underline"
+          className="text-sm font-medium text-primary-700 hover:text-primary-800 hover:underline"
         >
           &larr; All openings
         </Link>
@@ -110,7 +110,7 @@ export default async function JobPostingDetailPage({ params }: Props) {
               {posting.entityName}
             </span>
           )}
-          <span className="inline-block rounded-md bg-blue-50 px-2.5 py-1 text-xs font-medium text-blue-700">
+          <span className="inline-block rounded-md bg-accent/10 px-2.5 py-1 text-xs font-medium text-primary-700">
             {employment}
           </span>
           <span className="inline-block rounded-md bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-700">
@@ -152,7 +152,7 @@ export default async function JobPostingDetailPage({ params }: Props) {
             </p>
             <Link
               href={`/careers/openings/${posting.slug}/apply`}
-              className="block w-full rounded bg-blue-600 px-4 py-3 text-center text-sm font-semibold text-white hover:bg-blue-700"
+              className="block w-full rounded-full bg-gradient-to-r from-accent to-accent-dark px-4 py-3 text-center text-sm font-semibold text-white shadow-glow-accent transition hover:shadow-glow-accent-lg"
             >
               Apply Now
             </Link>

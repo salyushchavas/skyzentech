@@ -44,7 +44,7 @@ export default function AdminDashboard() {
           type="button"
           onClick={runTest}
           disabled={testing}
-          className="rounded bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+          className="rounded bg-accent px-4 py-2 text-sm font-medium text-white hover:bg-accent-dark disabled:opacity-50"
         >
           {testing ? 'Testing…' : 'Test admin endpoint'}
         </button>

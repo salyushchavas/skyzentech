@@ -103,7 +103,7 @@ function ApplyFlow() {
   if (loading) {
     return (
       <div className="flex min-h-[40vh] items-center justify-center">
-        <div className="h-10 w-10 animate-spin rounded-full border-4 border-blue-600 border-t-transparent" />
+        <div className="h-10 w-10 animate-spin rounded-full border-4 border-accent border-t-transparent" />
       </div>
     );
   }
@@ -130,7 +130,7 @@ function ApplyFlow() {
         <p className="mb-4 text-sm text-slate-700">This position is no longer open.</p>
         <Link
           href="/careers/openings"
-          className="rounded bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-700"
+          className="rounded bg-accent px-3 py-1.5 text-sm font-medium text-white hover:bg-accent-dark"
         >
           Back to all openings
         </Link>
@@ -146,7 +146,7 @@ function ApplyFlow() {
       <div className="mb-3">
         <Link
           href={`/careers/openings/${posting.slug}`}
-          className="text-sm text-blue-600 hover:underline"
+          className="text-sm font-medium text-primary-700 hover:text-primary-800 hover:underline"
         >
           &larr; Back to position
         </Link>
@@ -198,7 +198,7 @@ function ApplyFlow() {
               id="resumeSelect"
               value={selectedResumeId}
               onChange={(e) => setSelectedResumeId(e.target.value)}
-              className="mb-4 w-full rounded border border-slate-300 px-3 py-2 text-sm focus:border-blue-600 focus:outline-none focus:ring-1 focus:ring-blue-600"
+              className="mb-4 w-full rounded border border-slate-300 px-3 py-2 text-sm focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
             >
               {resumes.map((r) => (
                 <option key={r.id} value={r.id}>
@@ -211,7 +211,7 @@ function ApplyFlow() {
             <button
               type="button"
               onClick={() => setShowUploader((v) => !v)}
-              className="text-sm font-medium text-blue-600 hover:underline"
+              className="text-sm font-medium text-primary-700 hover:text-primary-800 hover:underline"
             >
               {showUploader ? 'Hide upload' : 'Upload a different resume'}
             </button>
@@ -226,7 +226,7 @@ function ApplyFlow() {
         <button
           type="submit"
           disabled={!canSubmit}
-          className="w-full rounded bg-blue-600 px-4 py-3 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50"
+          className="w-full rounded-full bg-gradient-to-r from-accent to-accent-dark px-4 py-3 text-sm font-semibold text-white shadow-glow-accent transition hover:shadow-glow-accent-lg disabled:opacity-50 disabled:shadow-none"
         >
           {submitting ? 'Submitting…' : 'Submit Application'}
         </button>

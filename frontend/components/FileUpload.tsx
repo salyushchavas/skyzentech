@@ -111,8 +111,8 @@ export default function FileUpload({
         className={
           'flex cursor-pointer flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed p-8 text-center transition ' +
           (dragOver
-            ? 'border-blue-500 bg-blue-50'
-            : 'border-slate-300 bg-slate-50 hover:border-blue-400 hover:bg-blue-50/40') +
+            ? 'border-accent bg-accent/5'
+            : 'border-slate-300 bg-slate-50 hover:border-accent/60 hover:bg-accent/5') +
           (interactive ? '' : ' cursor-not-allowed opacity-60')
         }
       >
@@ -150,7 +150,7 @@ export default function FileUpload({
         <div className="mt-3 flex items-center gap-2 text-sm text-slate-600">
           <span className="font-medium">{selectedName}</span>
           {uploading && (
-            <span className="inline-block h-3 w-3 animate-spin rounded-full border-2 border-blue-600 border-t-transparent" />
+            <span className="inline-block h-3 w-3 animate-spin rounded-full border-2 border-accent border-t-transparent" />
           )}
           {uploading && <span>Uploading…</span>}
         </div>

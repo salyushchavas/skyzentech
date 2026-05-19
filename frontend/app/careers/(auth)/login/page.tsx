@@ -60,7 +60,7 @@ export default function LoginPage() {
             autoComplete="email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            className="w-full rounded border border-slate-300 px-3 py-2 focus:border-blue-600 focus:outline-none focus:ring-1 focus:ring-blue-600"
+            className="w-full rounded border border-slate-300 px-3 py-2 focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
           />
         </div>
         <div>
@@ -74,22 +74,28 @@ export default function LoginPage() {
             autoComplete="current-password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            className="w-full rounded border border-slate-300 px-3 py-2 focus:border-blue-600 focus:outline-none focus:ring-1 focus:ring-blue-600"
+            className="w-full rounded border border-slate-300 px-3 py-2 focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
           />
         </div>
         <button
           type="submit"
           disabled={loading}
-          className="w-full rounded bg-blue-600 px-4 py-2 font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+          className="w-full rounded-full bg-gradient-to-r from-accent to-accent-dark px-4 py-2.5 font-semibold text-white shadow-glow-accent transition hover:shadow-glow-accent-lg disabled:opacity-50 disabled:shadow-none"
         >
           {loading ? 'Signing in…' : 'Sign in'}
         </button>
       </form>
       <div className="mt-6 flex justify-between text-sm">
-        <Link href="/careers/register" className="text-blue-600 hover:underline">
+        <Link
+          href="/careers/register"
+          className="font-medium text-primary-700 hover:text-primary-800 hover:underline"
+        >
           Create an account
         </Link>
-        <Link href="/careers/forgot-password" className="text-blue-600 hover:underline">
+        <Link
+          href="/careers/forgot-password"
+          className="font-medium text-primary-700 hover:text-primary-800 hover:underline"
+        >
           Forgot password?
         </Link>
       </div>

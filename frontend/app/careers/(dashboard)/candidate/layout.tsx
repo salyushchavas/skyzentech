@@ -34,7 +34,7 @@ export default function CandidateLayout({
                     className={
                       'block rounded px-3 py-2 text-sm font-medium ' +
                       (active
-                        ? 'bg-blue-50 text-blue-700'
+                        ? 'bg-accent/10 text-primary-800'
                         : 'text-slate-700 hover:bg-slate-50 hover:text-slate-900')
                     }
                   >

@@ -108,13 +108,16 @@ export default function RegisterPage() {
         <button
           type="submit"
           disabled={loading}
-          className="w-full rounded bg-blue-600 px-4 py-2 font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+          className="w-full rounded-full bg-gradient-to-r from-accent to-accent-dark px-4 py-2.5 font-semibold text-white shadow-glow-accent transition hover:shadow-glow-accent-lg disabled:opacity-50 disabled:shadow-none"
         >
           {loading ? 'Creating account…' : 'Create account'}
         </button>
       </form>
       <div className="mt-6 text-center text-sm">
-        <Link href="/careers/login" className="text-blue-600 hover:underline">
+        <Link
+          href="/careers/login"
+          className="font-medium text-primary-700 hover:text-primary-800 hover:underline"
+        >
           Already have an account? Sign in
         </Link>
       </div>
@@ -147,7 +150,7 @@ function Field(props: FieldProps) {
         minLength={props.minLength}
         value={props.value}
         onChange={(e) => props.onChange(e.target.value)}
-        className="w-full rounded border border-slate-300 px-3 py-2 focus:border-blue-600 focus:outline-none focus:ring-1 focus:ring-blue-600"
+        className="w-full rounded border border-slate-300 px-3 py-2 focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
       />
     </div>
   );
