@@ -12,4 +12,7 @@ public interface AuditLogRepository extends JpaRepository<AuditLog, UUID> {
 
     List<AuditLog> findByEntityTypeAndEntityIdOrderByTimestampDesc(
             String entityType, UUID entityId);
+
+    /** Most recent audit entries across all entity types — used by Compliance Overview. */
+    List<AuditLog> findTop25ByOrderByTimestampDesc();
 }

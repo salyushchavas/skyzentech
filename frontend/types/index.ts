@@ -777,3 +777,113 @@ export interface I983HistoryEntryResponse {
   performedByRole?: string;
   summary: string;
 }
+
+// === Document Vault ==========================================================
+
+export type DocumentType = 'I9' | 'I983' | 'OFFER' | 'RESUME';
+
+export type DocumentStatusColor =
+  | 'green'
+  | 'amber'
+  | 'red'
+  | 'blue'
+  | 'gray'
+  | 'purple'
+  | 'orange';
+
+export interface DocumentRecordResponse {
+  id: Uuid;
+  type: DocumentType;
+  title: string;
+  candidateId?: Uuid;
+  candidateName?: string;
+  candidateEmail?: string;
+  entityName?: string;
+  status?: string;
+  statusLabel?: string;
+  statusColor?: DocumentStatusColor;
+  createdAt: IsoDateTime;
+  updatedAt: IsoDateTime;
+  retentionPolicyText?: string;
+  linkUrl?: string;
+  /** Jackson serializes the boolean isImmutable() as "immutable". */
+  immutable: boolean;
+  /** Jackson serializes the boolean isHasAuditLog() as "hasAuditLog". */
+  hasAuditLog: boolean;
+}
+
+// === Compliance Overview =====================================================
+
+export type AlertSeverity = 'CRITICAL' | 'WARNING' | 'INFO';
+
+export interface I9Stats {
+  total: number;
+  pending: number;
+  completed: number;
+  overdue: number;
+}
+
+export interface I983Stats {
+  total: number;
+  draft: number;
+  complete: number;
+  submittedToDso: number;
+  approved: number;
+  rejected: number;
+  amendment: number;
+}
+
+export interface EverifyStats {
+  total: number;
+  pendingSubmission: number;
+  open: number;
+  tnc: number;
+  authorized: number;
+  closed: number;
+}
+
+export interface OfferStats {
+  totalActive: number;
+  pending: number;
+  accepted: number;
+  declined: number;
+}
+
+export interface ComplianceStats {
+  i9: I9Stats;
+  i983: I983Stats;
+  everify: EverifyStats;
+  offers: OfferStats;
+}
+
+export interface ComplianceAlert {
+  severity: AlertSeverity;
+  title: string;
+  description?: string;
+  linkUrl?: string;
+  count?: number;
+}
+
+export interface UpcomingDeadline {
+  label: string;
+  dueDate: string;
+  daysUntilDue?: number;
+  candidateName?: string;
+  linkUrl?: string;
+}
+
+export interface RecentAction {
+  timestamp: IsoDateTime;
+  summary: string;
+  performedByName?: string;
+  performedByRole?: string;
+  entityType?: string;
+  entityLinkUrl?: string;
+}
+
+export interface ComplianceOverviewResponse {
+  stats: ComplianceStats;
+  alerts: ComplianceAlert[];
+  upcomingDeadlines: UpcomingDeadline[];
+  recentActions: RecentAction[];
+}

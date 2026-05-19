@@ -1,148 +1,347 @@
 'use client';
 
-import { useState } from 'react';
-import { FileText, Lock } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import { Download, FileText } from 'lucide-react';
+import toast from 'react-hot-toast';
+import api from '@/lib/api';
 import DashboardLayout from '@/components/dashboard/DashboardLayout';
 import ProtectedRoute from '@/components/ProtectedRoute';
-import PreviewShell from '@/components/preview/PreviewShell';
-import MockButton from '@/components/preview/MockButton';
 import StatCard from '@/components/preview/StatCard';
+import DocumentStatusBadge from '@/components/documents/DocumentStatusBadge';
+import { formatDateOnly, formatRelative } from '@/lib/format-date';
+import type {
+  DocumentRecordResponse,
+  DocumentType,
+  Page,
+} from '@/types';
 
-type DocType = 'I-9' | 'I-983' | 'Resume' | 'Offer Letter' | 'Audit Report';
+const TYPE_LABEL: Record<DocumentType, string> = {
+  I9: 'I-9',
+  I983: 'I-983',
+  OFFER: 'Offer Letter',
+  RESUME: 'Resume',
+};
 
-interface DocRow {
-  filename: string;
-  type: DocType;
-  candidate: string;
-  created: string;
-  retention: string;
-  version: string;
-  actions: string[];
-}
+const TYPE_COLOR: Record<DocumentType, string> = {
+  I9: 'bg-red-100 text-red-700',
+  I983: 'bg-blue-100 text-blue-700',
+  OFFER: 'bg-green-100 text-green-700',
+  RESUME: 'bg-gray-100 text-gray-700',
+};
 
-const DOCS: DocRow[] = [
-  { filename: 'Priya_Sharma_I9.pdf', type: 'I-9', candidate: 'Priya Sharma', created: 'May 14, 2026', retention: 'May 14, 2029', version: 'v2', actions: ['View', 'Download', 'Audit Log'] },
-  { filename: 'Marcus_Chen_I983.pdf', type: 'I-983', candidate: 'Marcus Chen', created: 'May 8, 2026', retention: 'May 8, 2029', version: 'v3 (Latest)', actions: ['View', 'History (3)'] },
-  { filename: 'Aisha_Patel_Resume.pdf', type: 'Resume', candidate: 'Aisha Patel', created: 'Apr 30, 2026', retention: '—', version: 'v1', actions: ['View', 'Download'] },
-  { filename: 'Lin_Zhou_OfferLetter.pdf', type: 'Offer Letter', candidate: 'Lin Zhou', created: 'May 1, 2026', retention: 'Permanent', version: 'Signed', actions: ['View'] },
-  { filename: 'Jamal_Williams_I9.pdf', type: 'I-9', candidate: 'Jamal Williams', created: 'May 12, 2026', retention: 'May 12, 2029', version: 'v1', actions: ['View', 'Audit Log'] },
-  { filename: 'Quarterly_Audit_2026Q1.pdf', type: 'Audit Report', candidate: '(Internal)', created: 'Apr 1, 2026', retention: 'Permanent', version: 'v1', actions: ['View'] },
-];
+const PAGE_SIZE = 500; // demo: fetch everything, paginate client-side stats
 
-const FILTERS: ReadonlyArray<{ key: string; label: string }> = [
-  { key: 'all', label: 'All' },
-  { key: 'I-9', label: 'I-9' },
-  { key: 'I-983', label: 'I-983' },
-  { key: 'Offer Letter', label: 'Offer Letters' },
-  { key: 'Resume', label: 'Resumes' },
-  { key: 'Other', label: 'Other' },
-];
-
-const ENCRYPTED_TYPES: ReadonlyArray<DocType> = ['I-9', 'I-983'];
-
-export default function HrDocumentsPage() {
+export default function DocumentVaultPage() {
   return (
-    <ProtectedRoute requiredRoles={['HR_COMPLIANCE', 'ADMIN']}>
+    <ProtectedRoute requiredRoles={['HR_COMPLIANCE', 'ERM', 'ADMIN']}>
       <DashboardLayout title="Document Vault">
-        <PreviewShell>
-          <Body />
-        </PreviewShell>
+        <Body />
       </DashboardLayout>
     </ProtectedRoute>
   );
 }
 
 function Body() {
-  const [filter, setFilter] = useState<string>('all');
+  const router = useRouter();
+  const [rows, setRows] = useState<DocumentRecordResponse[] | null>(null);
+  const [totalElements, setTotalElements] = useState(0);
+  const [error, setError] = useState<string | null>(null);
+  const [search, setSearch] = useState('');
+  const [typeFilter, setTypeFilter] = useState<DocumentType | 'ALL'>('ALL');
+  const [statusContains, setStatusContains] = useState('');
 
-  const filtered = filter === 'all'
-    ? DOCS
-    : filter === 'Other'
-      ? DOCS.filter((d) => d.type === 'Audit Report')
-      : DOCS.filter((d) => d.type === filter);
+  const load = useCallback(async () => {
+    setError(null);
+    try {
+      const res = await api.get<Page<DocumentRecordResponse>>(
+        '/api/v1/documents',
+        { params: { size: PAGE_SIZE } }
+      );
+      setRows(res.data?.content ?? []);
+      setTotalElements(res.data?.totalElements ?? 0);
+    } catch (err: any) {
+      setError(err?.response?.data?.error ?? "Couldn't load documents.");
+      setRows(null);
+    }
+  }, []);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  const stats = useMemo(() => {
+    if (!rows) return { total: 0, i9: 0, i983: 0, offer: 0 };
+    let i9 = 0;
+    let i983 = 0;
+    let offer = 0;
+    for (const r of rows) {
+      if (r.type === 'I9') i9++;
+      else if (r.type === 'I983') i983++;
+      else if (r.type === 'OFFER') offer++;
+    }
+    return { total: rows.length, i9, i983, offer };
+  }, [rows]);
+
+  const filtered = useMemo(() => {
+    if (!rows) return [];
+    const q = search.trim().toLowerCase();
+    const s = statusContains.trim().toLowerCase();
+    return rows.filter((r) => {
+      if (typeFilter !== 'ALL' && r.type !== typeFilter) return false;
+      if (q) {
+        const hay =
+          (r.title ?? '').toLowerCase() +
+          ' ' +
+          (r.candidateName ?? '').toLowerCase();
+        if (!hay.includes(q)) return false;
+      }
+      if (s) {
+        const label = (r.statusLabel ?? '').toLowerCase();
+        if (!label.includes(s)) return false;
+      }
+      return true;
+    });
+  }, [rows, search, typeFilter, statusContains]);
+
+  async function downloadResume(id: string, filename: string) {
+    try {
+      const res = await api.get(`/api/v1/resumes/${id}/download`, {
+        responseType: 'blob',
+      });
+      const ctRaw = res.headers['content-type'];
+      const contentType =
+        typeof ctRaw === 'string' ? ctRaw : 'application/octet-stream';
+      const blob = new Blob([res.data], { type: contentType });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      const cdRaw = res.headers['content-disposition'];
+      const cd = typeof cdRaw === 'string' ? cdRaw : '';
+      const m = cd.match(/filename="?([^";]+)"?/);
+      a.download = m?.[1] ?? filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (err: any) {
+      toast.error(err?.response?.data?.error ?? 'Download failed');
+    }
+  }
+
+  function handleRowClick(r: DocumentRecordResponse) {
+    if (r.type === 'RESUME') {
+      toast('Use the Download button to access this resume', { icon: '📄' });
+      return;
+    }
+    if (r.linkUrl) router.push(r.linkUrl);
+  }
 
   return (
     <>
-      <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
+      {/* Top bar */}
+      <div className="mb-6 flex flex-wrap items-center gap-3">
         <input
           type="search"
-          placeholder="Search documents..."
-          className="w-72 rounded-md border border-gray-300 px-3 py-1.5 text-sm focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
+          placeholder="Search by candidate or document title…"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          className="w-80 rounded-md border border-gray-300 px-3 py-1.5 text-sm focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
         />
-        <div className="inline-flex rounded-md border border-gray-300 bg-white p-0.5">
-          {FILTERS.map((f) => (
-            <button
-              key={f.key}
-              type="button"
-              onClick={() => setFilter(f.key)}
-              className={
-                'rounded px-3 py-1 text-xs font-medium transition-colors ' +
-                (filter === f.key
-                  ? 'bg-accent text-white'
-                  : 'text-gray-600 hover:bg-gray-100')
-              }
-            >
-              {f.label}
-            </button>
-          ))}
+        <div className="flex flex-wrap items-center gap-2">
+          <select
+            value={typeFilter}
+            onChange={(e) => setTypeFilter(e.target.value as DocumentType | 'ALL')}
+            className="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm"
+          >
+            <option value="ALL">All types</option>
+            <option value="I9">I-9</option>
+            <option value="I983">I-983</option>
+            <option value="OFFER">Offer Letter</option>
+            <option value="RESUME">Resume</option>
+          </select>
+          <input
+            type="text"
+            placeholder="Status contains…"
+            value={statusContains}
+            onChange={(e) => setStatusContains(e.target.value)}
+            className="w-44 rounded-md border border-gray-300 px-3 py-1.5 text-sm"
+          />
         </div>
       </div>
 
+      {/* Stats */}
       <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <StatCard label="Total Documents" value={247} icon={FileText} />
-        <StatCard label="I-9 Records" value={38} />
-        <StatCard label="I-983 Records" value={24} />
-        <StatCard label="Retention Expiring (30d)" value={6} />
+        <StatCard
+          label="Total Documents"
+          value={totalElements || stats.total}
+          icon={FileText}
+        />
+        <StatCard label="I-9 Records" value={stats.i9} icon={FileText} />
+        <StatCard label="I-983 Records" value={stats.i983} icon={FileText} />
+        <StatCard label="Offer Letters" value={stats.offer} icon={FileText} />
       </div>
 
-      <div className="overflow-hidden rounded-lg border border-gray-200 bg-white">
-        <table className="min-w-full divide-y divide-gray-200 text-sm">
-          <thead className="bg-gray-50 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
-            <tr>
-              <th className="px-4 py-3">Document</th>
-              <th className="px-4 py-3">Type</th>
-              <th className="px-4 py-3">Candidate</th>
-              <th className="px-4 py-3">Created</th>
-              <th className="px-4 py-3">Retention Until</th>
-              <th className="px-4 py-3">Version</th>
-              <th className="px-4 py-3 text-right">Actions</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-100">
-            {filtered.map((d) => (
-              <tr key={d.filename} className="hover:bg-gray-50">
-                <td className="px-4 py-3">
-                  <div className="flex items-center gap-2">
-                    {ENCRYPTED_TYPES.includes(d.type) && (
-                      <Lock className="h-4 w-4 shrink-0 text-gray-400" strokeWidth={2} />
-                    )}
-                    <div>
-                      <div className="font-medium text-gray-900">{d.filename}</div>
-                      {ENCRYPTED_TYPES.includes(d.type) && (
-                        <div className="text-[11px] text-gray-400">🔒 KMS Encrypted</div>
-                      )}
-                    </div>
-                  </div>
-                </td>
-                <td className="px-4 py-3 text-gray-700">{d.type}</td>
-                <td className="px-4 py-3 text-gray-700">{d.candidate}</td>
-                <td className="px-4 py-3 text-gray-700">{d.created}</td>
-                <td className="px-4 py-3 text-gray-700">{d.retention}</td>
-                <td className="px-4 py-3 text-gray-700">{d.version}</td>
-                <td className="px-4 py-3">
-                  <div className="flex flex-wrap justify-end gap-2">
-                    {d.actions.map((a, i) => (
-                      <MockButton key={i} variant="ghost">
-                        {a}
-                      </MockButton>
-                    ))}
-                  </div>
-                </td>
+      {error && (
+        <div className="mb-6 rounded-md border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+          <p className="mb-2">{error}</p>
+          <button
+            type="button"
+            onClick={() => void load()}
+            className="rounded border border-red-300 px-3 py-1 text-xs font-medium hover:bg-red-100"
+          >
+            Retry
+          </button>
+        </div>
+      )}
+
+      {rows === null && !error && <LoadingSkeleton />}
+
+      {rows !== null && filtered.length === 0 && !error && (
+        <div className="rounded-lg border border-dashed border-gray-300 bg-white p-12 text-center">
+          <p className="text-base font-medium text-gray-700">
+            No documents match these filters
+          </p>
+          {(typeFilter !== 'ALL' || search || statusContains) && (
+            <button
+              type="button"
+              onClick={() => {
+                setTypeFilter('ALL');
+                setSearch('');
+                setStatusContains('');
+              }}
+              className="mt-3 text-sm font-medium text-accent hover:text-accent-dark"
+            >
+              Reset filters
+            </button>
+          )}
+        </div>
+      )}
+
+      {filtered.length > 0 && (
+        <div className="overflow-hidden rounded-lg border border-gray-200 bg-white">
+          <table className="min-w-full divide-y divide-gray-200 text-sm">
+            <thead className="bg-gray-50 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
+              <tr>
+                <th className="px-4 py-3">Document</th>
+                <th className="px-4 py-3">Type</th>
+                <th className="px-4 py-3">Candidate</th>
+                <th className="px-4 py-3">Status</th>
+                <th className="px-4 py-3">Created</th>
+                <th className="px-4 py-3">Updated</th>
+                <th className="px-4 py-3 text-right">Actions</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+            </thead>
+            <tbody className="divide-y divide-gray-100">
+              {filtered.map((r) => (
+                <tr
+                  key={r.type + '-' + r.id}
+                  onClick={() => handleRowClick(r)}
+                  className={
+                    'hover:bg-gray-50 ' +
+                    (r.type === 'RESUME' ? 'cursor-default' : 'cursor-pointer')
+                  }
+                >
+                  <td className="px-4 py-3">
+                    <div className="text-sm font-medium text-gray-900">
+                      {r.title}
+                    </div>
+                    {r.retentionPolicyText && (
+                      <div className="mt-0.5 text-xs italic text-gray-500">
+                        Retention: {r.retentionPolicyText}
+                      </div>
+                    )}
+                  </td>
+                  <td className="px-4 py-3">
+                    <span
+                      className={
+                        'inline-block rounded px-2 py-0.5 text-xs font-medium ' +
+                        TYPE_COLOR[r.type]
+                      }
+                    >
+                      {TYPE_LABEL[r.type]}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3">
+                    <div className="font-medium text-gray-900">
+                      {r.candidateName ?? '—'}
+                    </div>
+                    {r.candidateEmail && (
+                      <div className="text-xs text-gray-500">
+                        {r.candidateEmail}
+                      </div>
+                    )}
+                  </td>
+                  <td className="px-4 py-3">
+                    {r.statusLabel && r.statusColor ? (
+                      <DocumentStatusBadge
+                        statusLabel={r.statusLabel}
+                        color={r.statusColor}
+                      />
+                    ) : (
+                      <span className="text-gray-400">—</span>
+                    )}
+                  </td>
+                  <td className="px-4 py-3 text-sm text-gray-700">
+                    {formatDateOnly(r.createdAt)}
+                  </td>
+                  <td className="px-4 py-3 text-xs text-gray-500">
+                    {formatRelative(r.updatedAt)}
+                  </td>
+                  <td
+                    className="px-4 py-3 text-right"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    {r.type === 'RESUME' ? (
+                      <button
+                        type="button"
+                        onClick={() =>
+                          void downloadResume(r.id, r.title.replace(/^Resume:\s*/, ''))
+                        }
+                        className="inline-flex items-center gap-1 rounded-md border border-gray-300 bg-white px-2.5 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50"
+                      >
+                        <Download className="h-3 w-3" strokeWidth={2} />
+                        Download
+                      </button>
+                    ) : r.linkUrl ? (
+                      <Link
+                        href={r.linkUrl}
+                        className="rounded-md bg-accent px-2.5 py-1 text-xs font-semibold text-white hover:bg-accent-dark"
+                      >
+                        View
+                      </Link>
+                    ) : (
+                      <span className="text-xs text-gray-400">—</span>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
     </>
+  );
+}
+
+function LoadingSkeleton() {
+  return (
+    <div className="overflow-hidden rounded-lg border border-gray-200 bg-white">
+      <div className="space-y-1 p-1">
+        {Array.from({ length: 5 }).map((_, i) => (
+          <div
+            key={i}
+            className="flex items-center gap-3 border-b border-gray-100 p-3 last:border-b-0"
+          >
+            <div className="h-4 w-40 animate-pulse rounded bg-gray-200" />
+            <div className="h-4 w-16 animate-pulse rounded bg-gray-200" />
+            <div className="h-4 w-32 animate-pulse rounded bg-gray-200" />
+            <div className="h-4 w-20 animate-pulse rounded bg-gray-200" />
+            <div className="ml-auto h-7 w-20 animate-pulse rounded bg-gray-200" />
+          </div>
+        ))}
+      </div>
+    </div>
   );
 }
