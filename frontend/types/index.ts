@@ -108,3 +108,89 @@ export interface ResumeResponse {
   isDefault: boolean;
   createdAt: IsoDateTime;
 }
+
+// === Interviews ==============================================================
+
+export type InterviewType =
+  | 'INITIAL_SCREEN'
+  | 'TECHNICAL'
+  | 'BEHAVIORAL'
+  | 'CULTURE_FIT'
+  | 'FINAL_ROUND';
+
+export type InterviewStatus = 'SCHEDULED' | 'COMPLETED' | 'CANCELLED' | 'NO_SHOW';
+
+export type InterviewRecommendation =
+  | 'STRONG_HIRE'
+  | 'HIRE'
+  | 'NO_HIRE'
+  | 'STRONG_NO_HIRE';
+
+export interface InterviewResponse {
+  id: Uuid;
+  applicationId: Uuid;
+  applicationStatus?: ApplicationStatus;
+  candidateName?: string;
+  candidateEmail?: string;
+  jobPostingTitle?: string;
+  interviewerName?: string;
+  interviewerId?: Uuid;
+  scheduledAt: IsoDateTime;
+  durationMinutes: number;
+  type: InterviewType;
+  status: InterviewStatus;
+  meetingUrl?: string;
+  candidateNotes?: string;
+  feedbackOverallRating?: number;
+  feedbackTechnicalRating?: number;
+  feedbackCommunicationRating?: number;
+  feedbackStrengths?: string;
+  feedbackConcerns?: string;
+  feedbackRecommendation?: InterviewRecommendation;
+  feedbackSubmittedAt?: IsoDateTime;
+  feedbackSubmittedByName?: string;
+  createdAt: IsoDateTime;
+  createdByName?: string;
+}
+
+export interface InterviewSummaryResponse {
+  id: Uuid;
+  candidateName?: string;
+  jobPostingTitle?: string;
+  interviewerName?: string;
+  scheduledAt: IsoDateTime;
+  durationMinutes: number;
+  type: InterviewType;
+  status: InterviewStatus;
+  hasFeedback: boolean;
+}
+
+export interface CandidateInterviewResponse {
+  id: Uuid;
+  scheduledAt: IsoDateTime;
+  durationMinutes: number;
+  type: InterviewType;
+  status: InterviewStatus;
+  meetingUrl?: string;
+  candidateNotes?: string;
+  interviewerName?: string;
+}
+
+export interface ScheduleInterviewRequest {
+  applicationId: Uuid;
+  interviewerId: Uuid;
+  scheduledAt: IsoDateTime;
+  durationMinutes: number;
+  type: InterviewType;
+  meetingUrl?: string;
+  candidateNotes?: string;
+}
+
+export interface SubmitFeedbackRequest {
+  overallRating: number;
+  technicalRating?: number;
+  communicationRating?: number;
+  strengths?: string;
+  concerns?: string;
+  recommendation: InterviewRecommendation;
+}
