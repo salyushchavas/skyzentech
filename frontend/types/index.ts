@@ -343,3 +343,158 @@ export interface OnboardingSummaryResponse {
 export interface UpdateTaskStatusRequest {
   status: OnboardingTaskStatus;
 }
+
+// === Form I-9 ================================================================
+
+export type I9Status =
+  | 'NOT_STARTED'
+  | 'SECTION_1_COMPLETE'
+  | 'COMPLETED'
+  | 'REOPENED';
+
+export type CitizenshipStatus =
+  | 'US_CITIZEN'
+  | 'NONCITIZEN_NATIONAL'
+  | 'LAWFUL_PERMANENT_RESIDENT'
+  | 'ALIEN_AUTHORIZED_TO_WORK';
+
+export interface I9FormResponse {
+  // Identity
+  id: Uuid;
+  candidateId?: Uuid;
+  candidateName?: string;
+  candidateEmail?: string;
+  status: I9Status;
+
+  // Section 1
+  lastName?: string;
+  firstName?: string;
+  middleInitial?: string;
+  otherLastNamesUsed?: string;
+  addressStreet?: string;
+  addressAptNumber?: string;
+  addressCity?: string;
+  addressState?: string;
+  addressZipCode?: string;
+  /** LocalDate ISO string, e.g. "2002-05-23". */
+  dateOfBirth?: string;
+  ssn?: string;
+  email?: string;
+  phoneNumber?: string;
+  citizenshipStatus?: CitizenshipStatus;
+  alienRegistrationNumber?: string;
+  foreignPassportNumber?: string;
+  foreignPassportCountry?: string;
+  workAuthExpirationDate?: string;
+  preparerTranslatorUsed?: boolean;
+  section1SignedAt?: IsoDateTime;
+  section1SignedByName?: string;
+
+  // Section 2
+  firstDayOfEmployment?: string;
+  listATitle?: string;
+  listAIssuingAuthority?: string;
+  listADocumentNumber?: string;
+  listAExpirationDate?: string;
+  listBTitle?: string;
+  listBIssuingAuthority?: string;
+  listBDocumentNumber?: string;
+  listBExpirationDate?: string;
+  listCTitle?: string;
+  listCIssuingAuthority?: string;
+  listCDocumentNumber?: string;
+  additionalInformation?: string;
+  employerName?: string;
+  employerTitle?: string;
+  businessOrganizationName?: string;
+  businessAddress?: string;
+  section2SignedAt?: IsoDateTime;
+  section2SignedByName?: string;
+
+  // Computed
+  section2DueDate?: string;
+  /** Jackson serializes the boolean isOverdue() getter as "overdue". */
+  overdue: boolean;
+  daysUntilDue?: number;
+
+  createdAt: IsoDateTime;
+  updatedAt: IsoDateTime;
+}
+
+export interface I9SummaryResponse {
+  id: Uuid;
+  candidateId?: Uuid;
+  candidateName?: string;
+  candidateEmail?: string;
+  jobPostingTitle?: string;
+  status: I9Status;
+  firstDayOfEmployment?: string;
+  section2DueDate?: string;
+  overdue: boolean;
+  daysUntilDue?: number;
+}
+
+/**
+ * Section 1 wire payload.
+ *
+ * Note: the backend DTO field is named `draft` (renamed from `isDraft` to dodge
+ * a Lombok/Jackson naming collision — see B1 backend doc). So the JSON wire
+ * name is "draft", not "isDraft".
+ */
+export interface Section1Request {
+  lastName?: string;
+  firstName?: string;
+  middleInitial?: string;
+  otherLastNamesUsed?: string;
+  addressStreet?: string;
+  addressAptNumber?: string;
+  addressCity?: string;
+  addressState?: string;
+  addressZipCode?: string;
+  dateOfBirth?: string;
+  ssn?: string;
+  email?: string;
+  phoneNumber?: string;
+  citizenshipStatus?: CitizenshipStatus;
+  alienRegistrationNumber?: string;
+  foreignPassportNumber?: string;
+  foreignPassportCountry?: string;
+  workAuthExpirationDate?: string;
+  preparerTranslatorUsed?: boolean;
+  draft: boolean;
+}
+
+/** Section 2 wire payload (same `draft` convention as Section 1). */
+export interface Section2Request {
+  firstDayOfEmployment?: string;
+  listATitle?: string;
+  listAIssuingAuthority?: string;
+  listADocumentNumber?: string;
+  listAExpirationDate?: string;
+  listBTitle?: string;
+  listBIssuingAuthority?: string;
+  listBDocumentNumber?: string;
+  listBExpirationDate?: string;
+  listCTitle?: string;
+  listCIssuingAuthority?: string;
+  listCDocumentNumber?: string;
+  additionalInformation?: string;
+  employerName?: string;
+  employerTitle?: string;
+  businessOrganizationName?: string;
+  businessAddress?: string;
+  draft: boolean;
+}
+
+export interface I9HistoryEntryResponse {
+  auditId: Uuid;
+  timestamp: IsoDateTime;
+  action: string;
+  performedByName?: string;
+  performedByRole?: string;
+  summary: string;
+}
+
+export interface ReopenI9Request {
+  reason: string;
+}
