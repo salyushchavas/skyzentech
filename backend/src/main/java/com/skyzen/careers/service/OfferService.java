@@ -1,0 +1,634 @@
+package com.skyzen.careers.service;
+
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.skyzen.careers.dto.offer.CandidateOfferResponse;
+import com.skyzen.careers.dto.offer.CreateOfferRequest;
+import com.skyzen.careers.dto.offer.DeclineOfferRequest;
+import com.skyzen.careers.dto.offer.OfferResponse;
+import com.skyzen.careers.dto.offer.OfferSummaryResponse;
+import com.skyzen.careers.dto.offer.UpdateOfferRequest;
+import com.skyzen.careers.entity.Application;
+import com.skyzen.careers.entity.AuditLog;
+import com.skyzen.careers.entity.Candidate;
+import com.skyzen.careers.entity.JobPosting;
+import com.skyzen.careers.entity.Offer;
+import com.skyzen.careers.entity.StaffingEntity;
+import com.skyzen.careers.entity.User;
+import com.skyzen.careers.enums.ApplicationStatus;
+import com.skyzen.careers.enums.OfferStatus;
+import com.skyzen.careers.enums.UserRole;
+import com.skyzen.careers.exception.BadRequestException;
+import com.skyzen.careers.exception.ForbiddenException;
+import com.skyzen.careers.exception.ResourceNotFoundException;
+import com.skyzen.careers.repository.ApplicationRepository;
+import com.skyzen.careers.repository.AuditLogRepository;
+import com.skyzen.careers.repository.OfferRepository;
+import com.skyzen.careers.repository.UserRepository;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.Pageable;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.time.Instant;
+import java.time.LocalDate;
+import java.time.temporal.ChronoUnit;
+import java.util.ArrayList;
+import java.util.EnumSet;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.UUID;
+
+/**
+ * Lifecycle of an Offer:
+ *   DRAFT  -> SENT  -> ACCEPTED | DECLINED | EXPIRED | REVOKED
+ *   DRAFT  -> deleted
+ *
+ * Application status side effects:
+ *   send()    -> if app is still in the funnel, flip to OFFERED
+ *   accept()  -> always flip app to ACCEPTED
+ *   decline() -> always flip app to REJECTED (no separate DECLINED status in the enum)
+ *
+ * Application enum mapping (spec naming -> real enum):
+ *   OFFER_EXTENDED -> OFFERED
+ *   OFFER_ACCEPTED / HIRED -> ACCEPTED
+ *   OFFER_DECLINED -> REJECTED (existing convention; REJECTED is overloaded)
+ */
+@Service
+@RequiredArgsConstructor
+@Slf4j
+public class OfferService {
+
+    /** Application statuses we refuse to extend a new offer from. */
+    private static final Set<ApplicationStatus> TERMINAL_FOR_OFFER = EnumSet.of(
+            ApplicationStatus.ACCEPTED,
+            ApplicationStatus.REJECTED,
+            ApplicationStatus.WITHDRAWN,
+            ApplicationStatus.ONBOARDING,
+            ApplicationStatus.ACTIVE,
+            ApplicationStatus.COMPLETED,
+            ApplicationStatus.LAPSED,
+            ApplicationStatus.NO_SHOW
+    );
+
+    /** Privileged staff roles that get the full OfferResponse view. */
+    private static final Set<UserRole> STAFF_ROLES = EnumSet.of(
+            UserRole.ADMIN,
+            UserRole.ERM,
+            UserRole.HR_COMPLIANCE,
+            UserRole.RECRUITER
+    );
+
+    private final OfferRepository offerRepository;
+    private final ApplicationRepository applicationRepository;
+    private final UserRepository userRepository;
+    private final AuditLogRepository auditLogRepository;
+    private final OfferLetterTemplate letterTemplate;
+    private final ObjectMapper objectMapper;
+
+    // ── Commands ────────────────────────────────────────────────────────────
+
+    @Transactional
+    public OfferResponse create(CreateOfferRequest req, User creator) {
+        Application application = applicationRepository.findById(req.getApplicationId())
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "Application not found: " + req.getApplicationId()));
+
+        if (TERMINAL_FOR_OFFER.contains(application.getStatus())) {
+            throw new BadRequestException(
+                    "Cannot create offer for application in status " + application.getStatus());
+        }
+
+        if (req.getExpectedEndDate() != null
+                && !req.getExpectedEndDate().isAfter(req.getStartDate())) {
+            throw new BadRequestException("expectedEndDate must be after startDate");
+        }
+        if (req.getStartDate().isBefore(LocalDate.now())) {
+            throw new BadRequestException("startDate must be today or in the future");
+        }
+
+        int daysToRespond = req.getDaysToRespond() != null ? req.getDaysToRespond() : 7;
+        Instant expiresAt = Instant.now().plus(daysToRespond, ChronoUnit.DAYS);
+        String currency = req.getCompensationCurrency() != null
+                ? req.getCompensationCurrency().toUpperCase()
+                : "USD";
+
+        Offer offer = Offer.builder()
+                .application(application)
+                .compensationAmount(req.getCompensationAmount())
+                .compensationFrequency(req.getCompensationFrequency())
+                .compensationCurrency(currency)
+                .startDate(req.getStartDate())
+                .expectedEndDate(req.getExpectedEndDate())
+                .expiresAt(expiresAt)
+                .status(OfferStatus.DRAFT)
+                .additionalTerms(req.getAdditionalTerms())
+                .createdBy(creator.getId())
+                .build();
+
+        Candidate candidate = application.getCandidate();
+        JobPosting posting = application.getJobPosting();
+        StaffingEntity entity = posting != null ? posting.getEntity() : null;
+        offer.setLetterContent(letterTemplate.generate(candidate, posting, entity, offer));
+
+        offer = offerRepository.save(offer);
+        writeAudit("Offer", offer.getId(), "CREATE", creator.getId(),
+                null, snapshot(offer));
+        return toResponse(offer);
+    }
+
+    @Transactional
+    public OfferResponse update(UUID offerId, UpdateOfferRequest req, User actor) {
+        Offer offer = offerRepository.findById(offerId)
+                .orElseThrow(() -> new ResourceNotFoundException("Offer not found: " + offerId));
+
+        if (offer.getStatus() != OfferStatus.DRAFT) {
+            throw new BadRequestException(
+                    "Cannot edit offer in status " + offer.getStatus()
+                            + " — only DRAFT offers are editable");
+        }
+
+        Map<String, Object> before = snapshot(offer);
+
+        boolean compChanged = false;
+        if (req.getCompensationAmount() != null) {
+            offer.setCompensationAmount(req.getCompensationAmount());
+            compChanged = true;
+        }
+        if (req.getCompensationFrequency() != null) {
+            offer.setCompensationFrequency(req.getCompensationFrequency());
+            compChanged = true;
+        }
+        if (req.getCompensationCurrency() != null) {
+            offer.setCompensationCurrency(req.getCompensationCurrency().toUpperCase());
+            compChanged = true;
+        }
+        if (req.getStartDate() != null) {
+            offer.setStartDate(req.getStartDate());
+            compChanged = true;
+        }
+        if (req.getExpectedEndDate() != null) {
+            offer.setExpectedEndDate(req.getExpectedEndDate());
+            compChanged = true;
+        }
+        if (req.getDaysToRespond() != null) {
+            offer.setExpiresAt(offer.getCreatedAt() != null
+                    ? offer.getCreatedAt().plus(req.getDaysToRespond(), ChronoUnit.DAYS)
+                    : Instant.now().plus(req.getDaysToRespond(), ChronoUnit.DAYS));
+        }
+        if (req.getAdditionalTerms() != null) {
+            offer.setAdditionalTerms(req.getAdditionalTerms());
+            compChanged = true;
+        }
+
+        if (offer.getExpectedEndDate() != null
+                && !offer.getExpectedEndDate().isAfter(offer.getStartDate())) {
+            throw new BadRequestException("expectedEndDate must be after startDate");
+        }
+
+        if (req.getLetterContent() != null) {
+            offer.setLetterContent(req.getLetterContent());
+        } else if (compChanged) {
+            Application app = offer.getApplication();
+            Candidate candidate = app != null ? app.getCandidate() : null;
+            JobPosting posting = app != null ? app.getJobPosting() : null;
+            StaffingEntity entity = posting != null ? posting.getEntity() : null;
+            offer.setLetterContent(letterTemplate.generate(candidate, posting, entity, offer));
+        }
+
+        offer = offerRepository.save(offer);
+        writeAudit("Offer", offer.getId(), "UPDATE", actor.getId(),
+                before, snapshot(offer));
+        return toResponse(offer);
+    }
+
+    @Transactional
+    public OfferResponse send(UUID offerId, User sender) {
+        Offer offer = offerRepository.findById(offerId)
+                .orElseThrow(() -> new ResourceNotFoundException("Offer not found: " + offerId));
+
+        if (offer.getStatus() != OfferStatus.DRAFT) {
+            throw new BadRequestException(
+                    "Cannot send offer in status " + offer.getStatus() + " — only DRAFT can be sent");
+        }
+        if (offer.getExpiresAt() != null && offer.getExpiresAt().isBefore(Instant.now())) {
+            throw new BadRequestException(
+                    "Offer has expired before being sent; edit to extend response window");
+        }
+
+        Map<String, Object> before = snapshot(offer);
+        Instant now = Instant.now();
+        offer.setStatus(OfferStatus.SENT);
+        offer.setSentAt(now);
+        offer = offerRepository.save(offer);
+
+        Application application = offer.getApplication();
+        if (application != null && !isOfferTerminalForApp(application.getStatus())) {
+            Map<String, Object> appBefore = Map.of("status", application.getStatus());
+            application.setStatus(ApplicationStatus.OFFERED);
+            application.setStatusUpdatedAt(now);
+            application.setStatusUpdatedBy(sender.getId());
+            applicationRepository.save(application);
+            writeAudit("Application", application.getId(), "STATUS_CHANGE", sender.getId(),
+                    appBefore, Map.of("status", application.getStatus()));
+        }
+
+        writeAudit("Offer", offer.getId(), "SEND", sender.getId(), before, snapshot(offer));
+        return toResponse(offer);
+    }
+
+    @Transactional
+    public Offer acceptInternal(UUID offerId, User candidateUser) {
+        Offer offer = offerRepository.findById(offerId)
+                .orElseThrow(() -> new ResourceNotFoundException("Offer not found: " + offerId));
+        ensureCandidateOwns(offer, candidateUser);
+
+        if (lazyExpireIfNeeded(offer)) {
+            throw new BadRequestException(
+                    "Offer has expired and can no longer be accepted");
+        }
+        if (offer.getStatus() != OfferStatus.SENT) {
+            throw new BadRequestException(
+                    "Cannot accept offer in status " + offer.getStatus());
+        }
+
+        Map<String, Object> before = snapshot(offer);
+        Instant now = Instant.now();
+        offer.setStatus(OfferStatus.ACCEPTED);
+        offer.setRespondedAt(now);
+        offer = offerRepository.save(offer);
+
+        Application application = offer.getApplication();
+        if (application != null) {
+            Map<String, Object> appBefore = Map.of("status", application.getStatus());
+            application.setStatus(ApplicationStatus.ACCEPTED);
+            application.setStatusUpdatedAt(now);
+            application.setStatusUpdatedBy(candidateUser.getId());
+            applicationRepository.save(application);
+            writeAudit("Application", application.getId(), "STATUS_CHANGE", candidateUser.getId(),
+                    appBefore, Map.of("status", application.getStatus()));
+        }
+
+        writeAudit("Offer", offer.getId(), "ACCEPT", candidateUser.getId(),
+                before, snapshot(offer));
+        return offer;
+    }
+
+    @Transactional
+    public Offer declineInternal(UUID offerId, DeclineOfferRequest req, User candidateUser) {
+        Offer offer = offerRepository.findById(offerId)
+                .orElseThrow(() -> new ResourceNotFoundException("Offer not found: " + offerId));
+        ensureCandidateOwns(offer, candidateUser);
+
+        if (lazyExpireIfNeeded(offer)) {
+            throw new BadRequestException(
+                    "Offer has expired and can no longer be declined");
+        }
+        if (offer.getStatus() != OfferStatus.SENT) {
+            throw new BadRequestException(
+                    "Cannot decline offer in status " + offer.getStatus());
+        }
+
+        Map<String, Object> before = snapshot(offer);
+        Instant now = Instant.now();
+        offer.setStatus(OfferStatus.DECLINED);
+        offer.setRespondedAt(now);
+        offer.setDeclineReason(req != null ? req.getReason() : null);
+        offer = offerRepository.save(offer);
+
+        Application application = offer.getApplication();
+        if (application != null) {
+            Map<String, Object> appBefore = Map.of("status", application.getStatus());
+            application.setStatus(ApplicationStatus.REJECTED);
+            application.setStatusUpdatedAt(now);
+            application.setStatusUpdatedBy(candidateUser.getId());
+            applicationRepository.save(application);
+            writeAudit("Application", application.getId(), "STATUS_CHANGE", candidateUser.getId(),
+                    appBefore, Map.of("status", application.getStatus()));
+        }
+
+        writeAudit("Offer", offer.getId(), "DECLINE", candidateUser.getId(),
+                before, snapshot(offer));
+        return offer;
+    }
+
+    @Transactional
+    public OfferResponse revoke(UUID offerId, User actor) {
+        Offer offer = offerRepository.findById(offerId)
+                .orElseThrow(() -> new ResourceNotFoundException("Offer not found: " + offerId));
+
+        if (offer.getStatus() != OfferStatus.SENT) {
+            throw new BadRequestException(
+                    "Cannot revoke offer in status " + offer.getStatus()
+                            + " — only SENT offers can be revoked");
+        }
+
+        Map<String, Object> before = snapshot(offer);
+        Instant now = Instant.now();
+        offer.setStatus(OfferStatus.REVOKED);
+        offer.setRevokedAt(now);
+        offer.setRevokedBy(actor.getId());
+        offer = offerRepository.save(offer);
+        writeAudit("Offer", offer.getId(), "REVOKE", actor.getId(),
+                before, snapshot(offer));
+        return toResponse(offer);
+    }
+
+    @Transactional
+    public void delete(UUID offerId, User actor) {
+        Offer offer = offerRepository.findById(offerId)
+                .orElseThrow(() -> new ResourceNotFoundException("Offer not found: " + offerId));
+        if (offer.getStatus() != OfferStatus.DRAFT) {
+            throw new BadRequestException(
+                    "Cannot delete offer in status " + offer.getStatus()
+                            + " — only DRAFT offers can be deleted");
+        }
+        writeAudit("Offer", offer.getId(), "DELETE", actor.getId(),
+                snapshot(offer), null);
+        offerRepository.delete(offer);
+    }
+
+    // ── Queries ─────────────────────────────────────────────────────────────
+
+    @Transactional
+    public OfferResponse getDetailStaff(UUID offerId, User caller) {
+        Offer offer = loadAndLazyExpire(offerId);
+        return toResponse(offer);
+    }
+
+    @Transactional
+    public CandidateOfferResponse getDetailCandidate(UUID offerId, User candidateUser) {
+        Offer offer = offerRepository.findById(offerId).orElse(null);
+        if (offer == null
+                || !candidateOwnsSilent(offer, candidateUser)
+                || offer.getStatus() == OfferStatus.DRAFT) {
+            // Don't leak existence of an offer the candidate doesn't own or that's still a draft.
+            throw new ResourceNotFoundException("Offer not found: " + offerId);
+        }
+        lazyExpireIfNeeded(offer);
+        return toCandidateResponse(offer);
+    }
+
+    @Transactional
+    public Page<OfferSummaryResponse> list(OfferStatus status, UUID applicationId, Pageable pageable) {
+        Page<Offer> page;
+        if (applicationId != null) {
+            List<Offer> all = offerRepository.findByApplicationIdOrderByCreatedAtDesc(applicationId);
+            if (status != null) {
+                all = all.stream().filter(o -> o.getStatus() == status).toList();
+            }
+            int from = (int) Math.min(pageable.getOffset(), all.size());
+            int to = Math.min(from + pageable.getPageSize(), all.size());
+            page = new PageImpl<>(all.subList(from, to), pageable, all.size());
+        } else if (status != null) {
+            page = offerRepository.findByStatusOrderByCreatedAtDesc(status, pageable);
+        } else {
+            page = offerRepository.findAllByOrderByCreatedAtDesc(pageable);
+        }
+        // Lazy-expire any SENT-but-stale offers in the current page.
+        List<Offer> resolved = new ArrayList<>(page.getNumberOfElements());
+        for (Offer o : page.getContent()) {
+            lazyExpireIfNeeded(o);
+            resolved.add(o);
+        }
+        return new PageImpl<>(resolved, pageable, page.getTotalElements()).map(this::toSummary);
+    }
+
+    @Transactional
+    public List<CandidateOfferResponse> listForCandidate(User candidateUser) {
+        List<Offer> offers = offerRepository
+                .findByApplication_Candidate_User_IdOrderByCreatedAtDesc(candidateUser.getId());
+
+        List<CandidateOfferResponse> result = new ArrayList<>(offers.size());
+        for (Offer o : offers) {
+            lazyExpireIfNeeded(o);
+            if (o.getStatus() == OfferStatus.DRAFT) continue;
+            result.add(toCandidateResponse(o));
+        }
+        return result;
+    }
+
+    @Transactional
+    public LetterDownload buildDownload(UUID offerId, User caller) {
+        boolean isCandidateView = isCandidateOnly(caller);
+        Offer offer;
+        if (isCandidateView) {
+            // Re-uses the candidate-side checks (404 on draft / not-owned).
+            getDetailCandidate(offerId, caller);
+            offer = offerRepository.findById(offerId).orElseThrow();
+        } else {
+            offer = loadAndLazyExpire(offerId);
+        }
+        Candidate candidate = offer.getApplication() != null ? offer.getApplication().getCandidate() : null;
+        User user = candidate != null ? candidate.getUser() : null;
+        String fullName = user != null && user.getFullName() != null ? user.getFullName() : "candidate";
+        String lastNamePiece = fullName;
+        int sp = fullName.lastIndexOf(' ');
+        if (sp >= 0 && sp + 1 < fullName.length()) {
+            lastNamePiece = fullName.substring(sp + 1);
+        }
+        String safeLast = lastNamePiece.replaceAll("[^A-Za-z0-9_-]+", "");
+        if (safeLast.isEmpty()) safeLast = "candidate";
+        String shortId = offer.getId().toString().substring(0, 8);
+        String filename = "Offer-" + safeLast + "-" + shortId + ".txt";
+        return new LetterDownload(filename, offer.getLetterContent() != null ? offer.getLetterContent() : "");
+    }
+
+    public record LetterDownload(String filename, String body) {}
+
+    // ── Helpers ─────────────────────────────────────────────────────────────
+
+    private boolean isOfferTerminalForApp(ApplicationStatus s) {
+        return s == ApplicationStatus.OFFERED
+                || s == ApplicationStatus.ACCEPTED
+                || s == ApplicationStatus.REJECTED
+                || s == ApplicationStatus.WITHDRAWN;
+    }
+
+    private Offer loadAndLazyExpire(UUID offerId) {
+        Offer offer = offerRepository.findById(offerId)
+                .orElseThrow(() -> new ResourceNotFoundException("Offer not found: " + offerId));
+        lazyExpireIfNeeded(offer);
+        return offer;
+    }
+
+    /** Returns true if the offer was just expired (or was already expired). */
+    private boolean lazyExpireIfNeeded(Offer offer) {
+        if (offer.getStatus() == OfferStatus.SENT
+                && offer.getExpiresAt() != null
+                && offer.getExpiresAt().isBefore(Instant.now())) {
+            Map<String, Object> before = snapshot(offer);
+            offer.setStatus(OfferStatus.EXPIRED);
+            offerRepository.save(offer);
+            writeAudit("Offer", offer.getId(), "EXPIRE", null, before, snapshot(offer));
+            return true;
+        }
+        return offer.getStatus() == OfferStatus.EXPIRED;
+    }
+
+    private void ensureCandidateOwns(Offer offer, User candidateUser) {
+        if (!candidateOwnsSilent(offer, candidateUser)) {
+            throw new ForbiddenException("This offer does not belong to you");
+        }
+    }
+
+    private boolean candidateOwnsSilent(Offer offer, User candidateUser) {
+        if (offer == null || candidateUser == null) return false;
+        Application app = offer.getApplication();
+        if (app == null || app.getCandidate() == null || app.getCandidate().getUser() == null) {
+            return false;
+        }
+        return app.getCandidate().getUser().getId().equals(candidateUser.getId());
+    }
+
+    private boolean isCandidateOnly(User user) {
+        if (user == null) return false;
+        Set<UserRole> roles = user.getRoles();
+        if (roles == null) return false;
+        boolean isCandidate = roles.contains(UserRole.CANDIDATE);
+        boolean isStaff = roles.stream().anyMatch(STAFF_ROLES::contains);
+        return isCandidate && !isStaff;
+    }
+
+    // ── Mapping ─────────────────────────────────────────────────────────────
+
+    public OfferResponse toResponse(Offer o) {
+        Application app = o.getApplication();
+        Candidate candidate = app != null ? app.getCandidate() : null;
+        User candidateUser = candidate != null ? candidate.getUser() : null;
+        JobPosting posting = app != null ? app.getJobPosting() : null;
+        StaffingEntity entity = posting != null ? posting.getEntity() : null;
+
+        return OfferResponse.builder()
+                .id(o.getId())
+                .applicationId(app != null ? app.getId() : null)
+                .candidateName(candidateUser != null ? candidateUser.getFullName() : null)
+                .candidateEmail(candidateUser != null ? candidateUser.getEmail() : null)
+                .candidateId(candidate != null ? candidate.getId() : null)
+                .jobPostingTitle(posting != null ? posting.getTitle() : null)
+                .jobPostingId(posting != null ? posting.getId() : null)
+                .entityName(entity != null ? entity.getName() : null)
+                .entityId(entity != null ? entity.getId() : null)
+                .compensationAmount(o.getCompensationAmount())
+                .compensationFrequency(o.getCompensationFrequency())
+                .compensationCurrency(o.getCompensationCurrency())
+                .startDate(o.getStartDate())
+                .expectedEndDate(o.getExpectedEndDate())
+                .expiresAt(o.getExpiresAt())
+                .status(o.getStatus())
+                .additionalTerms(o.getAdditionalTerms())
+                .letterContent(o.getLetterContent())
+                .declineReason(o.getDeclineReason())
+                .sentAt(o.getSentAt())
+                .respondedAt(o.getRespondedAt())
+                .revokedAt(o.getRevokedAt())
+                .createdAt(o.getCreatedAt())
+                .createdByName(lookupUserName(o.getCreatedBy()))
+                .updatedAt(o.getUpdatedAt())
+                .isExpired(o.getStatus() == OfferStatus.SENT
+                        && o.getExpiresAt() != null
+                        && o.getExpiresAt().isBefore(Instant.now()))
+                .build();
+    }
+
+    public OfferSummaryResponse toSummary(Offer o) {
+        Application app = o.getApplication();
+        Candidate candidate = app != null ? app.getCandidate() : null;
+        User candidateUser = candidate != null ? candidate.getUser() : null;
+        JobPosting posting = app != null ? app.getJobPosting() : null;
+        StaffingEntity entity = posting != null ? posting.getEntity() : null;
+        return OfferSummaryResponse.builder()
+                .id(o.getId())
+                .candidateName(candidateUser != null ? candidateUser.getFullName() : null)
+                .jobPostingTitle(posting != null ? posting.getTitle() : null)
+                .entityName(entity != null ? entity.getName() : null)
+                .compensationAmount(o.getCompensationAmount())
+                .compensationFrequency(o.getCompensationFrequency())
+                .startDate(o.getStartDate())
+                .expiresAt(o.getExpiresAt())
+                .status(o.getStatus())
+                .createdAt(o.getCreatedAt())
+                .build();
+    }
+
+    public CandidateOfferResponse toCandidateResponse(Offer o) {
+        Application app = o.getApplication();
+        JobPosting posting = app != null ? app.getJobPosting() : null;
+        StaffingEntity entity = posting != null ? posting.getEntity() : null;
+        return CandidateOfferResponse.builder()
+                .id(o.getId())
+                .jobPostingTitle(posting != null ? posting.getTitle() : null)
+                .entityName(entity != null ? entity.getName() : null)
+                .compensationAmount(o.getCompensationAmount())
+                .compensationFrequency(o.getCompensationFrequency())
+                .compensationCurrency(o.getCompensationCurrency())
+                .startDate(o.getStartDate())
+                .expectedEndDate(o.getExpectedEndDate())
+                .expiresAt(o.getExpiresAt())
+                .status(o.getStatus())
+                .additionalTerms(o.getAdditionalTerms())
+                .letterContent(o.getLetterContent())
+                .sentAt(o.getSentAt())
+                .respondedAt(o.getRespondedAt())
+                .isExpired(o.getStatus() == OfferStatus.SENT
+                        && o.getExpiresAt() != null
+                        && o.getExpiresAt().isBefore(Instant.now()))
+                .build();
+    }
+
+    private String lookupUserName(UUID userId) {
+        if (userId == null) return null;
+        return userRepository.findById(userId).map(User::getFullName).orElse(null);
+    }
+
+    // ── Audit log ───────────────────────────────────────────────────────────
+
+    private Map<String, Object> snapshot(Offer o) {
+        Map<String, Object> m = new LinkedHashMap<>();
+        m.put("id", o.getId());
+        m.put("applicationId", o.getApplication() != null ? o.getApplication().getId() : null);
+        m.put("compensationAmount", o.getCompensationAmount());
+        m.put("compensationFrequency", o.getCompensationFrequency());
+        m.put("compensationCurrency", o.getCompensationCurrency());
+        m.put("startDate", o.getStartDate());
+        m.put("expectedEndDate", o.getExpectedEndDate());
+        m.put("expiresAt", o.getExpiresAt());
+        m.put("status", o.getStatus());
+        m.put("additionalTerms", o.getAdditionalTerms());
+        m.put("declineReason", o.getDeclineReason());
+        m.put("sentAt", o.getSentAt());
+        m.put("respondedAt", o.getRespondedAt());
+        m.put("revokedAt", o.getRevokedAt());
+        m.put("revokedBy", o.getRevokedBy());
+        return m;
+    }
+
+    private void writeAudit(String entityType, UUID entityId, String action, UUID userId,
+                            Map<String, Object> before, Map<String, Object> after) {
+        AuditLog entry = AuditLog.builder()
+                .entityType(entityType)
+                .entityId(entityId)
+                .action(action)
+                .userId(userId)
+                .beforeJson(serialize(before))
+                .afterJson(serialize(after))
+                .build();
+        auditLogRepository.save(entry);
+    }
+
+    private String serialize(Map<String, Object> snapshot) {
+        if (snapshot == null) return null;
+        try {
+            return objectMapper.writeValueAsString(snapshot);
+        } catch (JsonProcessingException e) {
+            log.warn("Failed to serialize audit snapshot: {}", e.getMessage());
+            return new HashMap<>(snapshot).toString();
+        }
+    }
+}
