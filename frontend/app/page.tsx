@@ -1,14 +1,13 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import SiteLayout from '@/components/SiteLayout';
-import ParticleCanvas from '@/components/ParticleCanvas';
+import Script from 'next/script';
 
 export const metadata: Metadata = {
-  title: 'Skyzen Technologies LLC | IT Consulting, Staffing & STEM Internships',
+  title: 'Skyzen Technologies LLC | IT Consulting, Staffing & Training – Plano, TX',
   description:
-    'Skyzen Technologies LLC is a premier IT consulting, software development, staffing, and career training company based in Plano, TX. Connecting talent with top US enterprises and running a hands-on STEM internship program.',
+    'Skyzen Technologies LLC is a premier IT consulting, software development, staffing, and career training company based in Plano, TX. We connect talent with top enterprises like Wells Fargo, JP Morgan, AT&T & more.',
   keywords:
-    'IT consulting Plano TX, IT staffing Texas, software development, STEM internships, career training, job placement, Skyzen Technologies',
+    'IT consulting Plano TX, IT staffing Texas, software development, career training, job placement, Skyzen Technologies',
   authors: [{ name: 'Skyzen Technologies LLC' }],
   robots: 'index, follow',
   alternates: { canonical: 'https://www.skyzentech.com/' },
@@ -17,15 +16,19 @@ export const metadata: Metadata = {
     url: 'https://www.skyzentech.com/',
     title: 'Skyzen Technologies LLC | IT Consulting & Staffing',
     description:
-      'Premier IT consulting, software development, staffing and STEM internships in Plano, TX. Trusted by 21+ enterprise clients.',
+      'Premier IT consulting, software development, staffing and career training in Plano, TX. Trusted by 21+ enterprise clients.',
     images: 'https://www.skyzentech.com/images/banner-2.jpg',
     siteName: 'Skyzen Technologies LLC',
   },
   twitter: {
     card: 'summary_large_image',
     title: 'Skyzen Technologies LLC | IT Consulting & Staffing',
-    description: 'Premier IT consulting, staffing and STEM internships in Plano, TX.',
+    description: 'Premier IT consulting, staffing and career training in Plano, TX.',
     images: 'https://www.skyzentech.com/images/banner-2.jpg',
+  },
+  icons: {
+    icon: '/images/skyzen-logo.png',
+    shortcut: '/images/skyzen-logo.png',
   },
 };
 
@@ -54,730 +57,2071 @@ const orgJsonLd = {
     availableLanguage: 'English',
   },
   sameAs: ['https://www.linkedin.com/company/skyzen-tech-llc/'],
+  hasOfferCatalog: {
+    '@type': 'OfferCatalog',
+    name: 'IT Services',
+    itemListElement: [
+      { '@type': 'Offer', itemOffered: { '@type': 'Service', name: 'IT Consulting' } },
+      { '@type': 'Offer', itemOffered: { '@type': 'Service', name: 'Software Development' } },
+      { '@type': 'Offer', itemOffered: { '@type': 'Service', name: 'IT Staffing' } },
+      { '@type': 'Offer', itemOffered: { '@type': 'Service', name: 'Career Training' } },
+    ],
+  },
 };
 
-const SERVICES = [
-  {
-    num: '01',
-    icon: 'icofont-code-alt',
-    title: 'Software Consulting & Development',
-    body: 'Customized software solutions built for scale and reliability. We integrate across platforms and drive your digital transformation with technologies like Java, .NET, ServiceNow, and more.',
+const websiteJsonLd = {
+  '@context': 'https://schema.org',
+  '@type': 'WebSite',
+  name: 'Skyzen Technologies LLC',
+  url: 'https://www.skyzentech.com',
+  potentialAction: {
+    '@type': 'SearchAction',
+    target: 'https://www.skyzentech.com/careers/openings?q={search_term_string}',
+    'query-input': 'required name=search_term_string',
   },
-  {
-    num: '02',
-    icon: 'icofont-book',
-    title: 'Technical Training Programs',
-    body: 'Hands-on courses with real-time working assessments that make candidates job-ready at an industrial level — covering Java, DevOps, Cloud, Data Engineering, QA, Salesforce and more.',
-  },
-  {
-    num: '03',
-    icon: 'icofont-people',
-    title: 'Recruitment & IT Staffing',
-    body: 'Empanelled with top recruiting agencies across the United States and a preferred vendor to many. We provide staffing from entry level to Architect level across all major IT domains.',
-  },
-  {
-    num: '04',
-    icon: 'icofont-chart-growth',
-    title: 'Management Consulting',
-    body: 'Strategic planning, operational efficiency, digital marketing, security compliance, and business transformation — helping your organization adapt and achieve sustainable growth.',
-  },
-  {
-    num: '05',
-    icon: 'icofont-shield',
-    title: 'Security & Compliance',
-    body: 'Protect your data, meet regulatory requirements, and maintain industry standards with our security guidance and compliance frameworks tailored to your business needs.',
-  },
-  {
-    num: '06',
-    icon: 'icofont-tasks-alt',
-    title: 'Project Management',
-    body: 'Expert project management, process optimization, and performance improvement ensuring your initiatives are delivered on time, within scope, and aligned with business goals.',
-  },
-];
+};
 
-const ABOUT_STATS = [
-  { icon: 'icofont-graduate', label: 'Professionals Trained' },
-  { icon: 'icofont-building', label: 'Enterprise Clients' },
-  { icon: 'icofont-code-alt', label: 'Technologies Covered' },
-  { icon: 'icofont-support', label: 'Support Available' },
-];
+const itemListJsonLd = {
+  '@context': 'https://schema.org',
+  '@type': 'ItemList',
+  name: 'Skyzen Technologies Site Navigation',
+  itemListElement: [
+    { '@type': 'SiteLinksSearchBox', url: 'https://www.skyzentech.com/#about', name: 'About Skyzen' },
+    { '@type': 'ListItem', position: 1, name: 'What We Do', url: 'https://www.skyzentech.com/#what-we-do' },
+    { '@type': 'ListItem', position: 2, name: 'Our Expertise', url: 'https://www.skyzentech.com/#our-expertise' },
+    { '@type': 'ListItem', position: 3, name: 'Career Support', url: 'https://www.skyzentech.com/#career-support' },
+    { '@type': 'ListItem', position: 4, name: 'Explore Internships', url: 'https://www.skyzentech.com/careers/openings' },
+    { '@type': 'ListItem', position: 5, name: 'Contact Us', url: 'https://www.skyzentech.com/#contact' },
+  ],
+};
 
-const WHY_FEATURES = [
-  {
-    icon: 'icofont-handshake-deal',
-    title: 'Preferred Vendor Status',
-    body: 'Empanelled with top recruiting agencies across the United States and recognized as a preferred vendor to many — giving our candidates a direct edge in job placement.',
-  },
-  {
-    icon: 'icofont-loop',
-    title: 'End-to-End Solutions',
-    body: 'From training with real-time assessments to full career placement — entry level to Architect level. We guide every candidate through the complete journey.',
-  },
-  {
-    icon: 'icofont-users-alt-5',
-    title: 'Industry-Level Training',
-    body: 'Our technical courses include real-time working assessments that prepare candidates to meet actual industrial demands — not just theory, but hands-on readiness.',
-  },
-  {
-    icon: 'icofont-checked',
-    title: 'Proven Placement Record',
-    body: 'Trusted by Fortune 500 companies including Wells Fargo, JP Morgan, AT&T, Deloitte and more — our consistent placement record speaks for itself.',
-  },
-];
+const HOME_CSS = `
+/* =============================================
+   CSS VARIABLES
+============================================= */
+:root {
+  --dark:    #080d1a;
+  --dark2:   #0c1221;
+  --dark3:   #111827;
+  --orange:  #fb9b47;
+  --orange2: #ff7c20;
+  --navy:    #0f2238;
+  --light:   #f8fafc;
+  --white:   #ffffff;
+  --text:    #e2e8f0;
+  --muted:   #8a9ab5;
+  --border:  rgba(255,255,255,0.08);
+  --card-bg: rgba(255,255,255,0.04);
+}
 
-const CLIENT_CHIPS = [
-  'Wells Fargo', 'JP Morgan', 'AT&T', 'Deloitte', 'Mastercard',
-  'Cisco', 'GE', 'T-Mobile', 'US Bank', 'Verizon',
-];
+/* =============================================
+   RESET & BASE
+============================================= */
+*, *::before, *::after { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body {
+  font-family: 'Poppins', sans-serif;
+  background: var(--dark);
+  color: var(--text);
+  margin: 0; overflow-x: hidden;
+}
+a, a:hover, a:focus, a:active { text-decoration: none; }
+img { max-width: 100%; }
+section { position: relative; }
 
-const TECH_CHIPS = [
-  'Java (Full Stack)', '.NET (Full Stack)', 'DevOps / AWS / GCP',
-  'Data Engineering', 'ETL Development', 'QA Automation', 'QA Manual',
-  'Salesforce', 'Python', 'UI/UX Design', 'Network Engineering',
-  'Cyber Security', 'Oracle HCM', 'Oracle DB Admin', 'Oracle NetSuite',
-  'Workday', 'ServiceNow', 'PowerBI',
-];
+/* =============================================
+   SCROLL REVEAL ANIMATION
+============================================= */
+.reveal {
+  opacity: 0;
+  transform: translateY(40px);
+  transition: opacity 0.7s ease, transform 0.7s ease;
+}
+.reveal.visible { opacity: 1; transform: translateY(0); }
+/* Fallback: show everything if JS is slow or disabled */
+@media (prefers-reduced-motion: reduce) {
+  .reveal { opacity: 1; transform: none; transition: none; }
+}
+.reveal-delay-1 { transition-delay: 0.1s; }
+.reveal-delay-2 { transition-delay: 0.2s; }
+.reveal-delay-3 { transition-delay: 0.3s; }
+.reveal-delay-4 { transition-delay: 0.4s; }
 
-const TRAINING_PROGRAMS = [
-  { icon: 'icofont-coffee-alt', title: 'Java Full Stack', detail: 'Core Java, Spring Boot, Microservices, REST APIs' },
-  { icon: 'icofont-code-alt',   title: '.NET Full Stack', detail: 'C#, ASP.NET Core, MVC, Entity Framework' },
-  { icon: 'icofont-loop',       title: 'DevOps / AWS / GCP', detail: 'Docker, Kubernetes, Jenkins, CI/CD Pipelines' },
-  { icon: 'icofont-database',   title: 'Data Engineering & ETL', detail: 'Spark, Pipelines, ETL, Data Warehousing' },
-  { icon: 'icofont-check-circled', title: 'QA & Testing', detail: 'Selenium, API Testing, Manual & Automation' },
-  { icon: 'icofont-people',     title: 'Salesforce', detail: 'Admin, Developer, Sales Cloud, Service Cloud' },
-  { icon: 'icofont-code-alt',   title: 'Python', detail: 'Scripting, Data Analysis, Automation, ML basics' },
-  { icon: 'icofont-chart-flow', title: 'Real-Time Assessments', detail: 'Industry-level projects to make you job-ready' },
-];
+/* Hero always-visible entrance — no JS needed */
+@keyframes heroFadeUp {
+  from { opacity: 0; transform: translateY(30px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.hero-animate {
+  animation: heroFadeUp 0.9s ease both;
+  animation-delay: 0.1s;
+}
 
-const CAREER_PILLARS = [
-  {
-    icon: 'icofont-briefcase',
-    title: 'Real client projects',
-    body: 'Work on production systems with US enterprise clients — not toy assignments.',
-  },
-  {
-    icon: 'icofont-teacher',
-    title: 'Structured mentorship',
-    body: 'Weekly assignments + biweekly technical-evaluator sessions throughout the program.',
-  },
-  {
-    icon: 'icofont-shield',
-    title: 'STEM OPT compliant',
-    body: 'Full I-983 training plan, I-9 verification, and E-Verify support handled in-house.',
-  },
-];
+/* =============================================
+   HEADER & NAV
+============================================= */
+header {
+  position: fixed; top: 0; left: 0; right: 0;
+  z-index: 1000;
+  transition: background 0.3s, box-shadow 0.3s;
+}
+.top-bar {
+  background: rgba(8,13,26,0.95);
+  border-bottom: 1px solid var(--border);
+  padding: 8px 0; font-size: 13px;
+}
+.top-bar a { color: var(--muted); transition: color 0.2s; }
+.top-bar a:hover { color: var(--orange); }
+.top-bar i { margin-right: 5px; color: var(--orange); }
+.top-bar .social-link {
+  width: 28px; height: 28px; border-radius: 50%;
+  border: 1px solid var(--border);
+  display: inline-flex; align-items: center; justify-content: center;
+  color: var(--muted); transition: all 0.2s;
+}
+.top-bar .social-link:hover { border-color: var(--orange); color: var(--orange); }
 
-const CLIENT_LOGO_IDS = Array.from({ length: 21 }, (_, i) => i + 1);
-const TECH_LOGO_IDS = Array.from({ length: 6 }, (_, i) => i + 1);
+.main-nav {
+  background: transparent;
+  padding: 12px 0;
+  opacity: 1;
+  pointer-events: all;
+  transform: translateY(0);
+}
+.main-nav .nav-inner {
+  max-width: 1280px;
+  width: calc(100% - 60px);
+  margin: 0 auto;
+  display: flex; align-items: center; justify-content: space-between;
+  background: #2a2d35;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  border: 1px solid rgba(255,255,255,0.10);
+  border-radius: 50px;
+  padding: 10px 28px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+  transition: none;
+}
+.main-nav.scrolled {
+  opacity: 1;
+  pointer-events: all;
+  transform: translateY(0);
+}
+.main-nav.scrolled .nav-inner {
+  background: #2a2d35;
+}
+.nav-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  text-decoration: none;
+}
+.nav-brand:hover { opacity: 0.85; }
+.brand-icon {
+  width: 42px; height: 42px;
+  background: transparent;
+  border-radius: 9px;
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+  overflow: hidden;
+}
+.brand-icon img { width: 36px; height: 36px; object-fit: contain; display: block; }
+.brand-name { font-size: 18px; font-weight: 800; letter-spacing: 1px; line-height: 1.1; text-transform: uppercase; }
+.brand-name .sky { color: #fff; }
+.brand-name .zen { color: var(--orange); }
+.brand-name small { display: block; font-size: 10px; font-weight: 400; color: rgba(255,255,255,0.5); letter-spacing: 1.5px; text-transform: uppercase; }
+.nav-links { list-style: none; margin: 0; padding: 0; display: flex; align-items: center; gap: 2px; flex-wrap: nowrap; }
+.nav-links li a {
+  color: rgba(255,255,255,0.75); font-size: 12px; font-weight: 500;
+  padding: 7px 11px; border-radius: 8px; letter-spacing: 0.3px;
+  transition: all 0.2s; display: block; white-space: nowrap;
+}
+.nav-links li a:hover { color: #fff; background: rgba(255,255,255,0.07); }
+.nav-links li a.active { color: #fff; background: rgba(255,255,255,0.1); }
+
+/* Dropdown */
+.nav-links li { position: relative; }
+.nav-links .dropdown-panel {
+  position: absolute; top: calc(100% + 10px); left: 50%;
+  transform: translateX(-50%);
+  background: rgba(12,18,33,0.98);
+  border: 1px solid var(--border);
+  border-radius: 12px; padding: 8px;
+  min-width: 210px; opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s, transform 0.2s;
+  transform: translateX(-50%) translateY(-8px);
+  backdrop-filter: blur(16px);
+  box-shadow: 0 20px 40px rgba(0,0,0,0.4);
+}
+.nav-links li:hover .dropdown-panel {
+  opacity: 1; pointer-events: auto;
+  transform: translateX(-50%) translateY(0);
+}
+.dropdown-panel a {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 14px; border-radius: 8px;
+  color: var(--muted) !important; font-size: 13px !important;
+  transition: all 0.2s !important; background: transparent !important;
+}
+.dropdown-panel a:hover { color: var(--white) !important; background: rgba(251,155,71,0.1) !important; }
+.dropdown-panel a i { color: var(--orange); width: 16px; text-align: center; }
+
+.nav-jobs-link {
+  color: var(--orange) !important; font-size: 12px !important;
+  border: 1px solid rgba(251,155,71,0.35) !important;
+  border-radius: 8px !important; padding: 6px 12px !important;
+  display: flex; align-items: center; gap: 5px;
+  transition: all 0.2s !important;
+}
+.nav-jobs-link:hover {
+  background: rgba(251,155,71,0.12) !important;
+  border-color: var(--orange) !important;
+}
+.nav-jobs-link i { font-size: 13px; }
+.nav-jobs-link::after { display: none !important; }
+
+.nav-cta {
+  background: linear-gradient(135deg, var(--orange), var(--orange2));
+  color: var(--white) !important; padding: 9px 22px !important;
+  border-radius: 30px !important; font-weight: 600 !important;
+  box-shadow: 0 4px 18px rgba(251,155,71,0.35);
+  transition: box-shadow 0.3s, transform 0.2s !important;
+}
+.nav-cta:hover { box-shadow: 0 6px 24px rgba(251,155,71,0.5) !important; transform: translateY(-1px); background: linear-gradient(135deg, #e0862f, #fb9b47) !important; }
+.nav-cta::after { display: none !important; }
+
+/* Mobile toggle */
+.nav-toggle {
+  display: none; background: none; border: 1px solid var(--border);
+  color: var(--text); padding: 6px 10px; border-radius: 8px; cursor: pointer;
+}
+
+/* =============================================
+   HERO
+============================================= */
+#hero {
+  min-height: 100vh;
+  display: flex; align-items: center; justify-content: center;
+  text-align: center; position: relative;
+  padding: 140px 0 80px;
+  overflow: hidden;
+}
+#canvas {
+  position: fixed; top: 0; left: 0;
+  width: 100%; height: 100%;
+  z-index: 0; pointer-events: none;
+}
+.hero-content { position: relative; z-index: 1; }
+.hero-eyebrow {
+  display: inline-flex; align-items: center; gap: 8px;
+  background: rgba(251,155,71,0.1); border: 1px solid rgba(251,155,71,0.25);
+  color: var(--orange); border-radius: 30px;
+  padding: 6px 18px; font-size: 13px; font-weight: 500;
+  margin-bottom: 24px;
+}
+.hero-eyebrow span { width: 6px; height: 6px; background: var(--orange); border-radius: 50%; animation: pulse 1.5s infinite; }
+@keyframes pulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:0.5;transform:scale(1.4)} }
+
+.hero-h1 {
+  font-size: clamp(42px, 7vw, 80px);
+  font-weight: 800; line-height: 1.1;
+  color: var(--white); margin-bottom: 0;
+}
+.hero-h1 .gradient-text {
+  background: linear-gradient(135deg, var(--orange), #ffb347);
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+.hero-main-title {
+  font-size: clamp(36px, 6vw, 72px);
+  font-weight: 800; line-height: 1.1;
+  color: var(--white); margin-bottom: 10px;
+}
+.hero-main-title .hl {
+  background: linear-gradient(135deg, var(--orange), #ffb347);
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* Keep existing word animation styles */
+.box-headline { font-size: clamp(42px, 7vw, 80px); font-weight: 800; color: var(--white); margin-bottom: 0; }
+.box-words-wrapper { display: inline-block; position: relative; }
+.box-words-wrapper b { display: inline-block; position: absolute; white-space: nowrap; left: 0; top: 0; opacity: 0; }
+.box-words-wrapper b.is-visible { position: relative; opacity: 1; }
+.rotate-2 .box-words-wrapper { perspective: 300px; }
+.rotate-2 b {
+  opacity: 0; transform-origin: 50% 100%; transform: rotateX(180deg);
+  backface-visibility: hidden; -webkit-backface-visibility: hidden;
+}
+.rotate-2 b.is-visible { opacity: 1; animation: rotate-2-in .4s forwards; }
+.rotate-2 b.is-hidden { animation: rotate-2-out .4s forwards; }
+@keyframes rotate-2-in { 0%{opacity:0;transform:rotateX(180deg)} 60%{opacity:1;transform:rotateX(-10deg)} 100%{opacity:1;transform:rotateX(0deg)} }
+@keyframes rotate-2-out { 0%{opacity:1;transform:rotateX(0)} 60%{opacity:0;transform:rotateX(180deg)} 100%{opacity:0;transform:rotateX(180deg)} }
+.rotate-2 em { display: inline-block; color: var(--orange); }
+
+.cd-headline { font-size: clamp(16px, 2.2vw, 24px); font-weight: 400; color: var(--muted); margin-top: 6px; }
+.cd-words-wrapper { display: inline-block; position: relative; }
+.cd-words-wrapper b { display: inline-block; opacity: 0; position: absolute; white-space: nowrap; left: 0; top: 0; }
+.cd-words-wrapper b.is-visible { position: relative; opacity: 1; }
+.clip .cd-words-wrapper { overflow: hidden; vertical-align: top; }
+.clip .cd-words-wrapper::after { content: ''; position: absolute; top: 0; right: -4px; width: 2px; height: 100%; background: var(--orange); animation: clip-blink .7s steps(2) infinite; }
+@keyframes clip-blink { 0%,100%{opacity:1} 50%{opacity:0} }
+.clip b { opacity: 0; }
+.clip b.is-visible { opacity: 1; top: 0; }
+
+.hero-desc {
+  font-size: 16px; color: var(--muted); max-width: 520px;
+  margin: 24px auto 36px; line-height: 1.8;
+}
+.hero-actions { display: flex; gap: 14px; justify-content: center; flex-wrap: wrap; }
+.btn-primary-glow {
+  background: linear-gradient(135deg, var(--orange), var(--orange2));
+  color: var(--white); padding: 14px 32px; border-radius: 30px;
+  font-weight: 600; font-size: 15px;
+  box-shadow: 0 6px 24px rgba(251,155,71,0.4);
+  transition: transform 0.2s, box-shadow 0.2s; display: inline-block;
+}
+.btn-primary-glow:hover { transform: translateY(-2px); box-shadow: 0 10px 30px rgba(251,155,71,0.55); color: var(--white); }
+.btn-ghost {
+  background: transparent; color: var(--white);
+  border: 1.5px solid rgba(255,255,255,0.2);
+  padding: 14px 32px; border-radius: 30px;
+  font-weight: 500; font-size: 15px;
+  transition: all 0.2s; display: inline-block;
+}
+.btn-ghost:hover { border-color: var(--orange); color: var(--orange); background: rgba(251,155,71,0.06); }
+
+.hero-stats {
+  display: flex; justify-content: center; gap: 16px;
+  margin-top: 64px; flex-wrap: wrap; align-items: center;
+}
+.hero-stat { text-align: center; }
+/* icon button stat */
+.stat-btn {
+  display: flex; flex-direction: column; align-items: center; gap: 8px;
+  padding: 18px 26px; border-radius: 16px;
+  border: 1px solid var(--border); background: rgba(255,255,255,0.04);
+  color: var(--muted); transition: all 0.25s; cursor: pointer;
+  text-decoration: none;
+}
+.stat-btn i { font-size: 30px; color: var(--orange); transition: transform 0.25s; }
+.stat-btn span { font-size: 12px; font-weight: 500; letter-spacing: 0.5px; white-space: nowrap; }
+.stat-btn:hover { border-color: rgba(251,155,71,0.45); background: rgba(251,155,71,0.08); color: var(--white); transform: translateY(-4px); box-shadow: 0 12px 28px rgba(0,0,0,0.25); }
+.stat-btn:hover i { transform: scale(1.15); }
+/* number stat (100%) */
+.hero-stat .num { font-size: 36px; font-weight: 800; color: var(--white); line-height: 1; }
+.hero-stat .num span { color: var(--orange); }
+.hero-stat .label { font-size: 12px; color: var(--muted); margin-top: 4px; letter-spacing: 0.5px; }
+.stat-divider { width: 1px; background: var(--border); align-self: stretch; }
+
+/* Scroll indicator */
+.scroll-hint {
+  position: absolute; bottom: 10px; left: 50%; transform: translateX(-50%);
+  display: flex; flex-direction: column; align-items: center; gap: 6px;
+  color: var(--muted); font-size: 11px; letter-spacing: 1px; text-transform: uppercase;
+  animation: float 2s ease-in-out infinite;
+}
+.scroll-hint .mouse {
+  width: 22px; height: 34px; border: 2px solid rgba(255,255,255,0.2);
+  border-radius: 11px; position: relative;
+}
+.scroll-hint .mouse::before {
+  content: ''; position: absolute;
+  width: 3px; height: 6px; background: var(--orange);
+  border-radius: 2px; top: 6px; left: 50%; transform: translateX(-50%);
+  animation: scroll-dot 1.5s infinite;
+}
+@keyframes float { 0%,100%{transform:translateX(-50%) translateY(0)} 50%{transform:translateX(-50%) translateY(-6px)} }
+@keyframes scroll-dot { 0%{opacity:1;top:6px} 100%{opacity:0;top:18px} }
+
+/* =============================================
+   SECTION COMMON
+============================================= */
+.section-tag {
+  display: inline-flex; align-items: center; gap: 8px;
+  color: var(--orange); font-size: 12px; font-weight: 600;
+  letter-spacing: 2px; text-transform: uppercase; margin-bottom: 14px;
+}
+.section-tag::before { content: ''; width: 24px; height: 2px; background: var(--orange); border-radius: 2px; }
+.section-title {
+  font-size: clamp(28px, 4vw, 42px);
+  font-weight: 700; color: var(--white);
+  line-height: 1.2; margin-bottom: 16px;
+}
+.section-title.dark { color: var(--navy); }
+.section-sub { font-size: 16px; color: var(--muted); max-width: 560px; line-height: 1.8; }
+.section-sub.dark { color: #6b7280; }
+.gradient-heading {
+  background: linear-gradient(135deg, var(--white) 40%, var(--orange));
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+.orange-text { color: var(--orange); }
+
+/* =============================================
+   ABOUT SECTION
+============================================= */
+#about { background: var(--light); padding: 100px 0; }
+.about-img-wrap { position: relative; }
+.about-img-wrap img {
+  border-radius: 20px;
+  box-shadow: 0 24px 60px rgba(0,0,0,0.12);
+}
+.about-img-badge {
+  position: absolute; bottom: -20px; right: -20px;
+  background: var(--orange); border-radius: 16px;
+  padding: 18px 22px; color: var(--white); text-align: center;
+  box-shadow: 0 10px 30px rgba(251,155,71,0.4);
+}
+.about-img-badge .big { font-size: 36px; font-weight: 800; line-height: 1; }
+.about-img-badge small { font-size: 12px; opacity: 0.85; }
+.about-text { padding-left: 20px; }
+.about-text p { color: #4b5563; line-height: 1.9; font-size: 15px; margin-bottom: 16px; }
+.about-text .orange-text { font-weight: 600; }
+.about-stats { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; margin-top: 32px; }
+.about-stat {
+  background: var(--white); border-radius: 14px;
+  padding: 20px; border: 1px solid #e5e7eb;
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+.about-stat:hover { transform: translateY(-4px); box-shadow: 0 12px 30px rgba(0,0,0,0.08); }
+.about-stat i { font-size: 34px; color: var(--orange); margin-bottom: 8px; display: block; transition: transform 0.25s; }
+.about-stat:hover i { transform: scale(1.18); }
+.about-stat .lbl { font-size: 13px; color: #6b7280; margin-top: 0; }
+
+/* =============================================
+   WHAT WE DO
+============================================= */
+#what-we-do { background: var(--dark2); padding: 100px 0; }
+.service-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 24px; margin-top: 60px; }
+.service-card {
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: 20px; padding: 36px 28px;
+  position: relative; overflow: hidden;
+  transition: transform 0.3s, border-color 0.3s, box-shadow 0.3s;
+  cursor: default;
+}
+.service-card::before {
+  content: ''; position: absolute;
+  bottom: 0; left: 0; right: 0; height: 3px;
+  background: linear-gradient(90deg, var(--orange), var(--orange2));
+  transform: scaleX(0); transform-origin: left;
+  transition: transform 0.3s ease;
+}
+.service-card:hover { transform: translateY(-6px); border-color: rgba(251,155,71,0.3); box-shadow: 0 20px 50px rgba(0,0,0,0.3); }
+.service-card:hover::before { transform: scaleX(1); }
+.service-icon {
+  width: 56px; height: 56px; border-radius: 14px;
+  background: rgba(251,155,71,0.12);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 24px; color: var(--orange); margin-bottom: 22px;
+  transition: background 0.3s;
+}
+.service-card:hover .service-icon { background: rgba(251,155,71,0.2); }
+.service-card h4 { font-size: 18px; font-weight: 700; color: var(--white); margin-bottom: 12px; }
+.service-card p { font-size: 14px; color: var(--muted); line-height: 1.8; margin: 0; }
+.service-card .card-num {
+  position: absolute; top: 24px; right: 24px;
+  font-size: 48px; font-weight: 800; color: rgba(255,255,255,0.03);
+  line-height: 1; pointer-events: none;
+}
+
+/* =============================================
+   WHY WE
+============================================= */
+#why-we { background: var(--light); padding: 100px 0; }
+.why-features { margin-top: 40px; }
+.why-feature {
+  display: flex; gap: 18px; align-items: flex-start;
+  padding: 20px; border-radius: 14px;
+  transition: background 0.2s; margin-bottom: 12px;
+  cursor: default;
+}
+.why-feature:hover { background: var(--white); box-shadow: 0 6px 20px rgba(0,0,0,0.06); }
+.why-feature-icon {
+  width: 44px; height: 44px; flex-shrink: 0;
+  border-radius: 12px; background: rgba(251,155,71,0.1);
+  display: flex; align-items: center; justify-content: center;
+  color: var(--orange); font-size: 18px;
+}
+.why-feature h5 { font-size: 15px; font-weight: 700; color: var(--navy); margin-bottom: 4px; }
+.why-feature p { font-size: 13px; color: #6b7280; margin: 0; line-height: 1.7; }
+.why-visual {
+  background: var(--navy); border-radius: 24px;
+  padding: 48px 40px; color: var(--white); height: 100%;
+  display: flex; flex-direction: column; justify-content: center;
+}
+.why-visual h3 { font-size: 32px; font-weight: 700; margin-bottom: 16px; line-height: 1.3; }
+.why-visual p { color: #a8c8e8; font-size: 15px; line-height: 1.8; margin-bottom: 28px; }
+.client-chip-wrap { display: flex; flex-wrap: wrap; gap: 8px; }
+.client-chip {
+  background: rgba(251,155,71,0.1); border: 1px solid rgba(251,155,71,0.2);
+  color: var(--orange); border-radius: 20px;
+  padding: 4px 14px; font-size: 12px; font-weight: 500;
+}
+
+/* =============================================
+   EXPERTISE
+============================================= */
+#our-expertise { background: var(--dark); padding: 100px 0; }
+.tech-chips { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 32px; }
+.tech-chip {
+  background: var(--card-bg); border: 1px solid var(--border);
+  color: var(--text); border-radius: 30px;
+  padding: 8px 20px; font-size: 13px; font-weight: 500;
+  transition: all 0.2s; cursor: default;
+}
+.tech-chip:hover {
+  background: rgba(251,155,71,0.12);
+  border-color: rgba(251,155,71,0.4);
+  color: var(--orange); transform: translateY(-2px);
+}
+.training-list { margin-top: 32px; }
+.training-item {
+  display: flex; align-items: center; gap: 14px;
+  padding: 16px 20px; border-radius: 12px;
+  border: 1px solid var(--border);
+  margin-bottom: 10px; background: var(--card-bg);
+  transition: all 0.2s;
+}
+.training-item:hover { border-color: rgba(251,155,71,0.3); background: rgba(251,155,71,0.04); }
+.training-item i { color: var(--orange); font-size: 20px; width: 24px; text-align: center; }
+.training-item div h6 { font-size: 14px; font-weight: 600; color: var(--white); margin: 0 0 2px; }
+.training-item div span { font-size: 12px; color: var(--muted); }
+
+/* =============================================
+   CAREER SUPPORT
+============================================= */
+#career-support { background: var(--light); padding: 100px 0; }
+.career-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 24px; margin-top: 50px; }
+.career-card {
+  background: var(--white); border-radius: 20px;
+  padding: 36px 28px; border: 1px solid #e5e7eb;
+  transition: all 0.3s; position: relative; overflow: hidden;
+}
+.career-card::after {
+  content: ''; position: absolute; top: 0; left: 0; right: 0; height: 4px;
+  background: linear-gradient(90deg, var(--orange), var(--orange2));
+  transform: scaleX(0); transform-origin: left; transition: transform 0.3s;
+}
+.career-card:hover { transform: translateY(-6px); box-shadow: 0 20px 50px rgba(0,0,0,0.1); border-color: transparent; }
+.career-card:hover::after { transform: scaleX(1); }
+.career-card-icon {
+  width: 60px; height: 60px; border-radius: 16px;
+  background: linear-gradient(135deg, rgba(251,155,71,0.15), rgba(255,124,32,0.1));
+  display: flex; align-items: center; justify-content: center;
+  font-size: 26px; color: var(--orange); margin-bottom: 22px;
+}
+.career-card h4 { font-size: 18px; font-weight: 700; color: var(--navy); margin-bottom: 10px; }
+.career-card p { font-size: 14px; color: #6b7280; line-height: 1.8; margin: 0; }
+.career-cta { text-align: center; margin-top: 56px; }
+.career-cta p { color: #6b7280; font-size: 15px; margin-bottom: 20px; }
+.btn-orange {
+  background: linear-gradient(135deg, var(--orange), var(--orange2));
+  color: var(--white); padding: 15px 40px;
+  border-radius: 30px; font-weight: 600; font-size: 16px;
+  box-shadow: 0 8px 24px rgba(251,155,71,0.4);
+  transition: transform 0.2s, box-shadow 0.2s; display: inline-block;
+}
+.btn-orange:hover { transform: translateY(-2px); box-shadow: 0 12px 32px rgba(251,155,71,0.55); color: var(--white); }
+
+/* =============================================
+   CLIENTS
+============================================= */
+#clients {
+  background: var(--dark2);
+  padding: 80px 0;
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+}
+#clients .section-tag, #technology .section-tag { justify-content: center; }
+
+/* marquee track */
+.logo-marquee-wrap {
+  overflow: hidden;
+  -webkit-mask-image: linear-gradient(to right, transparent 0%, #000 12%, #000 88%, transparent 100%);
+  mask-image:         linear-gradient(to right, transparent 0%, #000 12%, #000 88%, transparent 100%);
+}
+.logo-marquee-track {
+  display: flex;
+  gap: 32px;
+  width: max-content;
+  animation: marqueeScroll 30s linear infinite;
+}
+.logo-marquee-track.reverse {
+  animation: marqueeScrollR 32s linear infinite;
+}
+.logo-marquee-track:hover { animation-play-state: paused; }
+.logo-marquee-track .logo-item {
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.07);
+  border-radius: 14px;
+  padding: 16px 24px;
+  min-width: 140px; height: 72px;
+  transition: all 0.25s;
+  flex-shrink: 0;
+}
+.logo-marquee-track .logo-item:hover {
+  background: rgba(251,155,71,0.08);
+  border-color: rgba(251,155,71,0.25);
+  transform: translateY(-2px);
+}
+.logo-marquee-track .logo-item img {
+  max-height: 40px; max-width: 110px;
+  object-fit: contain;
+  filter: grayscale(100%) brightness(1.6) contrast(0.8);
+  opacity: 0.75;
+  transition: all 0.25s;
+}
+.logo-marquee-track .logo-item:hover img {
+  filter: none; opacity: 1;
+}
+@keyframes marqueeScroll {
+  0%   { transform: translateX(0); }
+  100% { transform: translateX(-50%); }
+}
+@keyframes marqueeScrollR {
+  0%   { transform: translateX(-50%); }
+  100% { transform: translateX(0); }
+}
+
+/* =============================================
+   TECHNOLOGY
+============================================= */
+#technology {
+  background: var(--dark3);
+  padding: 80px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+/* =============================================
+   CONTACT CTA BANNER
+============================================= */
+.cta-banner {
+  background: linear-gradient(135deg, var(--navy) 0%, #1a3d6b 100%);
+  padding: 80px 0; text-align: center; position: relative; overflow: hidden;
+}
+.cta-banner::before {
+  content: ''; position: absolute; inset: 0;
+  background: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.03'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
+}
+.cta-banner h2 { font-size: clamp(28px, 4vw, 40px); font-weight: 700; color: var(--white); margin-bottom: 14px; }
+.cta-banner p { color: #a8c8e8; font-size: 16px; margin-bottom: 32px; max-width: 480px; margin-left: auto; margin-right: auto; }
+
+/* =============================================
+   CONTACT SECTION
+============================================= */
+#contact { background: var(--dark2); padding: 100px 0; }
+.contact-info-card {
+  background: var(--card-bg); border: 1px solid var(--border);
+  border-radius: 20px; padding: 40px 36px; height: 100%;
+}
+.contact-info-card h3 { font-size: 28px; font-weight: 700; color: var(--white); margin-bottom: 12px; }
+.contact-info-card p { color: var(--muted); font-size: 15px; line-height: 1.8; margin-bottom: 32px; }
+.contact-detail {
+  display: flex; align-items: center; gap: 14px;
+  padding: 14px 0; border-bottom: 1px solid var(--border);
+}
+.contact-detail:last-of-type { border-bottom: none; }
+.contact-detail-icon {
+  width: 40px; height: 40px; border-radius: 10px;
+  background: rgba(251,155,71,0.1); flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  color: var(--orange); font-size: 17px;
+}
+.contact-detail .info span { display: block; font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 2px; }
+.contact-detail .info a,
+.contact-detail .info p { font-size: 14px; color: var(--text); margin: 0; font-weight: 500; }
+.contact-detail .info a:hover { color: var(--orange); }
+
+.contact-form-card {
+  background: var(--card-bg); border: 1px solid var(--border);
+  border-radius: 20px; padding: 40px 36px;
+}
+.contact-form-card h4 { font-size: 22px; font-weight: 700; color: var(--white); margin-bottom: 6px; }
+.contact-form-card p { color: var(--muted); font-size: 14px; margin-bottom: 28px; }
+.form-group { margin-bottom: 18px; }
+.form-group label { display: block; font-size: 12px; font-weight: 600; color: var(--muted); letter-spacing: 0.5px; text-transform: uppercase; margin-bottom: 7px; }
+.form-group input,
+.form-group textarea {
+  width: 100%; background: rgba(255,255,255,0.05);
+  border: 1px solid var(--border); border-radius: 10px;
+  padding: 12px 16px; font-size: 14px; color: var(--white);
+  font-family: 'Poppins', sans-serif;
+  transition: border-color 0.2s, background 0.2s; outline: none;
+}
+.form-group input::placeholder,
+.form-group textarea::placeholder { color: rgba(255,255,255,0.2); }
+.form-group input:focus,
+.form-group textarea:focus {
+  border-color: rgba(251,155,71,0.5);
+  background: rgba(251,155,71,0.04);
+}
+.form-group textarea { height: 120px; resize: vertical; }
+.consent-row {
+  display: flex; align-items: flex-start; gap: 10px;
+  margin-bottom: 22px; font-size: 12px; color: var(--muted); line-height: 1.6;
+}
+.consent-row input[type="checkbox"] { width: 15px; height: 15px; accent-color: var(--orange); flex-shrink: 0; margin-top: 2px; }
+.consent-row a { color: var(--orange); }
+.btn-submit {
+  width: 100%; background: linear-gradient(135deg, var(--orange), var(--orange2));
+  color: var(--white); border: none; border-radius: 12px;
+  padding: 14px; font-size: 15px; font-weight: 600;
+  font-family: 'Poppins', sans-serif; cursor: pointer;
+  transition: opacity 0.2s, transform 0.2s;
+  box-shadow: 0 6px 20px rgba(251,155,71,0.35);
+}
+.btn-submit:hover { opacity: 0.9; transform: translateY(-1px); }
+.form-feedback { padding: 12px 16px; border-radius: 10px; margin-bottom: 18px; font-size: 14px; }
+.form-feedback.success { background: rgba(34,197,94,0.1); border: 1px solid rgba(34,197,94,0.2); color: #4ade80; }
+.form-feedback.error { background: rgba(239,68,68,0.1); border: 1px solid rgba(239,68,68,0.2); color: #f87171; }
+
+/* =============================================
+   FOOTER
+============================================= */
+footer {
+  background: #050a14; border-top: 1px solid var(--border);
+  padding: 60px 0 0;
+}
+.footer-brand .nav-brand { margin-bottom: 16px; }
+.footer-brand .brand-icon { background: rgba(255,255,255,0.15); padding: 4px; }
+.footer-brand p { font-size: 14px; color: var(--muted); line-height: 1.8; max-width: 260px; }
+.footer-socials { display: flex; gap: 10px; margin-top: 20px; }
+.footer-socials a {
+  width: 36px; height: 36px; border-radius: 10px;
+  border: 1px solid var(--border); color: var(--muted);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 15px; transition: all 0.2s;
+}
+.footer-socials a:hover { border-color: var(--orange); color: var(--orange); background: rgba(251,155,71,0.08); }
+.footer-col h6 {
+  font-size: 12px; font-weight: 700; letter-spacing: 1.5px;
+  text-transform: uppercase; color: var(--white); margin-bottom: 20px;
+}
+.footer-links { list-style: none; padding: 0; margin: 0; }
+.footer-links li { margin-bottom: 10px; }
+.footer-links a { font-size: 14px; color: var(--muted); transition: color 0.2s; }
+.footer-links a:hover { color: var(--orange); }
+.footer-contact-item { display: flex; align-items: flex-start; gap: 10px; margin-bottom: 14px; }
+.footer-contact-item i { color: var(--orange); font-size: 15px; margin-top: 3px; flex-shrink: 0; }
+.footer-contact-item span, .footer-contact-item a { font-size: 13px; color: var(--muted); line-height: 1.6; }
+.footer-contact-item a:hover { color: var(--orange); }
+.footer-bottom {
+  border-top: 1px solid var(--border); margin-top: 48px;
+  padding: 20px 0; display: flex;
+  align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px;
+}
+.footer-bottom span { font-size: 13px; color: var(--muted); }
+.footer-bottom a { font-size: 13px; color: var(--muted); transition: color 0.2s; }
+.footer-bottom a:hover { color: var(--orange); }
+
+/* Back to top */
+.back-top {
+  position: fixed; bottom: 30px; right: 30px; z-index: 999;
+  width: 44px; height: 44px; border-radius: 12px;
+  background: linear-gradient(135deg, var(--orange), var(--orange2));
+  color: var(--white); display: flex; align-items: center; justify-content: center;
+  font-size: 18px; opacity: 0; pointer-events: none;
+  transition: opacity 0.3s, transform 0.2s;
+  box-shadow: 0 6px 20px rgba(251,155,71,0.4);
+}
+.back-top.show { opacity: 1; pointer-events: auto; }
+.back-top:hover { transform: translateY(-3px); color: var(--white); }
+
+/* =============================================
+   RESPONSIVE
+============================================= */
+@media (max-width: 991px) {
+  .main-nav { padding: 12px 0; }
+  .nav-links { display: none; flex-direction: column; position: absolute; top: 100%; left: 0; right: 0; background: rgba(8,13,26,0.98); padding: 16px; border-bottom: 1px solid var(--border); }
+  .nav-links.open { display: flex; }
+  .nav-toggle { display: block; }
+  .hero-stats { gap: 28px; }
+  .stat-divider { display: none; }
+  .about-text { padding-left: 0; margin-top: 40px; }
+  .about-img-badge { right: 10px; }
+  .why-visual { margin-top: 40px; }
+  .contact-info-card, .contact-form-card { margin-bottom: 24px; }
+  .footer-col { margin-bottom: 36px; }
+}
+@media (max-width: 576px) {
+  .hero-actions { flex-direction: column; align-items: center; }
+  .about-stats { grid-template-columns: 1fr 1fr; }
+  .contact-form-card, .contact-info-card { padding: 28px 22px; }
+  footer { padding: 48px 0 0; }
+}
+`;
+
+const NAV_AND_REVEAL_SCRIPT = `
+// ── Nav scroll effect ──
+const mainNav = document.getElementById('mainNav');
+const backTop = document.getElementById('backTop');
+window.addEventListener('scroll', () => {
+  mainNav.classList.toggle('scrolled', window.scrollY > 80);
+  backTop.classList.toggle('show', window.scrollY > 400);
+});
+
+// ── Mobile nav toggle ──
+document.getElementById('navToggle').addEventListener('click', function() {
+  document.getElementById('navLinks').classList.toggle('open');
+});
+document.querySelectorAll('#navLinks a').forEach(a => {
+  a.addEventListener('click', () => document.getElementById('navLinks').classList.remove('open'));
+});
+
+// ── Scroll reveal ──
+const revealObserver = new IntersectionObserver((entries) => {
+  entries.forEach(e => {
+    if (e.isIntersecting) {
+      e.target.classList.add('visible');
+      revealObserver.unobserve(e.target);
+    }
+  });
+}, { threshold: 0, rootMargin: '0px 0px -60px 0px' });
+document.querySelectorAll('.reveal').forEach(el => {
+  const rect = el.getBoundingClientRect();
+  if (rect.top < window.innerHeight && rect.bottom >= 0) {
+    el.classList.add('visible'); // already in viewport — show immediately
+  } else {
+    revealObserver.observe(el);
+  }
+});
+
+// ── Active nav link on scroll ──
+const sections = document.querySelectorAll('section[id], div[id="top"]');
+const navAs = document.querySelectorAll('#navLinks a');
+window.addEventListener('scroll', () => {
+  let cur = '';
+  sections.forEach(s => { if (window.scrollY >= s.offsetTop - 120) cur = s.id; });
+  navAs.forEach(a => {
+    a.classList.remove('active');
+    if (a.getAttribute('href') === '#' + cur) a.classList.add('active');
+  });
+});
+// Logo marquee: pause on hover is handled via CSS (.logo-marquee-track:hover)
+`;
+
+const CONTACT_FORM_SCRIPT = `
+// ── Contact form ──
+var borderColor = "#333";
+$("#contact_body").submit(function(e) {
+  e.preventDefault();
+  var proceed = true;
+  $("#contact_results").html('');
+
+  if (!$('#contactConsent').is(':checked')) {
+    $("#contact_results").html('<div class="form-feedback error">Please check the consent box before submitting.</div>');
+    return;
+  }
+  $(this).find("input[data-required=true], textarea[data-required=true]").each(function() {
+    if (!$.trim($(this).val())) { $(this).css('border-color','#ef4444'); proceed = false; }
+    var emailReg = /^([\\w-\\.]+@([\\w-]+\\.)+[\\w-]{2,4})?$/;
+    if ($(this).attr("type") == "email" && !emailReg.test($.trim($(this).val()))) {
+      $(this).css('border-color','#ef4444'); proceed = false;
+    }
+  }).on("input", function() { $(this).css('border-color', borderColor); });
+
+  if (proceed) { this.submit(); }
+});
+
+var params = new URLSearchParams(window.location.search);
+var contactStatus = params.get("contact");
+if (contactStatus === "success") {
+  $("#contact_results").html('<div class="form-feedback success">Thanks for reaching out! Your message has been sent successfully.</div>');
+} else if (contactStatus === "error") {
+  $("#contact_results").html('<div class="form-feedback error">Something went wrong. Please try again.</div>');
+} else if (contactStatus === "invalid") {
+  $("#contact_results").html('<div class="form-feedback error">Please complete all required fields with a valid email address.</div>');
+}
+`;
+
+const HEADLINE_ANIM_SCRIPT = `
+// ── Word headline animation ──
+jQuery(document).ready(function($) {
+  var animationDelay = 5000, lettersDelay = 50;
+  initBoxHeadline();
+  function initBoxHeadline() {
+    singleLetters($('.box-headline.letters').find('b'));
+    animateBoxHeadline($('.box-headline'));
+  }
+  function singleLetters($words) {
+    $words.each(function() {
+      var word = $(this), letters = word.text().split(''), selected = word.hasClass('is-visible');
+      for (var i in letters) {
+        if (word.parents('.rotate-2').length > 0) letters[i] = '<em>' + letters[i] + '</em>';
+        letters[i] = selected ? '<i class="in">' + letters[i] + '</i>' : '<i>' + letters[i] + '</i>';
+      }
+      word.html(letters.join('')).css('opacity', 1);
+    });
+  }
+  function animateBoxHeadline($headlines) {
+    $headlines.each(function() {
+      var headline = $(this);
+      var words = headline.find('.box-words-wrapper b'), width = 0;
+      words.each(function() { if ($(this).width() > width) width = $(this).width(); });
+      headline.find('.box-words-wrapper').css('width', width);
+      setTimeout(function() { hideBoxWord(headline.find('.is-visible').eq(0)); }, animationDelay);
+    });
+  }
+  function hideBoxWord($word) {
+    var nextWord = takeNextBox($word);
+    var bool = ($word.children('i').length >= nextWord.children('i').length);
+    hideBoxLetter($word.find('i').eq(0), $word, bool, lettersDelay);
+    showBoxLetter(nextWord.find('i').eq(0), nextWord, bool, lettersDelay);
+  }
+  function hideBoxLetter($letter, $word, $bool, $duration) {
+    $letter.removeClass('in').addClass('out');
+    if (!$letter.is(':last-child')) {
+      setTimeout(function() { hideBoxLetter($letter.next(), $word, $bool, $duration); }, $duration);
+    } else if ($bool) {
+      setTimeout(function() { hideBoxWord(takeNextBox($word)); }, animationDelay);
+    }
+  }
+  function showBoxLetter($letter, $word, $bool, $duration) {
+    $letter.addClass('in').removeClass('out');
+    if (!$letter.is(':last-child')) {
+      setTimeout(function() { showBoxLetter($letter.next(), $word, $bool, $duration); }, $duration);
+    } else if (!$bool) {
+      setTimeout(function() { hideBoxWord($word); }, animationDelay);
+    }
+  }
+  function takeNextBox($word) {
+    return (!$word.is(':last-child')) ? $word.next() : $word.parent().children().eq(0);
+  }
+});
+
+// ── Clip headline animation ──
+jQuery(document).ready(function($) {
+  var animationDelay = 3500, revealDuration = 500, revealAnimationDelay = 2800;
+  initCdHeadline();
+  function initCdHeadline() {
+    animateCdHeadline($('.cd-headline'));
+  }
+  function animateCdHeadline($headlines) {
+    $headlines.each(function() {
+      var headline = $(this);
+      var spanWrapper = headline.find('.cd-words-wrapper');
+      spanWrapper.css('width', spanWrapper.width() + 10);
+      setTimeout(function() { hideCdWord(headline.find('.is-visible').eq(0)); }, animationDelay);
+    });
+  }
+  function hideCdWord($word) {
+    var nextWord = takeCdNext($word);
+    $word.parents('.cd-words-wrapper').animate({ width: '2px' }, revealDuration, function() {
+      switchCdWord($word, nextWord);
+      showCdWord(nextWord);
+    });
+  }
+  function showCdWord($word) {
+    $word.parents('.cd-words-wrapper').animate({ width: $word.width() + 10 }, revealDuration, function() {
+      setTimeout(function() { hideCdWord($word); }, revealAnimationDelay);
+    });
+  }
+  function switchCdWord($oldWord, $newWord) {
+    $oldWord.removeClass('is-visible').addClass('is-hidden');
+    $newWord.removeClass('is-hidden').addClass('is-visible');
+  }
+  function takeCdNext($word) {
+    return (!$word.is(':last-child')) ? $word.next() : $word.parent().children().eq(0);
+  }
+});
+`;
+
+const PARTICLE_CANVAS_SCRIPT = `
+// ── Particle canvas ──
+(function() {
+  var opts = {
+    particleColor: "rgb(251,155,71)",
+    lineColor: "rgb(251,155,71)",
+    particleAmount: 60,
+    defaultSpeed: 0.6,
+    variantSpeed: 0.6,
+    defaultRadius: 1.5,
+    variantRadius: 1.5,
+    linkRadius: 180,
+  };
+  var canvasBody = document.getElementById("canvas");
+  var drawArea = canvasBody.getContext("2d");
+  var w, h, particles = [];
+  var rgb = opts.lineColor.match(/\\d+/g);
+
+  function resizeReset() {
+    w = canvasBody.width = window.innerWidth;
+    h = canvasBody.height = window.innerHeight;
+  }
+  window.addEventListener("resize", resizeReset);
+
+  function Particle() {
+    this.x = Math.random() * w;
+    this.y = Math.random() * h;
+    this.speed = opts.defaultSpeed + Math.random() * opts.variantSpeed;
+    this.directionAngle = Math.floor(Math.random() * 360);
+    this.color = opts.particleColor;
+    this.radius = opts.defaultRadius + Math.random() * opts.variantRadius;
+    this.vector = { x: Math.cos(this.directionAngle) * this.speed, y: Math.sin(this.directionAngle) * this.speed };
+    this.update = function() { this.border(); this.x += this.vector.x; this.y += this.vector.y; };
+    this.border = function() {
+      if (this.x >= w || this.x <= 0) this.vector.x *= -1;
+      if (this.y >= h || this.y <= 0) this.vector.y *= -1;
+      if (this.x > w) this.x = w; if (this.y > h) this.y = h;
+      if (this.x < 0) this.x = 0; if (this.y < 0) this.y = 0;
+    };
+    this.draw = function() {
+      drawArea.beginPath();
+      drawArea.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+      drawArea.closePath();
+      drawArea.fillStyle = this.color;
+      drawArea.fill();
+    };
+  }
+
+  function checkDistance(x1, y1, x2, y2) { return Math.sqrt(Math.pow(x2-x1,2) + Math.pow(y2-y1,2)); }
+  function linkPoints(p, hubs) {
+    for (var i = 0; i < hubs.length; i++) {
+      var d = checkDistance(p.x, p.y, hubs[i].x, hubs[i].y);
+      var opacity = 1 - d / opts.linkRadius;
+      if (opacity > 0) {
+        drawArea.lineWidth = 0.5;
+        drawArea.strokeStyle = 'rgba(' + rgb[0] + ',' + rgb[1] + ',' + rgb[2] + ',' + opacity * 0.3 + ')';
+        drawArea.beginPath(); drawArea.moveTo(p.x, p.y);
+        drawArea.lineTo(hubs[i].x, hubs[i].y); drawArea.closePath(); drawArea.stroke();
+      }
+    }
+  }
+
+  function setup() {
+    particles = []; resizeReset();
+    for (var i = 0; i < opts.particleAmount; i++) particles.push(new Particle());
+    window.requestAnimationFrame(loop);
+  }
+  function loop() {
+    window.requestAnimationFrame(loop);
+    drawArea.clearRect(0, 0, w, h);
+    for (var i = 0; i < particles.length; i++) { particles[i].update(); particles[i].draw(); }
+    for (var i = 0; i < particles.length; i++) { linkPoints(particles[i], particles); }
+  }
+  resizeReset(); setup();
+})();
+`;
 
 export default function HomePage() {
   return (
-    <SiteLayout>
+    <>
+      {/* Structured data (JSON-LD) */}
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(orgJsonLd) }}
       />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(websiteJsonLd) }}
+      />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(itemListJsonLd) }}
+      />
 
-      {/* =====================================================
-          HERO  (particle/constellation animation behind content)
-      ===================================================== */}
-      <section
-        id="hero"
-        className="relative isolate overflow-hidden bg-skyzen-dark px-6 py-32 text-skyzen-text md:py-40"
-      >
-        <ParticleCanvas />
+      {/* External stylesheets — React 18+/Next 14 hoists these into <head> */}
+      <link rel="stylesheet" href="/plugins/bootstrap/css/bootstrap.min.css" />
+      <link rel="stylesheet" href="/plugins/icofont/icofont.min.css" />
+      <link
+        rel="stylesheet"
+        href="https://cdnjs.cloudflare.com/ajax/libs/slick-carousel/1.6.0/slick.min.css"
+      />
+      <link
+        href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800;900&display=swap"
+        rel="stylesheet"
+      />
 
-        <div className="relative z-10 mx-auto max-w-5xl text-center">
-          <div className="mb-7 inline-flex items-center gap-2 rounded-full border border-accent/25 bg-accent/10 px-4 py-1.5 text-xs font-medium text-accent">
-            <span className="inline-block h-1.5 w-1.5 animate-pulse rounded-full bg-accent" />
-            Software Consulting &amp; IT Staffing
-          </div>
+      {/* Page CSS */}
+      <style dangerouslySetInnerHTML={{ __html: HOME_CSS }} />
 
-          <h1 className="text-4xl font-extrabold leading-[1.05] text-white sm:text-5xl md:text-6xl lg:text-7xl">
-            We Provide{' '}
-            <span className="bg-gradient-to-br from-accent to-accent-light bg-clip-text text-transparent">
-              Strategic IT Solutions
-            </span>
-          </h1>
+      <div id="top">
+        {/* Back to top */}
+        <a href="#top" className="back-top" id="backTop">
+          <i className="icofont-long-arrow-up" />
+        </a>
 
-          <p className="mt-5 text-lg text-skyzen-muted sm:text-xl md:text-2xl">
-            Smart Solutions for a Digital Future
-          </p>
-
-          <p className="mx-auto mt-10 max-w-2xl text-base leading-relaxed text-skyzen-muted">
-            <strong className="text-accent">Skyzen Technologies LLC</strong> — Empowering your
-            business with innovative IT solutions to grow smarter, faster, and stay ahead.
-          </p>
-
-          <div className="mt-12 flex flex-wrap items-center justify-center gap-4">
-            <Link
-              href="/careers/openings"
-              className="rounded-full bg-gradient-to-r from-accent to-accent-dark px-8 py-3.5 text-sm font-semibold text-white shadow-glow-accent transition hover:shadow-glow-accent-lg"
-            >
-              Explore Careers
-            </Link>
-            <a
-              href="#contact"
-              className="rounded-full border border-white/20 px-8 py-3.5 text-sm font-semibold text-white transition hover:border-accent hover:bg-accent/5 hover:text-accent"
-            >
-              Get In Touch
-            </a>
-          </div>
-
-          {/* Stats */}
-          <div className="mt-20 flex flex-wrap items-stretch justify-center gap-4">
-            <a
-              href="#clients"
-              className="flex w-44 flex-col items-center gap-2 rounded-2xl border border-skyzen-border bg-skyzen-dark/40 px-6 py-5 text-skyzen-muted backdrop-blur-sm transition hover:-translate-y-1 hover:border-accent/45 hover:bg-accent/5 hover:text-white"
-            >
-              <i className="icofont-building text-3xl text-accent" />
-              <span className="text-xs font-medium tracking-wide">Enterprise Clients</span>
-            </a>
-            <a
-              href="#technology"
-              className="flex w-44 flex-col items-center gap-2 rounded-2xl border border-skyzen-border bg-skyzen-dark/40 px-6 py-5 text-skyzen-muted backdrop-blur-sm transition hover:-translate-y-1 hover:border-accent/45 hover:bg-accent/5 hover:text-white"
-            >
-              <i className="icofont-code-alt text-3xl text-accent" />
-              <span className="text-xs font-medium tracking-wide">Technologies</span>
-            </a>
-            <div className="flex w-44 flex-col items-center gap-1 rounded-2xl border border-skyzen-border bg-skyzen-dark/40 px-6 py-5 backdrop-blur-sm">
-              <div className="text-4xl font-extrabold leading-none text-white">
-                100<span className="text-accent">%</span>
-              </div>
-              <div className="text-xs font-medium tracking-wide text-skyzen-muted">
-                Commitment
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* =====================================================
-          ABOUT
-      ===================================================== */}
-      <section id="about" className="bg-skyzen-light px-6 py-24">
-        <div className="mx-auto grid max-w-7xl items-center gap-12 lg:grid-cols-2">
-          <div>
-            <img
-              src="/images/about.jpg"
-              alt="About Skyzen"
-              className="w-full rounded-2xl shadow-xl"
-            />
-          </div>
-          <div>
-            <SectionTag label="About Us" />
-            <h2 className="mb-5 text-3xl font-bold text-skyzen-navy md:text-4xl">
-              Welcome to <span className="text-accent">Skyzen Technologies LLC</span>
-            </h2>
-            <p className="mb-4 text-base leading-relaxed text-slate-600">
-              At <strong className="text-accent">Skyzen Technologies LLC</strong>, we are a{' '}
-              <strong>Software Consulting &amp; IT Staffing Company</strong> committed to bridging
-              the gap between talent and technology.
-            </p>
-            <p className="mb-6 text-base leading-relaxed text-slate-600">
-              We provide technical courses training with real-time working assessments, making
-              candidates job-ready at an industrial level. Empanelled with top recruiting
-              agencies across the United States and a preferred vendor to many, we deliver
-              staffing solutions from entry level to Architect level.
-            </p>
-
-            <div className="grid grid-cols-2 gap-4">
-              {ABOUT_STATS.map((s) => (
-                <div
-                  key={s.label}
-                  className="rounded-xl border border-slate-200 bg-white p-5 transition hover:-translate-y-1 hover:shadow-lg"
-                >
-                  <i className={`${s.icon} mb-2 block text-3xl text-accent`} />
-                  <div className="text-sm text-slate-500">{s.label}</div>
+        {/* =============================================
+            HEADER
+        ============================================= */}
+        <header>
+          <div className="top-bar">
+            <div className="container">
+              <div className="d-flex align-items-center justify-content-between">
+                <div style={{ display: 'flex', gap: '24px', flexWrap: 'wrap' }}>
+                  <a href="mailto:info@skyzentech.com">
+                    <i className="icofont-email" />
+                    info@skyzentech.com
+                  </a>
+                  <a href="tel:4699453339">
+                    <i className="icofont-phone" />
+                    +1 469-945-3339
+                  </a>
                 </div>
-              ))}
+                <div className="d-flex gap-2">
+                  <a
+                    href="https://www.linkedin.com/company/skyzen-tech-llc/"
+                    target="_blank"
+                    rel="noreferrer"
+                    className="social-link"
+                  >
+                    <i className="icofont-linkedin" />
+                  </a>
+                </div>
+              </div>
             </div>
           </div>
-        </div>
-      </section>
 
-      {/* =====================================================
-          WHAT WE DO
-      ===================================================== */}
-      <section id="what-we-do" className="bg-skyzen-dark2 px-6 py-24 text-skyzen-text">
-        <div className="mx-auto max-w-7xl">
-          <div className="mb-12 text-center">
-            <SectionTag label="What We Do" center />
-            <h2 className="bg-gradient-to-br from-white via-white to-accent bg-clip-text text-3xl font-bold text-transparent md:text-4xl">
-              Our Core Services
-            </h2>
-            <p className="mx-auto mt-4 max-w-2xl text-base text-skyzen-muted">
-              We offer a comprehensive range of services designed to help businesses and
-              individuals thrive in the digital era.
-            </p>
-          </div>
+          <nav className="main-nav" id="mainNav">
+            <div className="container">
+              <div className="nav-inner">
+                <a href="#top" className="nav-brand">
+                  <div className="brand-icon">
+                    <img src="/images/skyzen-logo.png" alt="Skyzen" />
+                  </div>
+                  <div className="brand-name">
+                    <span className="sky">SKY</span>
+                    <span className="zen">ZEN</span>
+                    <small>Technologies LLC</small>
+                  </div>
+                </a>
 
-          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-            {SERVICES.map((s) => (
-              <div
-                key={s.num}
-                className="group relative overflow-hidden rounded-2xl border border-skyzen-border bg-skyzen-card p-8 transition hover:-translate-y-1.5 hover:border-accent/30 hover:shadow-2xl"
-              >
-                <span className="pointer-events-none absolute right-6 top-6 text-5xl font-extrabold leading-none text-white/5">
-                  {s.num}
+                <button className="nav-toggle" id="navToggle" aria-label="Toggle menu">
+                  <i className="icofont-navigation-menu" />
+                </button>
+
+                <ul className="nav-links" id="navLinks">
+                  <li>
+                    <a href="#top" className="active">
+                      HOME
+                    </a>
+                  </li>
+                  <li>
+                    <a href="#what-we-do">SERVICES</a>
+                  </li>
+                  <li>
+                    <a href="#why-we">WHY WE?</a>
+                  </li>
+                  <li>
+                    <a href="#our-expertise">OUR EXPERTISE</a>
+                  </li>
+                  <li>
+                    <a href="#career-support">CAREER SUPPORT</a>
+                  </li>
+                  <li>
+                    <Link href="/careers/openings" className="nav-jobs-link">
+                      <i className="icofont-briefcase" /> EXPLORE JOBS
+                    </Link>
+                  </li>
+                  <li>
+                    <a href="#contact" className="nav-cta">
+                      HIRE TALENT
+                    </a>
+                  </li>
+                </ul>
+              </div>
+            </div>
+          </nav>
+        </header>
+
+        {/* =============================================
+            HERO
+        ============================================= */}
+        <canvas id="canvas" />
+        <section id="hero">
+          <div className="container">
+            <div className="hero-content hero-animate">
+              <div className="hero-eyebrow">
+                <span></span> Software Consulting &amp; IT Staffing
+              </div>
+
+              <h1 className="hero-main-title">
+                We Provide <span className="hl">Strategic IT Solutions</span>
+              </h1>
+              <h4 className="cd-headline clip is-full-width">
+                <span className="cd-words-wrapper">
+                  <b className="is-visible">Smart Solutions for a Digital Future</b>
+                  <b>Accelerate Your Business Success</b>
+                  <b>Innovate. Transform. Succeed</b>
                 </span>
-                <div className="mb-5 inline-flex h-14 w-14 items-center justify-center rounded-2xl bg-accent/10 text-2xl text-accent transition group-hover:bg-accent/20">
-                  <i className={s.icon} />
-                </div>
-                <h4 className="mb-3 text-lg font-bold text-white">{s.title}</h4>
-                <p className="text-sm leading-relaxed text-skyzen-muted">{s.body}</p>
-                <span className="absolute inset-x-0 bottom-0 h-[3px] origin-left scale-x-0 bg-gradient-to-r from-accent to-accent-dark transition group-hover:scale-x-100" />
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
+              </h4>
 
-      {/* =====================================================
-          WHY WE
-      ===================================================== */}
-      <section id="why-we" className="bg-skyzen-light px-6 py-24">
-        <div className="mx-auto grid max-w-7xl items-stretch gap-10 lg:grid-cols-12">
-          <div className="lg:col-span-5">
-            <div className="flex h-full flex-col justify-center rounded-3xl bg-skyzen-navy p-12 text-white">
-              <div className="mb-3 text-xs font-semibold uppercase tracking-[0.2em] text-accent">
-                Why Choose Us
-              </div>
-              <h3 className="mb-4 text-3xl font-bold leading-tight">
-                Where Technology
-                <br />
-                Meets <span className="text-accent">Excellence</span>
-              </h3>
-              <p className="mb-6 text-sm leading-relaxed text-[#a8c8e8]">
-                Our dynamic team combines deep industry expertise with a passion for results —
-                connecting IT talent with the world&apos;s leading organizations.
+              <p className="hero-desc">
+                <strong style={{ color: 'var(--orange)' }}>Skyzen Technologies LLC</strong> —
+                Empowering your business with innovative IT solutions to grow smarter, faster, and
+                stay ahead.
               </p>
-              <div className="flex flex-wrap gap-2">
-                {CLIENT_CHIPS.map((c) => (
-                  <span
-                    key={c}
-                    className="rounded-full border border-accent/20 bg-accent/10 px-3.5 py-1 text-xs font-medium text-accent"
-                  >
-                    {c}
-                  </span>
-                ))}
-              </div>
-            </div>
-          </div>
 
-          <div className="lg:col-span-7">
-            <SectionTag label="Our Differentiators" />
-            <h2 className="mb-8 text-3xl font-bold text-skyzen-navy md:text-4xl">
-              Why We Stand Out
-            </h2>
-            <div className="space-y-2">
-              {WHY_FEATURES.map((f) => (
-                <div
-                  key={f.title}
-                  className="flex gap-4 rounded-xl p-5 transition hover:bg-white hover:shadow"
-                >
-                  <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-accent/10 text-accent">
-                    <i className={`${f.icon} text-lg`} />
-                  </div>
-                  <div>
-                    <h5 className="mb-1 text-base font-bold text-skyzen-navy">{f.title}</h5>
-                    <p className="text-sm leading-relaxed text-slate-500">{f.body}</p>
+              <div className="hero-actions">
+                <a href="#career-support" className="btn-primary-glow">
+                  Explore Careers
+                </a>
+                <a href="#contact" className="btn-ghost">
+                  Get In Touch
+                </a>
+              </div>
+
+              <div className="hero-stats">
+                <div className="hero-stat">
+                  <a href="#clients" className="stat-btn">
+                    <i className="icofont-building" />
+                    <span>Enterprise Clients</span>
+                  </a>
+                </div>
+                <div className="stat-divider"></div>
+                <div className="hero-stat">
+                  <a href="#technology" className="stat-btn">
+                    <i className="icofont-code-alt" />
+                    <span>Technologies</span>
+                  </a>
+                </div>
+                <div className="stat-divider"></div>
+                <div className="hero-stat">
+                  <div className="stat-btn">
+                    <div className="num">
+                      100<span>%</span>
+                    </div>
+                    <div className="label">Commitment</div>
                   </div>
                 </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* =====================================================
-          OUR EXPERTISE
-      ===================================================== */}
-      <section id="our-expertise" className="bg-skyzen-dark px-6 py-24 text-skyzen-text">
-        <div className="mx-auto max-w-7xl">
-          <div className="mb-12 text-center">
-            <SectionTag label="Our Expertise" center />
-            <h2 className="bg-gradient-to-br from-white via-white to-accent bg-clip-text text-3xl font-bold text-transparent md:text-4xl">
-              Technologies &amp; Training
-            </h2>
-            <p className="mx-auto mt-4 max-w-2xl text-base text-skyzen-muted">
-              Cutting-edge technologies and comprehensive training programs to keep you ahead
-              of the curve.
-            </p>
-          </div>
-
-          <div className="grid gap-12 lg:grid-cols-2">
-            <div>
-              <h5 className="mb-1 text-base font-bold text-white">Technology Stack</h5>
-              <p className="mb-5 text-sm text-skyzen-muted">
-                Technologies we are pioneered in marketing, consulting and placing talent:
-              </p>
-              <div className="flex flex-wrap gap-2">
-                {TECH_CHIPS.map((t) => (
-                  <span
-                    key={t}
-                    className="rounded-full border border-skyzen-border bg-skyzen-card px-4 py-1.5 text-xs font-medium text-skyzen-text transition hover:-translate-y-0.5 hover:border-accent/40 hover:bg-accent/10 hover:text-accent"
-                  >
-                    {t}
-                  </span>
-                ))}
               </div>
             </div>
+          </div>
+          <div className="scroll-hint">
+            <div className="mouse"></div>
+            <span>Scroll</span>
+          </div>
+        </section>
 
-            <div>
-              <h5 className="mb-1 text-base font-bold text-white">Training Programs</h5>
-              <p className="mb-5 text-sm text-skyzen-muted">
-                Hands-on programs combining practical knowledge with real-world industry
-                insights:
-              </p>
-              <div className="space-y-2.5">
-                {TRAINING_PROGRAMS.map((p) => (
-                  <div
-                    key={p.title}
-                    className="flex items-center gap-3.5 rounded-xl border border-skyzen-border bg-skyzen-card px-5 py-4 transition hover:border-accent/30 hover:bg-accent/5"
-                  >
-                    <i className={`${p.icon} text-xl text-accent`} />
-                    <div>
-                      <h6 className="text-sm font-semibold text-white">{p.title}</h6>
-                      <span className="text-xs text-skyzen-muted">{p.detail}</span>
+        {/* =============================================
+            ABOUT
+        ============================================= */}
+        <section id="about">
+          <div className="container">
+            <div className="row align-items-center">
+              <div className="col-lg-5 reveal">
+                <div className="about-img-wrap">
+                  <img src="/images/about.jpg" alt="About Skyzen" className="img-fluid" />
+                </div>
+              </div>
+              <div className="col-lg-7 reveal reveal-delay-2">
+                <div className="about-text">
+                  <div className="section-tag">About Us</div>
+                  <h2 className="section-title dark">
+                    Welcome to <span className="orange-text">Skyzen Technologies LLC</span>
+                  </h2>
+                  <p>
+                    At <strong className="orange-text">Skyzen Technologies LLC</strong>, we are a{' '}
+                    <strong>Software Consulting &amp; IT Staffing Company</strong> committed to
+                    bridging the gap between talent and technology.
+                  </p>
+                  <p>
+                    We provide technical courses training with real-time working assessments, making
+                    candidates job-ready at an industrial level. Empanelled with top recruiting
+                    agencies across the United States and a preferred vendor to many, we deliver
+                    staffing solutions from entry level to Architect level.
+                  </p>
+
+                  <div className="about-stats">
+                    <div className="about-stat">
+                      <i className="icofont-graduate" />
+                      <div className="lbl">Professionals Trained</div>
+                    </div>
+                    <div className="about-stat">
+                      <i className="icofont-building" />
+                      <div className="lbl">Enterprise Clients</div>
+                    </div>
+                    <div className="about-stat">
+                      <i className="icofont-code-alt" />
+                      <div className="lbl">Technologies Covered</div>
+                    </div>
+                    <div className="about-stat">
+                      <i className="icofont-support" />
+                      <div className="lbl">Support Available</div>
                     </div>
                   </div>
-                ))}
+                </div>
               </div>
             </div>
           </div>
-        </div>
-      </section>
+        </section>
 
-      {/* =====================================================
-          SKYZEN CAREERS — enhanced career section + primary CTA
-      ===================================================== */}
-      <section
-        id="career-support"
-        className="relative overflow-hidden bg-gradient-to-br from-accent via-accent to-accent-dark px-6 py-24 text-white"
-      >
-        <div className="mx-auto max-w-5xl text-center">
-          <div className="mb-3 text-xs font-semibold uppercase tracking-[0.25em] text-white/80">
-            Now hiring
-          </div>
-          <h2 className="text-3xl font-extrabold sm:text-4xl md:text-5xl">
-            Skyzen STEM Internship Program
-          </h2>
-          <p className="mx-auto mt-5 max-w-2xl text-base leading-relaxed text-white/90 sm:text-lg">
-            Hands-on internships with top US companies. Real projects, structured
-            mentorship, STEM OPT compliance built in.
-          </p>
-
-          <div className="mt-12 grid gap-6 text-left md:grid-cols-3">
-            {CAREER_PILLARS.map((p) => (
-              <div
-                key={p.title}
-                className="rounded-2xl bg-white/10 p-6 backdrop-blur-sm transition hover:bg-white/15"
-              >
-                <div className="mb-3 inline-flex h-11 w-11 items-center justify-center rounded-xl bg-white/20 text-xl">
-                  <i className={p.icon} />
-                </div>
-                <h4 className="mb-1.5 text-base font-bold">{p.title}</h4>
-                <p className="text-sm leading-relaxed text-white/85">{p.body}</p>
+        {/* =============================================
+            WHAT WE DO
+        ============================================= */}
+        <section id="what-we-do">
+          <div className="container">
+            <div className="text-center reveal">
+              <div className="section-tag" style={{ justifyContent: 'center' }}>
+                What We Do
               </div>
-            ))}
-          </div>
+              <h2 className="section-title gradient-heading">Our Core Services</h2>
+              <p className="section-sub" style={{ margin: '0 auto' }}>
+                We offer a comprehensive range of services designed to help businesses and
+                individuals thrive in the digital era.
+              </p>
+            </div>
 
-          <div className="mt-12">
-            <Link
-              href="/careers/openings"
-              className="inline-flex items-center gap-2 rounded-full bg-white px-8 py-3.5 text-sm font-bold text-accent-dark shadow-xl transition hover:-translate-y-0.5 hover:bg-skyzen-light"
+            <div className="service-grid" id="what-we-do-block">
+              <div className="service-card reveal reveal-delay-1">
+                <div className="card-num">01</div>
+                <div className="service-icon">
+                  <i className="icofont-code-alt" />
+                </div>
+                <h4>Software Consulting &amp; Development</h4>
+                <p>
+                  Customized software solutions built for scale and reliability. We integrate across
+                  platforms and drive your digital transformation with technologies like Java, .NET,
+                  ServiceNow, and more.
+                </p>
+              </div>
+              <div className="service-card reveal reveal-delay-2">
+                <div className="card-num">02</div>
+                <div className="service-icon">
+                  <i className="icofont-book" />
+                </div>
+                <h4>Technical Training Programs</h4>
+                <p>
+                  Hands-on courses with real-time working assessments that make candidates job-ready
+                  at an industrial level — covering Java, DevOps, Cloud, Data Engineering, QA,
+                  Salesforce and more.
+                </p>
+              </div>
+              <div className="service-card reveal reveal-delay-3">
+                <div className="card-num">03</div>
+                <div className="service-icon">
+                  <i className="icofont-people" />
+                </div>
+                <h4>Recruitment &amp; IT Staffing</h4>
+                <p>
+                  Empanelled with top recruiting agencies across the United States and a preferred
+                  vendor to many. We provide staffing from entry level to Architect level across all
+                  major IT domains.
+                </p>
+              </div>
+              <div className="service-card reveal reveal-delay-2">
+                <div className="card-num">04</div>
+                <div className="service-icon">
+                  <i className="icofont-chart-growth" />
+                </div>
+                <h4>Management Consulting</h4>
+                <p>
+                  Strategic planning, operational efficiency, digital marketing, security
+                  compliance, and business transformation — helping your organization adapt and
+                  achieve sustainable growth.
+                </p>
+              </div>
+              <div className="service-card reveal reveal-delay-3">
+                <div className="card-num">05</div>
+                <div className="service-icon">
+                  <i className="icofont-shield" />
+                </div>
+                <h4>Security &amp; Compliance</h4>
+                <p>
+                  Protect your data, meet regulatory requirements, and maintain industry standards
+                  with our security guidance and compliance frameworks tailored to your business
+                  needs.
+                </p>
+              </div>
+              <div className="service-card reveal reveal-delay-4">
+                <div className="card-num">06</div>
+                <div className="service-icon">
+                  <i className="icofont-tasks-alt" />
+                </div>
+                <h4>Project Management</h4>
+                <p>
+                  Expert project management, process optimization, and performance improvement
+                  ensuring your initiatives are delivered on time, within scope, and aligned with
+                  business goals.
+                </p>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* =============================================
+            WHY WE
+        ============================================= */}
+        <section id="why-we">
+          <div className="container">
+            <div className="row align-items-center g-5">
+              <div className="col-lg-5 reveal">
+                <div className="why-visual">
+                  <div className="section-tag" style={{ color: '#fb9b47' }}>
+                    Why Choose Us
+                  </div>
+                  <h3>
+                    Where Technology
+                    <br />
+                    Meets <span style={{ color: '#fb9b47' }}>Excellence</span>
+                  </h3>
+                  <p>
+                    Our dynamic team combines deep industry expertise with a passion for results —
+                    connecting IT talent with the world's leading organizations.
+                  </p>
+                  <div className="client-chip-wrap">
+                    <span className="client-chip">Wells Fargo</span>
+                    <span className="client-chip">JP Morgan</span>
+                    <span className="client-chip">AT&amp;T</span>
+                    <span className="client-chip">Deloitte</span>
+                    <span className="client-chip">Mastercard</span>
+                    <span className="client-chip">Cisco</span>
+                    <span className="client-chip">GE</span>
+                    <span className="client-chip">T-Mobile</span>
+                    <span className="client-chip">US Bank</span>
+                    <span className="client-chip">Verizon</span>
+                  </div>
+                </div>
+              </div>
+              <div className="col-lg-7 reveal reveal-delay-2">
+                <div className="section-tag">Our Differentiators</div>
+                <h2 className="section-title dark">Why We Stand Out</h2>
+                <div className="why-features">
+                  <div className="why-feature">
+                    <div className="why-feature-icon">
+                      <i className="icofont-handshake-deal" />
+                    </div>
+                    <div>
+                      <h5>Preferred Vendor Status</h5>
+                      <p>
+                        Empanelled with top recruiting agencies across the United States and
+                        recognized as a preferred vendor to many — giving our candidates a direct
+                        edge in job placement.
+                      </p>
+                    </div>
+                  </div>
+                  <div className="why-feature">
+                    <div className="why-feature-icon">
+                      <i className="icofont-loop" />
+                    </div>
+                    <div>
+                      <h5>End-to-End Solutions</h5>
+                      <p>
+                        From training with real-time assessments to full career placement — entry
+                        level to Architect level. We guide every candidate through the complete
+                        journey.
+                      </p>
+                    </div>
+                  </div>
+                  <div className="why-feature">
+                    <div className="why-feature-icon">
+                      <i className="icofont-users-alt-5" />
+                    </div>
+                    <div>
+                      <h5>Industry-Level Training</h5>
+                      <p>
+                        Our technical courses include real-time working assessments that prepare
+                        candidates to meet actual industrial demands — not just theory, but hands-on
+                        readiness.
+                      </p>
+                    </div>
+                  </div>
+                  <div className="why-feature">
+                    <div className="why-feature-icon">
+                      <i className="icofont-checked" />
+                    </div>
+                    <div>
+                      <h5>Proven Placement Record</h5>
+                      <p>
+                        Trusted by Fortune 500 companies including Wells Fargo, JP Morgan, AT&amp;T,
+                        Deloitte and more — our consistent placement record speaks for itself.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* =============================================
+            EXPERTISE
+        ============================================= */}
+        <section id="our-expertise">
+          <div className="container">
+            <div className="text-center reveal" id="our-expertise-block">
+              <div className="section-tag" style={{ justifyContent: 'center' }}>
+                Our Expertise
+              </div>
+              <h2 className="section-title gradient-heading">Technologies &amp; Training</h2>
+              <p className="section-sub" style={{ margin: '0 auto' }}>
+                Cutting-edge technologies and comprehensive training programs to keep you ahead of
+                the curve.
+              </p>
+            </div>
+
+            <div className="row g-5 mt-2">
+              <div className="col-lg-6 reveal reveal-delay-1">
+                <h5
+                  style={{ color: 'var(--white)', fontWeight: 700, marginBottom: '6px' }}
+                >
+                  Technology Stack
+                </h5>
+                <p style={{ color: 'var(--muted)', fontSize: '14px', marginBottom: 0 }}>
+                  Technologies we are pioneered in marketing, consulting and placing talent:
+                </p>
+                <div className="tech-chips">
+                  <span className="tech-chip">Java (Full Stack)</span>
+                  <span className="tech-chip">.NET (Full Stack)</span>
+                  <span className="tech-chip">DevOps / AWS / GCP</span>
+                  <span className="tech-chip">Data Engineering</span>
+                  <span className="tech-chip">ETL Development</span>
+                  <span className="tech-chip">QA Automation</span>
+                  <span className="tech-chip">QA Manual</span>
+                  <span className="tech-chip">Salesforce</span>
+                  <span className="tech-chip">Python</span>
+                  <span className="tech-chip">UI/UX Design</span>
+                  <span className="tech-chip">Network Engineering</span>
+                  <span className="tech-chip">Cyber Security</span>
+                  <span className="tech-chip">Oracle HCM</span>
+                  <span className="tech-chip">Oracle DB Admin</span>
+                  <span className="tech-chip">Oracle NetSuite</span>
+                  <span className="tech-chip">Workday</span>
+                  <span className="tech-chip">ServiceNow</span>
+                  <span className="tech-chip">PowerBI</span>
+                </div>
+              </div>
+              <div className="col-lg-6 reveal reveal-delay-2">
+                <h5
+                  style={{ color: 'var(--white)', fontWeight: 700, marginBottom: '6px' }}
+                >
+                  Training Programs
+                </h5>
+                <p style={{ color: 'var(--muted)', fontSize: '14px', marginBottom: '16px' }}>
+                  Hands-on programs combining practical knowledge with real-world industry
+                  insights:
+                </p>
+                <div className="training-list">
+                  <div className="training-item">
+                    <i className="icofont-coffee-alt" />
+                    <div>
+                      <h6>Java Full Stack</h6>
+                      <span>Core Java, Spring Boot, Microservices, REST APIs</span>
+                    </div>
+                  </div>
+                  <div className="training-item">
+                    <i className="icofont-code-alt" />
+                    <div>
+                      <h6>.NET Full Stack</h6>
+                      <span>C#, ASP.NET Core, MVC, Entity Framework</span>
+                    </div>
+                  </div>
+                  <div className="training-item">
+                    <i className="icofont-loop" />
+                    <div>
+                      <h6>DevOps / AWS / GCP</h6>
+                      <span>Docker, Kubernetes, Jenkins, CI/CD Pipelines</span>
+                    </div>
+                  </div>
+                  <div className="training-item">
+                    <i className="icofont-database" />
+                    <div>
+                      <h6>Data Engineering &amp; ETL</h6>
+                      <span>Spark, Pipelines, ETL, Data Warehousing</span>
+                    </div>
+                  </div>
+                  <div className="training-item">
+                    <i className="icofont-check-circled" />
+                    <div>
+                      <h6>QA &amp; Testing</h6>
+                      <span>Selenium, API Testing, Manual &amp; Automation</span>
+                    </div>
+                  </div>
+                  <div className="training-item">
+                    <i className="icofont-people" />
+                    <div>
+                      <h6>Salesforce</h6>
+                      <span>Admin, Developer, Sales Cloud, Service Cloud</span>
+                    </div>
+                  </div>
+                  <div className="training-item">
+                    <i className="icofont-code-alt" />
+                    <div>
+                      <h6>Python</h6>
+                      <span>Scripting, Data Analysis, Automation, ML basics</span>
+                    </div>
+                  </div>
+                  <div className="training-item">
+                    <i className="icofont-chart-flow" />
+                    <div>
+                      <h6>Real-Time Assessments</h6>
+                      <span>Industry-level projects to make you job-ready</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* =============================================
+            CAREER SUPPORT
+        ============================================= */}
+        <section id="career-support">
+          <div className="container">
+            <div className="text-center reveal">
+              <div className="section-tag" style={{ justifyContent: 'center' }}>
+                Career Support
+              </div>
+              <h2 className="section-title dark">Your Career, Our Priority</h2>
+              <p className="section-sub dark" style={{ margin: '0 auto' }}>
+                We go beyond training — providing the tools, network, and guidance to launch and
+                advance your IT career.
+              </p>
+            </div>
+
+            <div className="career-grid">
+              <div className="career-card reveal reveal-delay-1">
+                <div className="career-card-icon">
+                  <i className="icofont-book" />
+                </div>
+                <h4>Training &amp; Assessments</h4>
+                <p>
+                  We provide technical courses with real-time working assessments, making candidates
+                  job-ready at an industrial level — from beginners to seasoned professionals.
+                </p>
+              </div>
+              <div className="career-card reveal reveal-delay-2">
+                <div className="career-card-icon">
+                  <i className="icofont-handshake-deal" />
+                </div>
+                <h4>Job Placement</h4>
+                <p>
+                  Empanelled with top US recruiting agencies and preferred vendors to many, we
+                  connect talent with opportunities from entry level to Architect level across all
+                  major IT domains.
+                </p>
+              </div>
+              <div className="career-card reveal reveal-delay-3">
+                <div className="career-card-icon">
+                  <i className="icofont-speech-comments" />
+                </div>
+                <h4>Career Coaching &amp; Professional Profile Preparation</h4>
+                <p>
+                  Our dedicated team prepares you for technical interviews and crafts compelling
+                  resumes that highlight your strengths — giving you a real edge in the job market.
+                </p>
+              </div>
+            </div>
+
+            <div className="career-cta reveal">
+              <p>Ready to take the next step in your IT career?</p>
+              <Link href="/careers/openings" className="btn-orange">
+                Explore Job Opportunities &nbsp;
+                <i className="icofont-arrow-right" />
+              </Link>
+            </div>
+          </div>
+        </section>
+
+        {/* =============================================
+            CLIENTS
+        ============================================= */}
+        <section id="clients">
+          <div className="container" style={{ marginBottom: '40px' }}>
+            <div className="section-tag" style={{ justifyContent: 'center' }}>
+              Trusted By
+            </div>
+            <h2
+              className="section-title gradient-heading"
+              style={{ textAlign: 'center', marginBottom: 0 }}
             >
-              Explore Open Internships
-              <span aria-hidden="true">&rarr;</span>
-            </Link>
-          </div>
-        </div>
-      </section>
-
-      {/* =====================================================
-          CLIENTS
-      ===================================================== */}
-      <section
-        id="clients"
-        className="border-y border-skyzen-border bg-skyzen-dark2 px-6 py-20 text-skyzen-text"
-      >
-        <div className="mx-auto max-w-7xl">
-          <div className="mb-10 text-center">
-            <SectionTag label="Trusted By" center />
-            <h2 className="bg-gradient-to-br from-white via-white to-accent bg-clip-text text-3xl font-bold text-transparent md:text-4xl">
               Our Clients
             </h2>
           </div>
-          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6">
-            {CLIENT_LOGO_IDS.map((n) => (
-              <div
-                key={n}
-                className="flex h-20 items-center justify-center rounded-xl border border-skyzen-border bg-white/[0.03] p-4 transition hover:-translate-y-0.5 hover:border-accent/25 hover:bg-accent/5"
-              >
-                <img
-                  src={`/images/client-logos/${n}.jpg`}
-                  alt={`Client logo ${n}`}
-                  className="max-h-10 max-w-[110px] object-contain opacity-75 [filter:grayscale(100%)_brightness(1.6)_contrast(0.8)] transition hover:opacity-100 hover:[filter:none]"
-                />
-              </div>
-            ))}
+          {/* Marquee row 1 (forward) */}
+          <div className="logo-marquee-wrap mb-3">
+            <div className="logo-marquee-track" id="clientTrack1">
+              <div className="logo-item"><img src="/images/client-logos/1.jpg" alt="Client" /></div>
+              <div className="logo-item"><img src="/images/client-logos/2.jpg" alt="Client" /></div>
+              <div className="logo-item"><img src="/images/client-logos/3.jpg" alt="Client" /></div>
+              <div className="logo-item"><img src="/images/client-logos/4.jpg" alt="Client" /></div>
+              <div className="logo-item"><img src="/images/client-logos/5.jpg" alt="Client" /></div>
+              <div className="logo-item"><img src="/images/client-logos/6.jpg" alt="Client" /></div>
+              <div className="logo-item"><img src="/images/client-logos/7.jpg" alt="Client" /></div>
+              <div className="logo-item"><img src="/images/client-logos/8.jpg" alt="Client" /></div>
+              <div className="logo-item"><img src="/images/client-logos/9.jpg" alt="Client" /></div>
+              <div className="logo-item"><img src="/images/client-logos/10.jpg" alt="Client" /></div>
+              <div className="logo-item"><img src="/images/client-logos/11.jpg" alt="Client" /></div>
+              {/* duplicate for seamless loop */}
+              <div className="logo-item"><img src="/images/client-logos/1.jpg" alt="Client" /></div>
+              <div className="logo-item"><img src="/images/client-logos/2.jpg" alt="Client" /></div>
+              <div className="logo-item"><img src="/images/client-logos/3.jpg" alt="Client" /></div>
+              <div className="logo-item"><img src="/images/client-logos/4.jpg" alt="Client" /></div>
+              <div className="logo-item"><img src="/images/client-logos/5.jpg" alt="Client" /></div>
+              <div className="logo-item"><img src="/images/client-logos/6.jpg" alt="Client" /></div>
+              <div className="logo-item"><img src="/images/client-logos/7.jpg" alt="Client" /></div>
+              <div className="logo-item"><img src="/images/client-logos/8.jpg" alt="Client" /></div>
+              <div className="logo-item"><img src="/images/client-logos/9.jpg" alt="Client" /></div>
+              <div className="logo-item"><img src="/images/client-logos/10.jpg" alt="Client" /></div>
+              <div className="logo-item"><img src="/images/client-logos/11.jpg" alt="Client" /></div>
+            </div>
           </div>
-        </div>
-      </section>
+          {/* Marquee row 2 (reverse) */}
+          <div className="logo-marquee-wrap">
+            <div className="logo-marquee-track reverse" id="clientTrack2">
+              <div className="logo-item"><img src="/images/client-logos/12.jpg" alt="Client" /></div>
+              <div className="logo-item"><img src="/images/client-logos/13.jpg" alt="Client" /></div>
+              <div className="logo-item"><img src="/images/client-logos/14.jpg" alt="Client" /></div>
+              <div className="logo-item"><img src="/images/client-logos/15.jpg" alt="Client" /></div>
+              <div className="logo-item"><img src="/images/client-logos/16.jpg" alt="Client" /></div>
+              <div className="logo-item"><img src="/images/client-logos/17.jpg" alt="Client" /></div>
+              <div className="logo-item"><img src="/images/client-logos/18.jpg" alt="Client" /></div>
+              <div className="logo-item"><img src="/images/client-logos/19.jpg" alt="Client" /></div>
+              <div className="logo-item"><img src="/images/client-logos/20.jpg" alt="Client" /></div>
+              <div className="logo-item"><img src="/images/client-logos/21.jpg" alt="Client" /></div>
+              {/* duplicate for seamless loop */}
+              <div className="logo-item"><img src="/images/client-logos/12.jpg" alt="Client" /></div>
+              <div className="logo-item"><img src="/images/client-logos/13.jpg" alt="Client" /></div>
+              <div className="logo-item"><img src="/images/client-logos/14.jpg" alt="Client" /></div>
+              <div className="logo-item"><img src="/images/client-logos/15.jpg" alt="Client" /></div>
+              <div className="logo-item"><img src="/images/client-logos/16.jpg" alt="Client" /></div>
+              <div className="logo-item"><img src="/images/client-logos/17.jpg" alt="Client" /></div>
+              <div className="logo-item"><img src="/images/client-logos/18.jpg" alt="Client" /></div>
+              <div className="logo-item"><img src="/images/client-logos/19.jpg" alt="Client" /></div>
+              <div className="logo-item"><img src="/images/client-logos/20.jpg" alt="Client" /></div>
+              <div className="logo-item"><img src="/images/client-logos/21.jpg" alt="Client" /></div>
+            </div>
+          </div>
+        </section>
 
-      {/* =====================================================
-          TECHNOLOGY
-      ===================================================== */}
-      <section
-        id="technology"
-        className="border-b border-skyzen-border bg-skyzen-dark3 px-6 py-20 text-skyzen-text"
-      >
-        <div className="mx-auto max-w-7xl">
-          <div className="mb-10 text-center">
-            <SectionTag label="Tech Stack" center />
-            <h2 className="bg-gradient-to-br from-white via-white to-accent bg-clip-text text-3xl font-bold text-transparent md:text-4xl">
+        {/* =============================================
+            TECHNOLOGY
+        ============================================= */}
+        <section id="technology">
+          <div className="container" style={{ marginBottom: '40px' }}>
+            <div className="section-tag" style={{ justifyContent: 'center' }}>
+              Tech Stack
+            </div>
+            <h2
+              className="section-title gradient-heading"
+              style={{ textAlign: 'center', marginBottom: 0 }}
+            >
               Technologies We Work With
             </h2>
           </div>
-          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">
-            {TECH_LOGO_IDS.map((n) => (
-              <div
-                key={n}
-                className="flex h-20 items-center justify-center rounded-xl border border-skyzen-border bg-white/[0.03] p-4 transition hover:-translate-y-0.5 hover:border-accent/25 hover:bg-accent/5"
-              >
-                <img
-                  src={`/images/technology-logos/${n}.jpg`}
-                  alt={`Technology logo ${n}`}
-                  className="max-h-10 max-w-[110px] object-contain opacity-75 [filter:grayscale(100%)_brightness(1.6)_contrast(0.8)] transition hover:opacity-100 hover:[filter:none]"
-                />
-              </div>
-            ))}
+          <div className="logo-marquee-wrap">
+            <div className="logo-marquee-track" id="techTrack">
+              <div className="logo-item"><img src="/images/technology-logos/1.jpg" alt="Tech" /></div>
+              <div className="logo-item"><img src="/images/technology-logos/2.jpg" alt="Tech" /></div>
+              <div className="logo-item"><img src="/images/technology-logos/3.jpg" alt="Tech" /></div>
+              <div className="logo-item"><img src="/images/technology-logos/4.jpg" alt="Tech" /></div>
+              <div className="logo-item"><img src="/images/technology-logos/5.jpg" alt="Tech" /></div>
+              <div className="logo-item"><img src="/images/technology-logos/6.jpg" alt="Tech" /></div>
+              {/* duplicate for seamless loop */}
+              <div className="logo-item"><img src="/images/technology-logos/1.jpg" alt="Tech" /></div>
+              <div className="logo-item"><img src="/images/technology-logos/2.jpg" alt="Tech" /></div>
+              <div className="logo-item"><img src="/images/technology-logos/3.jpg" alt="Tech" /></div>
+              <div className="logo-item"><img src="/images/technology-logos/4.jpg" alt="Tech" /></div>
+              <div className="logo-item"><img src="/images/technology-logos/5.jpg" alt="Tech" /></div>
+              <div className="logo-item"><img src="/images/technology-logos/6.jpg" alt="Tech" /></div>
+            </div>
+          </div>
+        </section>
+
+        {/* =============================================
+            CTA BANNER
+        ============================================= */}
+        <div className="cta-banner">
+          <div className="container" style={{ position: 'relative', zIndex: 1 }}>
+            <h2>Have a Question or Need IT Solutions?</h2>
+            <p>
+              Let's discuss how Skyzen Technologies can help your business grow and your career take
+              off.
+            </p>
+            <a href="#contact" className="btn-primary-glow">
+              Get In Touch Today
+            </a>
           </div>
         </div>
-      </section>
 
-      {/* =====================================================
-          CTA BANNER
-      ===================================================== */}
-      <section className="bg-gradient-to-br from-skyzen-navy to-[#1a3d6b] px-6 py-20 text-center text-white">
-        <h2 className="text-3xl font-bold md:text-4xl">
-          Have a Question or Need IT Solutions?
-        </h2>
-        <p className="mx-auto mt-4 max-w-xl text-base text-[#a8c8e8]">
-          Let&apos;s discuss how Skyzen Technologies can help your business grow and your career
-          take off.
-        </p>
-        <a
-          href="#contact"
-          className="mt-8 inline-block rounded-full bg-gradient-to-r from-accent to-accent-dark px-8 py-3.5 text-sm font-semibold text-white shadow-glow-accent transition hover:shadow-glow-accent-lg"
-        >
-          Get In Touch Today
-        </a>
-      </section>
+        {/* =============================================
+            CONTACT
+        ============================================= */}
+        <section id="contact">
+          <div className="container">
+            <div className="text-center reveal" style={{ marginBottom: '56px' }}>
+              <div className="section-tag" style={{ justifyContent: 'center' }}>
+                Contact Us
+              </div>
+              <h2 className="section-title gradient-heading">Let's Start a Conversation</h2>
+              <p className="section-sub" style={{ margin: '0 auto' }}>
+                Feel free to reach out any time. We'll get back to you soon.
+              </p>
+            </div>
 
-      {/* =====================================================
-          CONTACT
-      ===================================================== */}
-      <section id="contact" className="bg-skyzen-dark2 px-6 py-24 text-skyzen-text">
-        <div className="mx-auto max-w-7xl">
-          <div className="mb-14 text-center">
-            <SectionTag label="Contact Us" center />
-            <h2 className="bg-gradient-to-br from-white via-white to-accent bg-clip-text text-3xl font-bold text-transparent md:text-4xl">
-              Let&apos;s Start a Conversation
-            </h2>
-            <p className="mx-auto mt-3 max-w-xl text-base text-skyzen-muted">
-              Feel free to reach out any time. We&apos;ll get back to you soon.
-            </p>
+            <div className="row g-4">
+              <div className="col-lg-5 reveal reveal-delay-1">
+                <div className="contact-info-card">
+                  <h3>Get In Touch</h3>
+                  <p>
+                    We're here to help. Reach us through any of the channels below and our team will
+                    respond promptly.
+                  </p>
+
+                  <div className="contact-detail">
+                    <div className="contact-detail-icon">
+                      <i className="icofont-phone" />
+                    </div>
+                    <div className="info">
+                      <span>Phone</span>
+                      <a href="tel:4699453339">+1 469-945-3339</a>
+                    </div>
+                  </div>
+                  <div className="contact-detail">
+                    <div className="contact-detail-icon">
+                      <i className="icofont-email" />
+                    </div>
+                    <div className="info">
+                      <span>Email</span>
+                      <a href="mailto:info@skyzentech.com">info@skyzentech.com</a>
+                    </div>
+                  </div>
+                  <div className="contact-detail">
+                    <div className="contact-detail-icon">
+                      <i className="icofont-location-pin" />
+                    </div>
+                    <div className="info">
+                      <span>Address</span>
+                      <p>
+                        5465 Legacy Drive, Suite 650,
+                        <br />
+                        Plano, TX 75024
+                      </p>
+                    </div>
+                  </div>
+                  <div className="contact-detail">
+                    <div className="contact-detail-icon">
+                      <i className="icofont-linkedin" />
+                    </div>
+                    <div className="info">
+                      <span>LinkedIn</span>
+                      <a
+                        href="https://www.linkedin.com/company/skyzen-tech-llc/"
+                        target="_blank"
+                        rel="noreferrer"
+                      >
+                        skyzen-tech-llc
+                      </a>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="col-lg-7 reveal reveal-delay-2">
+                <div className="contact-form-card">
+                  <h4>Send Us a Message</h4>
+                  <p>Fill in the form below and we'll ping you back!</p>
+
+                  <div id="contact_results"></div>
+
+                  <form action="contact.php" method="post" id="contact_body" noValidate>
+                    <div className="row">
+                      <div className="col-sm-6">
+                        <div className="form-group">
+                          <label>First Name</label>
+                          <input type="text" name="firstName" placeholder="John" data-required="true" />
+                        </div>
+                      </div>
+                      <div className="col-sm-6">
+                        <div className="form-group">
+                          <label>Last Name</label>
+                          <input type="text" name="lastName" placeholder="Doe" />
+                        </div>
+                      </div>
+                      <div className="col-sm-6">
+                        <div className="form-group">
+                          <label>Email Address</label>
+                          <input
+                            type="email"
+                            name="email"
+                            placeholder="john@example.com"
+                            data-required="true"
+                          />
+                        </div>
+                      </div>
+                      <div className="col-sm-6">
+                        <div className="form-group">
+                          <label>Phone Number</label>
+                          <input type="tel" name="phone" placeholder="+1 (___) ___-____" />
+                        </div>
+                      </div>
+                      <div className="col-12">
+                        <div className="form-group">
+                          <label>Message</label>
+                          <textarea
+                            name="message"
+                            placeholder="Tell us how we can help..."
+                            data-required="true"
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="consent-row">
+                      <input type="checkbox" id="contactConsent" />
+                      <label htmlFor="contactConsent">
+                        Check this box to confirm you agree to be contacted regarding your inquiry.
+                        Message and data rates may apply. See our{' '}
+                        <a href="privacy-policy.html">Privacy Policy</a>.
+                      </label>
+                    </div>
+
+                    <button type="submit" className="btn-submit">
+                      Send Message &nbsp;
+                      <i className="icofont-paper-plane" />
+                    </button>
+                  </form>
+                </div>
+              </div>
+            </div>
           </div>
+        </section>
 
-          <div className="grid gap-6 lg:grid-cols-12">
-            {/* Info card */}
-            <div className="lg:col-span-5">
-              <div className="h-full rounded-2xl border border-skyzen-border bg-skyzen-card p-10">
-                <h3 className="mb-2 text-2xl font-bold text-white">Get In Touch</h3>
-                <p className="mb-7 text-sm leading-relaxed text-skyzen-muted">
-                  We&apos;re here to help. Reach us through any of the channels below and our
-                  team will respond promptly.
-                </p>
-
-                <ContactDetail
-                  icon="icofont-phone"
-                  label="Phone"
-                  primary={<a href="tel:4699453339">+1 469-945-3339</a>}
-                />
-                <ContactDetail
-                  icon="icofont-email"
-                  label="Email"
-                  primary={<a href="mailto:info@skyzentech.com">info@skyzentech.com</a>}
-                />
-                <ContactDetail
-                  icon="icofont-location-pin"
-                  label="Address"
-                  primary={
-                    <span className="whitespace-pre-line">
-                      {`5465 Legacy Drive, Suite 650,\nPlano, TX 75024`}
-                    </span>
-                  }
-                />
-                <ContactDetail
-                  icon="icofont-linkedin"
-                  label="LinkedIn"
-                  primary={
+        {/* =============================================
+            FOOTER
+        ============================================= */}
+        <footer>
+          <div className="container">
+            <div className="row g-4">
+              <div className="col-lg-4 footer-col">
+                <div className="footer-brand">
+                  <a href="#top" className="nav-brand">
+                    <div className="brand-icon">
+                      <img src="/images/skyzen-logo.png" alt="Skyzen" />
+                    </div>
+                    <div className="brand-name">
+                      <span className="sky">SKY</span>
+                      <span className="zen">ZEN</span>
+                      <small>Technologies LLC</small>
+                    </div>
+                  </a>
+                  <p>
+                    Skyzen Technologies LLC — where technology meets excellence. Premier IT
+                    consulting, staffing, and training in Plano, TX.
+                  </p>
+                  <div className="footer-socials">
                     <a
                       href="https://www.linkedin.com/company/skyzen-tech-llc/"
                       target="_blank"
-                      rel="noopener noreferrer"
+                      rel="noreferrer"
                     >
-                      skyzen-tech-llc
+                      <i className="icofont-linkedin" />
                     </a>
-                  }
-                  last
-                />
+                  </div>
+                </div>
+              </div>
+
+              <div className="col-lg-2 col-sm-4 footer-col">
+                <h6>Navigation</h6>
+                <ul className="footer-links">
+                  <li>
+                    <a href="#top">Home</a>
+                  </li>
+                  <li>
+                    <a href="#what-we-do">Services</a>
+                  </li>
+                  <li>
+                    <a href="#why-we">Why We</a>
+                  </li>
+                  <li>
+                    <a href="#our-expertise">Our Expertise</a>
+                  </li>
+                  <li>
+                    <a href="#career-support">Career Support</a>
+                  </li>
+                  <li>
+                    <a href="#contact">Contact</a>
+                  </li>
+                </ul>
+              </div>
+
+              <div className="col-lg-2 col-sm-4 footer-col">
+                <h6>Services</h6>
+                <ul className="footer-links">
+                  <li>
+                    <a href="#what-we-do">IT Consulting</a>
+                  </li>
+                  <li>
+                    <a href="#what-we-do">Software Dev</a>
+                  </li>
+                  <li>
+                    <a href="#what-we-do">Training</a>
+                  </li>
+                  <li>
+                    <a href="#what-we-do">Staffing</a>
+                  </li>
+                  <li>
+                    <Link href="/careers/openings">Job Openings</Link>
+                  </li>
+                  <li>
+                    <a href="privacy-policy.html">Privacy Policy</a>
+                  </li>
+                </ul>
+              </div>
+
+              <div className="col-lg-4 col-sm-4 footer-col">
+                <h6>Contact Info</h6>
+                <div className="footer-contact-item">
+                  <i className="icofont-phone" />
+                  <a href="tel:4699453339">+1 469-945-3339</a>
+                </div>
+                <div className="footer-contact-item">
+                  <i className="icofont-email" />
+                  <a href="mailto:info@skyzentech.com">info@skyzentech.com</a>
+                </div>
+                <div className="footer-contact-item">
+                  <i className="icofont-location-pin" />
+                  <span>
+                    5465 Legacy Drive, Suite 650,
+                    <br />
+                    Plano, TX 75024
+                  </span>
+                </div>
               </div>
             </div>
 
-            {/* Contact form — visual placeholder (TODO: wire to Next.js route handler in a later phase) */}
-            <div className="lg:col-span-7">
-              <div className="rounded-2xl border border-skyzen-border bg-skyzen-card p-10">
-                <h4 className="mb-1.5 text-xl font-bold text-white">Send Us a Message</h4>
-                <p className="mb-7 text-sm text-skyzen-muted">
-                  Fill in the form below and we&apos;ll ping you back!
-                </p>
-                {/* TODO: port the legacy contact.php POST handler. For now this form is a
-                    visual placeholder (no submit handler wired). */}
-                <form
-                  className="space-y-4"
-                  aria-label="Contact form (placeholder)"
-                >
-                  <div className="grid gap-4 sm:grid-cols-2">
-                    <FormField label="First Name" name="firstName" placeholder="John" />
-                    <FormField label="Last Name" name="lastName" placeholder="Doe" />
-                    <FormField label="Email Address" name="email" type="email" placeholder="john@example.com" />
-                    <FormField label="Phone Number" name="phone" type="tel" placeholder="+1 (___) ___-____" />
-                  </div>
-                  <FormField label="Message" name="message" textarea placeholder="Tell us how we can help..." />
-
-                  <div className="flex items-start gap-2.5 text-xs leading-relaxed text-skyzen-muted">
-                    <input
-                      type="checkbox"
-                      id="contactConsent"
-                      className="mt-1 h-4 w-4 accent-accent"
-                    />
-                    <label htmlFor="contactConsent">
-                      Check this box to confirm you agree to be contacted regarding your
-                      inquiry. Message and data rates may apply.
-                    </label>
-                  </div>
-
-                  <button
-                    type="button"
-                    className="w-full rounded-xl bg-gradient-to-r from-accent to-accent-dark px-4 py-3.5 text-sm font-semibold text-white shadow-glow-accent transition hover:shadow-glow-accent-lg"
-                    aria-disabled="true"
-                    title="Contact form not yet wired — coming soon"
-                  >
-                    Send Message
-                    <i className="icofont-paper-plane ml-2" />
-                  </button>
-                </form>
-              </div>
+            <div className="footer-bottom">
+              <span>&copy; 2025 Skyzen Technologies LLC. All rights reserved.</span>
+              <a href="privacy-policy.html">Privacy Policy</a>
             </div>
           </div>
-        </div>
-      </section>
-    </SiteLayout>
-  );
-}
-
-/* ---------- Small helpers (server-component-safe) ---------- */
-
-function SectionTag({ label, center = false }: { label: string; center?: boolean }) {
-  return (
-    <div
-      className={
-        'mb-3.5 inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.2em] text-accent ' +
-        (center ? 'justify-center' : '')
-      }
-    >
-      <span className="h-0.5 w-6 rounded-sm bg-accent" />
-      {label}
-    </div>
-  );
-}
-
-function ContactDetail({
-  icon,
-  label,
-  primary,
-  last = false,
-}: {
-  icon: string;
-  label: string;
-  primary: React.ReactNode;
-  last?: boolean;
-}) {
-  return (
-    <div
-      className={
-        'flex items-center gap-3.5 py-3.5 ' +
-        (last ? '' : 'border-b border-skyzen-border')
-      }
-    >
-      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-accent/10 text-lg text-accent">
-        <i className={icon} />
+        </footer>
       </div>
-      <div>
-        <div className="text-[11px] font-semibold uppercase tracking-[0.08em] text-skyzen-muted">
-          {label}
-        </div>
-        <div className="text-sm font-medium text-skyzen-text hover:[&_a]:text-accent">
-          {primary}
-        </div>
-      </div>
-    </div>
-  );
-}
 
-function FormField({
-  label,
-  name,
-  type = 'text',
-  placeholder,
-  textarea = false,
-}: {
-  label: string;
-  name: string;
-  type?: string;
-  placeholder?: string;
-  textarea?: boolean;
-}) {
-  const sharedClass =
-    'w-full rounded-lg border border-skyzen-border bg-white/5 px-4 py-3 text-sm text-white placeholder:text-white/20 focus:border-accent/50 focus:bg-accent/5 focus:outline-none';
-  return (
-    <div>
-      <label
-        className="mb-1.5 block text-[11px] font-semibold uppercase tracking-[0.08em] text-skyzen-muted"
-        htmlFor={name}
-      >
-        {label}
-      </label>
-      {textarea ? (
-        <textarea
-          id={name}
-          name={name}
-          rows={4}
-          placeholder={placeholder}
-          className={sharedClass + ' resize-y'}
-        />
-      ) : (
-        <input
-          id={name}
-          name={name}
-          type={type}
-          placeholder={placeholder}
-          className={sharedClass}
-        />
-      )}
-    </div>
+      {/* External scripts — load in order, after page is interactive */}
+      <Script
+        src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.1.1/jquery.min.js"
+        strategy="afterInteractive"
+      />
+      <Script src="/plugins/bootstrap/js/bootstrap.min.js" strategy="afterInteractive" />
+      <Script
+        src="https://cdnjs.cloudflare.com/ajax/libs/slick-carousel/1.6.0/slick.js"
+        strategy="afterInteractive"
+      />
+      <Script
+        src="https://cdnjs.cloudflare.com/ajax/libs/gsap/1.19.1/TweenMax.min.js"
+        strategy="afterInteractive"
+      />
+
+      {/* Inline scripts (verbatim port) */}
+      <Script id="home-nav-and-reveal" strategy="afterInteractive">
+        {NAV_AND_REVEAL_SCRIPT}
+      </Script>
+      <Script id="home-contact-form" strategy="afterInteractive">
+        {CONTACT_FORM_SCRIPT}
+      </Script>
+      <Script id="home-headline-anim" strategy="afterInteractive">
+        {HEADLINE_ANIM_SCRIPT}
+      </Script>
+      <Script id="home-particle-canvas" strategy="afterInteractive">
+        {PARTICLE_CANVAS_SCRIPT}
+      </Script>
+    </>
   );
 }
