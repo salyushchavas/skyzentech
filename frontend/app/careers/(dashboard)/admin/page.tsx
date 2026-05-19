@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import Link from 'next/link';
 import { useAuth } from '@/lib/auth-context';
 import api from '@/lib/api';
 
@@ -29,7 +30,13 @@ export default function AdminDashboard() {
       <p className="mb-6 text-sm text-slate-600">
         Welcome{user ? `, ${user.fullName}` : ''}.
       </p>
-      <div className="grid gap-4 md:grid-cols-3">
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+        <LinkCard
+          href="/careers/recruiter"
+          title="Application pipeline"
+          body="Drag-drop Kanban view of all candidate applications across postings."
+          accent
+        />
         <Card title="Users" body="Manage staff and candidate accounts." />
         <Card title="Entities" body="Manage staffing entities." />
         <Card title="Job postings" body="Review and publish job postings." />
@@ -73,5 +80,34 @@ function Card({ title, body }: { title: string; body: string }) {
       <h3 className="mb-2 font-medium text-slate-900">{title}</h3>
       <p className="text-sm text-slate-600">{body}</p>
     </div>
+  );
+}
+
+function LinkCard({
+  href,
+  title,
+  body,
+  accent = false,
+}: {
+  href: string;
+  title: string;
+  body: string;
+  accent?: boolean;
+}) {
+  return (
+    <Link
+      href={href}
+      className={
+        'group block rounded-lg border p-5 transition hover:-translate-y-0.5 hover:shadow-md ' +
+        (accent
+          ? 'border-accent/30 bg-accent/5 hover:border-accent/60'
+          : 'border-slate-200 bg-white hover:border-slate-300')
+      }
+    >
+      <h3 className="mb-2 font-semibold text-slate-900 group-hover:text-primary-800">
+        {title} <span className="text-primary-700">&rarr;</span>
+      </h3>
+      <p className="text-sm text-slate-600">{body}</p>
+    </Link>
   );
 }
