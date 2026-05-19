@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { Ban, CheckCircle, Download, ExternalLink, LogOut, Video, X, XCircle } from 'lucide-react';
+import { Ban, CheckCircle, Download, ExternalLink, LogOut, Video, X, XCircle, type LucideIcon } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '@/lib/api';
 import ApplicationStatusBadge from '@/components/ApplicationStatusBadge';
@@ -414,7 +414,7 @@ function ActionButton({
 }: {
   label: string;
   onClick: () => void;
-  Icon: React.ComponentType<{ className?: string; strokeWidth?: number }>;
+  Icon: LucideIcon;
   busy?: boolean;
   variant?: 'default' | 'success' | 'danger' | 'muted';
 }) {
