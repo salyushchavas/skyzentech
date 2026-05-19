@@ -1,0 +1,78 @@
+package com.skyzen.careers.controller;
+
+import com.skyzen.careers.dto.JobPostingCreateRequest;
+import com.skyzen.careers.dto.JobPostingResponse;
+import com.skyzen.careers.dto.JobPostingStatusUpdateRequest;
+import com.skyzen.careers.dto.JobPostingUpdateRequest;
+import com.skyzen.careers.entity.User;
+import com.skyzen.careers.service.JobPostingService;
+import jakarta.validation.Valid;
+import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.web.bind.annotation.*;
+
+import java.net.URI;
+import java.util.UUID;
+
+@RestController
+@RequestMapping("/api/v1/job-postings")
+@RequiredArgsConstructor
+public class JobPostingController {
+
+    private final JobPostingService jobPostingService;
+
+    @GetMapping
+    public Page<JobPostingResponse> listOpen(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size) {
+        Pageable pageable = PageRequest.of(Math.max(0, page), Math.min(100, Math.max(1, size)),
+                Sort.by(Sort.Direction.DESC, "publishedAt"));
+        return jobPostingService.listOpen(pageable);
+    }
+
+    @GetMapping("/admin/all")
+    @PreAuthorize("hasAnyRole('ADMIN', 'ERM')")
+    public Page<JobPostingResponse> listAll(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size) {
+        Pageable pageable = PageRequest.of(Math.max(0, page), Math.min(100, Math.max(1, size)),
+                Sort.by(Sort.Direction.DESC, "createdAt"));
+        return jobPostingService.listAll(pageable);
+    }
+
+    @GetMapping("/{idOrSlug}")
+    public JobPostingResponse getOne(@PathVariable String idOrSlug,
+                                     @AuthenticationPrincipal User user) {
+        return jobPostingService.findPublicByIdOrSlug(idOrSlug, user);
+    }
+
+    @PostMapping
+    @PreAuthorize("hasAnyRole('ADMIN', 'ERM')")
+    public ResponseEntity<JobPostingResponse> create(
+            @Valid @RequestBody JobPostingCreateRequest req,
+            @AuthenticationPrincipal User user) {
+        JobPostingResponse created = jobPostingService.create(req, user);
+        return ResponseEntity.created(URI.create("/api/v1/job-postings/" + created.getId()))
+                .body(created);
+    }
+
+    @PutMapping("/{id}")
+    @PreAuthorize("hasAnyRole('ADMIN', 'ERM')")
+    public JobPostingResponse update(@PathVariable UUID id,
+                                     @RequestBody JobPostingUpdateRequest req) {
+        return jobPostingService.update(id, req);
+    }
+
+    @PatchMapping("/{id}/status")
+    @PreAuthorize("hasAnyRole('ADMIN', 'ERM')")
+    public JobPostingResponse updateStatus(@PathVariable UUID id,
+                                           @Valid @RequestBody JobPostingStatusUpdateRequest req) {
+        return jobPostingService.updateStatus(id, req.getStatus());
+    }
+}

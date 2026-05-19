@@ -1,0 +1,72 @@
+package com.skyzen.careers.controller;
+
+import com.skyzen.careers.dto.ApplicationCreateRequest;
+import com.skyzen.careers.dto.ApplicationResponse;
+import com.skyzen.careers.dto.ApplicationStatusUpdateRequest;
+import com.skyzen.careers.entity.User;
+import com.skyzen.careers.enums.ApplicationStatus;
+import com.skyzen.careers.service.ApplicationService;
+import jakarta.validation.Valid;
+import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.web.bind.annotation.*;
+
+import java.net.URI;
+import java.util.List;
+import java.util.UUID;
+
+@RestController
+@RequestMapping("/api/v1/applications")
+@RequiredArgsConstructor
+public class ApplicationController {
+
+    private final ApplicationService applicationService;
+
+    @PostMapping
+    @PreAuthorize("hasRole('CANDIDATE')")
+    public ResponseEntity<ApplicationResponse> apply(
+            @Valid @RequestBody ApplicationCreateRequest req,
+            @AuthenticationPrincipal User user) {
+        ApplicationResponse created = applicationService.apply(user, req);
+        return ResponseEntity.created(URI.create("/api/v1/applications/" + created.getId()))
+                .body(created);
+    }
+
+    @GetMapping("/me")
+    @PreAuthorize("hasRole('CANDIDATE')")
+    public List<ApplicationResponse> listMine(@AuthenticationPrincipal User user) {
+        return applicationService.listForCandidate(user);
+    }
+
+    @GetMapping
+    @PreAuthorize("hasAnyRole('ADMIN', 'RECRUITER', 'ERM')")
+    public Page<ApplicationResponse> list(
+            @RequestParam(required = false) ApplicationStatus status,
+            @RequestParam(required = false) UUID jobPostingId,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size) {
+        Pageable pageable = PageRequest.of(Math.max(0, page), Math.min(100, Math.max(1, size)),
+                Sort.by(Sort.Direction.DESC, "appliedAt"));
+        return applicationService.search(status, jobPostingId, pageable);
+    }
+
+    @GetMapping("/{id}")
+    public ApplicationResponse getOne(@PathVariable UUID id,
+                                      @AuthenticationPrincipal User user) {
+        return applicationService.findById(id, user);
+    }
+
+    @PatchMapping("/{id}/status")
+    @PreAuthorize("hasAnyRole('ADMIN', 'RECRUITER', 'ERM')")
+    public ApplicationResponse updateStatus(@PathVariable UUID id,
+                                            @Valid @RequestBody ApplicationStatusUpdateRequest req,
+                                            @AuthenticationPrincipal User user) {
+        return applicationService.updateStatus(id, req, user);
+    }
+}

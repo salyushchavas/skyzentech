@@ -43,6 +43,9 @@ public class SecurityConfig {
                                 "/auth/reset-password"
                         ).permitAll()
                         .requestMatchers("/health", "/error").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/v1/job-postings").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/v1/job-postings/*").permitAll()
+                        .requestMatchers("/api/v1/**").authenticated()
                         .anyRequest().authenticated()
                 )
                 .exceptionHandling(ex -> ex
