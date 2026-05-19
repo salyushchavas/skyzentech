@@ -137,5 +137,5 @@ JWT claims include `roles` (e.g. `["CANDIDATE"]`). On the server they are mapped
 - `spring.jpa.hibernate.ddl-auto=update` is fine for early development; switch to Flyway/Liquibase before going live.
 - Spring Security is locked down by default — `/auth/register`, `/auth/login`, `/auth/forgot-password`, `/auth/reset-password`, `/health`, and `/error` are public. Everything else requires a valid JWT.
 
-<!-- deploy-trigger: 2026-05-19 -->
+<!-- deploy-trigger: 2026-05-19 (retry after Railway buildkit daemon crash on cde9b07) -->
 
