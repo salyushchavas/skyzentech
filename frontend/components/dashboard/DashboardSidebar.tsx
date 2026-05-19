@@ -10,10 +10,12 @@ import {
   ClipboardList,
   FileBadge,
   FileCheck,
+  FileSignature,
   FileText,
   FolderArchive,
   KanbanSquare,
   LayoutDashboard,
+  ListChecks,
   ShieldCheck,
   Users,
   Video,
@@ -34,6 +36,7 @@ const ROLE_LINKS: Record<UserRole, NavLink[]> = {
     { icon: Briefcase, label: 'Open Internships', href: '/careers/openings' },
     { icon: FileCheck, label: 'My Applications', href: '/careers/candidate/applications' },
     { icon: FileText, label: 'My Resumes', href: '/careers/candidate/resumes' },
+    { icon: ListChecks, label: 'Onboarding', href: '/careers/candidate/onboarding' },
   ],
   RECRUITER: [
     { icon: KanbanSquare, label: 'Pipeline', href: '/careers/recruiter' },
@@ -48,6 +51,7 @@ const ROLE_LINKS: Record<UserRole, NavLink[]> = {
   HR_COMPLIANCE: [
     { icon: LayoutDashboard, label: 'Dashboard', href: '/careers/hr' },
     { icon: ShieldCheck, label: 'Compliance', href: '/careers/hr/compliance' },
+    { icon: FileSignature, label: 'Offer Letters', href: '/careers/hr/offers' },
     { icon: BadgeCheck, label: 'I-9 / E-Verify', href: '/careers/hr/i9-everify' },
     { icon: FolderArchive, label: 'Document Vault', href: '/careers/hr/documents' },
   ],
