@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import SiteLayout from '@/components/SiteLayout';
+import ParticleCanvas from '@/components/ParticleCanvas';
 
 export const metadata: Metadata = {
   title: 'Skyzen Technologies LLC | IT Consulting, Staffing & STEM Internships',
@@ -178,66 +179,68 @@ export default function HomePage() {
       />
 
       {/* =====================================================
-          HERO
+          HERO  (particle/constellation animation behind content)
       ===================================================== */}
       <section
         id="hero"
-        className="relative overflow-hidden bg-skyzen-dark px-6 py-24 text-skyzen-text md:py-32"
+        className="relative isolate overflow-hidden bg-skyzen-dark px-6 py-32 text-skyzen-text md:py-40"
       >
-        <div className="mx-auto max-w-5xl text-center">
-          <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-accent/25 bg-accent/10 px-4 py-1.5 text-xs font-medium text-accent">
+        <ParticleCanvas />
+
+        <div className="relative z-10 mx-auto max-w-5xl text-center">
+          <div className="mb-7 inline-flex items-center gap-2 rounded-full border border-accent/25 bg-accent/10 px-4 py-1.5 text-xs font-medium text-accent">
             <span className="inline-block h-1.5 w-1.5 animate-pulse rounded-full bg-accent" />
             Software Consulting &amp; IT Staffing
           </div>
 
-          <h1 className="text-4xl font-extrabold leading-tight text-white sm:text-5xl md:text-6xl lg:text-7xl">
+          <h1 className="text-4xl font-extrabold leading-[1.05] text-white sm:text-5xl md:text-6xl lg:text-7xl">
             We Provide{' '}
             <span className="bg-gradient-to-br from-accent to-accent-light bg-clip-text text-transparent">
               Strategic IT Solutions
             </span>
           </h1>
 
-          <p className="mt-4 text-lg text-skyzen-muted sm:text-xl">
-            Smart Solutions for a Digital Future.
+          <p className="mt-5 text-lg text-skyzen-muted sm:text-xl md:text-2xl">
+            Smart Solutions for a Digital Future
           </p>
 
-          <p className="mx-auto mt-8 max-w-2xl text-base leading-relaxed text-skyzen-muted">
+          <p className="mx-auto mt-10 max-w-2xl text-base leading-relaxed text-skyzen-muted">
             <strong className="text-accent">Skyzen Technologies LLC</strong> — Empowering your
             business with innovative IT solutions to grow smarter, faster, and stay ahead.
           </p>
 
-          <div className="mt-9 flex flex-wrap items-center justify-center gap-3">
+          <div className="mt-12 flex flex-wrap items-center justify-center gap-4">
             <Link
               href="/careers/openings"
-              className="rounded-full bg-gradient-to-r from-accent to-accent-dark px-7 py-3 text-sm font-semibold text-white shadow-glow-accent transition hover:shadow-glow-accent-lg"
+              className="rounded-full bg-gradient-to-r from-accent to-accent-dark px-8 py-3.5 text-sm font-semibold text-white shadow-glow-accent transition hover:shadow-glow-accent-lg"
             >
-              Explore Internships
+              Explore Careers
             </Link>
             <a
               href="#contact"
-              className="rounded-full border border-white/20 px-7 py-3 text-sm font-semibold text-white transition hover:border-accent hover:bg-accent/5 hover:text-accent"
+              className="rounded-full border border-white/20 px-8 py-3.5 text-sm font-semibold text-white transition hover:border-accent hover:bg-accent/5 hover:text-accent"
             >
               Get In Touch
             </a>
           </div>
 
           {/* Stats */}
-          <div className="mt-16 flex flex-wrap items-stretch justify-center gap-4">
+          <div className="mt-20 flex flex-wrap items-stretch justify-center gap-4">
             <a
               href="#clients"
-              className="flex w-44 flex-col items-center gap-2 rounded-2xl border border-skyzen-border bg-white/[0.03] px-6 py-5 text-skyzen-muted transition hover:-translate-y-1 hover:border-accent/45 hover:bg-accent/5 hover:text-white"
+              className="flex w-44 flex-col items-center gap-2 rounded-2xl border border-skyzen-border bg-skyzen-dark/40 px-6 py-5 text-skyzen-muted backdrop-blur-sm transition hover:-translate-y-1 hover:border-accent/45 hover:bg-accent/5 hover:text-white"
             >
               <i className="icofont-building text-3xl text-accent" />
               <span className="text-xs font-medium tracking-wide">Enterprise Clients</span>
             </a>
             <a
               href="#technology"
-              className="flex w-44 flex-col items-center gap-2 rounded-2xl border border-skyzen-border bg-white/[0.03] px-6 py-5 text-skyzen-muted transition hover:-translate-y-1 hover:border-accent/45 hover:bg-accent/5 hover:text-white"
+              className="flex w-44 flex-col items-center gap-2 rounded-2xl border border-skyzen-border bg-skyzen-dark/40 px-6 py-5 text-skyzen-muted backdrop-blur-sm transition hover:-translate-y-1 hover:border-accent/45 hover:bg-accent/5 hover:text-white"
             >
               <i className="icofont-code-alt text-3xl text-accent" />
               <span className="text-xs font-medium tracking-wide">Technologies</span>
             </a>
-            <div className="flex w-44 flex-col items-center gap-1 rounded-2xl border border-skyzen-border bg-white/[0.03] px-6 py-5">
+            <div className="flex w-44 flex-col items-center gap-1 rounded-2xl border border-skyzen-border bg-skyzen-dark/40 px-6 py-5 backdrop-blur-sm">
               <div className="text-4xl font-extrabold leading-none text-white">
                 100<span className="text-accent">%</span>
               </div>

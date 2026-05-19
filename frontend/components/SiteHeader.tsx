@@ -66,8 +66,9 @@ export default function SiteHeader() {
         </div>
       </div>
 
-      {/* Main nav */}
-      <nav className="mx-auto flex max-w-7xl items-center justify-between px-4 py-3">
+      {/* Main nav — wrapped in a pill container (matches legacy index.html .nav-inner) */}
+      <nav className="px-4 py-4 lg:py-5">
+        <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 rounded-full border border-white/10 bg-[#2a2d35] px-4 py-2.5 shadow-[0_8px_32px_rgba(0,0,0,0.4)] lg:px-7">
         {/* Brand */}
         <Link href="/" className="flex items-center gap-2.5">
           <span className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-md">
@@ -146,10 +147,11 @@ export default function SiteHeader() {
           onClick={() => setMobileOpen((v) => !v)}
           aria-label="Toggle menu"
           aria-expanded={mobileOpen}
-          className="rounded-md border border-skyzen-border p-2 text-white/80 lg:hidden"
+          className="rounded-md border border-white/10 p-2 text-white/80 lg:hidden"
         >
           <i className={mobileOpen ? 'icofont-close-line' : 'icofont-navigation-menu'} />
         </button>
+        </div>
       </nav>
 
       {/* Mobile menu */}
