@@ -2,20 +2,33 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { useParams } from 'next/navigation';
-import { AlertTriangle, ArrowLeft, RotateCcw } from 'lucide-react';
+import { useParams, useRouter } from 'next/navigation';
+import {
+  AlertTriangle,
+  ArrowLeft,
+  ExternalLink,
+  RotateCcw,
+  ShieldCheck,
+} from 'lucide-react';
+import toast from 'react-hot-toast';
 import api from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
 import DashboardLayout from '@/components/dashboard/DashboardLayout';
 import ProtectedRoute from '@/components/ProtectedRoute';
+import ConfirmDialog from '@/components/ConfirmDialog';
 import I9StatusBadge from '@/components/i9/I9StatusBadge';
 import Section1ReadOnlyView from '@/components/i9/Section1ReadOnlyView';
 import Section2ReadOnlyView from '@/components/i9/Section2ReadOnlyView';
 import Section2Form from '@/components/i9/Section2Form';
 import AuditHistoryList from '@/components/i9/AuditHistoryList';
 import ReopenI9Dialog from '@/components/i9/ReopenI9Dialog';
+import EVerifyStatusBadge from '@/components/everify/EVerifyStatusBadge';
 import { formatDateOnly, formatFull } from '@/lib/format-date';
-import type { I9FormResponse, I9HistoryEntryResponse } from '@/types';
+import type {
+  EVerifyCaseResponse,
+  I9FormResponse,
+  I9HistoryEntryResponse,
+} from '@/types';
 
 type Tab = 'section1' | 'section2' | 'history';
 const VALID_TABS: Tab[] = ['section1', 'section2', 'history'];
@@ -39,14 +52,21 @@ function Body() {
         ? params.id[0]
         : null;
 
+  const router = useRouter();
   const { user } = useAuth();
   const isAdmin = user?.roles?.includes('ADMIN') ?? false;
+  const canCreateEVerify =
+    user?.roles?.some((r) => r === 'HR_COMPLIANCE' || r === 'ADMIN') ?? false;
 
   const [form, setForm] = useState<I9FormResponse | null>(null);
   const [history, setHistory] = useState<I9HistoryEntryResponse[] | null>(null);
+  const [everifyCase, setEverifyCase] = useState<EVerifyCaseResponse | null>(
+    null
+  );
   const [error, setError] = useState<string | null>(null);
   const [tab, setTab] = useState<Tab>('section1');
   const [reopenOpen, setReopenOpen] = useState(false);
+  const [createCaseOpen, setCreateCaseOpen] = useState(false);
 
   const load = useCallback(async () => {
     if (!id) return;
@@ -58,12 +78,37 @@ function Body() {
       ]);
       setForm(fRes.data);
       setHistory(hRes.data ?? []);
+      // Look up linked E-Verify case (404 = no case yet → render the Create UI).
+      try {
+        const eRes = await api.get<EVerifyCaseResponse>(
+          `/api/v1/everify/i9/${fRes.data.id}`
+        );
+        setEverifyCase(eRes.data);
+      } catch {
+        setEverifyCase(null);
+      }
     } catch (err: any) {
       setError(err?.response?.data?.error ?? "Couldn't load this I-9.");
       setForm(null);
       setHistory(null);
     }
   }, [id]);
+
+  async function handleCreateEVerify() {
+    if (!form) return;
+    try {
+      const res = await api.post<EVerifyCaseResponse>('/api/v1/everify', {
+        i9FormId: form.id,
+      });
+      toast.success('E-Verify case created');
+      setCreateCaseOpen(false);
+      router.push(`/careers/hr/i9-everify/everify/${res.data.id}`);
+    } catch (err: any) {
+      toast.error(
+        err?.response?.data?.error ?? "Couldn't create E-Verify case."
+      );
+    }
+  }
 
   useEffect(() => {
     void load();
@@ -211,6 +256,9 @@ function Body() {
           onSaved={handleFormSaved}
           isAdmin={isAdmin}
           onReopenClick={() => setReopenOpen(true)}
+          everifyCase={everifyCase}
+          canCreateEVerify={canCreateEVerify}
+          onCreateEVerifyClick={() => setCreateCaseOpen(true)}
         />
       )}
 
@@ -239,6 +287,18 @@ function Body() {
           switchTab('section2');
         }}
         formId={form.id}
+      />
+
+      <ConfirmDialog
+        open={createCaseOpen}
+        onClose={() => setCreateCaseOpen(false)}
+        onConfirm={handleCreateEVerify}
+        title="Create E-Verify case?"
+        description={`This creates an E-Verify case for ${
+          form.candidateName ?? 'this candidate'
+        }. After submitting the case in real E-Verify, return here to record the case number and outcome.`}
+        confirmLabel="Create Case"
+        variant="primary"
       />
     </>
   );
@@ -319,11 +379,17 @@ function Section2Tab({
   onSaved,
   isAdmin,
   onReopenClick,
+  everifyCase,
+  canCreateEVerify,
+  onCreateEVerifyClick,
 }: {
   form: I9FormResponse;
   onSaved: (updated: I9FormResponse) => void;
   isAdmin: boolean;
   onReopenClick: () => void;
+  everifyCase: EVerifyCaseResponse | null;
+  canCreateEVerify: boolean;
+  onCreateEVerifyClick: () => void;
 }) {
   if (form.status === 'NOT_STARTED') {
     return (
@@ -362,6 +428,50 @@ function Section2Tab({
             <RotateCcw className="h-4 w-4" strokeWidth={2} />
             Reopen for correction
           </button>
+        )}
+      </div>
+
+      {/* E-Verify cross-link panel — surfaces next compliance step. */}
+      <div className="mt-6 rounded-lg border border-gray-200 bg-white p-5">
+        <div className="flex items-center gap-2">
+          <ShieldCheck className="h-5 w-5 text-accent" strokeWidth={2} />
+          <h3 className="text-sm font-semibold text-gray-900">
+            E-Verify Case
+          </h3>
+        </div>
+        {everifyCase ? (
+          <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
+            <div className="flex flex-wrap items-center gap-3 text-sm text-gray-700">
+              <EVerifyStatusBadge status={everifyCase.status} />
+              {everifyCase.caseNumber && (
+                <span className="font-mono text-xs text-gray-500">
+                  {everifyCase.caseNumber}
+                </span>
+              )}
+            </div>
+            <Link
+              href={`/careers/hr/i9-everify/everify/${everifyCase.id}`}
+              className="inline-flex items-center gap-1 text-sm font-medium text-accent hover:text-accent-dark"
+            >
+              View case
+              <ExternalLink className="h-3 w-3" strokeWidth={2} />
+            </Link>
+          </div>
+        ) : (
+          <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
+            <p className="text-sm text-gray-500">
+              No E-Verify case has been opened for this I-9 yet.
+            </p>
+            {canCreateEVerify && (
+              <button
+                type="button"
+                onClick={onCreateEVerifyClick}
+                className="inline-flex items-center gap-1.5 rounded-md bg-accent px-3 py-1.5 text-sm font-semibold text-white hover:bg-accent-dark"
+              >
+                Create E-Verify Case
+              </button>
+            )}
+          </div>
         )}
       </div>
     </div>

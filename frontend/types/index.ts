@@ -498,3 +498,87 @@ export interface I9HistoryEntryResponse {
 export interface ReopenI9Request {
   reason: string;
 }
+
+// === E-Verify ================================================================
+
+export type EVerifyStatus =
+  | 'PENDING_SUBMISSION'
+  | 'OPEN'
+  | 'EMPLOYMENT_AUTHORIZED'
+  | 'TENTATIVE_NONCONFIRMATION'
+  | 'FINAL_NONCONFIRMATION'
+  | 'CLOSED';
+
+export type EVerifyClosureReason =
+  | 'SUCCESSFUL'
+  | 'EMPLOYEE_TERMINATED'
+  | 'INVALID_QUERY'
+  | 'OTHER';
+
+export type PhotoMatchResult = 'MATCH' | 'NO_MATCH' | 'NOT_APPLICABLE';
+
+export interface EVerifyCaseResponse {
+  id: Uuid;
+  i9FormId: Uuid;
+  candidateName?: string;
+  candidateEmail?: string;
+  candidateId?: Uuid;
+  caseNumber?: string;
+  status: EVerifyStatus;
+  closureReason?: EVerifyClosureReason;
+  openedAt?: IsoDateTime;
+  closedAt?: IsoDateTime;
+  photoMatchRequired?: boolean;
+  photoMatchResult?: PhotoMatchResult;
+  additionalVerificationRequired?: boolean;
+  notes?: string;
+  daysOpen?: number;
+  createdAt: IsoDateTime;
+  updatedAt: IsoDateTime;
+  createdByName?: string;
+}
+
+export interface EVerifyCaseSummaryResponse {
+  id: Uuid;
+  i9FormId: Uuid;
+  candidateName?: string;
+  candidateEmail?: string;
+  caseNumber?: string;
+  status: EVerifyStatus;
+  openedAt?: IsoDateTime;
+  closedAt?: IsoDateTime;
+  daysOpen?: number;
+  createdAt: IsoDateTime;
+  updatedAt: IsoDateTime;
+}
+
+export interface CreateEVerifyCaseRequest {
+  i9FormId: Uuid;
+}
+
+export interface UpdateEVerifyCaseRequest {
+  caseNumber?: string;
+  photoMatchRequired?: boolean;
+  photoMatchResult?: PhotoMatchResult;
+  additionalVerificationRequired?: boolean;
+  notes?: string;
+}
+
+export interface UpdateEVerifyStatusRequest {
+  status: EVerifyStatus;
+  notes?: string;
+}
+
+export interface CloseEVerifyCaseRequest {
+  closureReason: EVerifyClosureReason;
+  notes?: string;
+}
+
+export interface EVerifyHistoryEntryResponse {
+  auditId: Uuid;
+  timestamp: IsoDateTime;
+  action: string;
+  performedByName?: string;
+  performedByRole?: string;
+  summary: string;
+}

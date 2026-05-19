@@ -1,0 +1,385 @@
+package com.skyzen.careers.service;
+
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.skyzen.careers.dto.everify.CloseCaseRequest;
+import com.skyzen.careers.dto.everify.CreateEVerifyCaseRequest;
+import com.skyzen.careers.dto.everify.EVerifyCaseResponse;
+import com.skyzen.careers.dto.everify.EVerifyCaseSummaryResponse;
+import com.skyzen.careers.dto.everify.EVerifyHistoryEntryResponse;
+import com.skyzen.careers.dto.everify.UpdateCaseRequest;
+import com.skyzen.careers.dto.everify.UpdateStatusRequest;
+import com.skyzen.careers.entity.AuditLog;
+import com.skyzen.careers.entity.Candidate;
+import com.skyzen.careers.entity.EVerifyCase;
+import com.skyzen.careers.entity.I9Form;
+import com.skyzen.careers.entity.User;
+import com.skyzen.careers.enums.EVerifyStatus;
+import com.skyzen.careers.enums.I9Status;
+import com.skyzen.careers.exception.BadRequestException;
+import com.skyzen.careers.exception.ResourceNotFoundException;
+import com.skyzen.careers.repository.AuditLogRepository;
+import com.skyzen.careers.repository.EVerifyCaseRepository;
+import com.skyzen.careers.repository.I9FormRepository;
+import com.skyzen.careers.repository.UserRepository;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.time.Instant;
+import java.time.LocalDate;
+import java.time.temporal.ChronoUnit;
+import java.util.EnumMap;
+import java.util.EnumSet;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
+import java.util.Map;
+import java.util.Set;
+import java.util.UUID;
+
+/**
+ * Manual E-Verify case tracker. HR submits to real E-Verify externally; this
+ * module records the case number + outcome and writes every change to AuditLog
+ * for compliance. Real API integration is a Sprint 4 follow-up.
+ *
+ * Status lifecycle:
+ *   PENDING_SUBMISSION -> OPEN
+ *   OPEN -> EMPLOYMENT_AUTHORIZED | TENTATIVE_NONCONFIRMATION
+ *   TENTATIVE_NONCONFIRMATION -> EMPLOYMENT_AUTHORIZED | FINAL_NONCONFIRMATION
+ *   EMPLOYMENT_AUTHORIZED -> CLOSED
+ *   FINAL_NONCONFIRMATION -> CLOSED
+ *   any -> CLOSED  (admin escape, audit-logged)
+ */
+@Service
+@RequiredArgsConstructor
+@Slf4j
+public class EVerifyService {
+
+    private static final Map<EVerifyStatus, Set<EVerifyStatus>> ALLOWED_TRANSITIONS =
+            buildTransitions();
+
+    private static Map<EVerifyStatus, Set<EVerifyStatus>> buildTransitions() {
+        Map<EVerifyStatus, Set<EVerifyStatus>> m = new EnumMap<>(EVerifyStatus.class);
+        m.put(EVerifyStatus.PENDING_SUBMISSION, EnumSet.of(
+                EVerifyStatus.OPEN, EVerifyStatus.CLOSED));
+        m.put(EVerifyStatus.OPEN, EnumSet.of(
+                EVerifyStatus.EMPLOYMENT_AUTHORIZED,
+                EVerifyStatus.TENTATIVE_NONCONFIRMATION,
+                EVerifyStatus.CLOSED));
+        m.put(EVerifyStatus.TENTATIVE_NONCONFIRMATION, EnumSet.of(
+                EVerifyStatus.EMPLOYMENT_AUTHORIZED,
+                EVerifyStatus.FINAL_NONCONFIRMATION,
+                EVerifyStatus.CLOSED));
+        m.put(EVerifyStatus.EMPLOYMENT_AUTHORIZED, EnumSet.of(
+                EVerifyStatus.CLOSED));
+        m.put(EVerifyStatus.FINAL_NONCONFIRMATION, EnumSet.of(
+                EVerifyStatus.CLOSED));
+        m.put(EVerifyStatus.CLOSED, EnumSet.noneOf(EVerifyStatus.class));
+        return m;
+    }
+
+    private final EVerifyCaseRepository caseRepository;
+    private final I9FormRepository i9FormRepository;
+    private final UserRepository userRepository;
+    private final AuditLogRepository auditLogRepository;
+    private final ObjectMapper objectMapper;
+
+    // ── Commands ────────────────────────────────────────────────────────────
+
+    @Transactional
+    public EVerifyCaseResponse createCase(CreateEVerifyCaseRequest req, User creator) {
+        I9Form i9 = i9FormRepository.findById(req.getI9FormId())
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "I-9 form not found: " + req.getI9FormId()));
+
+        if (i9.getStatus() != I9Status.COMPLETED) {
+            throw new BadRequestException(
+                    "Cannot create E-Verify case until I-9 Section 2 is complete");
+        }
+        if (caseRepository.existsByI9FormId(i9.getId())) {
+            throw new BadRequestException(
+                    "E-Verify case already exists for this I-9");
+        }
+
+        EVerifyCase c = EVerifyCase.builder()
+                .i9Form(i9)
+                .status(EVerifyStatus.PENDING_SUBMISSION)
+                .photoMatchRequired(false)
+                .additionalVerificationRequired(false)
+                .createdBy(creator.getId())
+                .build();
+        c = caseRepository.save(c);
+        writeAudit(c.getId(), "CREATE", creator.getId(), null, snapshot(c));
+        return toResponse(c);
+    }
+
+    @Transactional
+    public EVerifyCaseResponse updateFields(UUID caseId, UpdateCaseRequest req, User actor) {
+        EVerifyCase c = caseRepository.findById(caseId)
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "E-Verify case not found: " + caseId));
+
+        Map<String, Object> before = snapshot(c);
+
+        boolean newCaseNumberJustSet =
+                isBlank(c.getCaseNumber())
+                        && req.getCaseNumber() != null
+                        && !req.getCaseNumber().isBlank();
+
+        if (req.getCaseNumber() != null) c.setCaseNumber(req.getCaseNumber());
+        if (req.getPhotoMatchRequired() != null)
+            c.setPhotoMatchRequired(req.getPhotoMatchRequired());
+        if (req.getPhotoMatchResult() != null)
+            c.setPhotoMatchResult(req.getPhotoMatchResult());
+        if (req.getAdditionalVerificationRequired() != null)
+            c.setAdditionalVerificationRequired(req.getAdditionalVerificationRequired());
+        if (req.getNotes() != null) c.setNotes(req.getNotes());
+
+        // Auto-promote PENDING_SUBMISSION → OPEN when a case number is first set.
+        if (newCaseNumberJustSet && c.getStatus() == EVerifyStatus.PENDING_SUBMISSION) {
+            c.setStatus(EVerifyStatus.OPEN);
+            c.setOpenedAt(Instant.now());
+        }
+
+        c = caseRepository.save(c);
+        writeAudit(c.getId(), "UPDATE", actor.getId(), before, snapshot(c));
+        return toResponse(c);
+    }
+
+    @Transactional
+    public EVerifyCaseResponse updateStatus(UUID caseId, UpdateStatusRequest req, User actor) {
+        EVerifyCase c = caseRepository.findById(caseId)
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "E-Verify case not found: " + caseId));
+
+        EVerifyStatus from = c.getStatus();
+        EVerifyStatus to = req.getStatus();
+        Set<EVerifyStatus> allowed = ALLOWED_TRANSITIONS.getOrDefault(
+                from, EnumSet.noneOf(EVerifyStatus.class));
+        if (!allowed.contains(to)) {
+            throw new BadRequestException(
+                    "Invalid status transition: " + from + " → " + to);
+        }
+
+        Map<String, Object> before = snapshot(c);
+        c.setStatus(to);
+
+        if (from == EVerifyStatus.PENDING_SUBMISSION && to == EVerifyStatus.OPEN
+                && c.getOpenedAt() == null) {
+            c.setOpenedAt(Instant.now());
+        }
+        if (to == EVerifyStatus.CLOSED && c.getClosedAt() == null) {
+            c.setClosedAt(Instant.now());
+        }
+        if (req.getNotes() != null && !req.getNotes().isBlank()) {
+            c.setNotes(appendNote(c.getNotes(), req.getNotes(), actor));
+        }
+
+        c = caseRepository.save(c);
+        writeAudit(c.getId(), "STATUS_CHANGE", actor.getId(), before, snapshot(c));
+        return toResponse(c);
+    }
+
+    @Transactional
+    public EVerifyCaseResponse closeCase(UUID caseId, CloseCaseRequest req, User actor) {
+        EVerifyCase c = caseRepository.findById(caseId)
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "E-Verify case not found: " + caseId));
+
+        if (c.getStatus() == EVerifyStatus.CLOSED) {
+            throw new BadRequestException("Case is already closed");
+        }
+
+        Map<String, Object> before = snapshot(c);
+        c.setStatus(EVerifyStatus.CLOSED);
+        c.setClosedAt(Instant.now());
+        c.setClosureReason(req.getClosureReason());
+        if (req.getNotes() != null && !req.getNotes().isBlank()) {
+            c.setNotes(appendNote(c.getNotes(), req.getNotes(), actor));
+        }
+        c = caseRepository.save(c);
+        writeAudit(c.getId(), "CLOSE", actor.getId(), before, snapshot(c));
+        return toResponse(c);
+    }
+
+    // ── Queries ─────────────────────────────────────────────────────────────
+
+    @Transactional(readOnly = true)
+    public EVerifyCaseResponse getById(UUID caseId) {
+        return toResponse(caseRepository.findById(caseId)
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "E-Verify case not found: " + caseId)));
+    }
+
+    @Transactional(readOnly = true)
+    public EVerifyCaseResponse getByI9FormId(UUID i9FormId) {
+        return toResponse(caseRepository.findByI9FormId(i9FormId)
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "No E-Verify case for I-9: " + i9FormId)));
+    }
+
+    @Transactional(readOnly = true)
+    public Page<EVerifyCaseSummaryResponse> list(EVerifyStatus status, Pageable pageable) {
+        Page<EVerifyCase> page = status != null
+                ? caseRepository.findByStatusOrderByCreatedAtDesc(status, pageable)
+                : caseRepository.findAllByOrderByCreatedAtDesc(pageable);
+        return page.map(this::toSummary);
+    }
+
+    @Transactional(readOnly = true)
+    public java.util.List<EVerifyHistoryEntryResponse> getHistory(UUID caseId) {
+        if (!caseRepository.existsById(caseId)) {
+            throw new ResourceNotFoundException("E-Verify case not found: " + caseId);
+        }
+        return auditLogRepository
+                .findByEntityTypeAndEntityIdOrderByTimestampDesc("EVerifyCase", caseId)
+                .stream()
+                .map(this::toHistoryEntry)
+                .toList();
+    }
+
+    private EVerifyHistoryEntryResponse toHistoryEntry(AuditLog entry) {
+        User performer = entry.getUserId() != null
+                ? userRepository.findById(entry.getUserId()).orElse(null)
+                : null;
+        String performerName = performer != null ? performer.getFullName() : "System";
+        String performerRole = performer != null && performer.getRoles() != null
+                && !performer.getRoles().isEmpty()
+                ? performer.getRoles().iterator().next().name()
+                : null;
+        String summary = switch (entry.getAction()) {
+            case "CREATE" -> "E-Verify case created";
+            case "UPDATE" -> "Case details updated by " + performerName;
+            case "STATUS_CHANGE" -> "Status changed by " + performerName;
+            case "CLOSE" -> "Case closed by " + performerName;
+            default -> entry.getAction();
+        };
+        return EVerifyHistoryEntryResponse.builder()
+                .auditId(entry.getId())
+                .timestamp(entry.getTimestamp())
+                .action(entry.getAction())
+                .performedByName(performerName)
+                .performedByRole(performerRole)
+                .summary(summary)
+                .build();
+    }
+
+    // ── Mapping ─────────────────────────────────────────────────────────────
+
+    public EVerifyCaseResponse toResponse(EVerifyCase c) {
+        I9Form i9 = c.getI9Form();
+        Candidate candidate = i9 != null ? i9.getCandidate() : null;
+        User candidateUser = candidate != null ? candidate.getUser() : null;
+        return EVerifyCaseResponse.builder()
+                .id(c.getId())
+                .i9FormId(i9 != null ? i9.getId() : null)
+                .candidateName(candidateUser != null ? candidateUser.getFullName() : null)
+                .candidateEmail(candidateUser != null ? candidateUser.getEmail() : null)
+                .candidateId(candidate != null ? candidate.getId() : null)
+                .caseNumber(c.getCaseNumber())
+                .status(c.getStatus())
+                .closureReason(c.getClosureReason())
+                .openedAt(c.getOpenedAt())
+                .closedAt(c.getClosedAt())
+                .photoMatchRequired(c.getPhotoMatchRequired())
+                .photoMatchResult(c.getPhotoMatchResult())
+                .additionalVerificationRequired(c.getAdditionalVerificationRequired())
+                .notes(c.getNotes())
+                .daysOpen(computeDaysOpen(c))
+                .createdAt(c.getCreatedAt())
+                .updatedAt(c.getUpdatedAt())
+                .createdByName(lookupUserName(c.getCreatedBy()))
+                .build();
+    }
+
+    public EVerifyCaseSummaryResponse toSummary(EVerifyCase c) {
+        I9Form i9 = c.getI9Form();
+        Candidate candidate = i9 != null ? i9.getCandidate() : null;
+        User candidateUser = candidate != null ? candidate.getUser() : null;
+        return EVerifyCaseSummaryResponse.builder()
+                .id(c.getId())
+                .i9FormId(i9 != null ? i9.getId() : null)
+                .candidateName(candidateUser != null ? candidateUser.getFullName() : null)
+                .candidateEmail(candidateUser != null ? candidateUser.getEmail() : null)
+                .caseNumber(c.getCaseNumber())
+                .status(c.getStatus())
+                .openedAt(c.getOpenedAt())
+                .closedAt(c.getClosedAt())
+                .daysOpen(computeDaysOpen(c))
+                .createdAt(c.getCreatedAt())
+                .updatedAt(c.getUpdatedAt())
+                .build();
+    }
+
+    private Long computeDaysOpen(EVerifyCase c) {
+        Instant start = c.getOpenedAt() != null ? c.getOpenedAt() : c.getCreatedAt();
+        if (start == null) return null;
+        Instant end = c.getClosedAt() != null ? c.getClosedAt() : Instant.now();
+        return ChronoUnit.DAYS.between(start, end);
+    }
+
+    private String lookupUserName(UUID userId) {
+        if (userId == null) return null;
+        return userRepository.findById(userId).map(User::getFullName).orElse(null);
+    }
+
+    // ── Notes append ────────────────────────────────────────────────────────
+
+    private String appendNote(String existing, String newNote, User actor) {
+        String prefix = "[" + LocalDate.now() + "] "
+                + (actor != null ? actor.getFullName() : "System") + ": ";
+        String entry = prefix + newNote.trim();
+        if (existing == null || existing.isBlank()) {
+            return entry;
+        }
+        return entry + "\n\n" + existing;
+    }
+
+    // ── Audit log ───────────────────────────────────────────────────────────
+
+    private Map<String, Object> snapshot(EVerifyCase c) {
+        Map<String, Object> m = new LinkedHashMap<>();
+        m.put("id", c.getId());
+        m.put("i9FormId", c.getI9Form() != null ? c.getI9Form().getId() : null);
+        m.put("caseNumber", c.getCaseNumber());
+        m.put("status", c.getStatus());
+        m.put("closureReason", c.getClosureReason());
+        m.put("openedAt", c.getOpenedAt());
+        m.put("closedAt", c.getClosedAt());
+        m.put("photoMatchRequired", c.getPhotoMatchRequired());
+        m.put("photoMatchResult", c.getPhotoMatchResult());
+        m.put("additionalVerificationRequired", c.getAdditionalVerificationRequired());
+        m.put("notes", c.getNotes());
+        return m;
+    }
+
+    private void writeAudit(UUID caseId, String action, UUID userId,
+                            Map<String, Object> before, Map<String, Object> after) {
+        AuditLog entry = AuditLog.builder()
+                .entityType("EVerifyCase")
+                .entityId(caseId)
+                .action(action)
+                .userId(userId)
+                .beforeJson(serialize(before))
+                .afterJson(serialize(after))
+                .build();
+        auditLogRepository.save(entry);
+    }
+
+    private String serialize(Map<String, Object> snapshot) {
+        if (snapshot == null) return null;
+        try {
+            return objectMapper.writeValueAsString(snapshot);
+        } catch (JsonProcessingException e) {
+            log.warn("Failed to serialize E-Verify audit snapshot: {}", e.getMessage());
+            return new HashMap<>(snapshot).toString();
+        }
+    }
+
+    private static boolean isBlank(String s) {
+        return s == null || s.isBlank();
+    }
+}
