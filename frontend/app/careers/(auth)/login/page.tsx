@@ -3,6 +3,7 @@
 import { FormEvent, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import AuthLayout from '@/components/dashboard/AuthLayout';
 import { useAuth } from '@/lib/auth-context';
 import { getDashboardForUser } from '@/lib/role-routing';
 
@@ -35,14 +36,12 @@ export default function LoginPage() {
     const raw = new URLSearchParams(window.location.search).get('returnTo');
     if (!raw) return null;
     const decoded = decodeURIComponent(raw);
-    // Same-origin relative path only: must start with "/" and not "//".
     if (!decoded.startsWith('/') || decoded.startsWith('//')) return null;
     return decoded;
   }
 
   return (
-    <div className="rounded-lg bg-white p-8 shadow">
-      <h1 className="mb-6 text-2xl font-semibold text-slate-900">Sign in</h1>
+    <AuthLayout title="Welcome back" subtitle="Sign in to your Skyzen Careers account">
       {error && (
         <div className="mb-4 rounded border border-red-200 bg-red-50 p-3 text-sm text-red-700">
           {error}
@@ -50,7 +49,7 @@ export default function LoginPage() {
       )}
       <form onSubmit={onSubmit} className="space-y-4">
         <div>
-          <label htmlFor="email" className="mb-1 block text-sm font-medium text-slate-700">
+          <label htmlFor="email" className="mb-1 block text-sm font-medium text-gray-700">
             Email
           </label>
           <input
@@ -60,11 +59,11 @@ export default function LoginPage() {
             autoComplete="email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            className="w-full rounded border border-slate-300 px-3 py-2 focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
+            className="w-full rounded border border-gray-300 px-3 py-2 focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
           />
         </div>
         <div>
-          <label htmlFor="password" className="mb-1 block text-sm font-medium text-slate-700">
+          <label htmlFor="password" className="mb-1 block text-sm font-medium text-gray-700">
             Password
           </label>
           <input
@@ -74,7 +73,7 @@ export default function LoginPage() {
             autoComplete="current-password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            className="w-full rounded border border-slate-300 px-3 py-2 focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
+            className="w-full rounded border border-gray-300 px-3 py-2 focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
           />
         </div>
         <button
@@ -99,6 +98,6 @@ export default function LoginPage() {
           Forgot password?
         </Link>
       </div>
-    </div>
+    </AuthLayout>
   );
 }

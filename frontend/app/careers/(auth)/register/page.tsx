@@ -3,6 +3,7 @@
 import { FormEvent, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import AuthLayout from '@/components/dashboard/AuthLayout';
 import { useAuth } from '@/lib/auth-context';
 
 export default function RegisterPage() {
@@ -52,8 +53,10 @@ export default function RegisterPage() {
   }
 
   return (
-    <div className="rounded-lg bg-white p-8 shadow">
-      <h1 className="mb-6 text-2xl font-semibold text-slate-900">Create your account</h1>
+    <AuthLayout
+      title="Create your account"
+      subtitle="Apply to STEM internships in minutes"
+    >
       {error && (
         <div className="mb-4 rounded border border-red-200 bg-red-50 p-3 text-sm text-red-700">
           {error}
@@ -121,7 +124,7 @@ export default function RegisterPage() {
           Already have an account? Sign in
         </Link>
       </div>
-    </div>
+    </AuthLayout>
   );
 }
 
@@ -139,7 +142,7 @@ interface FieldProps {
 function Field(props: FieldProps) {
   return (
     <div>
-      <label htmlFor={props.id} className="mb-1 block text-sm font-medium text-slate-700">
+      <label htmlFor={props.id} className="mb-1 block text-sm font-medium text-gray-700">
         {props.label}
       </label>
       <input
@@ -150,7 +153,7 @@ function Field(props: FieldProps) {
         minLength={props.minLength}
         value={props.value}
         onChange={(e) => props.onChange(e.target.value)}
-        className="w-full rounded border border-slate-300 px-3 py-2 focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
+        className="w-full rounded border border-gray-300 px-3 py-2 focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
       />
     </div>
   );

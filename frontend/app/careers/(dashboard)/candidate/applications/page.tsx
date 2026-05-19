@@ -5,15 +5,18 @@ import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import api from '@/lib/api';
 import ProtectedRoute from '@/components/ProtectedRoute';
+import DashboardLayout from '@/components/dashboard/DashboardLayout';
 import ApplicationStatusBadge from '@/components/ApplicationStatusBadge';
 import type { ApplicationResponse } from '@/types';
 
 export default function CandidateApplicationsPage() {
   return (
     <ProtectedRoute requiredRoles={['CANDIDATE']}>
-      <Suspense fallback={<Spinner />}>
-        <ApplicationsList />
-      </Suspense>
+      <DashboardLayout title="My Applications">
+        <Suspense fallback={<Spinner />}>
+          <ApplicationsList />
+        </Suspense>
+      </DashboardLayout>
     </ProtectedRoute>
   );
 }

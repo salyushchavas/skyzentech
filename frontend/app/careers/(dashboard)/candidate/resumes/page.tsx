@@ -3,13 +3,16 @@
 import { useCallback, useEffect, useState } from 'react';
 import api from '@/lib/api';
 import ProtectedRoute from '@/components/ProtectedRoute';
+import DashboardLayout from '@/components/dashboard/DashboardLayout';
 import FileUpload from '@/components/FileUpload';
 import type { ResumeResponse } from '@/types';
 
 export default function ResumesPage() {
   return (
     <ProtectedRoute requiredRoles={['CANDIDATE']}>
-      <ResumeManager />
+      <DashboardLayout title="My Resumes">
+        <ResumeManager />
+      </DashboardLayout>
     </ProtectedRoute>
   );
 }

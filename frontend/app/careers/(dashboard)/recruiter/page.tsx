@@ -13,6 +13,7 @@ import {
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import api from '@/lib/api';
 import ProtectedRoute from '@/components/ProtectedRoute';
+import DashboardLayout from '@/components/dashboard/DashboardLayout';
 import ApplicationCard from '@/components/ApplicationCard';
 import ApplicationDetailDrawer from '@/components/ApplicationDetailDrawer';
 import type {
@@ -25,7 +26,9 @@ import type {
 export default function RecruiterPipelinePage() {
   return (
     <ProtectedRoute requiredRoles={['RECRUITER', 'ERM', 'ADMIN']}>
-      <PipelineBoard />
+      <DashboardLayout title="Application Pipeline">
+        <PipelineBoard />
+      </DashboardLayout>
     </ProtectedRoute>
   );
 }

@@ -2,6 +2,7 @@
 
 import { FormEvent, useState } from 'react';
 import Link from 'next/link';
+import AuthLayout from '@/components/dashboard/AuthLayout';
 import api from '@/lib/api';
 
 export default function ForgotPasswordPage() {
@@ -24,14 +25,16 @@ export default function ForgotPasswordPage() {
   }
 
   return (
-    <div className="rounded-lg bg-white p-8 shadow">
-      <h1 className="mb-6 text-2xl font-semibold text-slate-900">Reset your password</h1>
+    <AuthLayout
+      title="Reset your password"
+      subtitle="We'll email you a reset link"
+    >
       {submitted ? (
         <div>
           <div className="mb-4 rounded border border-green-200 bg-green-50 p-3 text-sm text-green-800">
             If that email is registered, a reset link has been sent.
           </div>
-          <p className="text-xs text-slate-500">
+          <p className="text-xs text-gray-500">
             Dev note: token is logged to backend console for now.
           </p>
           <div className="mt-6 text-center text-sm">
@@ -45,11 +48,11 @@ export default function ForgotPasswordPage() {
         </div>
       ) : (
         <form onSubmit={onSubmit} className="space-y-4">
-          <p className="text-sm text-slate-600">
+          <p className="text-sm text-gray-600">
             Enter your email and we&apos;ll send instructions to reset your password.
           </p>
           <div>
-            <label htmlFor="email" className="mb-1 block text-sm font-medium text-slate-700">
+            <label htmlFor="email" className="mb-1 block text-sm font-medium text-gray-700">
               Email
             </label>
             <input
@@ -59,7 +62,7 @@ export default function ForgotPasswordPage() {
               autoComplete="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className="w-full rounded border border-slate-300 px-3 py-2 focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
+              className="w-full rounded border border-gray-300 px-3 py-2 focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
             />
           </div>
           <button
@@ -79,6 +82,6 @@ export default function ForgotPasswordPage() {
           </div>
         </form>
       )}
-    </div>
+    </AuthLayout>
   );
 }

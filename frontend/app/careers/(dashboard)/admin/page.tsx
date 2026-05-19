@@ -2,10 +2,22 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
+import DashboardLayout from '@/components/dashboard/DashboardLayout';
+import ProtectedRoute from '@/components/ProtectedRoute';
 import { useAuth } from '@/lib/auth-context';
 import api from '@/lib/api';
 
-export default function AdminDashboard() {
+export default function AdminDashboardPage() {
+  return (
+    <ProtectedRoute requiredRoles={['ADMIN']}>
+      <DashboardLayout title="Admin Dashboard">
+        <AdminBody />
+      </DashboardLayout>
+    </ProtectedRoute>
+  );
+}
+
+function AdminBody() {
   const { user } = useAuth();
   const [testResult, setTestResult] = useState<{ ok: boolean; message: string } | null>(null);
   const [testing, setTesting] = useState(false);
@@ -26,9 +38,11 @@ export default function AdminDashboard() {
 
   return (
     <div>
-      <h1 className="mb-2 text-2xl font-semibold text-slate-900">Admin</h1>
-      <p className="mb-6 text-sm text-slate-600">
+      <h2 className="mb-2 text-2xl font-semibold text-gray-900">
         Welcome{user ? `, ${user.fullName}` : ''}.
+      </h2>
+      <p className="mb-6 text-sm text-gray-600">
+        System administration — postings, users, entities, and the recruitment funnel.
       </p>
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <LinkCard
@@ -41,10 +55,10 @@ export default function AdminDashboard() {
         <Card title="Entities" body="Manage staffing entities." />
         <Card title="Job postings" body="Review and publish job postings." />
       </div>
-      <div className="mt-8 rounded-lg border border-slate-200 bg-white p-6">
-        <h2 className="mb-1 text-lg font-medium text-slate-900">End-to-end check</h2>
-        <p className="mb-4 text-sm text-slate-600">
-          Calls <code className="rounded bg-slate-100 px-1">GET /admin/test</code> on the backend
+      <div className="mt-8 rounded-lg border border-gray-200 bg-white p-6">
+        <h3 className="mb-1 text-lg font-medium text-gray-900">End-to-end check</h3>
+        <p className="mb-4 text-sm text-gray-600">
+          Calls <code className="rounded bg-gray-100 px-1">GET /admin/test</code> on the backend
           with your JWT to confirm RBAC enforcement.
         </p>
         <button
@@ -76,9 +90,9 @@ export default function AdminDashboard() {
 
 function Card({ title, body }: { title: string; body: string }) {
   return (
-    <div className="rounded-lg border border-slate-200 bg-white p-5">
-      <h3 className="mb-2 font-medium text-slate-900">{title}</h3>
-      <p className="text-sm text-slate-600">{body}</p>
+    <div className="rounded-lg border border-gray-200 bg-white p-5">
+      <h3 className="mb-2 font-medium text-gray-900">{title}</h3>
+      <p className="text-sm text-gray-600">{body}</p>
     </div>
   );
 }
@@ -101,13 +115,13 @@ function LinkCard({
         'group block rounded-lg border p-5 transition hover:-translate-y-0.5 hover:shadow-md ' +
         (accent
           ? 'border-accent/30 bg-accent/5 hover:border-accent/60'
-          : 'border-slate-200 bg-white hover:border-slate-300')
+          : 'border-gray-200 bg-white hover:border-gray-300')
       }
     >
-      <h3 className="mb-2 font-semibold text-slate-900 group-hover:text-primary-800">
+      <h3 className="mb-2 font-semibold text-gray-900 group-hover:text-primary-800">
         {title} <span className="text-primary-700">&rarr;</span>
       </h3>
-      <p className="text-sm text-slate-600">{body}</p>
+      <p className="text-sm text-gray-600">{body}</p>
     </Link>
   );
 }

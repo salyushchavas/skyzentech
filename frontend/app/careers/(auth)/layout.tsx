@@ -1,15 +1,10 @@
-import SiteLayout from '@/components/SiteLayout';
+// Passthrough — each auth page wraps its own content in <AuthLayout>
+// from components/dashboard/.
 
-export default function AuthLayout({
+export default function AuthSegmentLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  return (
-    <SiteLayout>
-      <div className="flex items-center justify-center bg-gray-50 px-4 py-16">
-        <div className="w-full max-w-md">{children}</div>
-      </div>
-    </SiteLayout>
-  );
+  return <>{children}</>;
 }
