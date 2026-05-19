@@ -91,6 +91,7 @@ public class OfferService {
     private final AuditLogRepository auditLogRepository;
     private final OfferLetterTemplate letterTemplate;
     private final ObjectMapper objectMapper;
+    private final OnboardingService onboardingService;
 
     // ── Commands ────────────────────────────────────────────────────────────
 
@@ -277,6 +278,15 @@ public class OfferService {
 
         writeAudit("Offer", offer.getId(), "ACCEPT", candidateUser.getId(),
                 before, snapshot(offer));
+
+        // Seed onboarding tasks. Wrapped in try/catch so a downstream onboarding
+        // bug never prevents a candidate from accepting their offer.
+        try {
+            onboardingService.seedTasksForAcceptedOffer(offer);
+        } catch (Exception e) {
+            log.warn("Failed to seed onboarding tasks for accepted offer {}: {}",
+                    offer.getId(), e.getMessage(), e);
+        }
         return offer;
     }
 
