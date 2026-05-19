@@ -10,8 +10,12 @@ const poppins = Poppins({
 });
 
 export const metadata: Metadata = {
-  title: 'Skyzen Technologies',
-  description: 'Skyzen Technologies — STEM staffing and internship programs.',
+  title: {
+    default: 'Skyzen Technologies — IT Staffing & STEM Internships',
+    template: '%s — Skyzen Technologies',
+  },
+  description:
+    'Skyzen Technologies LLC — premier IT consulting, software development, staffing, and STEM internships based in Plano, TX. Trusted by 21+ enterprise clients.',
 };
 
 export default function RootLayout({
