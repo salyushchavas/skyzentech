@@ -23,17 +23,29 @@ public class Resume {
     @JoinColumn(name = "candidate_id", nullable = false)
     private Candidate candidate;
 
-    @Column(nullable = false)
-    private String fileUrl;
-
-    @Column(nullable = false)
+    @Column(name = "file_name", nullable = false)
     private String fileName;
+
+    @Column(name = "stored_file_name")
+    private String storedFileName;
+
+    @Column(name = "file_path")
+    private String filePath;
+
+    @Column(name = "file_size")
+    private Long fileSize;
+
+    @Column(name = "content_type")
+    private String contentType;
+
+    @Column(name = "file_url")
+    private String fileUrl;
 
     @Column(nullable = false)
     @Builder.Default
     private Integer version = 1;
 
-    @Column(nullable = false)
+    @Column(name = "is_default", nullable = false)
     @Builder.Default
     private Boolean isDefault = false;
 

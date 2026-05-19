@@ -1,5 +1,6 @@
 package com.skyzen.careers.entity;
 
+import com.skyzen.careers.enums.EmploymentType;
 import com.skyzen.careers.enums.JobPostingStatus;
 import jakarta.persistence.*;
 import lombok.*;
@@ -8,7 +9,13 @@ import java.time.Instant;
 import java.util.UUID;
 
 @Entity
-@Table(name = "job_postings")
+@Table(
+        name = "job_postings",
+        indexes = {
+                @Index(name = "idx_job_postings_slug", columnList = "slug", unique = true),
+                @Index(name = "idx_job_postings_status", columnList = "status")
+        }
+)
 @Getter
 @Setter
 @NoArgsConstructor
@@ -24,6 +31,9 @@ public class JobPosting {
     @JoinColumn(name = "entity_id", nullable = false)
     private StaffingEntity entity;
 
+    @Column(nullable = false, unique = true)
+    private String slug;
+
     @Column(nullable = false)
     private String title;
 
@@ -34,6 +44,11 @@ public class JobPosting {
     private String requirements;
 
     private String location;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "employment_type", nullable = false)
+    @Builder.Default
+    private EmploymentType employmentType = EmploymentType.INTERNSHIP;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)

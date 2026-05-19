@@ -8,7 +8,13 @@ import java.time.Instant;
 import java.util.UUID;
 
 @Entity
-@Table(name = "applications")
+@Table(
+        name = "applications",
+        uniqueConstraints = @UniqueConstraint(
+                name = "uk_application_candidate_job_posting",
+                columnNames = {"candidate_id", "job_posting_id"}
+        )
+)
 @Getter
 @Setter
 @NoArgsConstructor
@@ -45,6 +51,9 @@ public class Application {
 
     @Column(name = "status_updated_by")
     private UUID statusUpdatedBy;
+
+    @Column(name = "recruiter_notes", columnDefinition = "TEXT")
+    private String recruiterNotes;
 
     @PrePersist
     void onCreate() {
