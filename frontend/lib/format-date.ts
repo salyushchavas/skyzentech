@@ -111,6 +111,29 @@ export function combineDateAndTime(dateStr: string, timeStr: string): string | n
   return d.toISOString();
 }
 
+/**
+ * Date-only relative formatter for things like onboarding due dates.
+ * Takes a LocalDate ISO string ("2026-05-24") or Date and returns
+ * "today", "tomorrow", "in 5 days", "3 days ago", or "May 24".
+ */
+export function formatDueDate(iso?: string | Date | null): string {
+  if (!iso) return '—';
+  const d = safeDate(iso);
+  if (!d) return '—';
+
+  const today = new Date();
+  const a = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+  const b = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  const days = Math.round((b.getTime() - a.getTime()) / MS.day);
+
+  if (days === 0) return 'today';
+  if (days === 1) return 'tomorrow';
+  if (days === -1) return 'yesterday';
+  if (days > 1 && days < 7) return `in ${days} days`;
+  if (days < -1 && days > -7) return `${Math.abs(days)} days ago`;
+  return shortDate(d);
+}
+
 /** Returns today's date as a YYYY-MM-DD string suitable for `<input type="date">`. */
 export function todayDateInput(): string {
   const d = new Date();

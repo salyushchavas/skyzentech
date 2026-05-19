@@ -293,3 +293,53 @@ export interface UpdateOfferRequest {
 export interface DeclineOfferRequest {
   reason?: string;
 }
+
+// === Onboarding ==============================================================
+
+export type OnboardingCategory =
+  | 'PAPERWORK'
+  | 'COMPLIANCE'
+  | 'SETUP'
+  | 'INTRODUCTION';
+
+export type OnboardingTaskStatus =
+  | 'PENDING'
+  | 'IN_PROGRESS'
+  | 'COMPLETED'
+  | 'BLOCKED'
+  | 'NOT_APPLICABLE';
+
+export interface OnboardingTaskResponse {
+  id: Uuid;
+  taskKey: string;
+  title: string;
+  description?: string;
+  category: OnboardingCategory;
+  status: OnboardingTaskStatus;
+  sortOrder: number;
+  /** LocalDate ISO string, e.g. "2026-05-24" (no time component). */
+  dueDate?: string;
+  linkUrl?: string;
+  completedAt?: IsoDateTime;
+  completedByName?: string;
+  offerId?: Uuid;
+  applicationId?: Uuid;
+  /** Jackson serializes the boolean isOverdue() getter as "overdue". */
+  overdue: boolean;
+  createdAt: IsoDateTime;
+  updatedAt: IsoDateTime;
+}
+
+export interface OnboardingSummaryResponse {
+  totalTasks: number;
+  completedTasks: number;
+  pendingTasks: number;
+  inProgressTasks: number;
+  blockedTasks: number;
+  progressPercent: number;
+  nextDueTask?: OnboardingTaskResponse | null;
+}
+
+export interface UpdateTaskStatusRequest {
+  status: OnboardingTaskStatus;
+}
