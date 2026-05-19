@@ -58,3 +58,6 @@ types/index.ts      Shared frontend types
 - `NEXT_PUBLIC_API_URL` must **not** end with `/` — the axios client appends paths without trimming.
 - The `basePath: '/careers'` setting must remain in place from day one; removing it will break production routing.
 - Primary color tokens in `tailwind.config.ts` are placeholders — they'll be tuned to skyzentech.com branding in Phase 1.
+
+<!-- deploy-trigger: 2026-05-19 -->
+
