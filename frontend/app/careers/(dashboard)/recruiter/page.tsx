@@ -171,13 +171,15 @@ function PipelineBoard() {
       const res = await api.get(`/api/v1/resumes/${resumeId}/download`, {
         responseType: 'blob',
       });
-      const blob = new Blob([res.data], {
-        type: res.headers['content-type'] || 'application/octet-stream',
-      });
+      const ctRaw = res.headers['content-type'];
+      const contentType =
+        typeof ctRaw === 'string' ? ctRaw : 'application/octet-stream';
+      const blob = new Blob([res.data], { type: contentType });
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      const disposition = res.headers['content-disposition'] ?? '';
+      const cdRaw = res.headers['content-disposition'];
+      const disposition = typeof cdRaw === 'string' ? cdRaw : '';
       const m = disposition.match(/filename="?([^";]+)"?/);
       a.download = m?.[1] ?? `resume-${resumeId}.pdf`;
       document.body.appendChild(a);
