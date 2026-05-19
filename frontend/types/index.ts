@@ -194,3 +194,102 @@ export interface SubmitFeedbackRequest {
   concerns?: string;
   recommendation: InterviewRecommendation;
 }
+
+// === Offers ==================================================================
+
+export type CompensationFrequency = 'HOURLY' | 'MONTHLY' | 'YEARLY';
+
+export type OfferStatus =
+  | 'DRAFT'
+  | 'SENT'
+  | 'ACCEPTED'
+  | 'DECLINED'
+  | 'EXPIRED'
+  | 'REVOKED';
+
+export interface OfferResponse {
+  id: Uuid;
+  applicationId: Uuid;
+  candidateName?: string;
+  candidateEmail?: string;
+  candidateId?: Uuid;
+  jobPostingTitle?: string;
+  jobPostingId?: Uuid;
+  entityName?: string;
+  entityId?: Uuid;
+  compensationAmount: number | string;
+  compensationFrequency: CompensationFrequency;
+  compensationCurrency: string;
+  startDate: string;
+  expectedEndDate?: string;
+  expiresAt: IsoDateTime;
+  status: OfferStatus;
+  additionalTerms?: string;
+  letterContent: string;
+  declineReason?: string;
+  sentAt?: IsoDateTime;
+  respondedAt?: IsoDateTime;
+  revokedAt?: IsoDateTime;
+  createdAt: IsoDateTime;
+  createdByName?: string;
+  updatedAt: IsoDateTime;
+  /** Server-side computed. Jackson serializes the boolean field as "expired". */
+  expired: boolean;
+}
+
+export interface OfferSummaryResponse {
+  id: Uuid;
+  candidateName?: string;
+  jobPostingTitle?: string;
+  entityName?: string;
+  compensationAmount: number | string;
+  compensationFrequency: CompensationFrequency;
+  startDate: string;
+  expiresAt: IsoDateTime;
+  status: OfferStatus;
+  createdAt: IsoDateTime;
+}
+
+export interface CandidateOfferResponse {
+  id: Uuid;
+  jobPostingTitle?: string;
+  entityName?: string;
+  compensationAmount: number | string;
+  compensationFrequency: CompensationFrequency;
+  compensationCurrency: string;
+  startDate: string;
+  expectedEndDate?: string;
+  expiresAt: IsoDateTime;
+  status: OfferStatus;
+  additionalTerms?: string;
+  letterContent: string;
+  sentAt?: IsoDateTime;
+  respondedAt?: IsoDateTime;
+  expired: boolean;
+}
+
+export interface CreateOfferRequest {
+  applicationId: Uuid;
+  compensationAmount: number;
+  compensationFrequency: CompensationFrequency;
+  compensationCurrency?: string;
+  startDate: string;
+  expectedEndDate?: string;
+  daysToRespond: number;
+  additionalTerms?: string;
+}
+
+export interface UpdateOfferRequest {
+  compensationAmount?: number;
+  compensationFrequency?: CompensationFrequency;
+  compensationCurrency?: string;
+  startDate?: string;
+  expectedEndDate?: string;
+  daysToRespond?: number;
+  additionalTerms?: string;
+  letterContent?: string;
+}
+
+export interface DeclineOfferRequest {
+  reason?: string;
+}

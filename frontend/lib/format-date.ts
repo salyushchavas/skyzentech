@@ -111,6 +111,15 @@ export function combineDateAndTime(dateStr: string, timeStr: string): string | n
   return d.toISOString();
 }
 
+/** Returns today's date as a YYYY-MM-DD string suitable for `<input type="date">`. */
+export function todayDateInput(): string {
+  const d = new Date();
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const dd = String(d.getDate()).padStart(2, '0');
+  return `${yyyy}-${mm}-${dd}`;
+}
+
 /** Splits an ISO timestamp back into `{ date, time }` strings for the form. */
 export function splitDateAndTime(iso?: string): { date: string; time: string } {
   if (!iso) return { date: '', time: '' };

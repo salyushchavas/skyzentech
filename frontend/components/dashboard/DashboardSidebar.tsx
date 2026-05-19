@@ -47,6 +47,7 @@ const ROLE_LINKS: Record<UserRole, NavLink[]> = {
     { icon: LayoutDashboard, label: 'Dashboard', href: '/careers/erm' },
     { icon: KanbanSquare, label: 'Pipeline', href: '/careers/recruiter' },
     { icon: Video, label: 'Interviews', href: '/careers/erm/interviews' },
+    { icon: FileSignature, label: 'Offer Letters', href: '/careers/hr/offers' },
     { icon: FileBadge, label: 'I-983 Plans', href: '/careers/erm/training-plans' },
   ],
   HR_COMPLIANCE: [
@@ -66,6 +67,7 @@ const ROLE_LINKS: Record<UserRole, NavLink[]> = {
     { icon: LayoutDashboard, label: 'Dashboard', href: '/careers/admin' },
     { icon: Briefcase, label: 'Postings', href: '/careers/admin/postings' },
     { icon: KanbanSquare, label: 'Pipeline', href: '/careers/recruiter' },
+    { icon: FileSignature, label: 'Offer Letters', href: '/careers/hr/offers' },
     { icon: Users, label: 'Users', href: '/careers/admin/users' },
     { icon: Building2, label: 'Entities', href: '/careers/admin/entities' },
   ],
