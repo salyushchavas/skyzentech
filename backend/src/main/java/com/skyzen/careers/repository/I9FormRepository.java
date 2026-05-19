@@ -1,0 +1,25 @@
+package com.skyzen.careers.repository;
+
+import com.skyzen.careers.entity.I9Form;
+import com.skyzen.careers.enums.I9Status;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.stereotype.Repository;
+
+import java.time.LocalDate;
+import java.util.List;
+import java.util.Optional;
+import java.util.UUID;
+
+@Repository
+public interface I9FormRepository extends JpaRepository<I9Form, UUID> {
+
+    Optional<I9Form> findByCandidateId(UUID candidateId);
+
+    Page<I9Form> findByStatusOrderByUpdatedAtDesc(I9Status status, Pageable pageable);
+
+    Page<I9Form> findAllByOrderByUpdatedAtDesc(Pageable pageable);
+
+    List<I9Form> findByStatusAndFirstDayOfEmploymentBefore(I9Status status, LocalDate cutoff);
+}
