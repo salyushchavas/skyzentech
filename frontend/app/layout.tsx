@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import { Poppins } from 'next/font/google';
+import { AuthProvider } from '@/lib/auth-context';
 import './globals.css';
 
 const poppins = Poppins({
@@ -30,7 +31,7 @@ export default function RootLayout({
         <link rel="stylesheet" href="/plugins/icofont/icofont.min.css" />
       </head>
       <body className="min-h-screen font-sans antialiased">
-        {children}
+        <AuthProvider>{children}</AuthProvider>
       </body>
     </html>
   );
