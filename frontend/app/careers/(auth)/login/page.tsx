@@ -20,13 +20,24 @@ export default function LoginPage() {
     setLoading(true);
     try {
       const user = await login(email, password);
-      router.replace(getDashboardForUser(user));
+      const returnTo = safeReturnTo();
+      router.replace(returnTo ?? getDashboardForUser(user));
     } catch (err: any) {
       const msg = err?.response?.data?.error ?? 'Login failed';
       setError(msg);
     } finally {
       setLoading(false);
     }
+  }
+
+  function safeReturnTo(): string | null {
+    if (typeof window === 'undefined') return null;
+    const raw = new URLSearchParams(window.location.search).get('returnTo');
+    if (!raw) return null;
+    const decoded = decodeURIComponent(raw);
+    // Same-origin relative path only: must start with "/" and not "//".
+    if (!decoded.startsWith('/') || decoded.startsWith('//')) return null;
+    return decoded;
   }
 
   return (

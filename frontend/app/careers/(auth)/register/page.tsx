@@ -32,13 +32,23 @@ export default function RegisterPage() {
     setLoading(true);
     try {
       await register(email, password, fullName, phoneNumber || undefined);
-      router.replace('/careers/candidate');
+      const returnTo = safeReturnTo();
+      router.replace(returnTo ?? '/careers/candidate');
     } catch (err: any) {
       const msg = err?.response?.data?.error ?? 'Registration failed';
       setError(msg);
     } finally {
       setLoading(false);
     }
+  }
+
+  function safeReturnTo(): string | null {
+    if (typeof window === 'undefined') return null;
+    const raw = new URLSearchParams(window.location.search).get('returnTo');
+    if (!raw) return null;
+    const decoded = decodeURIComponent(raw);
+    if (!decoded.startsWith('/') || decoded.startsWith('//')) return null;
+    return decoded;
   }
 
   return (

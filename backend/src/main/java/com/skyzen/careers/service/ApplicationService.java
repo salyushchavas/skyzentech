@@ -20,6 +20,7 @@ import com.skyzen.careers.repository.CandidateRepository;
 import com.skyzen.careers.repository.JobPostingRepository;
 import com.skyzen.careers.repository.ResumeRepository;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -30,6 +31,7 @@ import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class ApplicationService {
 
     private final ApplicationRepository applicationRepository;
@@ -40,8 +42,10 @@ public class ApplicationService {
     @Transactional
     public ApplicationResponse apply(User user, ApplicationCreateRequest req) {
         Candidate candidate = candidateRepository.findByUserId(user.getId())
-                .orElseThrow(() -> new ResourceNotFoundException(
-                        "Candidate profile not found for user " + user.getId()));
+                .orElseGet(() -> {
+                    log.warn("Lazy-creating Candidate for user {} during application submit", user.getId());
+                    return candidateRepository.save(Candidate.builder().user(user).build());
+                });
 
         JobPosting posting = jobPostingRepository.findById(req.getJobPostingId())
                 .orElseThrow(() -> new ResourceNotFoundException(
