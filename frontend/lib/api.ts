@@ -19,10 +19,13 @@ api.interceptors.request.use((config) => {
 });
 
 // Paths where a 401 is expected (the user is mid-auth) — don't redirect.
-const AUTH_PATH_SUFFIXES = ['/login', '/register', '/forgot-password', '/reset-password'];
+const AUTH_PATHS = [
+  '/careers/login',
+  '/careers/register',
+  '/careers/forgot-password',
+  '/careers/reset-password',
+];
 
-// basePath is '/careers' (see next.config.js). window.location.href is a full
-// browser navigation outside Next's router, so the prefix must be included here.
 const LOGIN_URL = '/careers/login';
 
 api.interceptors.response.use(
@@ -31,7 +34,7 @@ api.interceptors.response.use(
     if (error?.response?.status === 401 && typeof window !== 'undefined') {
       clearAuth();
       const path = window.location.pathname;
-      const onAuthPage = AUTH_PATH_SUFFIXES.some((s) => path.endsWith(s));
+      const onAuthPage = AUTH_PATHS.some((p) => path === p);
       if (!onAuthPage) {
         window.location.href = LOGIN_URL;
       }

@@ -35,7 +35,7 @@ export default function ForgotPasswordPage() {
             Dev note: token is logged to backend console for now.
           </p>
           <div className="mt-6 text-center text-sm">
-            <Link href="/login" className="text-blue-600 hover:underline">
+            <Link href="/careers/login" className="text-blue-600 hover:underline">
               Back to sign in
             </Link>
           </div>
@@ -67,7 +67,7 @@ export default function ForgotPasswordPage() {
             {loading ? 'Sending…' : 'Send reset link'}
           </button>
           <div className="text-center text-sm">
-            <Link href="/login" className="text-blue-600 hover:underline">
+            <Link href="/careers/login" className="text-blue-600 hover:underline">
               Back to sign in
             </Link>
           </div>

@@ -75,10 +75,10 @@ export default function LoginPage() {
         </button>
       </form>
       <div className="mt-6 flex justify-between text-sm">
-        <Link href="/register" className="text-blue-600 hover:underline">
+        <Link href="/careers/register" className="text-blue-600 hover:underline">
           Create an account
         </Link>
-        <Link href="/forgot-password" className="text-blue-600 hover:underline">
+        <Link href="/careers/forgot-password" className="text-blue-600 hover:underline">
           Forgot password?
         </Link>
       </div>

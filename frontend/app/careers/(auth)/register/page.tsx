@@ -32,7 +32,7 @@ export default function RegisterPage() {
     setLoading(true);
     try {
       await register(email, password, fullName, phoneNumber || undefined);
-      router.replace('/candidate');
+      router.replace('/careers/candidate');
     } catch (err: any) {
       const msg = err?.response?.data?.error ?? 'Registration failed';
       setError(msg);
@@ -104,7 +104,7 @@ export default function RegisterPage() {
         </button>
       </form>
       <div className="mt-6 text-center text-sm">
-        <Link href="/login" className="text-blue-600 hover:underline">
+        <Link href="/careers/login" className="text-blue-600 hover:underline">
           Already have an account? Sign in
         </Link>
       </div>

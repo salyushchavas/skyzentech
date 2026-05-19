@@ -51,7 +51,7 @@ function ResetPasswordForm() {
     try {
       await api.post('/auth/reset-password', { token, newPassword });
       setSuccess(true);
-      setTimeout(() => router.replace('/login'), 1500);
+      setTimeout(() => router.replace('/careers/login'), 1500);
     } catch (err: any) {
       const msg = err?.response?.data?.error ?? 'Invalid or expired token';
       setError(msg);
@@ -114,7 +114,7 @@ function ResetPasswordForm() {
             {loading ? 'Saving…' : 'Reset password'}
           </button>
           <div className="text-center text-sm">
-            <Link href="/login" className="text-blue-600 hover:underline">
+            <Link href="/careers/login" className="text-blue-600 hover:underline">
               Back to sign in
             </Link>
           </div>

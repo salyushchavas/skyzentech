@@ -14,7 +14,7 @@ export default function DashboardLayout({
 
   useEffect(() => {
     if (!isLoading && !user) {
-      router.replace('/login');
+      router.replace('/careers/login');
     }
   }, [isLoading, user, router]);
 
@@ -31,7 +31,7 @@ export default function DashboardLayout({
 
   function onLogout() {
     logout();
-    router.replace('/login');
+    router.replace('/careers/login');
   }
 
   const primaryRole = user.roles[0] ?? 'CANDIDATE';
