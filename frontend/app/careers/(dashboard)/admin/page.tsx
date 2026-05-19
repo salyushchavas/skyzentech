@@ -1,11 +1,17 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import DashboardLayout from '@/components/dashboard/DashboardLayout';
 import ProtectedRoute from '@/components/ProtectedRoute';
-import { useAuth } from '@/lib/auth-context';
 import api from '@/lib/api';
+import { useAuth } from '@/lib/auth-context';
+import type {
+  ApplicationResponse,
+  ApplicationStatus,
+  JobPostingResponse,
+  Page,
+} from '@/types';
 
 export default function AdminDashboardPage() {
   return (
@@ -17,10 +23,47 @@ export default function AdminDashboardPage() {
   );
 }
 
+const TERMINAL_STATUSES: ReadonlyArray<ApplicationStatus> = [
+  'ACCEPTED',
+  'REJECTED',
+  'WITHDRAWN',
+  'COMPLETED',
+  'LAPSED',
+  'NO_SHOW',
+];
+
 function AdminBody() {
   const { user } = useAuth();
+  const [postings, setPostings] = useState<JobPostingResponse[] | null>(null);
+  const [applications, setApplications] = useState<ApplicationResponse[] | null>(null);
   const [testResult, setTestResult] = useState<{ ok: boolean; message: string } | null>(null);
   const [testing, setTesting] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const [pRes, aRes] = await Promise.all([
+          api.get<Page<JobPostingResponse>>(
+            '/api/v1/job-postings/admin/all?page=0&size=200'
+          ),
+          api.get<Page<ApplicationResponse>>('/api/v1/applications?size=500&page=0'),
+        ]);
+        if (!cancelled) {
+          setPostings(pRes.data?.content ?? []);
+          setApplications(aRes.data?.content ?? []);
+        }
+      } catch {
+        if (!cancelled) {
+          setPostings([]);
+          setApplications([]);
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   async function runTest() {
     setTesting(true);
@@ -36,6 +79,18 @@ function AdminBody() {
     }
   }
 
+  const openPostings =
+    postings === null ? null : postings.filter((p) => p.status === 'OPEN').length;
+  const totalApps = applications === null ? null : applications.length;
+  const activePipeline =
+    applications === null
+      ? null
+      : applications.filter((a) => !TERMINAL_STATUSES.includes(a.status)).length;
+  const hiredCount =
+    applications === null
+      ? null
+      : applications.filter((a) => a.status === 'ACCEPTED').length;
+
   return (
     <div>
       <h2 className="mb-2 text-2xl font-semibold text-gray-900">
@@ -44,18 +99,34 @@ function AdminBody() {
       <p className="mb-6 text-sm text-gray-600">
         System administration — postings, users, entities, and the recruitment funnel.
       </p>
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <LinkCard
-          href="/careers/recruiter"
-          title="Application pipeline"
-          body="Drag-drop Kanban view of all candidate applications across postings."
-          accent
+
+      <div className="mb-8 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <StatCard
+          label="Open Postings"
+          value={openPostings}
+          href="/careers/admin/postings"
+          descriptor="published & accepting applications"
         />
-        <Card title="Users" body="Manage staff and candidate accounts." />
-        <Card title="Entities" body="Manage staffing entities." />
-        <Card title="Job postings" body="Review and publish job postings." />
+        <StatCard
+          label="Total Applications"
+          value={totalApps}
+          href="/careers/recruiter"
+          descriptor="across all postings"
+        />
+        <StatCard
+          label="Active Pipeline"
+          value={activePipeline}
+          href="/careers/recruiter"
+          descriptor="not yet hired or rejected"
+        />
+        <StatCard
+          label="Hired"
+          value={hiredCount}
+          descriptor="offers accepted"
+        />
       </div>
-      <div className="mt-8 rounded-lg border border-gray-200 bg-white p-6">
+
+      <div className="rounded-lg border border-gray-200 bg-white p-6">
         <h3 className="mb-1 text-lg font-medium text-gray-900">End-to-end check</h3>
         <p className="mb-4 text-sm text-gray-600">
           Calls <code className="rounded bg-gray-100 px-1">GET /admin/test</code> on the backend
@@ -88,40 +159,42 @@ function AdminBody() {
   );
 }
 
-function Card({ title, body }: { title: string; body: string }) {
-  return (
-    <div className="rounded-lg border border-gray-200 bg-white p-5">
-      <h3 className="mb-2 font-medium text-gray-900">{title}</h3>
-      <p className="text-sm text-gray-600">{body}</p>
-    </div>
-  );
-}
-
-function LinkCard({
+function StatCard({
+  label,
+  value,
   href,
-  title,
-  body,
-  accent = false,
+  descriptor,
 }: {
-  href: string;
-  title: string;
-  body: string;
-  accent?: boolean;
+  label: string;
+  value: number | null;
+  href?: string;
+  descriptor?: string;
 }) {
-  return (
-    <Link
-      href={href}
-      className={
-        'group block rounded-lg border p-5 transition hover:-translate-y-0.5 hover:shadow-md ' +
-        (accent
-          ? 'border-accent/30 bg-accent/5 hover:border-accent/60'
-          : 'border-gray-200 bg-white hover:border-gray-300')
-      }
-    >
-      <h3 className="mb-2 font-semibold text-gray-900 group-hover:text-primary-800">
-        {title} <span className="text-primary-700">&rarr;</span>
-      </h3>
-      <p className="text-sm text-gray-600">{body}</p>
+  const inner = (
+    <>
+      <div className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+        {label}
+      </div>
+      <div className="mt-2 text-2xl font-bold text-gray-900">
+        {value === null ? (
+          <span className="inline-block h-7 w-12 animate-pulse rounded bg-gray-200" />
+        ) : (
+          value
+        )}
+      </div>
+      {descriptor && <div className="mt-1 text-xs text-gray-500">{descriptor}</div>}
+    </>
+  );
+
+  const className =
+    'block rounded-lg border border-gray-200 bg-white p-5 transition-shadow ' +
+    (href ? 'hover:shadow-md' : '');
+
+  return href ? (
+    <Link href={href} className={className}>
+      {inner}
     </Link>
+  ) : (
+    <div className={className}>{inner}</div>
   );
 }

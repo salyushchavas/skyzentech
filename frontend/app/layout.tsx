@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import { Poppins } from 'next/font/google';
+import { Toaster } from 'react-hot-toast';
 import { AuthProvider } from '@/lib/auth-context';
 import './globals.css';
 
@@ -32,6 +33,20 @@ export default function RootLayout({
       </head>
       <body className="min-h-screen font-sans antialiased">
         <AuthProvider>{children}</AuthProvider>
+        <Toaster
+          position="bottom-right"
+          toastOptions={{
+            duration: 3000,
+            style: {
+              fontSize: '14px',
+              border: '1px solid rgb(229 231 235)',
+              padding: '12px 16px',
+              borderRadius: '6px',
+            },
+            success: { iconTheme: { primary: '#16a34a', secondary: '#fff' } },
+            error: { iconTheme: { primary: '#dc2626', secondary: '#fff' } },
+          }}
+        />
       </body>
     </html>
   );

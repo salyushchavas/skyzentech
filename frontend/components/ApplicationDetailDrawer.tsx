@@ -1,12 +1,13 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import Link from 'next/link';
+import { Ban, CheckCircle, Download, ExternalLink, LogOut, Video, X, XCircle } from 'lucide-react';
+import toast from 'react-hot-toast';
 import api from '@/lib/api';
 import ApplicationStatusBadge from '@/components/ApplicationStatusBadge';
 import type { ApplicationResponse, ApplicationStatus } from '@/types';
 
-const TERMINAL_STATUSES: ApplicationStatus[] = [
+const TERMINAL_STATUSES: ReadonlyArray<ApplicationStatus> = [
   'ACCEPTED',
   'REJECTED',
   'WITHDRAWN',
@@ -28,25 +29,10 @@ function formatDate(iso?: string): string {
   }
 }
 
-function formatDateTime(iso?: string): string {
-  if (!iso) return '—';
-  try {
-    return new Date(iso).toLocaleString('en-US', {
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric',
-      hour: 'numeric',
-      minute: '2-digit',
-    });
-  } catch {
-    return iso;
-  }
-}
-
 interface Props {
   applicationId: string | null;
   onClose: () => void;
-  /** Called after any successful PATCH so the parent can update its local Kanban state. */
+  /** Called after any successful status / notes patch so parent can update Kanban state. */
   onUpdated: (application: ApplicationResponse) => void;
 }
 
@@ -60,7 +46,7 @@ export default function ApplicationDetailDrawer({
   const [error, setError] = useState<string | null>(null);
   const [notes, setNotes] = useState('');
   const [savingNotes, setSavingNotes] = useState(false);
-  const [savedAt, setSavedAt] = useState<string | null>(null);
+  const [savedFlashAt, setSavedFlashAt] = useState<number | null>(null);
   const [busyAction, setBusyAction] = useState<ApplicationStatus | null>(null);
 
   const open = applicationId !== null;
@@ -73,7 +59,6 @@ export default function ApplicationDetailDrawer({
       const res = await api.get<ApplicationResponse>(`/api/v1/applications/${applicationId}`);
       setApp(res.data);
       setNotes(res.data.recruiterNotes ?? '');
-      setSavedAt(res.data.statusUpdatedAt ?? null);
     } catch (err: any) {
       setError(err?.response?.data?.error ?? 'Failed to load application');
       setApp(null);
@@ -89,16 +74,16 @@ export default function ApplicationDetailDrawer({
       setApp(null);
       setError(null);
       setNotes('');
-      setSavedAt(null);
+      setSavedFlashAt(null);
     }
   }, [open, load]);
 
-  // Close drawer on Escape
+  // Escape to close
   useEffect(() => {
     if (!open) return;
-    const handler = (e: KeyboardEvent) => {
+    function handler(e: KeyboardEvent) {
       if (e.key === 'Escape') onClose();
-    };
+    }
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
   }, [open, onClose]);
@@ -125,28 +110,23 @@ export default function ApplicationDetailDrawer({
       a.remove();
       window.URL.revokeObjectURL(url);
     } catch (err: any) {
-      alert(err?.response?.data?.error ?? 'Resume download failed');
+      toast.error(err?.response?.data?.error ?? 'Resume download failed');
     }
   }
 
-  async function patchStatus(targetStatus: ApplicationStatus, alsoNotes?: string) {
+  async function patchStatus(targetStatus: ApplicationStatus, successMsg: string) {
     if (!app) return;
     setBusyAction(targetStatus);
     try {
-      const body: { status: ApplicationStatus; recruiterNotes?: string } = {
-        status: targetStatus,
-      };
-      if (alsoNotes !== undefined) body.recruiterNotes = alsoNotes;
       const res = await api.patch<ApplicationResponse>(
         `/api/v1/applications/${app.id}/status`,
-        body
+        { status: targetStatus }
       );
       setApp(res.data);
-      setSavedAt(res.data.statusUpdatedAt ?? new Date().toISOString());
-      if (alsoNotes !== undefined) setNotes(res.data.recruiterNotes ?? '');
       onUpdated(res.data);
+      toast.success(successMsg);
     } catch (err: any) {
-      alert(err?.response?.data?.error ?? 'Status update failed');
+      toast.error(err?.response?.data?.error ?? 'Status update failed');
     } finally {
       setBusyAction(null);
     }
@@ -161,245 +141,292 @@ export default function ApplicationDetailDrawer({
         { status: app.status, recruiterNotes: notes }
       );
       setApp(res.data);
-      setSavedAt(res.data.statusUpdatedAt ?? new Date().toISOString());
       onUpdated(res.data);
+      setSavedFlashAt(Date.now());
+      setTimeout(() => {
+        setSavedFlashAt((current) => (current === null ? null : current));
+      }, 2000);
     } catch (err: any) {
-      alert(err?.response?.data?.error ?? 'Could not save notes');
+      toast.error(err?.response?.data?.error ?? 'Could not save notes');
     } finally {
       setSavingNotes(false);
     }
   }
 
-  function confirmAndPatch(target: ApplicationStatus, prompt: string) {
-    if (confirm(prompt)) {
-      void patchStatus(target);
+  function confirmAndPatch(target: ApplicationStatus, prompt: string, msg: string) {
+    if (typeof window !== 'undefined' && window.confirm(prompt)) {
+      void patchStatus(target, msg);
     }
   }
 
-  if (!open) return null;
-
   const isTerminal = app ? TERMINAL_STATUSES.includes(app.status) : false;
+  const savedFlashOn = savedFlashAt !== null && Date.now() - savedFlashAt < 2000;
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex"
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="drawer-title"
-    >
+    <>
       {/* Backdrop */}
       <button
         type="button"
-        onClick={onClose}
         aria-label="Close detail panel"
-        className="absolute inset-0 bg-slate-900/40 transition-opacity"
+        onClick={onClose}
+        className={
+          'fixed inset-0 z-40 bg-black/30 transition-opacity duration-200 ' +
+          (open ? 'pointer-events-auto opacity-100' : 'pointer-events-none opacity-0')
+        }
       />
 
       {/* Panel */}
-      <div className="relative ml-auto h-full w-full max-w-[480px] overflow-y-auto bg-white shadow-2xl">
-        <div className="sticky top-0 z-10 flex items-center justify-between border-b border-slate-200 bg-white px-5 py-4">
-          <h2 id="drawer-title" className="text-base font-semibold text-slate-900">
+      <aside
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="drawer-title"
+        className={
+          'fixed bottom-0 right-0 top-0 z-50 flex w-full max-w-md flex-col bg-white shadow-2xl transition-transform duration-200 ease-out ' +
+          (open ? 'translate-x-0' : 'translate-x-full')
+        }
+      >
+        <header className="sticky top-0 flex h-16 items-center justify-between border-b border-gray-200 bg-white px-6">
+          <h2 id="drawer-title" className="text-base font-semibold text-gray-900">
             Application details
           </h2>
           <button
             type="button"
             onClick={onClose}
-            className="rounded-md p-1.5 text-slate-500 hover:bg-slate-100 hover:text-slate-700"
+            className="flex h-9 w-9 items-center justify-center rounded-md text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-700"
             aria-label="Close"
           >
-            <i className="icofont-close-line text-lg" />
+            <X className="h-5 w-5" strokeWidth={2} />
           </button>
-        </div>
+        </header>
 
-        {loading && (
-          <div className="flex justify-center py-12">
-            <div className="h-10 w-10 animate-spin rounded-full border-4 border-accent border-t-transparent" />
-          </div>
-        )}
-
-        {error && (
-          <div className="m-5 rounded border border-red-200 bg-red-50 p-3 text-sm text-red-700">
-            <p className="mb-2">{error}</p>
-            <button
-              type="button"
-              onClick={() => void load()}
-              className="rounded border border-red-300 px-3 py-1 text-xs font-medium hover:bg-red-100"
-            >
-              Retry
-            </button>
-          </div>
-        )}
-
-        {app && !loading && !error && (
-          <div className="space-y-6 p-5">
-            {/* Candidate */}
-            <section>
-              <h3 className="text-lg font-semibold text-slate-900">
-                {app.candidateName ?? '(unnamed candidate)'}
-              </h3>
-              {app.candidateEmail && (
-                <p className="text-sm text-slate-500">{app.candidateEmail}</p>
-              )}
-            </section>
-
-            {/* Posting + applied */}
-            <section className="rounded-lg border border-slate-200 bg-slate-50 p-4">
-              <div className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
-                Position
+        <div className="flex-1 space-y-6 overflow-y-auto px-6 py-6">
+          {loading && (
+            <>
+              <div className="space-y-2">
+                <div className="h-5 w-40 animate-pulse rounded bg-gray-200" />
+                <div className="h-4 w-56 animate-pulse rounded bg-gray-200" />
               </div>
-              {app.jobPostingTitle && app.jobPostingId ? (
-                <Link
-                  href={`/careers/openings/${app.jobPostingId}`}
-                  className="text-sm font-medium text-primary-700 hover:text-primary-800 hover:underline"
-                  target="_blank"
-                >
-                  {app.jobPostingTitle}
-                </Link>
-              ) : (
-                <span className="text-sm text-slate-700">
-                  {app.jobPostingTitle ?? '(unlinked posting)'}
-                </span>
-              )}
-              <div className="mt-3 text-xs text-slate-500">
-                Applied {formatDate(app.appliedAt)}
+              <div className="space-y-2">
+                <div className="h-3 w-24 animate-pulse rounded bg-gray-200" />
+                <div className="h-4 w-48 animate-pulse rounded bg-gray-200" />
               </div>
-            </section>
+              <div className="h-32 animate-pulse rounded bg-gray-200" />
+            </>
+          )}
 
-            {/* Status */}
-            <section>
-              <div className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
-                Current status
-              </div>
-              <ApplicationStatusBadge status={app.status} />
-            </section>
+          {error && !loading && (
+            <div className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+              <p className="mb-2">{error}</p>
+              <button
+                type="button"
+                onClick={() => void load()}
+                className="rounded border border-red-300 px-3 py-1 text-xs font-medium hover:bg-red-100"
+              >
+                Retry
+              </button>
+            </div>
+          )}
 
-            {/* Resume */}
-            <section>
-              <div className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
-                Resume
-              </div>
-              {app.resumeId ? (
-                <div className="flex items-center justify-between rounded-lg border border-slate-200 bg-white p-3">
-                  <div className="min-w-0 flex-1 truncate text-sm text-slate-700">
-                    <i className="icofont-file-document mr-1.5 text-primary-700" />
-                    {app.resumeFileName ?? `Resume ${app.resumeId.slice(0, 8)}`}
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => void downloadResume()}
-                    className="ml-2 inline-flex items-center gap-1 rounded bg-accent px-3 py-1.5 text-xs font-semibold text-white hover:bg-accent-dark"
-                  >
-                    <i className="icofont-download" />
-                    Download
-                  </button>
+          {app && !loading && !error && (
+            <>
+              {/* Candidate */}
+              <section>
+                <div className="text-lg font-semibold text-gray-900">
+                  {app.candidateName ?? '(unnamed candidate)'}
                 </div>
-              ) : (
-                <p className="text-sm text-slate-400">No resume attached.</p>
-              )}
-            </section>
+                {app.candidateEmail && (
+                  <div className="text-sm text-gray-500">{app.candidateEmail}</div>
+                )}
+              </section>
 
-            {/* Notes */}
-            <section>
-              <div className="mb-2 flex items-center justify-between">
-                <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+              {/* Position */}
+              <section>
+                <div className="mb-1 text-xs uppercase tracking-wide text-gray-400">
+                  Applied to
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-medium text-gray-900">
+                    {app.jobPostingTitle ?? '(unlinked posting)'}
+                  </span>
+                  {app.jobPostingId && (
+                    <a
+                      href={`/careers/openings/${app.jobPostingId}`}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="inline-flex items-center gap-0.5 text-xs font-medium text-primary-700 hover:underline"
+                    >
+                      View posting <ExternalLink className="h-3 w-3" strokeWidth={2} />
+                    </a>
+                  )}
+                </div>
+              </section>
+
+              {/* Status + applied date */}
+              <section>
+                <div className="mb-2 text-xs uppercase tracking-wide text-gray-400">
+                  Current status
+                </div>
+                <span className="inline-flex">
+                  <ApplicationStatusBadge status={app.status} />
+                </span>
+                <div className="mt-2 text-xs text-gray-500">
+                  Applied {formatDate(app.appliedAt)}
+                </div>
+              </section>
+
+              {/* Resume */}
+              <section>
+                <div className="mb-2 text-xs uppercase tracking-wide text-gray-400">
+                  Resume
+                </div>
+                {app.resumeId ? (
+                  <div className="flex items-center justify-between rounded-lg border border-gray-200 px-3 py-2">
+                    <span className="flex-1 truncate text-sm text-gray-700">
+                      {app.resumeFileName ?? `Resume ${app.resumeId.slice(0, 8)}`}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => void downloadResume()}
+                      className="flex items-center gap-1 text-sm text-primary-700 hover:underline"
+                    >
+                      <Download className="h-4 w-4" strokeWidth={2} />
+                      Download
+                    </button>
+                  </div>
+                ) : (
+                  <p className="text-sm text-gray-400">No resume attached.</p>
+                )}
+              </section>
+
+              {/* Recruiter notes */}
+              <section>
+                <div className="mb-2 text-xs uppercase tracking-wide text-gray-400">
                   Recruiter notes
                 </div>
-                {savedAt && (
-                  <span className="text-[11px] text-slate-400">
-                    Last updated {formatDateTime(savedAt)}
-                  </span>
-                )}
-              </div>
-              <textarea
-                value={notes}
-                onChange={(e) => setNotes(e.target.value)}
-                rows={5}
-                placeholder="Add internal notes about this candidate…"
-                className="w-full resize-y rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
-              />
-              <div className="mt-2 flex justify-end">
-                <button
-                  type="button"
-                  onClick={() => void saveNotes()}
-                  disabled={savingNotes || notes === (app.recruiterNotes ?? '')}
-                  className="rounded bg-accent px-4 py-1.5 text-sm font-semibold text-white hover:bg-accent-dark disabled:opacity-50"
-                >
-                  {savingNotes ? 'Saving…' : 'Save notes'}
-                </button>
-              </div>
-            </section>
+                <textarea
+                  value={notes}
+                  onChange={(e) => setNotes(e.target.value)}
+                  rows={5}
+                  placeholder="Add internal notes about this candidate…"
+                  className="w-full resize-y rounded-md border border-gray-300 p-3 text-sm focus:border-primary-700 focus:outline-none focus:ring-1 focus:ring-primary-700"
+                />
+                <div className="mt-2 flex items-center gap-3">
+                  <button
+                    type="button"
+                    onClick={() => void saveNotes()}
+                    disabled={savingNotes || notes === (app.recruiterNotes ?? '')}
+                    className="rounded-md bg-accent px-3 py-1.5 text-sm font-semibold text-white transition-colors hover:bg-accent-dark disabled:opacity-50"
+                  >
+                    {savingNotes ? 'Saving…' : 'Save notes'}
+                  </button>
+                  {savedFlashOn && (
+                    <span className="text-xs text-green-600">Saved ✓</span>
+                  )}
+                </div>
+              </section>
 
-            {/* Actions */}
-            <section>
-              <div className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
-                Status actions
-              </div>
-              <div className="grid gap-2">
-                {app.status === 'INTERVIEW_SCHEDULED' && (
-                  <ActionButton
-                    label="Mark as Interviewed"
-                    busy={busyAction === 'INTERVIEWED'}
-                    onClick={() => void patchStatus('INTERVIEWED')}
-                  />
-                )}
-                {app.status === 'OFFERED' && (
-                  <ActionButton
-                    label="Mark as Hired"
-                    variant="primary"
-                    busy={busyAction === 'ACCEPTED'}
-                    onClick={() => void patchStatus('ACCEPTED')}
-                  />
-                )}
-                {!isTerminal && (
-                  <>
+              {/* Status actions */}
+              {!isTerminal && (
+                <section>
+                  <div className="mb-2 text-xs uppercase tracking-wide text-gray-400">
+                    Move to…
+                  </div>
+                  <div className="space-y-2">
+                    {app.status === 'INTERVIEW_SCHEDULED' && (
+                      <ActionButton
+                        label="Mark Interviewed"
+                        Icon={Video}
+                        busy={busyAction === 'INTERVIEWED'}
+                        onClick={() =>
+                          void patchStatus('INTERVIEWED', 'Marked as interviewed')
+                        }
+                      />
+                    )}
+                    {app.status === 'OFFERED' && (
+                      <>
+                        <ActionButton
+                          label="Mark Offer Accepted"
+                          Icon={CheckCircle}
+                          variant="success"
+                          busy={busyAction === 'ACCEPTED'}
+                          onClick={() =>
+                            void patchStatus('ACCEPTED', 'Marked offer as accepted (Hired)')
+                          }
+                        />
+                        <ActionButton
+                          label="Mark Offer Declined"
+                          Icon={XCircle}
+                          variant="muted"
+                          busy={busyAction === 'REJECTED'}
+                          onClick={() =>
+                            confirmAndPatch(
+                              'REJECTED',
+                              'Mark offer as declined? (Stored as REJECTED — backend has no separate OFFER_DECLINED status.)',
+                              'Marked offer as declined'
+                            )
+                          }
+                        />
+                      </>
+                    )}
                     <ActionButton
                       label="Reject"
+                      Icon={Ban}
                       variant="danger"
                       busy={busyAction === 'REJECTED'}
                       onClick={() =>
-                        confirmAndPatch('REJECTED', 'Reject this application?')
+                        confirmAndPatch(
+                          'REJECTED',
+                          'Reject this application?',
+                          'Application rejected'
+                        )
                       }
                     />
                     <ActionButton
                       label="Withdraw"
+                      Icon={LogOut}
                       variant="muted"
                       busy={busyAction === 'WITHDRAWN'}
                       onClick={() =>
-                        confirmAndPatch('WITHDRAWN', 'Mark this application as withdrawn?')
+                        confirmAndPatch(
+                          'WITHDRAWN',
+                          'Mark this application as withdrawn?',
+                          'Application withdrawn'
+                        )
                       }
                     />
-                  </>
-                )}
-                {isTerminal && (
-                  <p className="text-xs italic text-slate-500">
-                    This application is in a terminal state and can no longer be moved.
-                  </p>
-                )}
-              </div>
-            </section>
-          </div>
-        )}
-      </div>
-    </div>
+                  </div>
+                </section>
+              )}
+            </>
+          )}
+        </div>
+      </aside>
+    </>
   );
 }
 
 function ActionButton({
   label,
   onClick,
+  Icon,
   busy = false,
   variant = 'default',
 }: {
   label: string;
   onClick: () => void;
+  Icon: React.ComponentType<{ className?: string; strokeWidth?: number }>;
   busy?: boolean;
-  variant?: 'default' | 'primary' | 'danger' | 'muted';
+  variant?: 'default' | 'success' | 'danger' | 'muted';
 }) {
   const variants: Record<string, string> = {
-    default: 'border border-slate-300 bg-white text-slate-700 hover:bg-slate-50',
-    primary: 'bg-accent text-white hover:bg-accent-dark',
-    danger: 'border border-red-300 bg-white text-red-700 hover:bg-red-50',
-    muted: 'border border-slate-300 bg-white text-slate-600 hover:bg-slate-50',
+    default:
+      'border-gray-300 bg-white text-gray-700 hover:bg-gray-50',
+    success:
+      'border-green-200 bg-white text-green-700 hover:bg-green-50',
+    danger:
+      'border-red-200 bg-white text-red-600 hover:bg-red-50',
+    muted:
+      'border-gray-300 bg-white text-gray-600 hover:bg-gray-50',
   };
   return (
     <button
@@ -407,10 +434,11 @@ function ActionButton({
       onClick={onClick}
       disabled={busy}
       className={
-        'w-full rounded-lg px-3 py-2 text-sm font-semibold transition disabled:opacity-50 ' +
+        'flex w-full items-center gap-2 rounded-md border px-3 py-2 text-sm font-medium transition-colors disabled:opacity-50 ' +
         variants[variant]
       }
     >
+      <Icon className="h-4 w-4" strokeWidth={2} />
       {busy ? 'Updating…' : label}
     </button>
   );

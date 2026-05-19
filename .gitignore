@@ -6,11 +6,20 @@
 # === Secrets (CRITICAL) ======================================================
 dbconn.php
 backend/run-dev.ps1
+**/run-dev.ps1
 backend/.env
 backend/.env.*
 frontend/.env.local
 frontend/.env*.local
 frontend/.env.production
+
+# Office docs frequently used as scratchpad credential notes — never commit.
+*.xlsx
+*.xls
+*.csv
+~$*
+credentials*
+secrets*
 
 # === Java / Maven (for backend) ==============================================
 backend/target/
