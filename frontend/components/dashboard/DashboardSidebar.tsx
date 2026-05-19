@@ -36,6 +36,7 @@ const ROLE_LINKS: Record<UserRole, NavLink[]> = {
     { icon: Briefcase, label: 'Open Internships', href: '/careers/openings' },
     { icon: FileCheck, label: 'My Applications', href: '/careers/candidate/applications' },
     { icon: Video, label: 'Interviews', href: '/careers/candidate/interviews' },
+    { icon: FileSignature, label: 'Offers', href: '/careers/candidate/offers' },
     { icon: FileText, label: 'My Resumes', href: '/careers/candidate/resumes' },
     { icon: ListChecks, label: 'Onboarding', href: '/careers/candidate/onboarding' },
   ],
