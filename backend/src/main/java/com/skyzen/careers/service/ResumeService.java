@@ -188,12 +188,19 @@ public class ResumeService {
     }
 
     public FileSystemResource loadFile(Resume resume) {
-        if (resume.getFilePath() == null) {
-            throw new ResourceNotFoundException("Resume file path missing");
+        // Resolve from the CURRENT storage path config + the stored filename, not
+        // the absolute filePath captured at upload time. This survives Railway-style
+        // FS path changes between deploys, and keeps the lookup consistent with
+        // resume.storedFileName as the canonical identifier on disk.
+        if (resume.getStoredFileName() == null || resume.getStoredFileName().isBlank()) {
+            log.warn("Resume {} has no storedFileName — cannot serve file", resume.getId());
+            throw new ResourceNotFoundException("Resume file not available");
         }
-        Path path = Paths.get(resume.getFilePath());
+        Path path = storageDir.resolve(resume.getStoredFileName());
         if (!Files.exists(path)) {
-            throw new ResourceNotFoundException("Resume file is no longer available on disk");
+            // Clean 404, not a 500. The frontend surfaces this as "Resume file not available".
+            log.warn("Resume file not on disk: {}", path);
+            throw new ResourceNotFoundException("Resume file not available");
         }
         return new FileSystemResource(path.toFile());
     }

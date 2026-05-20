@@ -46,7 +46,7 @@ public class ApplicationController {
     }
 
     @GetMapping
-    @PreAuthorize("hasAnyRole('ADMIN', 'RECRUITER', 'ERM')")
+    @PreAuthorize("hasAnyRole('RECRUITER', 'ERM', 'HR_COMPLIANCE', 'ADMIN')")
     public Page<ApplicationResponse> list(
             @RequestParam(required = false) ApplicationStatus status,
             @RequestParam(required = false) UUID jobPostingId,
