@@ -3,6 +3,7 @@ package com.skyzen.careers.service;
 import com.skyzen.careers.dto.ResumeResponse;
 import com.skyzen.careers.entity.Candidate;
 import com.skyzen.careers.entity.Resume;
+import com.skyzen.careers.entity.User;
 import com.skyzen.careers.exception.BadRequestException;
 import com.skyzen.careers.exception.ConflictException;
 import com.skyzen.careers.exception.ForbiddenException;
@@ -61,7 +62,7 @@ public class ResumeService {
     }
 
     @Transactional
-    public ResumeResponse upload(UUID userId, MultipartFile file) {
+    public ResumeResponse upload(User user, MultipartFile file) {
         if (file == null || file.isEmpty()) {
             throw new BadRequestException("Resume file is required");
         }
@@ -71,21 +72,40 @@ public class ResumeService {
                     "Unsupported content type. Allowed: pdf, doc, docx");
         }
 
-        Candidate candidate = candidateRepository.findByUserId(userId)
-                .orElseThrow(() -> new ResourceNotFoundException(
-                        "Candidate profile not found for user " + userId));
+        // Lazy-create Candidate if missing — same safety net ApplicationService uses.
+        // Newly registered candidates can hit upload before any code path materializes
+        // their Candidate row.
+        Candidate candidate = candidateRepository.findByUserId(user.getId())
+                .orElseGet(() -> {
+                    log.warn("Lazy-creating Candidate for user {} during resume upload",
+                            user.getId());
+                    return candidateRepository.save(
+                            Candidate.builder().user(user).build());
+                });
 
         String originalName = file.getOriginalFilename() != null
                 ? file.getOriginalFilename() : "resume";
         String extension = extractExtension(originalName, contentType);
         String stored = UUID.randomUUID() + extension;
-        Path target = storageDir.resolve(stored);
 
+        // Defensive: ensure storage directory exists at write-time. @PostConstruct
+        // creates it at startup, but Railway's filesystem can be ephemeral on
+        // restart — and if the dir is gone, Files.copy throws NoSuchFileException.
+        try {
+            Files.createDirectories(storageDir);
+        } catch (IOException e) {
+            log.error("Failed to ensure resume storage directory exists at {}: {}",
+                    storageDir, e.getMessage(), e);
+            throw new RuntimeException("Could not prepare resume storage directory", e);
+        }
+
+        Path target = storageDir.resolve(stored);
         try {
             Files.copy(file.getInputStream(), target, StandardCopyOption.REPLACE_EXISTING);
         } catch (IOException e) {
-            log.error("Failed to write resume file to {}", target, e);
-            throw new BadRequestException("Failed to store resume file");
+            log.error("Failed to write resume file to {}: {}",
+                    storageDir, e.getMessage(), e);
+            throw new RuntimeException("Could not save resume file", e);
         }
 
         boolean isFirst = resumeRepository.countByCandidateId(candidate.getId()) == 0;

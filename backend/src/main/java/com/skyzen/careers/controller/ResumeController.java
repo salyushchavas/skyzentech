@@ -33,7 +33,7 @@ public class ResumeController {
     @PreAuthorize("hasRole('CANDIDATE')")
     public ResponseEntity<ResumeResponse> upload(@RequestParam("file") MultipartFile file,
                                                  @AuthenticationPrincipal User user) {
-        ResumeResponse created = resumeService.upload(user.getId(), file);
+        ResumeResponse created = resumeService.upload(user, file);
         return ResponseEntity.created(URI.create("/api/v1/resumes/" + created.getId()))
                 .body(created);
     }
