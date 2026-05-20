@@ -184,7 +184,10 @@ public class ResumeService {
 
     @Transactional(readOnly = true)
     public Resume loadEntity(UUID resumeId) {
-        return resumeRepository.findById(resumeId)
+        // Fetch-join candidate + user so the download authorization check in
+        // ResumeController.ensureCanDownload (which touches resume.getCandidate().getUser())
+        // doesn't hit a detached lazy proxy after this transaction closes.
+        return resumeRepository.findByIdWithCandidateUser(resumeId)
                 .orElseThrow(() -> new ResourceNotFoundException("Resume not found: " + resumeId));
     }
 

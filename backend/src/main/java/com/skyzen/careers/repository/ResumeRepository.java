@@ -8,6 +8,7 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 @Repository
@@ -20,4 +21,10 @@ public interface ResumeRepository extends JpaRepository<Resume, UUID> {
             "WHERE r.candidate.id = :candidateId AND r.id <> :resumeId")
     void clearDefaultForOtherResumes(@Param("candidateId") UUID candidateId,
                                      @Param("resumeId") UUID resumeId);
+
+    @Query("select r from Resume r " +
+            "join fetch r.candidate c " +
+            "join fetch c.user u " +
+            "where r.id = :id")
+    Optional<Resume> findByIdWithCandidateUser(@Param("id") UUID id);
 }
