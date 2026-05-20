@@ -3,17 +3,22 @@ import { clearAuth, getToken } from './auth-storage';
 
 const baseURL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8080';
 
+// No hard default Content-Type — axios sets "application/json" automatically
+// for plain object bodies, and we explicitly drop the header for FormData in
+// the interceptor below so the browser supplies the multipart boundary.
 export const api = axios.create({
   baseURL,
-  headers: {
-    'Content-Type': 'application/json',
-  },
 });
 
 api.interceptors.request.use((config) => {
   const token = getToken();
   if (token) {
     config.headers.set('Authorization', `Bearer ${token}`);
+  }
+  // For FormData uploads (resume upload, etc.): drop any forced Content-Type
+  // so the browser can set "multipart/form-data; boundary=..." automatically.
+  if (config.data instanceof FormData) {
+    config.headers.delete('Content-Type');
   }
   return config;
 });
