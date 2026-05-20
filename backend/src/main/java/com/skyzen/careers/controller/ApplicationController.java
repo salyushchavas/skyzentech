@@ -69,4 +69,24 @@ public class ApplicationController {
                                             @AuthenticationPrincipal User user) {
         return applicationService.updateStatus(id, req, user);
     }
+
+    /**
+     * One-click shortcut for the recruiter review screen. Routes through the same
+     * status-transition service as the Kanban drag; adds a SHORTLIST audit entry.
+     * Idempotent — returns 200 even if the application is already SHORTLISTED.
+     */
+    @PostMapping("/{id}/shortlist")
+    @PreAuthorize("hasAnyRole('RECRUITER', 'ERM', 'ADMIN')")
+    public ApplicationResponse shortlist(@PathVariable UUID id,
+                                         @AuthenticationPrincipal User user) {
+        return applicationService.shortlist(id, user);
+    }
+
+    /** Mirror of {@link #shortlist} for one-click rejection. Adds a REJECT audit entry. */
+    @PostMapping("/{id}/reject")
+    @PreAuthorize("hasAnyRole('RECRUITER', 'ERM', 'ADMIN')")
+    public ApplicationResponse reject(@PathVariable UUID id,
+                                      @AuthenticationPrincipal User user) {
+        return applicationService.reject(id, user);
+    }
 }

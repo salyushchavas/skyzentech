@@ -11,6 +11,7 @@ import {
   type DragStartEvent,
 } from '@dnd-kit/core';
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { RefreshCw } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '@/lib/api';
@@ -52,6 +53,7 @@ const ARCHIVED_COLUMNS: ReadonlyArray<{ key: ApplicationStatus; label: string }>
 ];
 
 function PipelineBoard() {
+  const router = useRouter();
   const [applications, setApplications] = useState<ApplicationResponse[]>([]);
   const [postings, setPostings] = useState<JobPostingResponse[]>([]);
   const [postingFilter, setPostingFilter] = useState<string>(''); // '' = all
@@ -273,7 +275,9 @@ function PipelineBoard() {
                 status={col.key}
                 label={col.label}
                 items={columnsByStatus.get(col.key) ?? []}
-                onViewDetails={(id) => setOpenAppId(id)}
+                onViewDetails={(id) =>
+                  router.push(`/careers/recruiter/applications/${id}`)
+                }
                 onDownloadResume={downloadResume}
               />
             ))}

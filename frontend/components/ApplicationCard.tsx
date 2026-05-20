@@ -116,7 +116,7 @@ export default function ApplicationCard({
           }}
           className="text-xs font-medium text-primary-700 transition-colors hover:underline"
         >
-          View details
+          Review
         </button>
       </div>
     </div>
