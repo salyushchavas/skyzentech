@@ -23,4 +23,6 @@ public class ApplicationResponse {
     private Instant appliedAt;
     private Instant statusUpdatedAt;
     private String recruiterNotes;
+    /** 1-5 from the review screen, nullable. */
+    private Integer recruiterRating;
 }

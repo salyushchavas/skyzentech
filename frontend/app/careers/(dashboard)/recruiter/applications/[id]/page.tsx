@@ -1,9 +1,20 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
-import { useParams } from 'next/navigation';
-import { ArrowLeft, Check, Download, Mail, X } from 'lucide-react';
+import { useParams, useRouter } from 'next/navigation';
+import {
+  ArrowLeft,
+  Briefcase,
+  Calendar,
+  Check,
+  Download,
+  ExternalLink,
+  Mail,
+  MapPin,
+  Star,
+  X,
+} from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '@/lib/api';
 import DashboardLayout from '@/components/dashboard/DashboardLayout';
@@ -11,10 +22,13 @@ import ProtectedRoute from '@/components/ProtectedRoute';
 import ConfirmDialog from '@/components/ConfirmDialog';
 import ApplicationStatusBadge from '@/components/ApplicationStatusBadge';
 import { formatRelative } from '@/lib/format-date';
-import type { ApplicationResponse, ApplicationStatus } from '@/types';
+import type {
+  ApplicationResponse,
+  ApplicationStatus,
+  Page,
+  RecruiterDecisionRequest,
+} from '@/types';
 
-// Statuses that mean the application has already moved past shortlisting.
-// Pre-shortlist: APPLIED → SHORTLISTED. Past shortlist or terminal hides the button.
 const SHORTLIST_LOCKED: ReadonlyArray<ApplicationStatus> = [
   'SHORTLISTED',
   'INTERVIEW_SCHEDULED',
@@ -38,6 +52,7 @@ export default function RecruiterReviewPage() {
 
 function Body() {
   const params = useParams();
+  const router = useRouter();
   const id =
     typeof params?.id === 'string'
       ? params.id
@@ -46,7 +61,12 @@ function Body() {
         : null;
 
   const [app, setApp] = useState<ApplicationResponse | null>(null);
+  const [allApps, setAllApps] = useState<ApplicationResponse[] | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  // Decision panel state
+  const [rating, setRating] = useState<number>(0);
+  const [note, setNote] = useState<string>('');
   const [busy, setBusy] = useState<'shortlist' | 'reject' | null>(null);
   const [rejectOpen, setRejectOpen] = useState(false);
 
@@ -54,8 +74,16 @@ function Body() {
     if (!id) return;
     setError(null);
     try {
-      const res = await api.get<ApplicationResponse>(`/api/v1/applications/${id}`);
-      setApp(res.data);
+      const [appRes, listRes] = await Promise.all([
+        api.get<ApplicationResponse>(`/api/v1/applications/${id}`),
+        api.get<Page<ApplicationResponse>>('/api/v1/applications', {
+          params: { size: 200 },
+        }),
+      ]);
+      setApp(appRes.data);
+      setAllApps(listRes.data?.content ?? []);
+      setRating(appRes.data.recruiterRating ?? 0);
+      setNote(appRes.data.recruiterNotes ?? '');
     } catch (err: any) {
       setError(err?.response?.data?.error ?? "Couldn't load this application.");
       setApp(null);
@@ -66,40 +94,57 @@ function Body() {
     void load();
   }, [load]);
 
-  async function shortlist() {
-    if (!app || busy) return;
-    const previous = app;
-    setBusy('shortlist');
-    // Optimistic
-    setApp({ ...app, status: 'SHORTLISTED' });
-    try {
-      const res = await api.post<ApplicationResponse>(
-        `/api/v1/applications/${app.id}/shortlist`
-      );
-      setApp(res.data);
-      toast.success('Shortlisted ✓');
-    } catch (err: any) {
-      setApp(previous);
-      toast.error(err?.response?.data?.error ?? "Couldn't shortlist.");
-    } finally {
-      setBusy(null);
+  const tabCounts = useMemo(() => {
+    if (!allApps) return { applied: 0, shortlisted: 0, interviewed: 0 };
+    let applied = 0;
+    let shortlisted = 0;
+    let interviewed = 0;
+    for (const a of allApps) {
+      if (a.status === 'APPLIED') applied++;
+      else if (a.status === 'SHORTLISTED') shortlisted++;
+      else if (
+        a.status === 'INTERVIEW_SCHEDULED' ||
+        a.status === 'INTERVIEWED'
+      ) {
+        interviewed++;
+      }
     }
-  }
+    return { applied, shortlisted, interviewed };
+  }, [allApps]);
 
-  async function reject() {
+  async function callDecision(kind: 'shortlist' | 'reject') {
     if (!app || busy) return;
     const previous = app;
-    setBusy('reject');
-    setApp({ ...app, status: 'REJECTED' });
+    const optimisticStatus: ApplicationStatus =
+      kind === 'shortlist' ? 'SHORTLISTED' : 'REJECTED';
+    const body: RecruiterDecisionRequest = {
+      rating: rating > 0 ? rating : undefined,
+      note: note.trim() || undefined,
+    };
+    setBusy(kind);
+    setApp({
+      ...app,
+      status: optimisticStatus,
+      recruiterRating: body.rating ?? app.recruiterRating,
+      recruiterNotes: body.note ?? app.recruiterNotes,
+    });
     try {
       const res = await api.post<ApplicationResponse>(
-        `/api/v1/applications/${app.id}/reject`
+        `/api/v1/applications/${app.id}/${kind}`,
+        body
       );
       setApp(res.data);
-      toast.success('Application rejected');
+      setRating(res.data.recruiterRating ?? 0);
+      setNote(res.data.recruiterNotes ?? '');
+      toast.success(
+        kind === 'shortlist' ? 'Shortlisted ✓' : 'Application rejected'
+      );
     } catch (err: any) {
       setApp(previous);
-      toast.error(err?.response?.data?.error ?? "Couldn't reject.");
+      toast.error(
+        err?.response?.data?.error ??
+          (kind === 'shortlist' ? "Couldn't shortlist." : "Couldn't reject.")
+      );
     } finally {
       setBusy(null);
       setRejectOpen(false);
@@ -124,31 +169,46 @@ function Body() {
 
   if (!app) return null;
 
-  const canShortlist = !SHORTLIST_LOCKED.includes(app.status) && app.status !== 'REJECTED'
-      && app.status !== 'WITHDRAWN';
+  const canShortlist =
+    !SHORTLIST_LOCKED.includes(app.status) &&
+    app.status !== 'REJECTED' &&
+    app.status !== 'WITHDRAWN';
   const canReject = app.status !== 'REJECTED';
 
   return (
     <>
-      <Link
-        href="/careers/recruiter"
-        className="mb-4 inline-flex items-center gap-1 text-sm text-gray-600 hover:text-gray-900"
-      >
-        <ArrowLeft className="h-4 w-4" strokeWidth={2} />
-        Back to pipeline
-      </Link>
+      {/* (1) Filter tab strip */}
+      <FilterTabs
+        counts={tabCounts}
+        currentStatus={app.status}
+        onClick={() => router.push('/careers/recruiter')}
+      />
 
-      <div className="max-w-5xl">
-        <HeaderCard app={app} />
+      {/* (2) Main card */}
+      <div className="rounded-lg border border-gray-200 bg-white p-5">
+        <Link
+          href="/careers/recruiter"
+          className="mb-3 inline-flex items-center gap-1 text-xs text-gray-600 hover:text-gray-900"
+        >
+          <ArrowLeft className="h-3.5 w-3.5" strokeWidth={2} />
+          Back to pipeline
+        </Link>
 
-        <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-[1.4fr_1fr]">
-          <ResumePanel app={app} />
-          <DecisionPanel
+        <HeaderRow app={app} />
+        <MetaRow app={app} />
+
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1.4fr_1fr]">
+          <ResumeColumn app={app} />
+          <ActionPanel
             app={app}
+            rating={rating}
+            note={note}
+            onRatingChange={setRating}
+            onNoteChange={setNote}
             canShortlist={canShortlist}
             canReject={canReject}
             busy={busy}
-            onShortlist={() => void shortlist()}
+            onShortlist={() => void callDecision('shortlist')}
             onRejectClick={() => setRejectOpen(true)}
           />
         </div>
@@ -157,7 +217,7 @@ function Body() {
       <ConfirmDialog
         open={rejectOpen}
         onClose={() => setRejectOpen(false)}
-        onConfirm={reject}
+        onConfirm={() => callDecision('reject')}
         title="Reject this application?"
         description={`This marks ${app.candidateName ?? "the candidate's"} application as rejected. The action is logged in the audit history.`}
         confirmLabel="Reject"
@@ -167,9 +227,57 @@ function Body() {
   );
 }
 
-// ── Header card ─────────────────────────────────────────────────────────────
+// ── Filter tab strip ────────────────────────────────────────────────────────
 
-function HeaderCard({ app }: { app: ApplicationResponse }) {
+function FilterTabs({
+  counts,
+  currentStatus,
+  onClick,
+}: {
+  counts: { applied: number; shortlisted: number; interviewed: number };
+  currentStatus: ApplicationStatus;
+  onClick: () => void;
+}) {
+  // Highlight the pill that matches the current applicant's status; default to APPLIED.
+  const activeKey: 'APPLIED' | 'SHORTLISTED' | 'INTERVIEWED' =
+    currentStatus === 'SHORTLISTED'
+      ? 'SHORTLISTED'
+      : currentStatus === 'INTERVIEW_SCHEDULED' ||
+          currentStatus === 'INTERVIEWED'
+        ? 'INTERVIEWED'
+        : 'APPLIED';
+  const pills: { key: typeof activeKey; label: string; count: number }[] = [
+    { key: 'APPLIED', label: 'Applied', count: counts.applied },
+    { key: 'SHORTLISTED', label: 'Shortlisted', count: counts.shortlisted },
+    { key: 'INTERVIEWED', label: 'Interviewed', count: counts.interviewed },
+  ];
+  return (
+    <div className="mb-4 flex flex-wrap gap-2">
+      {pills.map((p) => {
+        const active = p.key === activeKey;
+        return (
+          <button
+            key={p.key}
+            type="button"
+            onClick={onClick}
+            className={
+              'rounded-full border px-4 py-1.5 text-sm font-medium transition-colors ' +
+              (active
+                ? 'border-accent bg-accent/10 text-accent'
+                : 'border-gray-300 bg-white text-gray-700 hover:bg-gray-50')
+            }
+          >
+            {p.label} · {p.count}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+// ── Header + meta ───────────────────────────────────────────────────────────
+
+function HeaderRow({ app }: { app: ApplicationResponse }) {
   const initials = (app.candidateName ?? '?')
     .split(/\s+/)
     .filter(Boolean)
@@ -178,54 +286,57 @@ function HeaderCard({ app }: { app: ApplicationResponse }) {
     .join('')
     .toUpperCase();
   return (
-    <div className="rounded-lg border border-gray-200 bg-white p-6">
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div className="flex items-start gap-4">
-          <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-full bg-accent/10 text-base font-semibold text-accent">
-            {initials || '?'}
+    <div className="mb-3 flex items-start justify-between gap-3">
+      <div className="flex items-center gap-3">
+        <div
+          className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-full bg-accent/10 text-base font-semibold text-accent"
+          aria-hidden="true"
+        >
+          {initials || '?'}
+        </div>
+        <div>
+          <div className="text-base font-medium text-gray-900">
+            {app.candidateName ?? '(unnamed candidate)'}
           </div>
-          <div>
-            <h2 className="text-xl font-semibold text-gray-900">
-              {app.candidateName ?? '(unnamed candidate)'}
-            </h2>
-            {app.candidateEmail && (
-              <div className="mt-0.5 flex items-center gap-1 text-sm text-gray-500">
-                <Mail className="h-3.5 w-3.5" strokeWidth={2} />
-                {app.candidateEmail}
-              </div>
-            )}
-            <div className="mt-1 text-sm text-gray-700">
-              {app.jobPostingTitle ?? '(unlinked posting)'}
+          <div className="text-sm text-gray-500">
+            {app.jobPostingTitle ?? '(unlinked posting)'}
+          </div>
+          {app.candidateEmail && (
+            <div className="mt-0.5 flex items-center gap-1 text-xs text-gray-400">
+              <Mail className="h-3 w-3" strokeWidth={2} />
+              {app.candidateEmail}
             </div>
-          </div>
+          )}
         </div>
-        <ApplicationStatusBadge status={app.status} />
       </div>
-
-      <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-gray-500">
-        <span>Experience: —</span>
-        <span className="text-gray-300">·</span>
-        <span>Applied {formatRelative(app.appliedAt)}</span>
-        <span className="text-gray-300">·</span>
-        <span>Location: —</span>
-      </div>
-
-      {app.recruiterNotes && (
-        <div className="mt-4 rounded-md border-l-2 border-gray-300 bg-gray-50 px-3 py-2 text-xs italic text-gray-700">
-          {app.recruiterNotes}
-        </div>
-      )}
+      <ApplicationStatusBadge status={app.status} />
     </div>
   );
 }
 
-// ── Resume panel ────────────────────────────────────────────────────────────
+function MetaRow({ app }: { app: ApplicationResponse }) {
+  return (
+    <div className="mb-4 flex flex-wrap gap-x-5 gap-y-2 text-sm text-gray-500">
+      <span className="inline-flex items-center gap-1.5">
+        <Briefcase className="h-4 w-4" strokeWidth={2} />— yrs experience
+      </span>
+      <span className="inline-flex items-center gap-1.5">
+        <Calendar className="h-4 w-4" strokeWidth={2} />
+        Applied {formatRelative(app.appliedAt)}
+      </span>
+      <span className="inline-flex items-center gap-1.5">
+        <MapPin className="h-4 w-4" strokeWidth={2} />—
+      </span>
+    </div>
+  );
+}
 
-function ResumePanel({ app }: { app: ApplicationResponse }) {
+// ── Resume column ───────────────────────────────────────────────────────────
+
+function ResumeColumn({ app }: { app: ApplicationResponse }) {
   const [blobUrl, setBlobUrl] = useState<string | null>(null);
   const [loadingBlob, setLoadingBlob] = useState(false);
   const [blobError, setBlobError] = useState<string | null>(null);
-  const contentTypeRef = useRef<string>('application/pdf');
   const filenameRef = useRef<string>(app.resumeFileName ?? 'resume.pdf');
 
   useEffect(() => {
@@ -244,13 +355,11 @@ function ResumePanel({ app }: { app: ApplicationResponse }) {
         const ctRaw = res.headers['content-type'];
         const contentType =
           typeof ctRaw === 'string' ? ctRaw : 'application/octet-stream';
-        contentTypeRef.current = contentType;
 
         const cdRaw = res.headers['content-disposition'];
         const cd = typeof cdRaw === 'string' ? cdRaw : '';
         const m = cd.match(/filename="?([^";]+)"?/);
-        filenameRef.current =
-          m?.[1] ?? app.resumeFileName ?? 'resume.pdf';
+        filenameRef.current = m?.[1] ?? app.resumeFileName ?? 'resume.pdf';
 
         const blob = new Blob([res.data], { type: contentType });
         createdUrl = URL.createObjectURL(blob);
@@ -272,6 +381,11 @@ function ResumePanel({ app }: { app: ApplicationResponse }) {
     };
   }, [app.resumeId, app.resumeFileName]);
 
+  function handleViewFull() {
+    if (!blobUrl) return;
+    window.open(blobUrl, '_blank', 'noopener');
+  }
+
   function handleDownload() {
     if (!blobUrl) return;
     const a = document.createElement('a');
@@ -283,20 +397,8 @@ function ResumePanel({ app }: { app: ApplicationResponse }) {
   }
 
   return (
-    <section className="rounded-lg border border-gray-200 bg-white p-6">
-      <div className="mb-3 flex items-center justify-between gap-3">
-        <h3 className="text-base font-semibold text-gray-900">Resume</h3>
-        {app.resumeId && blobUrl && (
-          <button
-            type="button"
-            onClick={handleDownload}
-            className="inline-flex items-center gap-1.5 rounded-md border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50"
-          >
-            <Download className="h-3.5 w-3.5" strokeWidth={2} />
-            Download
-          </button>
-        )}
-      </div>
+    <section>
+      <h3 className="mb-2 text-sm font-medium text-gray-900">Resume</h3>
 
       {!app.resumeId && (
         <div className="rounded-md border border-dashed border-gray-300 bg-gray-50 p-8 text-center text-sm text-gray-500">
@@ -326,19 +428,44 @@ function ResumePanel({ app }: { app: ApplicationResponse }) {
           className="h-[480px] w-full rounded-md border border-gray-200"
         />
       )}
-      {app.resumeFileName && (
-        <p className="mt-2 text-xs text-gray-500">
-          File: <span className="font-mono">{app.resumeFileName}</span>
-        </p>
+
+      {app.resumeId && blobUrl && (
+        <div className="mt-3 flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={handleViewFull}
+            className="inline-flex items-center gap-1.5 rounded-md border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50"
+          >
+            <ExternalLink className="h-3.5 w-3.5" strokeWidth={2} />
+            View full
+          </button>
+          <button
+            type="button"
+            onClick={handleDownload}
+            className="inline-flex items-center gap-1.5 rounded-md border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50"
+          >
+            <Download className="h-3.5 w-3.5" strokeWidth={2} />
+            Download
+          </button>
+          {app.resumeFileName && (
+            <span className="ml-1 text-xs text-gray-500">
+              {app.resumeFileName}
+            </span>
+          )}
+        </div>
       )}
     </section>
   );
 }
 
-// ── Decision panel ──────────────────────────────────────────────────────────
+// ── Action panel ────────────────────────────────────────────────────────────
 
-function DecisionPanel({
+function ActionPanel({
   app,
+  rating,
+  note,
+  onRatingChange,
+  onNoteChange,
   canShortlist,
   canReject,
   busy,
@@ -346,6 +473,10 @@ function DecisionPanel({
   onRejectClick,
 }: {
   app: ApplicationResponse;
+  rating: number;
+  note: string;
+  onRatingChange: (v: number) => void;
+  onNoteChange: (v: string) => void;
   canShortlist: boolean;
   canReject: boolean;
   busy: 'shortlist' | 'reject' | null;
@@ -353,56 +484,118 @@ function DecisionPanel({
   onRejectClick: () => void;
 }) {
   return (
-    <aside className="lg:sticky lg:top-6 lg:self-start">
-      <div className="rounded-lg border border-gray-200 bg-white p-4">
-        <h3 className="text-base font-semibold text-gray-900">Decision</h3>
-        <p className="mt-1 text-xs text-gray-500">
-          Current status: <ApplicationStatusBadge status={app.status} />
-        </p>
+    <aside className="flex flex-col gap-3 rounded-md border border-gray-200 p-4">
+      <div>
+        <label className="mb-1.5 block text-sm font-medium text-gray-900">
+          Your rating
+        </label>
+        <StarRating
+          value={rating}
+          onChange={onRatingChange}
+          disabled={busy !== null}
+        />
+      </div>
 
-        <div className="mt-4 flex flex-col gap-2">
-          <button
-            type="button"
-            onClick={onShortlist}
-            disabled={!canShortlist || busy !== null}
-            className="inline-flex w-full items-center justify-center gap-2 rounded-md bg-accent px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-accent-dark disabled:opacity-50"
-          >
-            {busy === 'shortlist' ? (
-              <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white border-t-transparent" />
-            ) : (
-              <Check className="h-4 w-4" strokeWidth={2} />
-            )}
-            {app.status === 'SHORTLISTED' ? 'Shortlisted' : 'Shortlist'}
-          </button>
+      <div>
+        <label
+          htmlFor="recruiter-note"
+          className="mb-1.5 block text-sm font-medium text-gray-900"
+        >
+          Note
+        </label>
+        <textarea
+          id="recruiter-note"
+          value={note}
+          onChange={(e) => onNoteChange(e.target.value)}
+          rows={3}
+          placeholder="Why shortlist or reject?"
+          disabled={busy !== null}
+          className="min-h-[60px] w-full resize-y rounded-md border border-gray-300 p-2.5 text-sm focus:border-primary-700 focus:outline-none focus:ring-1 focus:ring-primary-700 disabled:bg-gray-50"
+        />
+      </div>
 
-          <button
-            type="button"
-            onClick={onRejectClick}
-            disabled={!canReject || busy !== null}
-            className="inline-flex w-full items-center justify-center gap-2 rounded-md border border-red-200 bg-white px-4 py-2 text-sm font-medium text-red-600 transition-colors hover:bg-red-50 disabled:opacity-50"
-          >
-            {busy === 'reject' ? (
-              <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-red-400 border-t-transparent" />
-            ) : (
-              <X className="h-4 w-4" strokeWidth={2} />
-            )}
-            {app.status === 'REJECTED' ? 'Rejected' : 'Reject'}
-          </button>
-        </div>
+      <button
+        type="button"
+        onClick={onShortlist}
+        disabled={!canShortlist || busy !== null}
+        className="inline-flex w-full items-center justify-center gap-2 rounded-md bg-accent px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-accent-dark disabled:opacity-50"
+      >
+        {busy === 'shortlist' ? (
+          <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white border-t-transparent" />
+        ) : (
+          <Check className="h-4 w-4" strokeWidth={2} />
+        )}
+        {app.status === 'SHORTLISTED' ? 'Shortlisted' : 'Shortlist'}
+      </button>
 
-        {!canShortlist && app.status !== 'REJECTED' && app.status !== 'WITHDRAWN' && (
-          <p className="mt-3 text-xs text-gray-500">
+      <button
+        type="button"
+        onClick={onRejectClick}
+        disabled={!canReject || busy !== null}
+        className="inline-flex w-full items-center justify-center gap-2 rounded-md border border-red-200 bg-white px-4 py-2 text-sm font-medium text-red-600 transition-colors hover:bg-red-50 disabled:opacity-50"
+      >
+        {busy === 'reject' ? (
+          <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-red-400 border-t-transparent" />
+        ) : (
+          <X className="h-4 w-4" strokeWidth={2} />
+        )}
+        {app.status === 'REJECTED' ? 'Rejected' : 'Reject'}
+      </button>
+
+      {!canShortlist &&
+        app.status !== 'REJECTED' &&
+        app.status !== 'WITHDRAWN' && (
+          <p className="text-xs text-gray-500">
             This applicant is already past the shortlist stage.
           </p>
         )}
-        {app.status === 'REJECTED' && (
-          <p className="mt-3 text-xs text-gray-500">
-            This application has been rejected. Use the pipeline to move it
-            back to APPLIED if this was a mistake.
-          </p>
-        )}
-      </div>
     </aside>
+  );
+}
+
+function StarRating({
+  value,
+  onChange,
+  disabled,
+}: {
+  value: number;
+  onChange: (v: number) => void;
+  disabled?: boolean;
+}) {
+  return (
+    <div
+      className="flex items-center gap-1"
+      role="radiogroup"
+      aria-label="Rating"
+    >
+      {[1, 2, 3, 4, 5].map((n) => {
+        const filled = n <= value;
+        return (
+          <button
+            key={n}
+            type="button"
+            // Clicking the current rating again clears it back to 0 (unrated).
+            onClick={() => onChange(n === value ? 0 : n)}
+            disabled={disabled}
+            role="radio"
+            aria-checked={value === n}
+            aria-label={`${n} star${n === 1 ? '' : 's'}`}
+            className={
+              'rounded p-0.5 transition-colors ' +
+              (disabled ? 'cursor-not-allowed opacity-60' : 'hover:bg-amber-50')
+            }
+          >
+            <Star
+              className={
+                'h-6 w-6 ' +
+                (filled ? 'fill-amber-400 text-amber-400' : 'text-gray-300')
+              }
+              strokeWidth={1.5}
+            />
+          </button>
+        );
+      })}
+    </div>
   );
 }
 
@@ -410,19 +603,24 @@ function DecisionPanel({
 
 function ReviewSkeleton() {
   return (
-    <div className="max-w-5xl space-y-6">
-      <div className="space-y-3 rounded-lg border border-gray-200 bg-white p-6">
-        <div className="flex items-start gap-4">
-          <div className="h-12 w-12 animate-pulse rounded-full bg-gray-200" />
+    <div className="space-y-4">
+      <div className="flex gap-2">
+        <div className="h-8 w-28 animate-pulse rounded-full bg-gray-200" />
+        <div className="h-8 w-32 animate-pulse rounded-full bg-gray-200" />
+        <div className="h-8 w-32 animate-pulse rounded-full bg-gray-200" />
+      </div>
+      <div className="space-y-3 rounded-lg border border-gray-200 bg-white p-5">
+        <div className="flex items-start gap-3">
+          <div className="h-11 w-11 animate-pulse rounded-full bg-gray-200" />
           <div className="space-y-2">
-            <div className="h-5 w-48 animate-pulse rounded bg-gray-200" />
-            <div className="h-4 w-32 animate-pulse rounded bg-gray-200" />
+            <div className="h-4 w-48 animate-pulse rounded bg-gray-200" />
+            <div className="h-3 w-32 animate-pulse rounded bg-gray-200" />
           </div>
         </div>
-      </div>
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1.4fr_1fr]">
-        <div className="h-[480px] animate-pulse rounded-lg bg-gray-100" />
-        <div className="h-40 animate-pulse rounded-lg bg-gray-100" />
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1.4fr_1fr]">
+          <div className="h-[480px] animate-pulse rounded-md bg-gray-100" />
+          <div className="h-64 animate-pulse rounded-md bg-gray-100" />
+        </div>
       </div>
     </div>
   );

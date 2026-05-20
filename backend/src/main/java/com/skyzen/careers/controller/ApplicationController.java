@@ -3,6 +3,7 @@ package com.skyzen.careers.controller;
 import com.skyzen.careers.dto.ApplicationCreateRequest;
 import com.skyzen.careers.dto.ApplicationResponse;
 import com.skyzen.careers.dto.ApplicationStatusUpdateRequest;
+import com.skyzen.careers.dto.RecruiterDecisionRequest;
 import com.skyzen.careers.entity.User;
 import com.skyzen.careers.enums.ApplicationStatus;
 import com.skyzen.careers.service.ApplicationService;
@@ -71,22 +72,27 @@ public class ApplicationController {
     }
 
     /**
-     * One-click shortcut for the recruiter review screen. Routes through the same
-     * status-transition service as the Kanban drag; adds a SHORTLIST audit entry.
-     * Idempotent — returns 200 even if the application is already SHORTLISTED.
+     * One-click Shortlist from the recruiter review screen. Accepts an optional
+     * {rating, note} body; persists those alongside the status transition. Routes
+     * through the same status-transition service as the Kanban drag; adds a
+     * SHORTLIST audit entry. Idempotent — returns 200 even if already SHORTLISTED.
      */
     @PostMapping("/{id}/shortlist")
     @PreAuthorize("hasAnyRole('RECRUITER', 'ERM', 'ADMIN')")
-    public ApplicationResponse shortlist(@PathVariable UUID id,
-                                         @AuthenticationPrincipal User user) {
-        return applicationService.shortlist(id, user);
+    public ApplicationResponse shortlist(
+            @PathVariable UUID id,
+            @Valid @RequestBody(required = false) RecruiterDecisionRequest req,
+            @AuthenticationPrincipal User user) {
+        return applicationService.shortlist(id, req, user);
     }
 
     /** Mirror of {@link #shortlist} for one-click rejection. Adds a REJECT audit entry. */
     @PostMapping("/{id}/reject")
     @PreAuthorize("hasAnyRole('RECRUITER', 'ERM', 'ADMIN')")
-    public ApplicationResponse reject(@PathVariable UUID id,
-                                      @AuthenticationPrincipal User user) {
-        return applicationService.reject(id, user);
+    public ApplicationResponse reject(
+            @PathVariable UUID id,
+            @Valid @RequestBody(required = false) RecruiterDecisionRequest req,
+            @AuthenticationPrincipal User user) {
+        return applicationService.reject(id, req, user);
     }
 }

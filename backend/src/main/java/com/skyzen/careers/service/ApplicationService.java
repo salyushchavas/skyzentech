@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.skyzen.careers.dto.ApplicationCreateRequest;
 import com.skyzen.careers.dto.ApplicationResponse;
 import com.skyzen.careers.dto.ApplicationStatusUpdateRequest;
+import com.skyzen.careers.dto.RecruiterDecisionRequest;
 import com.skyzen.careers.entity.Application;
 import com.skyzen.careers.entity.AuditLog;
 import com.skyzen.careers.entity.Candidate;
@@ -128,41 +129,67 @@ public class ApplicationService {
     }
 
     /**
-     * Thin convenience wrapper for the recruiter review screen's one-click action.
-     * Routes through {@link #updateStatus} so transition behaviour stays consistent
-     * with the Kanban drag, then writes a "SHORTLIST" audit entry. Idempotent: if
-     * the application is already SHORTLISTED, returns 200 without re-auditing.
+     * One-click Shortlist from the recruiter review screen. Routes through
+     * {@link #updateStatus} so transition behaviour stays consistent with the
+     * Kanban drag, persists the optional rating + note, then writes a SHORTLIST
+     * audit entry. Idempotent: if already SHORTLISTED the rating/note are still
+     * applied (recruiter editing their decision) but no audit row is written.
      */
     @Transactional
-    public ApplicationResponse shortlist(UUID id, User caller) {
-        return changeStatusWithAudit(id, ApplicationStatus.SHORTLISTED, "SHORTLIST", caller);
+    public ApplicationResponse shortlist(UUID id, RecruiterDecisionRequest req, User caller) {
+        return changeStatusWithAudit(id, ApplicationStatus.SHORTLISTED, "SHORTLIST", req, caller);
     }
 
-    /**
-     * Mirror of {@link #shortlist} for one-click rejection. Writes a "REJECT" audit entry.
-     * Idempotent: if already REJECTED, no audit row is written.
-     */
+    /** Mirror of {@link #shortlist} for one-click rejection. Writes a REJECT audit entry. */
     @Transactional
-    public ApplicationResponse reject(UUID id, User caller) {
-        return changeStatusWithAudit(id, ApplicationStatus.REJECTED, "REJECT", caller);
+    public ApplicationResponse reject(UUID id, RecruiterDecisionRequest req, User caller) {
+        return changeStatusWithAudit(id, ApplicationStatus.REJECTED, "REJECT", req, caller);
     }
 
     private ApplicationResponse changeStatusWithAudit(UUID id,
                                                       ApplicationStatus target,
                                                       String action,
+                                                      RecruiterDecisionRequest decision,
                                                       User caller) {
         Application application = applicationRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Application not found: " + id));
         ApplicationStatus before = application.getStatus();
-        if (before == target) {
-            // Idempotent — already in target status; skip the audit write.
+        boolean idempotent = (before == target);
+
+        // Persist rating + note even on an idempotent call so recruiters can refine
+        // their decision without forcing a status flip.
+        applyDecisionFields(application, decision, caller);
+
+        if (idempotent) {
+            applicationRepository.save(application);
             return toResponse(application);
         }
-        ApplicationStatusUpdateRequest req = new ApplicationStatusUpdateRequest();
-        req.setStatus(target);
-        ApplicationResponse response = updateStatus(id, req, caller);
+
+        // Transition via the existing service so all status-change side effects
+        // (statusUpdatedAt, statusUpdatedBy, recruiterNotes from req) stay in one place.
+        ApplicationStatusUpdateRequest statusReq = new ApplicationStatusUpdateRequest();
+        statusReq.setStatus(target);
+        ApplicationResponse response = updateStatus(id, statusReq, caller);
         writeStatusAudit(id, action, caller != null ? caller.getId() : null, before, target);
         return response;
+    }
+
+    private void applyDecisionFields(Application app,
+                                     RecruiterDecisionRequest decision,
+                                     User caller) {
+        if (decision == null) return;
+        if (decision.getRating() != null) {
+            app.setRecruiterRating(decision.getRating());
+        }
+        if (decision.getNote() != null) {
+            // The note field on the entity is the existing recruiterNotes column —
+            // spec calls it "recruiterNote" but reusing the existing column avoids
+            // duplicate state. The wire DTO names match the spec; the storage name doesn't.
+            app.setRecruiterNotes(decision.getNote());
+        }
+        if (caller != null) {
+            app.setStatusUpdatedBy(caller.getId());
+        }
     }
 
     private void writeStatusAudit(UUID applicationId, String action, UUID userId,
@@ -226,6 +253,7 @@ public class ApplicationService {
                 .appliedAt(a.getAppliedAt())
                 .statusUpdatedAt(a.getStatusUpdatedAt())
                 .recruiterNotes(a.getRecruiterNotes())
+                .recruiterRating(a.getRecruiterRating())
                 .build();
     }
 }

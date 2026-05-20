@@ -55,6 +55,10 @@ public class Application {
     @Column(name = "recruiter_notes", columnDefinition = "TEXT")
     private String recruiterNotes;
 
+    /** Recruiter's 1-5 rating from the review screen. Nullable. */
+    @Column(name = "recruiter_rating")
+    private Integer recruiterRating;
+
     @PrePersist
     void onCreate() {
         Instant now = Instant.now();

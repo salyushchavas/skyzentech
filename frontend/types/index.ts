@@ -96,6 +96,13 @@ export interface ApplicationResponse {
   appliedAt: IsoDateTime;
   statusUpdatedAt?: IsoDateTime;
   recruiterNotes?: string;
+  /** Recruiter's 1-5 rating from the review screen (nullable). */
+  recruiterRating?: number;
+}
+
+export interface RecruiterDecisionRequest {
+  rating?: number;
+  note?: string;
 }
 
 // === Resumes =================================================================
