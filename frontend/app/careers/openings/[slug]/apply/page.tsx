@@ -6,12 +6,15 @@ import { useParams, useRouter } from 'next/navigation';
 import api from '@/lib/api';
 import ProtectedRoute from '@/components/ProtectedRoute';
 import FileUpload from '@/components/FileUpload';
+import AdaptiveCareersLayout from '@/components/careers/AdaptiveCareersLayout';
 import type { JobPostingResponse, ResumeResponse } from '@/types';
 
 export default function ApplyPage() {
   return (
     <ProtectedRoute requiredRoles={['CANDIDATE']}>
-      <ApplyFlow />
+      <AdaptiveCareersLayout title="Apply">
+        <ApplyFlow />
+      </AdaptiveCareersLayout>
     </ProtectedRoute>
   );
 }

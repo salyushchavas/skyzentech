@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { fetchJobPosting } from '@/lib/server-api';
+import AdaptiveCareersLayout from '@/components/careers/AdaptiveCareersLayout';
 
 export const dynamic = 'force-dynamic';
 
@@ -56,35 +57,39 @@ export default async function JobPostingDetailPage({ params }: Props) {
 
   if (loadError) {
     return (
-      <section className="rounded-lg border border-red-200 bg-red-50 p-6 text-sm text-red-700">
-        <p className="font-medium">Couldn&apos;t load this posting.</p>
-        <p className="mt-1">
-          The backend may be starting up.{' '}
-          <Link href="/careers/openings" className="underline">
-            Back to openings
-          </Link>
-          .
-        </p>
-      </section>
+      <AdaptiveCareersLayout title="Open Internships">
+        <section className="rounded-lg border border-red-200 bg-red-50 p-6 text-sm text-red-700">
+          <p className="font-medium">Couldn&apos;t load this posting.</p>
+          <p className="mt-1">
+            The backend may be starting up.{' '}
+            <Link href="/careers/openings" className="underline">
+              Back to openings
+            </Link>
+            .
+          </p>
+        </section>
+      </AdaptiveCareersLayout>
     );
   }
 
   if (!posting) {
     return (
-      <section className="rounded-lg border border-slate-200 bg-white p-8 text-center">
-        <h1 className="mb-2 text-xl font-semibold text-slate-900">
-          This position is no longer open
-        </h1>
-        <p className="mb-6 text-sm text-slate-600">
-          It may have been filled or paused. Check the openings list for current roles.
-        </p>
-        <Link
-          href="/careers/openings"
-          className="inline-block rounded-full bg-gradient-to-r from-accent to-accent-dark px-5 py-2.5 text-sm font-semibold text-white shadow-glow-accent transition hover:shadow-glow-accent-lg"
-        >
-          Back to all openings
-        </Link>
-      </section>
+      <AdaptiveCareersLayout title="Open Internships">
+        <section className="rounded-lg border border-slate-200 bg-white p-8 text-center">
+          <h1 className="mb-2 text-xl font-semibold text-slate-900">
+            This position is no longer open
+          </h1>
+          <p className="mb-6 text-sm text-slate-600">
+            It may have been filled or paused. Check the openings list for current roles.
+          </p>
+          <Link
+            href="/careers/openings"
+            className="inline-block rounded-full bg-gradient-to-r from-accent to-accent-dark px-5 py-2.5 text-sm font-semibold text-white shadow-glow-accent transition hover:shadow-glow-accent-lg"
+          >
+            Back to all openings
+          </Link>
+        </section>
+      </AdaptiveCareersLayout>
     );
   }
 
@@ -93,15 +98,16 @@ export default async function JobPostingDetailPage({ params }: Props) {
   const employment = EMPLOYMENT_LABEL[posting.employmentType] ?? posting.employmentType;
 
   return (
-    <article>
-      <div className="mb-3">
-        <Link
-          href="/careers/openings"
-          className="text-sm font-medium text-primary-700 hover:text-primary-800 hover:underline"
-        >
-          &larr; All openings
-        </Link>
-      </div>
+    <AdaptiveCareersLayout title="Open Internships">
+      <article>
+        <div className="mb-3">
+          <Link
+            href="/careers/openings"
+            className="text-sm font-medium text-primary-700 hover:text-primary-800 hover:underline"
+          >
+            &larr; All openings
+          </Link>
+        </div>
 
       <header className="mb-6 rounded-lg border border-slate-200 bg-white p-6">
         <div className="mb-3 flex flex-wrap items-center gap-2">
@@ -160,5 +166,6 @@ export default async function JobPostingDetailPage({ params }: Props) {
         </aside>
       </div>
     </article>
+    </AdaptiveCareersLayout>
   );
 }
