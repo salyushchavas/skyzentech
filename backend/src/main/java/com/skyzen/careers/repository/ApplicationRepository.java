@@ -17,6 +17,18 @@ public interface ApplicationRepository extends JpaRepository<Application, UUID> 
     List<Application> findByCandidateId(UUID candidateId);
     List<Application> findByJobPostingId(UUID jobPostingId);
 
+    /**
+     * Candidate's applications with the JobPosting + StaffingEntity chain
+     * eagerly loaded — used by the staff-side candidate detail page so the
+     * mapper can read posting title + entity name without lazy-loading.
+     */
+    @Query("SELECT a FROM Application a " +
+            "JOIN FETCH a.jobPosting jp " +
+            "LEFT JOIN FETCH jp.entity e " +
+            "WHERE a.candidate.id = :candidateId " +
+            "ORDER BY a.appliedAt DESC")
+    List<Application> findByCandidateIdWithPosting(@Param("candidateId") UUID candidateId);
+
     boolean existsByCandidateIdAndJobPostingId(UUID candidateId, UUID jobPostingId);
     boolean existsByResumeId(UUID resumeId);
     boolean existsByStatus(ApplicationStatus status);
