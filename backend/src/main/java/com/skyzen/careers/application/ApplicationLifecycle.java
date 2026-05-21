@@ -63,26 +63,33 @@ public final class ApplicationLifecycle {
      * Gated transition table. {@code from -> { allowed to-values }}.
      *
      * Same-state self-transitions are treated as legal no-ops by the
-     * (forthcoming) guard; they are NOT listed here. Terminal states have
-     * an empty set — nothing legal moves out of them.
+     * guard; they are NOT listed here. Terminal states have an empty set —
+     * nothing legal moves out of them.
      *
-     * The guard in phase 1.1b consults this map. Until then, every call
-     * site still calls {@code application.setStatus(...)} directly; this
-     * map is informational and tested for self-consistency by callers
-     * that care.
+     * REJECTED and WITHDRAWN are reachable from EVERY non-terminal state
+     * (you can reject/withdraw at any active stage). OFFERED is reachable
+     * from APPLIED/SHORTLISTED/INTERVIEW_SCHEDULED/INTERVIEWED to support
+     * recruiters extending an offer at any pre-offer stage via OfferService.
+     *
+     * Enforced by {@code ApplicationService.transitionTo}. The override path
+     * ({@code transitionToSystem}) bypasses this map for SYSTEM/ADMIN-only
+     * use cases (demo backfill, manual corrections) but still audits.
      */
     public static final Map<ApplicationStatus, Set<ApplicationStatus>> LEGAL_TRANSITIONS = Map.ofEntries(
             Map.entry(ApplicationStatus.APPLIED, EnumSet.of(
                     ApplicationStatus.SHORTLISTED,
+                    ApplicationStatus.OFFERED,
                     ApplicationStatus.REJECTED,
                     ApplicationStatus.WITHDRAWN)),
             Map.entry(ApplicationStatus.SHORTLISTED, EnumSet.of(
                     ApplicationStatus.INTERVIEW_SCHEDULED,
+                    ApplicationStatus.OFFERED,
                     ApplicationStatus.REJECTED,
                     ApplicationStatus.WITHDRAWN)),
             Map.entry(ApplicationStatus.INTERVIEW_SCHEDULED, EnumSet.of(
                     ApplicationStatus.INTERVIEWED,
                     ApplicationStatus.INTERVIEW_SCHEDULED, // legal re-schedule
+                    ApplicationStatus.OFFERED,
                     ApplicationStatus.NO_SHOW,
                     ApplicationStatus.REJECTED,
                     ApplicationStatus.WITHDRAWN)),
@@ -98,17 +105,21 @@ public final class ApplicationLifecycle {
             Map.entry(ApplicationStatus.ACCEPTED, EnumSet.of(
                     ApplicationStatus.ONBOARDING,
                     ApplicationStatus.HIRED,
+                    ApplicationStatus.REJECTED,
                     ApplicationStatus.WITHDRAWN)),
             Map.entry(ApplicationStatus.ONBOARDING, EnumSet.of(
                     ApplicationStatus.ACTIVE,
                     ApplicationStatus.HIRED,
+                    ApplicationStatus.REJECTED,
                     ApplicationStatus.WITHDRAWN)),
             Map.entry(ApplicationStatus.HIRED, EnumSet.of(
                     ApplicationStatus.ACTIVE,
                     ApplicationStatus.COMPLETED,
+                    ApplicationStatus.REJECTED,
                     ApplicationStatus.WITHDRAWN)),
             Map.entry(ApplicationStatus.ACTIVE, EnumSet.of(
                     ApplicationStatus.COMPLETED,
+                    ApplicationStatus.REJECTED,
                     ApplicationStatus.WITHDRAWN)),
             Map.entry(ApplicationStatus.COMPLETED, EnumSet.noneOf(ApplicationStatus.class)),
             Map.entry(ApplicationStatus.NO_SHOW, EnumSet.of(

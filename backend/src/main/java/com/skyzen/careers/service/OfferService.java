@@ -92,6 +92,7 @@ public class OfferService {
     private final OfferLetterTemplate letterTemplate;
     private final ObjectMapper objectMapper;
     private final OnboardingService onboardingService;
+    private final ApplicationService applicationService;
 
     // ── Commands ────────────────────────────────────────────────────────────
 
@@ -231,13 +232,11 @@ public class OfferService {
 
         Application application = offer.getApplication();
         if (application != null && !isOfferTerminalForApp(application.getStatus())) {
-            Map<String, Object> appBefore = Map.of("status", application.getStatus());
-            application.setStatus(ApplicationStatus.OFFERED);
-            application.setStatusUpdatedAt(now);
-            application.setStatusUpdatedBy(sender.getId());
-            applicationRepository.save(application);
-            writeAudit("Application", application.getId(), "STATUS_CHANGE", sender.getId(),
-                    appBefore, Map.of("status", application.getStatus()));
+            // Gated lifecycle: APPLIED/SHORTLISTED/INTERVIEW_SCHEDULED/INTERVIEWED
+            // are all legal → OFFERED in LEGAL_TRANSITIONS. transitionTo writes
+            // the single STATUS_CHANGE audit row internally.
+            applicationService.transitionTo(application, ApplicationStatus.OFFERED,
+                    "STATUS_CHANGE", sender);
         }
 
         writeAudit("Offer", offer.getId(), "SEND", sender.getId(), before, snapshot(offer));
@@ -267,13 +266,10 @@ public class OfferService {
 
         Application application = offer.getApplication();
         if (application != null) {
-            Map<String, Object> appBefore = Map.of("status", application.getStatus());
-            application.setStatus(ApplicationStatus.ACCEPTED);
-            application.setStatusUpdatedAt(now);
-            application.setStatusUpdatedBy(candidateUser.getId());
-            applicationRepository.save(application);
-            writeAudit("Application", application.getId(), "STATUS_CHANGE", candidateUser.getId(),
-                    appBefore, Map.of("status", application.getStatus()));
+            // OFFERED → ACCEPTED is legal in LEGAL_TRANSITIONS; transitionTo
+            // writes the single STATUS_CHANGE audit row.
+            applicationService.transitionTo(application, ApplicationStatus.ACCEPTED,
+                    "STATUS_CHANGE", candidateUser);
         }
 
         writeAudit("Offer", offer.getId(), "ACCEPT", candidateUser.getId(),
@@ -314,13 +310,10 @@ public class OfferService {
 
         Application application = offer.getApplication();
         if (application != null) {
-            Map<String, Object> appBefore = Map.of("status", application.getStatus());
-            application.setStatus(ApplicationStatus.REJECTED);
-            application.setStatusUpdatedAt(now);
-            application.setStatusUpdatedBy(candidateUser.getId());
-            applicationRepository.save(application);
-            writeAudit("Application", application.getId(), "STATUS_CHANGE", candidateUser.getId(),
-                    appBefore, Map.of("status", application.getStatus()));
+            // REJECTED is reachable from every non-terminal state in
+            // LEGAL_TRANSITIONS. transitionTo writes the audit row.
+            applicationService.transitionTo(application, ApplicationStatus.REJECTED,
+                    "STATUS_CHANGE", candidateUser);
         }
 
         writeAudit("Offer", offer.getId(), "DECLINE", candidateUser.getId(),

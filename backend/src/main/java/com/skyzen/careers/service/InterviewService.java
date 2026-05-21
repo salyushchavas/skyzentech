@@ -56,6 +56,7 @@ public class InterviewService {
     private final UserRepository userRepository;
     private final AuditLogRepository auditLogRepository;
     private final ObjectMapper objectMapper;
+    private final ApplicationService applicationService;
 
     // ── Commands ────────────────────────────────────────────────────────────
 
@@ -93,14 +94,10 @@ public class InterviewService {
         interview = interviewRepository.save(interview);
 
         if (application.getStatus() == ApplicationStatus.SHORTLISTED) {
-            Map<String, Object> appBefore = Map.of("status", application.getStatus());
-            application.setStatus(ApplicationStatus.INTERVIEW_SCHEDULED);
-            application.setStatusUpdatedAt(Instant.now());
-            application.setStatusUpdatedBy(scheduler.getId());
-            applicationRepository.save(application);
-            Map<String, Object> appAfter = Map.of("status", application.getStatus());
-            writeAudit("Application", application.getId(), "STATUS_CHANGE", scheduler.getId(),
-                    appBefore, appAfter);
+            // SHORTLISTED → INTERVIEW_SCHEDULED is legal in LEGAL_TRANSITIONS;
+            // transitionTo writes the single STATUS_CHANGE audit row.
+            applicationService.transitionTo(application, ApplicationStatus.INTERVIEW_SCHEDULED,
+                    "STATUS_CHANGE", scheduler);
         }
 
         writeAudit("Interview", interview.getId(), "SCHEDULE", scheduler.getId(),
@@ -171,14 +168,10 @@ public class InterviewService {
 
         Application application = interview.getApplication();
         if (application.getStatus() == ApplicationStatus.INTERVIEW_SCHEDULED) {
-            Map<String, Object> appBefore = Map.of("status", application.getStatus());
-            application.setStatus(ApplicationStatus.INTERVIEWED);
-            application.setStatusUpdatedAt(Instant.now());
-            application.setStatusUpdatedBy(submitter.getId());
-            applicationRepository.save(application);
-            Map<String, Object> appAfter = Map.of("status", application.getStatus());
-            writeAudit("Application", application.getId(), "STATUS_CHANGE", submitter.getId(),
-                    appBefore, appAfter);
+            // INTERVIEW_SCHEDULED → INTERVIEWED is legal in LEGAL_TRANSITIONS;
+            // transitionTo writes the single STATUS_CHANGE audit row.
+            applicationService.transitionTo(application, ApplicationStatus.INTERVIEWED,
+                    "STATUS_CHANGE", submitter);
         }
 
         writeAudit("Interview", interview.getId(), "SUBMIT_FEEDBACK", submitter.getId(),

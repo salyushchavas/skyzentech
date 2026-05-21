@@ -3,13 +3,13 @@ package com.skyzen.careers.bootstrap;
 import com.skyzen.careers.entity.Application;
 import com.skyzen.careers.enums.ApplicationStatus;
 import com.skyzen.careers.repository.ApplicationRepository;
+import com.skyzen.careers.service.ApplicationService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
 
-import java.time.Instant;
 import java.util.List;
 
 /**
@@ -36,6 +36,7 @@ import java.util.List;
 public class HiredInternBackfillRunner implements CommandLineRunner {
 
     private final ApplicationRepository applicationRepository;
+    private final ApplicationService applicationService;
 
     @Override
     public void run(String... args) {
@@ -54,9 +55,11 @@ public class HiredInternBackfillRunner implements CommandLineRunner {
                 return;
             }
             ApplicationStatus before = target.getStatus();
-            target.setStatus(ApplicationStatus.HIRED);
-            target.setStatusUpdatedAt(Instant.now());
-            applicationRepository.save(target);
+            // SYSTEM override — some promotions skip LEGAL_TRANSITIONS (e.g.
+            // OFFERED → HIRED, INTERVIEWED → HIRED) for the demo. Override
+            // still audits with null actor so the row is visibly system-driven.
+            applicationService.transitionToSystem(target, ApplicationStatus.HIRED,
+                    "STATUS_CHANGE_SYSTEM", null);
             log.warn("Promoted demo application {} from {} to HIRED so Supervised Interns roster is non-empty.",
                     target.getId(), before);
         } catch (Exception e) {

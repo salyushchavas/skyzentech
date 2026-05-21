@@ -2,6 +2,7 @@ package com.skyzen.careers.service;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.skyzen.careers.application.ApplicationLifecycle;
 import com.skyzen.careers.dto.ApplicationCreateRequest;
 import com.skyzen.careers.dto.ApplicationResponse;
 import com.skyzen.careers.dto.ApplicationStatusUpdateRequest;
@@ -36,10 +37,12 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 
 @Service
@@ -142,21 +145,73 @@ public class ApplicationService {
     public ApplicationResponse updateStatus(UUID id, ApplicationStatusUpdateRequest req, User caller) {
         Application application = applicationRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Application not found: " + id));
-        application.setStatus(req.getStatus());
-        application.setStatusUpdatedAt(Instant.now());
-        application.setStatusUpdatedBy(caller != null ? caller.getId() : null);
         if (req.getRecruiterNotes() != null) {
             application.setRecruiterNotes(req.getRecruiterNotes());
         }
+        // transitionTo is gated by LEGAL_TRANSITIONS — illegal Kanban drags
+        // throw BadRequestException (400) rather than corrupting state.
+        transitionTo(application, req.getStatus(), "STATUS_CHANGE", caller);
         return toResponse(application);
     }
 
     /**
+     * Gated status transition — the single entry point that every status
+     * write-site MUST go through. Checks {@link ApplicationLifecycle#LEGAL_TRANSITIONS},
+     * sets status/statusUpdatedAt/statusUpdatedBy, persists the row, and writes
+     * exactly ONE audit log entry. Same-state target is a legal no-op (no save,
+     * no audit). Illegal target throws {@link BadRequestException} → 400.
+     */
+    @Transactional
+    public Application transitionTo(Application app,
+                                    ApplicationStatus target,
+                                    String auditAction,
+                                    User actor) {
+        ApplicationStatus from = app.getStatus();
+        if (from == target) return app; // legal no-op
+        Set<ApplicationStatus> allowed =
+                ApplicationLifecycle.LEGAL_TRANSITIONS.getOrDefault(from, Collections.emptySet());
+        if (!allowed.contains(target)) {
+            throw new BadRequestException(
+                    "Cannot move application from " + from + " to " + target);
+        }
+        return applyTransition(app, from, target, auditAction,
+                actor != null ? actor.getId() : null);
+    }
+
+    /**
+     * Override path — bypasses {@link ApplicationLifecycle#LEGAL_TRANSITIONS}
+     * but STILL audits. Reserved for SYSTEM (boot-time backfill) and ADMIN
+     * corrections that need to break the normal lifecycle. Same-state remains
+     * a no-op. Callers must justify why the gated path is wrong for them.
+     */
+    @Transactional
+    public Application transitionToSystem(Application app,
+                                          ApplicationStatus target,
+                                          String auditAction,
+                                          UUID actorId) {
+        ApplicationStatus from = app.getStatus();
+        if (from == target) return app;
+        return applyTransition(app, from, target, auditAction, actorId);
+    }
+
+    private Application applyTransition(Application app,
+                                        ApplicationStatus from,
+                                        ApplicationStatus target,
+                                        String auditAction,
+                                        UUID actorId) {
+        app.setStatus(target);
+        app.setStatusUpdatedAt(Instant.now());
+        app.setStatusUpdatedBy(actorId);
+        Application saved = applicationRepository.save(app);
+        writeStatusAudit(saved.getId(), auditAction, actorId, from, target);
+        return saved;
+    }
+
+    /**
      * One-click Shortlist from the recruiter review screen. Routes through
-     * {@link #updateStatus} so transition behaviour stays consistent with the
-     * Kanban drag, persists the optional rating + note, then writes a SHORTLIST
-     * audit entry. Idempotent: if already SHORTLISTED the rating/note are still
-     * applied (recruiter editing their decision) but no audit row is written.
+     * {@link #transitionTo} so the lifecycle guard + audit are uniform with
+     * the Kanban drag. Persists rating/note. Idempotent: if already
+     * SHORTLISTED the rating/note are still applied but no audit row is written.
      */
     @Transactional
     public ApplicationResponse shortlist(UUID id, RecruiterDecisionRequest req, User caller) {
@@ -174,7 +229,9 @@ public class ApplicationService {
      * single-id path per application so audit + statusUpdatedAt + side-effects
      * stay consistent with one-by-one usage. Idempotent: ids already at the
      * target status (or not found) are counted into {@code skipped}; only real
-     * transitions count toward {@code updated}.
+     * transitions count toward {@code updated}. Per-row {@link BadRequestException}
+     * (illegal transition for that row) is also counted as skipped — one
+     * terminal-state row should not fail the whole batch.
      */
     @Transactional
     public BulkApplicationActionResponse bulkAction(BulkApplicationActionRequest req, User caller) {
@@ -203,10 +260,13 @@ public class ApplicationService {
                 skipped++;
                 continue;
             }
-            // Reuse the audit/status-update path. We pass null decision —
-            // bulk callers don't supply per-row rating/note.
-            changeStatusWithAudit(id, target, auditAction, null, caller);
-            updated++;
+            try {
+                changeStatusWithAudit(id, target, auditAction, null, caller);
+                updated++;
+            } catch (BadRequestException illegal) {
+                // Terminal/illegal source state — keep the batch going.
+                skipped++;
+            }
         }
         return BulkApplicationActionResponse.builder()
                 .updated(updated)
@@ -221,8 +281,7 @@ public class ApplicationService {
                                                       User caller) {
         Application application = applicationRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Application not found: " + id));
-        ApplicationStatus before = application.getStatus();
-        boolean idempotent = (before == target);
+        boolean idempotent = (application.getStatus() == target);
 
         // Persist rating + note even on an idempotent call so recruiters can refine
         // their decision without forcing a status flip.
@@ -232,14 +291,8 @@ public class ApplicationService {
             applicationRepository.save(application);
             return toResponse(application);
         }
-
-        // Transition via the existing service so all status-change side effects
-        // (statusUpdatedAt, statusUpdatedBy, recruiterNotes from req) stay in one place.
-        ApplicationStatusUpdateRequest statusReq = new ApplicationStatusUpdateRequest();
-        statusReq.setStatus(target);
-        ApplicationResponse response = updateStatus(id, statusReq, caller);
-        writeStatusAudit(id, action, caller != null ? caller.getId() : null, before, target);
-        return response;
+        transitionTo(application, target, action, caller);
+        return toResponse(application);
     }
 
     private void applyDecisionFields(Application app,

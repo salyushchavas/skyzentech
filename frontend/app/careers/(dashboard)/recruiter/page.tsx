@@ -241,12 +241,21 @@ function PipelineBoard() {
         { status: targetStatus }
       );
       setApplications((prev) => prev.map((a) => (a.id === droppedId ? res.data : a)));
-    } catch {
-      // Revert
+    } catch (err: any) {
+      // Revert the card to its original column.
       setApplications((prev) =>
         prev.map((a) => (a.id === droppedId ? { ...a, status: prevStatus } : a))
       );
-      toast.error("Couldn't update status. Try again.");
+      // Phase 1.1b: illegal lifecycle transitions return 400 with a clear
+      // server message (e.g. "Cannot move application from APPLIED to HIRED").
+      // Surface that verbatim so recruiters know why the drag was refused;
+      // fall back to a generic message for network / 500 errors.
+      const serverMsg = err?.response?.data?.error;
+      toast.error(
+        typeof serverMsg === 'string' && serverMsg.length > 0
+          ? serverMsg
+          : "Couldn't update status. Try again."
+      );
     }
   }
 
