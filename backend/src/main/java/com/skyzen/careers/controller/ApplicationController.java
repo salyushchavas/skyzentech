@@ -4,10 +4,12 @@ import com.skyzen.careers.dto.ApplicationCreateRequest;
 import com.skyzen.careers.dto.ApplicationResponse;
 import com.skyzen.careers.dto.ApplicationStatusUpdateRequest;
 import com.skyzen.careers.dto.RecruiterDecisionRequest;
+import com.skyzen.careers.dto.candidate.ApplicationJourneyResponse;
 import com.skyzen.careers.dto.common.PagedResponse;
 import com.skyzen.careers.entity.User;
 import com.skyzen.careers.enums.ApplicationStatus;
 import com.skyzen.careers.service.ApplicationService;
+import com.skyzen.careers.service.CandidateApplicationsService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
@@ -28,6 +30,7 @@ import java.util.UUID;
 public class ApplicationController {
 
     private final ApplicationService applicationService;
+    private final CandidateApplicationsService candidateApplicationsService;
 
     @PostMapping
     @PreAuthorize("hasRole('CANDIDATE')")
@@ -43,6 +46,17 @@ public class ApplicationController {
     @PreAuthorize("hasRole('CANDIDATE')")
     public List<ApplicationResponse> listMine(@AuthenticationPrincipal User user) {
         return applicationService.listForCandidate(user);
+    }
+
+    /**
+     * Richer per-application journey for the candidate's My Applications page.
+     * Same source-of-truth as {@code /me}, plus interview/offer/audit-derived
+     * stage dates and an action-needed CTA when something is pending.
+     */
+    @GetMapping("/me/journey")
+    @PreAuthorize("hasRole('CANDIDATE')")
+    public List<ApplicationJourneyResponse> listMyJourney(@AuthenticationPrincipal User user) {
+        return candidateApplicationsService.listJourneyForCandidate(user);
     }
 
     @GetMapping

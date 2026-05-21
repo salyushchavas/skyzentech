@@ -1,0 +1,216 @@
+package com.skyzen.careers.service;
+
+import com.skyzen.careers.dto.candidate.ApplicationJourneyResponse;
+import com.skyzen.careers.entity.Application;
+import com.skyzen.careers.entity.AuditLog;
+import com.skyzen.careers.entity.Candidate;
+import com.skyzen.careers.entity.Interview;
+import com.skyzen.careers.entity.JobPosting;
+import com.skyzen.careers.entity.Offer;
+import com.skyzen.careers.entity.StaffingEntity;
+import com.skyzen.careers.entity.User;
+import com.skyzen.careers.enums.ApplicationStatus;
+import com.skyzen.careers.enums.OfferStatus;
+import com.skyzen.careers.exception.ResourceNotFoundException;
+import com.skyzen.careers.repository.ApplicationRepository;
+import com.skyzen.careers.repository.AuditLogRepository;
+import com.skyzen.careers.repository.CandidateRepository;
+import com.skyzen.careers.repository.InterviewRepository;
+import com.skyzen.careers.repository.OfferRepository;
+import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.time.Instant;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.EnumSet;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.UUID;
+import java.util.stream.Collectors;
+
+/**
+ * Powers the My Applications journey view. Pulls applications + their related
+ * Interview / Offer / AuditLog rows in one read-only transaction, all through
+ * fetch-joined repository methods — no lazy access in the mapper.
+ *
+ * Stage map (mirrors {@link CandidateDashboardService}):
+ *   APPLIED→0, SHORTLISTED→1, INTERVIEW_SCHEDULED|INTERVIEWED→2,
+ *   OFFERED|ACCEPTED→3, ONBOARDING|ACTIVE|HIRED|COMPLETED→4.
+ * Exit statuses (REJECTED|WITHDRAWN|LAPSED|NO_SHOW) flip isExited=true with
+ * stageIndex=-1. We never fabricate dates for stages we can't pin down.
+ */
+@Service
+@RequiredArgsConstructor
+public class CandidateApplicationsService {
+
+    private static final Set<ApplicationStatus> EXIT_STATUSES = EnumSet.of(
+            ApplicationStatus.REJECTED,
+            ApplicationStatus.WITHDRAWN,
+            ApplicationStatus.LAPSED,
+            ApplicationStatus.NO_SHOW);
+
+    /** Audit log fetch is bounded — even very chatty candidates won't exceed this. */
+    private static final int AUDIT_FETCH_CAP = 200;
+
+    private final ApplicationRepository applicationRepository;
+    private final InterviewRepository interviewRepository;
+    private final OfferRepository offerRepository;
+    private final AuditLogRepository auditLogRepository;
+    private final CandidateRepository candidateRepository;
+
+    @Transactional(readOnly = true)
+    public List<ApplicationJourneyResponse> listJourneyForCandidate(User caller) {
+        if (caller == null || caller.getId() == null) return Collections.emptyList();
+
+        Candidate candidate = candidateRepository.findByUserId(caller.getId())
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "Candidate profile not found for user " + caller.getId()));
+
+        List<Application> apps = applicationRepository
+                .findByCandidateIdWithPosting(candidate.getId());
+        if (apps.isEmpty()) return Collections.emptyList();
+
+        // Batch fetch interviews + offers for the candidate ONCE, then group by
+        // application id in memory. Two queries total instead of 2*N.
+        Map<UUID, List<Interview>> interviewsByApp = interviewRepository
+                .findAllForCandidateUser(caller.getId()).stream()
+                .filter(i -> i.getApplication() != null && i.getApplication().getId() != null)
+                .collect(Collectors.groupingBy(i -> i.getApplication().getId()));
+
+        Map<UUID, List<Offer>> offersByApp = offerRepository
+                .findByCandidateUserIdWithGraph(caller.getId()).stream()
+                .filter(o -> o.getApplication() != null && o.getApplication().getId() != null)
+                .collect(Collectors.groupingBy(o -> o.getApplication().getId()));
+
+        // SHORTLIST audit rows (written by ApplicationService.shortlist) — gives
+        // us a confident shortlistedAt per app. Other STATUS_CHANGE rows aren't
+        // currently written for plain status updates, so we don't pretend we
+        // know when SHORTLISTED happened if no SHORTLIST audit row exists.
+        Set<UUID> appIds = apps.stream().map(Application::getId).collect(Collectors.toCollection(HashSet::new));
+        Map<UUID, Instant> shortlistedAtByApp = new HashMap<>();
+        if (!appIds.isEmpty()) {
+            List<AuditLog> rows = auditLogRepository.findRecentForEntityIds(
+                    "Application", appIds, PageRequest.of(0, AUDIT_FETCH_CAP));
+            // Earliest SHORTLIST per app (the list is DESC; iterate and overwrite).
+            for (AuditLog row : rows) {
+                if (!"SHORTLIST".equals(row.getAction())) continue;
+                if (row.getEntityId() == null || row.getTimestamp() == null) continue;
+                shortlistedAtByApp.merge(
+                        row.getEntityId(),
+                        row.getTimestamp(),
+                        (a, b) -> a.isBefore(b) ? a : b);
+            }
+        }
+
+        return apps.stream()
+                .map(a -> toJourney(a,
+                        interviewsByApp.getOrDefault(a.getId(), Collections.emptyList()),
+                        offersByApp.getOrDefault(a.getId(), Collections.emptyList()),
+                        shortlistedAtByApp.get(a.getId())))
+                .toList();
+    }
+
+    // ── Mapping ─────────────────────────────────────────────────────────────
+
+    private ApplicationJourneyResponse toJourney(Application a,
+                                                 List<Interview> interviews,
+                                                 List<Offer> offers,
+                                                 Instant shortlistedAt) {
+        ApplicationStatus status = a.getStatus();
+        boolean exited = status != null && EXIT_STATUSES.contains(status);
+        int stage = exited ? -1 : stageIndex(status);
+        JobPosting jp = a.getJobPosting();
+        StaffingEntity ent = jp != null ? jp.getEntity() : null;
+
+        // Most recent interview wins (DESC by scheduledAt) — the candidate
+        // cares about the latest scheduled / most relevant one.
+        Interview latestInterview = interviews.stream()
+                .filter(i -> i.getScheduledAt() != null)
+                .max(Comparator.comparing(Interview::getScheduledAt))
+                .orElse(null);
+
+        Offer latestOffer = offers.stream()
+                .max(Comparator.comparing(
+                        Offer::getCreatedAt,
+                        Comparator.nullsLast(Comparator.naturalOrder())))
+                .orElse(null);
+
+        ApplicationJourneyResponse.Journey journey =
+                ApplicationJourneyResponse.Journey.builder()
+                        .appliedAt(a.getAppliedAt())
+                        .shortlistedAt(shortlistedAt)
+                        .interview(toInterviewBit(latestInterview))
+                        .offer(toOfferBit(latestOffer))
+                        .hiredAt(status == ApplicationStatus.HIRED ? a.getStatusUpdatedAt() : null)
+                        .build();
+
+        ApplicationJourneyResponse.ActionNeeded action =
+                pickActionNeeded(status, latestOffer);
+
+        return ApplicationJourneyResponse.builder()
+                .id(a.getId())
+                .position(jp != null ? jp.getTitle() : null)
+                .entityName(ent != null ? ent.getName() : null)
+                .status(status != null ? status.name() : null)
+                .stageIndex(stage)
+                .isExited(exited)
+                .journey(journey)
+                .actionNeeded(action)
+                .build();
+    }
+
+    private ApplicationJourneyResponse.InterviewBit toInterviewBit(Interview i) {
+        if (i == null) return null;
+        return ApplicationJourneyResponse.InterviewBit.builder()
+                .scheduledAt(i.getScheduledAt())
+                .status(i.getStatus() != null ? i.getStatus().name() : null)
+                .build();
+    }
+
+    private ApplicationJourneyResponse.OfferBit toOfferBit(Offer o) {
+        if (o == null) return null;
+        // Don't surface DRAFT offers — the staff is still editing; the candidate
+        // doesn't see them anywhere else and shouldn't see them here either.
+        if (o.getStatus() == OfferStatus.DRAFT) return null;
+        return ApplicationJourneyResponse.OfferBit.builder()
+                .id(o.getId())
+                .status(o.getStatus() != null ? o.getStatus().name() : null)
+                .expiresAt(o.getExpiresAt())
+                .decidedAt(o.getRespondedAt())
+                .build();
+    }
+
+    private ApplicationJourneyResponse.ActionNeeded pickActionNeeded(
+            ApplicationStatus status, Offer latestOffer) {
+        // Live offer is the only universally-actionable thing on this view.
+        if (latestOffer != null
+                && latestOffer.getStatus() == OfferStatus.SENT
+                && (latestOffer.getExpiresAt() == null
+                        || latestOffer.getExpiresAt().isAfter(Instant.now()))) {
+            return ApplicationJourneyResponse.ActionNeeded.builder()
+                    .label("Respond to offer")
+                    .href("/careers/candidate/offers/" + latestOffer.getId())
+                    .build();
+        }
+        return null;
+    }
+
+    private int stageIndex(ApplicationStatus s) {
+        if (s == null) return 0;
+        return switch (s) {
+            case APPLIED -> 0;
+            case SHORTLISTED -> 1;
+            case INTERVIEW_SCHEDULED, INTERVIEWED -> 2;
+            case OFFERED, ACCEPTED -> 3;
+            case ONBOARDING, ACTIVE, HIRED, COMPLETED -> 4;
+            default -> -1;
+        };
+    }
+
+}
