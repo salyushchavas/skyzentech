@@ -42,6 +42,17 @@ public interface ApplicationRepository
     @Query("SELECT COUNT(DISTINCT a.candidate.id) FROM Application a WHERE a.status = :status")
     long countDistinctCandidatesByStatus(@Param("status") ApplicationStatus status);
 
+    /**
+     * Batch applicant-count lookup for the admin postings page. Returns one
+     * row per posting that has at least one application: {@code [postingId, count]}.
+     * Postings with zero applications are absent from the result — callers
+     * fill those in as 0. One query, O(1) for any page size.
+     */
+    @Query("SELECT a.jobPosting.id, COUNT(a) FROM Application a " +
+            "WHERE a.jobPosting.id IN :postingIds " +
+            "GROUP BY a.jobPosting.id")
+    List<Object[]> countByJobPostingIdIn(@Param("postingIds") java.util.Collection<UUID> postingIds);
+
     @Query("SELECT a FROM Application a " +
             "WHERE (:status IS NULL OR a.status = :status) " +
             "AND (:jobPostingId IS NULL OR a.jobPosting.id = :jobPostingId)")

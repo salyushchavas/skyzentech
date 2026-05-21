@@ -40,14 +40,24 @@ public class JobPostingController {
         return PagedResponse.of(jobPostingService.listOpenForCandidate(user, pageable));
     }
 
+    /**
+     * Admin / ERM postings list. Optional filters: {@code search} (title or
+     * description, case-insensitive), {@code status}, {@code entityId}.
+     * Response items carry {@code applicantCount} so the admin table can
+     * surface counts without an extra round-trip.
+     */
     @GetMapping("/admin/all")
     @PreAuthorize("hasAnyRole('ADMIN', 'ERM')")
     public PagedResponse<JobPostingResponse> listAll(
+            @RequestParam(required = false) String search,
+            @RequestParam(required = false) com.skyzen.careers.enums.JobPostingStatus status,
+            @RequestParam(required = false) UUID entityId,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size) {
         Pageable pageable = PageRequest.of(Math.max(0, page), Math.min(100, Math.max(1, size)),
                 Sort.by(Sort.Direction.DESC, "createdAt"));
-        return PagedResponse.of(jobPostingService.listAll(pageable));
+        return PagedResponse.of(
+                jobPostingService.listAllForAdmin(search, status, entityId, pageable));
     }
 
     @GetMapping("/{idOrSlug}")

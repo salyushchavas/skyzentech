@@ -61,6 +61,13 @@ export interface JobPostingResponse {
   applied?: boolean;
   applicationId?: Uuid;
   applicationStatus?: ApplicationStatus | string;
+  /**
+   * Populated by the admin postings list endpoint. Defaults to 0 elsewhere
+   * so non-admin views can ignore it.
+   */
+  applicantCount?: number;
+  /** Owning StaffingEntity id; populated wherever {@code entityName} is. */
+  entityId?: Uuid;
 }
 
 // Paged envelope returned by every list endpoint. The backend returns a custom

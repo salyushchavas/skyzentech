@@ -36,4 +36,13 @@ public class JobPostingResponse {
     private UUID applicationId;
     /** Real {@code ApplicationStatus} enum name, or null. */
     private String applicationStatus;
+
+    /**
+     * Total applications received for this posting. Populated by admin/staff
+     * list endpoints; defaults to 0 elsewhere so public callers can ignore it.
+     */
+    private long applicantCount;
+
+    /** UUID of the StaffingEntity owning this posting; null when unknown. */
+    private UUID entityId;
 }

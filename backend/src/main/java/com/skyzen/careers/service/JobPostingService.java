@@ -103,7 +103,47 @@ public class JobPostingService {
 
     @Transactional(readOnly = true)
     public Page<JobPostingResponse> listAll(Pageable pageable) {
-        return jobPostingRepository.findAll(pageable).map(this::toResponse);
+        return listAllForAdmin(null, null, null, pageable);
+    }
+
+    /**
+     * Admin / ERM list for the postings management page. Composes optional
+     * {@code search} (matches title OR description), {@code status}, and
+     * {@code entityId} filters via a JPA Specification, then batch-loads
+     * applicant counts in a single query so the page is O(1) regardless of
+     * page size — no per-row count lookups.
+     */
+    @Transactional(readOnly = true)
+    public Page<JobPostingResponse> listAllForAdmin(String search,
+                                                    JobPostingStatus status,
+                                                    UUID entityId,
+                                                    Pageable pageable) {
+        Page<JobPosting> page = jobPostingRepository.findAll(
+                com.skyzen.careers.repository.JobPostingSpecifications.withFilters(
+                        search, status, entityId),
+                pageable);
+        if (page.isEmpty()) {
+            return page.map(this::toResponse);
+        }
+
+        // Batch applicant counts: one JPQL GROUP BY query for every posting
+        // id on this page. Postings with zero applications won't appear in
+        // the result, so we default-fill them as 0 below.
+        java.util.List<java.util.UUID> postingIds = page.getContent().stream()
+                .map(JobPosting::getId)
+                .toList();
+        java.util.Map<UUID, Long> countById = new java.util.HashMap<>();
+        for (Object[] row : applicationRepository.countByJobPostingIdIn(postingIds)) {
+            UUID pid = (UUID) row[0];
+            Long count = ((Number) row[1]).longValue();
+            countById.put(pid, count);
+        }
+
+        return page.map(p -> {
+            JobPostingResponse r = toResponse(p);
+            r.setApplicantCount(countById.getOrDefault(p.getId(), 0L));
+            return r;
+        });
     }
 
     @Transactional(readOnly = true)
@@ -240,6 +280,7 @@ public class JobPostingService {
                 .employmentType(p.getEmploymentType())
                 .status(p.getStatus())
                 .entityName(p.getEntity() != null ? p.getEntity().getName() : null)
+                .entityId(p.getEntity() != null ? p.getEntity().getId() : null)
                 .publishedAt(p.getPublishedAt())
                 .createdAt(p.getCreatedAt())
                 .build();
