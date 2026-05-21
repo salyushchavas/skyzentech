@@ -44,4 +44,19 @@ public interface AuditLogRepository extends JpaRepository<AuditLog, UUID> {
     /** Distinct {@code action} values present in the log, for the filter dropdown. */
     @Query("SELECT DISTINCT a.action FROM AuditLog a ORDER BY a.action ASC")
     List<String> findDistinctActions();
+
+    /**
+     * Recent audit entries restricted to a set of entity ids — used by the
+     * candidate dashboard to assemble "recent activity" across the caller's
+     * own applications/offers/interviews without leaking other users' rows.
+     * Pass {@code Pageable.ofSize(N)} to cap the result count. Returns an
+     * empty list when {@code entityIds} is empty (handled by the caller).
+     */
+    @Query("SELECT a FROM AuditLog a " +
+            "WHERE a.entityType = :entityType " +
+            "AND a.entityId IN :entityIds " +
+            "ORDER BY a.timestamp DESC")
+    List<AuditLog> findRecentForEntityIds(@Param("entityType") String entityType,
+                                          @Param("entityIds") Collection<UUID> entityIds,
+                                          Pageable pageable);
 }
