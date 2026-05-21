@@ -40,6 +40,16 @@ public class User {
     @Builder.Default
     private Set<UserRole> roles = new HashSet<>();
 
+    /**
+     * Active accounts can log in; deactivated accounts are rejected at the
+     * auth layer. Defaults to TRUE for new users. The Postgres column has
+     * {@code NOT NULL DEFAULT TRUE} so existing rows backfill cleanly when
+     * the column is first added (see {@code SchemaFixupRunner}).
+     */
+    @Column(nullable = false, columnDefinition = "boolean not null default true")
+    @Builder.Default
+    private Boolean active = true;
+
     @Column(nullable = false, updatable = false)
     private Instant createdAt;
 

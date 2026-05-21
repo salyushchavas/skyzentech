@@ -33,7 +33,20 @@ public class SchemaFixupRunner implements CommandLineRunner {
                     "ALTER TABLE applications DROP CONSTRAINT IF EXISTS applications_status_check");
             log.info("Dropped stale applications_status_check (if present).");
         } catch (Exception e) {
-            log.warn("Schema fixup failed (non-fatal): {}", e.getMessage(), e);
+            log.warn("applications_status_check drop failed (non-fatal): {}", e.getMessage(), e);
+        }
+
+        try {
+            // Adds the `users.active` column on existing databases. Hibernate's
+            // ddl-auto=update can't add a NOT NULL column to a table with rows
+            // unless the DDL also supplies a DEFAULT — we do that here before
+            // Hibernate's schema validation runs, so existing users keep working.
+            // Idempotent: ADD COLUMN IF NOT EXISTS is a no-op the second time.
+            jdbcTemplate.execute(
+                    "ALTER TABLE users ADD COLUMN IF NOT EXISTS active BOOLEAN NOT NULL DEFAULT TRUE");
+            log.info("Ensured users.active column exists (default TRUE).");
+        } catch (Exception e) {
+            log.warn("users.active column ensure failed (non-fatal): {}", e.getMessage(), e);
         }
     }
 }

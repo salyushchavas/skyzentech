@@ -53,7 +53,10 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 Claims claims = jwtUtil.parseToken(token);
                 UUID userId = jwtUtil.extractUserId(claims);
                 Optional<User> userOpt = userRepository.findById(userId);
-                if (userOpt.isPresent()) {
+                if (userOpt.isPresent() && !Boolean.FALSE.equals(userOpt.get().getActive())) {
+                    // Skip authentication for deactivated users — their old JWTs
+                    // still parse but should not grant access. Downstream code
+                    // sees no SecurityContext, so @PreAuthorize rejects with 401/403.
                     User user = userOpt.get();
                     List<SimpleGrantedAuthority> authorities = user.getRoles().stream()
                             .map(r -> new SimpleGrantedAuthority("ROLE_" + r.name()))

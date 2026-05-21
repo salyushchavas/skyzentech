@@ -26,9 +26,18 @@ public class CustomUserDetailsService implements UserDetailsService {
                 .map(r -> new SimpleGrantedAuthority("ROLE_" + r.name()))
                 .toList();
 
+        // Pass {@code enabled = user.active} so any code path that runs through
+        // AuthenticationManager (e.g. future form-login or 2FA flows) gets a
+        // DisabledException for deactivated accounts. The current direct-login
+        // path in AuthService.login also checks active explicitly.
+        boolean enabled = !Boolean.FALSE.equals(user.getActive());
         return new org.springframework.security.core.userdetails.User(
                 user.getEmail(),
                 user.getPasswordHash(),
+                enabled,
+                true,
+                true,
+                true,
                 authorities
         );
     }

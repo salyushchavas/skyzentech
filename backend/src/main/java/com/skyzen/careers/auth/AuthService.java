@@ -70,6 +70,14 @@ public class AuthService {
             throw new AuthException(HttpStatus.UNAUTHORIZED, "Invalid credentials");
         }
         User user = userOpt.get();
+        // Reject deactivated accounts at the login boundary. We use 401 rather
+        // than 403 so a deactivated account behaves the same as a wrong-password
+        // attempt — clients don't get an oracle that distinguishes "real account"
+        // from "real account, just locked".
+        if (Boolean.FALSE.equals(user.getActive())) {
+            log.warn("Login blocked for deactivated user: {}", user.getEmail());
+            throw new AuthException(HttpStatus.UNAUTHORIZED, "Invalid credentials");
+        }
         log.info("User logged in: {}", user.getEmail());
         return toAuthResponse(user);
     }
