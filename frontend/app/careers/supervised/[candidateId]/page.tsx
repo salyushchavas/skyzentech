@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { useCallback, useEffect, useState } from 'react';
-import { ArrowLeft, ClipboardList, Plus } from 'lucide-react';
+import { ArrowLeft, ClipboardList, Clock, Plus } from 'lucide-react';
 import api from '@/lib/api';
 import { formatDateOnly } from '@/lib/format-date';
 import ProtectedRoute from '@/components/ProtectedRoute';
@@ -26,7 +26,7 @@ interface AssignmentResponse {
   id: Uuid;
   title: string;
   description: string | null;
-  weekOf: string; // LocalDate ISO
+  weekOf: string;
   dueDate: string;
   status: AssignmentStatus;
   submissionText: string | null;
@@ -36,6 +36,78 @@ interface AssignmentResponse {
   reviewedAt: string | null;
   assignedByName: string | null;
   createdAt: string;
+}
+
+type TimesheetStatus = 'DRAFT' | 'SUBMITTED' | 'APPROVED' | 'REJECTED';
+
+interface TimesheetResponse {
+  id: Uuid;
+  weekStart: string;
+  hours: number | string;
+  description: string | null;
+  status: TimesheetStatus;
+  approvedByName: string | null;
+  approvedAt: string | null;
+  reviewNote: string | null;
+  createdAt: string;
+}
+
+interface TimesheetListResponse {
+  entries: TimesheetResponse[];
+  totalApprovedHours: number | string;
+}
+
+const ASSIGNMENT_COLOR: Record<AssignmentStatus, string> = {
+  ASSIGNED: 'bg-blue-100 text-blue-800',
+  IN_PROGRESS: 'bg-amber-100 text-amber-800',
+  SUBMITTED: 'bg-purple-100 text-purple-800',
+  REVIEWED: 'bg-emerald-100 text-emerald-800',
+};
+
+const TIMESHEET_COLOR: Record<TimesheetStatus, string> = {
+  DRAFT: 'bg-gray-100 text-gray-700',
+  SUBMITTED: 'bg-purple-100 text-purple-800',
+  APPROVED: 'bg-emerald-100 text-emerald-800',
+  REJECTED: 'bg-red-100 text-red-800',
+};
+
+function AssignmentBadge({ status }: { status: AssignmentStatus }) {
+  return (
+    <span
+      className={
+        'inline-block whitespace-nowrap rounded-full px-2.5 py-0.5 text-xs font-medium ' +
+        ASSIGNMENT_COLOR[status]
+      }
+    >
+      {status === 'REVIEWED' ? 'Reviewed ✓' : status.replace('_', ' ')}
+    </span>
+  );
+}
+
+function TimesheetBadge({ status }: { status: TimesheetStatus }) {
+  const labels: Record<TimesheetStatus, string> = {
+    DRAFT: 'Draft',
+    SUBMITTED: 'Submitted',
+    APPROVED: 'Approved ✓',
+    REJECTED: 'Rejected',
+  };
+  return (
+    <span
+      className={
+        'inline-block whitespace-nowrap rounded-full px-2.5 py-0.5 text-xs font-medium ' +
+        TIMESHEET_COLOR[status]
+      }
+    >
+      {labels[status]}
+    </span>
+  );
+}
+
+function formatHours(h: number | string | null | undefined): string {
+  if (h === null || h === undefined) return '0';
+  const n = typeof h === 'number' ? h : Number(h);
+  if (Number.isNaN(n)) return String(h);
+  return n % 1 === 0 ? String(n) : n.toFixed(2);
 }
 
 export default function SupervisedInternDetailPage() {
@@ -48,36 +120,22 @@ export default function SupervisedInternDetailPage() {
   );
 }
 
-const STATUS_COLOR: Record<AssignmentStatus, string> = {
-  ASSIGNED: 'bg-blue-100 text-blue-800',
-  IN_PROGRESS: 'bg-amber-100 text-amber-800',
-  SUBMITTED: 'bg-purple-100 text-purple-800',
-  REVIEWED: 'bg-emerald-100 text-emerald-800',
-};
-
-function StatusBadge({ status }: { status: AssignmentStatus }) {
-  return (
-    <span
-      className={
-        'inline-block whitespace-nowrap rounded-full px-2.5 py-0.5 text-xs font-medium ' +
-        STATUS_COLOR[status]
-      }
-    >
-      {status === 'REVIEWED' ? 'Reviewed ✓' : status.replace('_', ' ')}
-    </span>
-  );
-}
-
 function InternDetail() {
   const params = useParams<{ candidateId: string }>();
   const candidateId = params?.candidateId;
 
   const [intern, setIntern] = useState<InternSummaryResponse | null>(null);
   const [internLoaded, setInternLoaded] = useState(false);
+
   const [assignments, setAssignments] = useState<AssignmentResponse[] | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [assignmentError, setAssignmentError] = useState<string | null>(null);
+  const [showNewAssignment, setShowNewAssignment] = useState(false);
+
+  const [timesheets, setTimesheets] = useState<TimesheetListResponse | null>(null);
+  const [timesheetError, setTimesheetError] = useState<string | null>(null);
+  const [rejecting, setRejecting] = useState<TimesheetResponse | null>(null);
+
   const [toast, setToast] = useState<string | null>(null);
-  const [showNew, setShowNew] = useState(false);
 
   const loadIntern = useCallback(async () => {
     if (!candidateId) return;
@@ -94,65 +152,91 @@ function InternDetail() {
 
   const loadAssignments = useCallback(async () => {
     if (!candidateId) return;
-    setError(null);
+    setAssignmentError(null);
     try {
       const res = await api.get<AssignmentResponse[]>(
         `/api/v1/supervised/interns/${candidateId}/assignments`,
       );
       setAssignments(res.data ?? []);
     } catch (err: any) {
-      const msg = err?.response?.data?.error ?? "Couldn't load assignments.";
-      setError(msg);
+      setAssignmentError(err?.response?.data?.error ?? "Couldn't load assignments.");
       setAssignments([]);
+    }
+  }, [candidateId]);
+
+  const loadTimesheets = useCallback(async () => {
+    if (!candidateId) return;
+    setTimesheetError(null);
+    try {
+      const res = await api.get<TimesheetListResponse>(
+        `/api/v1/supervised/interns/${candidateId}/timesheets`,
+      );
+      setTimesheets(res.data ?? { entries: [], totalApprovedHours: 0 });
+    } catch (err: any) {
+      setTimesheetError(err?.response?.data?.error ?? "Couldn't load timesheets.");
+      setTimesheets({ entries: [], totalApprovedHours: 0 });
     }
   }, [candidateId]);
 
   useEffect(() => {
     void loadIntern();
     void loadAssignments();
-  }, [loadIntern, loadAssignments]);
+    void loadTimesheets();
+  }, [loadIntern, loadAssignments, loadTimesheets]);
 
-  // Auto-dismiss toast.
   useEffect(() => {
     if (!toast) return;
     const t = window.setTimeout(() => setToast(null), 3000);
     return () => window.clearTimeout(t);
   }, [toast]);
 
-  return (
-    <section>
-      <Link
-        href="/careers/supervised"
-        className="mb-4 inline-flex items-center gap-1 text-sm text-gray-600 hover:text-gray-900"
-      >
-        <ArrowLeft className="h-4 w-4" />
-        Back to Supervised Interns
-      </Link>
+  const approveTimesheet = async (t: TimesheetResponse) => {
+    try {
+      await api.post(`/api/v1/supervised/timesheets/${t.id}/approve`);
+      setToast('Timesheet approved.');
+      void loadTimesheets();
+    } catch (err: any) {
+      setToast(err?.response?.data?.error ?? 'Could not approve.');
+    }
+  };
 
-      <header className="mb-6">
-        <h1 className="text-2xl font-semibold text-slate-900">
-          {intern?.name ?? (internLoaded ? 'Intern not found' : 'Loading…')}
-        </h1>
-        {intern?.position ? (
-          <p className="mt-1 text-sm text-slate-600">
-            {intern.position}
-            {intern.entityName ? <> · {intern.entityName}</> : null}
-          </p>
-        ) : null}
-      </header>
+  return (
+    <section className="space-y-8">
+      <div>
+        <Link
+          href="/careers/supervised"
+          className="mb-4 inline-flex items-center gap-1 text-sm text-gray-600 hover:text-gray-900"
+        >
+          <ArrowLeft className="h-4 w-4" />
+          Back to Supervised Interns
+        </Link>
+
+        <header>
+          <h1 className="text-2xl font-semibold text-slate-900">
+            {intern?.name ?? (internLoaded ? 'Intern not found' : 'Loading…')}
+          </h1>
+          {intern?.position ? (
+            <p className="mt-1 text-sm text-slate-600">
+              {intern.position}
+              {intern.entityName ? <> · {intern.entityName}</> : null}
+            </p>
+          ) : null}
+        </header>
+      </div>
 
       {toast && (
-        <div className="mb-4 rounded border border-emerald-200 bg-emerald-50 px-4 py-2 text-sm text-emerald-800">
+        <div className="rounded border border-emerald-200 bg-emerald-50 px-4 py-2 text-sm text-emerald-800">
           {toast}
         </div>
       )}
 
+      {/* Assignments */}
       <div className="rounded-lg border border-gray-200 bg-white p-6">
         <div className="mb-4 flex items-center justify-between">
           <h2 className="text-lg font-semibold text-gray-900">Assignments</h2>
           <button
             type="button"
-            onClick={() => setShowNew(true)}
+            onClick={() => setShowNewAssignment(true)}
             className="inline-flex items-center gap-1.5 rounded-md bg-accent px-3 py-1.5 text-sm font-medium text-white hover:bg-accent/90"
           >
             <Plus className="h-4 w-4" />
@@ -160,9 +244,9 @@ function InternDetail() {
           </button>
         </div>
 
-        {error && (
+        {assignmentError && (
           <div className="mb-4 rounded border border-red-200 bg-red-50 p-3 text-sm text-red-700">
-            {error}
+            {assignmentError}
           </div>
         )}
 
@@ -189,14 +273,107 @@ function InternDetail() {
         )}
       </div>
 
-      {showNew && candidateId && (
+      {/* Timesheets */}
+      <div className="rounded-lg border border-gray-200 bg-white p-6">
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+          <h2 className="text-lg font-semibold text-gray-900">Timesheets</h2>
+          <div className="text-sm text-gray-500">
+            Total approved:{' '}
+            <span className="font-medium text-gray-900">
+              {formatHours(timesheets?.totalApprovedHours ?? 0)} hrs
+            </span>
+          </div>
+        </div>
+
+        {timesheetError && (
+          <div className="mb-4 rounded border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+            {timesheetError}
+          </div>
+        )}
+
+        {timesheets === null ? (
+          <div className="py-8 text-center text-sm text-gray-500">Loading…</div>
+        ) : timesheets.entries.length === 0 ? (
+          <div className="rounded-lg border border-dashed border-gray-300 bg-gray-50 p-8 text-center">
+            <Clock className="mx-auto mb-3 h-8 w-8 text-gray-400" strokeWidth={1.5} />
+            <p className="text-sm text-gray-600">No timesheets logged yet.</p>
+          </div>
+        ) : (
+          <ul className="space-y-3">
+            {timesheets.entries.map((t) => (
+              <li key={t.id} className="rounded-lg border border-gray-200 bg-white p-4">
+                <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
+                  <div className="font-semibold text-gray-900">
+                    Week of {formatDateOnly(t.weekStart)} ·{' '}
+                    <span className="font-normal text-gray-700">{formatHours(t.hours)} hrs</span>
+                  </div>
+                  <TimesheetBadge status={t.status} />
+                </div>
+                {t.description && (
+                  <p className="mt-2 whitespace-pre-wrap text-sm text-gray-700">{t.description}</p>
+                )}
+
+                {t.status === 'APPROVED' && (
+                  <div className="mt-2 text-xs text-gray-500">
+                    Approved
+                    {t.approvedByName ? <> by {t.approvedByName}</> : null}
+                    {t.approvedAt ? <> · {formatDateOnly(t.approvedAt)}</> : null}
+                  </div>
+                )}
+
+                {t.status === 'REJECTED' && t.reviewNote && (
+                  <div className="mt-3 rounded border border-red-200 bg-red-50 p-3 text-sm text-red-800">
+                    <div className="mb-1 text-xs font-semibold uppercase tracking-wide text-red-700">
+                      Reason
+                    </div>
+                    <p className="whitespace-pre-wrap">{t.reviewNote}</p>
+                  </div>
+                )}
+
+                {t.status === 'SUBMITTED' && (
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      onClick={() => void approveTimesheet(t)}
+                      className="rounded-md bg-emerald-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-emerald-700"
+                    >
+                      Approve ✓
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setRejecting(t)}
+                      className="rounded-md border border-red-300 bg-white px-3 py-1.5 text-sm font-medium text-red-700 hover:bg-red-50"
+                    >
+                      Reject ✗
+                    </button>
+                  </div>
+                )}
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+
+      {showNewAssignment && candidateId && (
         <NewAssignmentModal
           candidateId={candidateId}
-          onClose={() => setShowNew(false)}
+          onClose={() => setShowNewAssignment(false)}
           onCreated={() => {
-            setShowNew(false);
+            setShowNewAssignment(false);
             setToast('Assignment created.');
             void loadAssignments();
+          }}
+        />
+      )}
+
+      {rejecting && (
+        <RejectTimesheetModal
+          timesheet={rejecting}
+          onClose={() => setRejecting(null)}
+          onRejected={() => {
+            setRejecting(null);
+            setToast('Timesheet rejected.');
+            void loadTimesheets();
           }}
         />
       )}
@@ -251,7 +428,7 @@ function AssignmentRow({
         >
           {assignment.title}
         </button>
-        <StatusBadge status={assignment.status} />
+        <AssignmentBadge status={assignment.status} />
       </div>
       <div className="text-xs text-gray-500">
         Week of {formatDateOnly(assignment.weekOf)} · Due {formatDateOnly(assignment.dueDate)}
@@ -318,9 +495,7 @@ function AssignmentRow({
                 placeholder="Review note for the intern…"
                 className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
               />
-              {reviewError && (
-                <div className="text-xs text-red-600">{reviewError}</div>
-              )}
+              {reviewError && <div className="text-xs text-red-600">{reviewError}</div>}
               <div className="flex gap-2">
                 <button
                   type="button"
@@ -461,6 +636,82 @@ function NewAssignmentModal({
             className="rounded-md bg-accent px-4 py-2 text-sm font-medium text-white hover:bg-accent/90 disabled:opacity-60"
           >
             {submitting ? 'Creating…' : 'Create'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function RejectTimesheetModal({
+  timesheet,
+  onClose,
+  onRejected,
+}: {
+  timesheet: TimesheetResponse;
+  onClose: () => void;
+  onRejected: () => void;
+}) {
+  const [reason, setReason] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+
+  const submit = async () => {
+    if (!reason.trim()) {
+      setError('A reason is required.');
+      return;
+    }
+    setSubmitting(true);
+    setError(null);
+    try {
+      await api.post(`/api/v1/supervised/timesheets/${timesheet.id}/reject`, {
+        reason: reason.trim(),
+      });
+      onRejected();
+    } catch (err: any) {
+      setError(err?.response?.data?.error ?? 'Could not reject the timesheet.');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+      role="dialog"
+      aria-modal="true"
+    >
+      <div className="w-full max-w-md rounded-lg bg-white p-6 shadow-xl">
+        <h3 className="mb-1 text-lg font-semibold text-gray-900">Reject timesheet</h3>
+        <p className="mb-4 text-xs text-gray-500">
+          Week of {formatDateOnly(timesheet.weekStart)} · {formatHours(timesheet.hours)} hrs
+        </p>
+        <label className="mb-1 block text-sm font-medium text-gray-700">
+          Reason <span className="text-red-500">*</span>
+        </label>
+        <textarea
+          value={reason}
+          onChange={(e) => setReason(e.target.value)}
+          rows={3}
+          className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
+          placeholder="Hours don't match the assignment…"
+        />
+        {error && <div className="mt-2 text-sm text-red-600">{error}</div>}
+        <div className="mt-5 flex justify-end gap-2">
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-md border border-gray-300 bg-white px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={submit}
+            disabled={submitting}
+            className="rounded-md bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-60"
+          >
+            {submitting ? 'Rejecting…' : 'Reject'}
           </button>
         </div>
       </div>

@@ -54,6 +54,10 @@ public class Timesheet {
     @Column(name = "approved_at")
     private Instant approvedAt;
 
+    /** Free-text reason when the reviewer rejects the timesheet. Null otherwise. */
+    @Column(name = "review_note", columnDefinition = "TEXT")
+    private String reviewNote;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
 
