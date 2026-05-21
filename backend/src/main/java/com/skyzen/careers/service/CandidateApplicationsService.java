@@ -1,5 +1,6 @@
 package com.skyzen.careers.service;
 
+import com.skyzen.careers.application.ApplicationLifecycle;
 import com.skyzen.careers.dto.candidate.ApplicationJourneyResponse;
 import com.skyzen.careers.entity.Application;
 import com.skyzen.careers.entity.AuditLog;
@@ -25,7 +26,6 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.Instant;
 import java.util.Collections;
 import java.util.Comparator;
-import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -48,12 +48,6 @@ import java.util.stream.Collectors;
 @Service
 @RequiredArgsConstructor
 public class CandidateApplicationsService {
-
-    private static final Set<ApplicationStatus> EXIT_STATUSES = EnumSet.of(
-            ApplicationStatus.REJECTED,
-            ApplicationStatus.WITHDRAWN,
-            ApplicationStatus.LAPSED,
-            ApplicationStatus.NO_SHOW);
 
     /** Audit log fetch is bounded — even very chatty candidates won't exceed this. */
     private static final int AUDIT_FETCH_CAP = 200;
@@ -123,8 +117,8 @@ public class CandidateApplicationsService {
                                                  List<Offer> offers,
                                                  Instant shortlistedAt) {
         ApplicationStatus status = a.getStatus();
-        boolean exited = status != null && EXIT_STATUSES.contains(status);
-        int stage = exited ? -1 : stageIndex(status);
+        boolean exited = ApplicationLifecycle.isExited(status);
+        int stage = exited ? -1 : ApplicationLifecycle.stageIndexOf(status);
         JobPosting jp = a.getJobPosting();
         StaffingEntity ent = jp != null ? jp.getEntity() : null;
 
@@ -199,18 +193,6 @@ public class CandidateApplicationsService {
                     .build();
         }
         return null;
-    }
-
-    private int stageIndex(ApplicationStatus s) {
-        if (s == null) return 0;
-        return switch (s) {
-            case APPLIED -> 0;
-            case SHORTLISTED -> 1;
-            case INTERVIEW_SCHEDULED, INTERVIEWED -> 2;
-            case OFFERED, ACCEPTED -> 3;
-            case ONBOARDING, ACTIVE, HIRED, COMPLETED -> 4;
-            default -> -1;
-        };
     }
 
 }

@@ -1,5 +1,6 @@
 package com.skyzen.careers.service;
 
+import com.skyzen.careers.application.ApplicationLifecycle;
 import com.skyzen.careers.dto.candidate.CandidateDashboardResponse;
 import com.skyzen.careers.entity.Application;
 import com.skyzen.careers.entity.AuditLog;
@@ -59,13 +60,6 @@ import java.util.stream.Collectors;
 public class CandidateDashboardService {
 
     private static final int RECENT_ACTIVITY_LIMIT = 5;
-
-    /** Statuses that count as "still in the funnel" for nextStep priority. */
-    private static final Set<ApplicationStatus> EXIT_STATUSES = EnumSet.of(
-            ApplicationStatus.REJECTED,
-            ApplicationStatus.WITHDRAWN,
-            ApplicationStatus.LAPSED,
-            ApplicationStatus.NO_SHOW);
 
     private final CandidateRepository candidateRepository;
     private final ApplicationRepository applicationRepository;
@@ -152,8 +146,8 @@ public class CandidateDashboardService {
     private CandidateDashboardResponse.ApplicationSummary toApplicationSummary(Application a) {
         JobPosting jp = a.getJobPosting();
         StaffingEntity ent = jp != null ? jp.getEntity() : null;
-        boolean exited = a.getStatus() != null && EXIT_STATUSES.contains(a.getStatus());
-        int stage = exited ? -1 : stageIndex(a.getStatus());
+        boolean exited = ApplicationLifecycle.isExited(a.getStatus());
+        int stage = exited ? -1 : ApplicationLifecycle.stageIndexOf(a.getStatus());
         return CandidateDashboardResponse.ApplicationSummary.builder()
                 .id(a.getId())
                 .position(jp != null ? jp.getTitle() : null)
@@ -162,19 +156,6 @@ public class CandidateDashboardService {
                 .stageIndex(stage)
                 .isExited(exited)
                 .build();
-    }
-
-    private int stageIndex(ApplicationStatus s) {
-        if (s == null) return 0;
-        return switch (s) {
-            case APPLIED -> 0;
-            case SHORTLISTED -> 1;
-            case INTERVIEW_SCHEDULED, INTERVIEWED -> 2;
-            case OFFERED, ACCEPTED -> 3;
-            case ONBOARDING, ACTIVE, HIRED, COMPLETED -> 4;
-            // Exit statuses are filtered upstream; default keeps the compiler happy.
-            default -> -1;
-        };
     }
 
     private int percentFilled(boolean... flags) {
@@ -194,7 +175,7 @@ public class CandidateDashboardService {
             int profileComplete) {
 
         List<Application> activeApps = apps.stream()
-                .filter(a -> a.getStatus() == null || !EXIT_STATUSES.contains(a.getStatus()))
+                .filter(a -> !ApplicationLifecycle.isExited(a.getStatus()))
                 .toList();
 
         // 1. Live SENT offer — the most time-sensitive thing on the dashboard.
@@ -276,7 +257,7 @@ public class CandidateDashboardService {
 
         // 5. Furthest non-exited application below the offer/interview tier.
         Application furthest = activeApps.stream()
-                .max(Comparator.comparingInt(a -> stageIndex(a.getStatus())))
+                .max(Comparator.comparingInt(a -> ApplicationLifecycle.stageIndexOf(a.getStatus())))
                 .orElse(null);
         if (furthest != null) {
             String position = furthest.getJobPosting() != null
