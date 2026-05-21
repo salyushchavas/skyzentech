@@ -61,6 +61,21 @@ interface EvaluationSessionResponse {
   createdAt: string;
 }
 
+interface SupervisedOverviewResponse {
+  totalApprovedHours: number | string | null;
+  openAssignments: number | null;
+  reviewedAssignments: number | null;
+  nextEvaluation: {
+    scheduledAt: string | null;
+    evaluatorName: string | null;
+  } | null;
+  latestEvaluation: {
+    overallRating: number | null;
+    completedAt: string | null;
+  } | null;
+  evaluatorName: string | null;
+}
+
 const ASSIGNMENT_COLOR: Record<AssignmentStatus, string> = {
   ASSIGNED: 'bg-blue-100 text-blue-800',
   IN_PROGRESS: 'bg-amber-100 text-amber-800',
@@ -181,6 +196,9 @@ function MyWorkList() {
   const [sessions, setSessions] = useState<EvaluationSessionResponse[] | null>(null);
   const [sessionError, setSessionError] = useState<string | null>(null);
 
+  const [overview, setOverview] = useState<SupervisedOverviewResponse | null>(null);
+  const [overviewError, setOverviewError] = useState<string | null>(null);
+
   const loadAssignments = useCallback(async () => {
     setAssignmentError(null);
     try {
@@ -214,11 +232,23 @@ function MyWorkList() {
     }
   }, []);
 
+  const loadOverview = useCallback(async () => {
+    setOverviewError(null);
+    try {
+      const res = await api.get<SupervisedOverviewResponse>('/api/v1/supervised/my/overview');
+      setOverview(res.data ?? null);
+    } catch (err: any) {
+      setOverviewError(err?.response?.data?.error ?? "Couldn't load your overview.");
+      setOverview(null);
+    }
+  }, []);
+
   useEffect(() => {
     void loadAssignments();
     void loadTimesheets();
     void loadSessions();
-  }, [loadAssignments, loadTimesheets, loadSessions]);
+    void loadOverview();
+  }, [loadAssignments, loadTimesheets, loadSessions, loadOverview]);
 
   useEffect(() => {
     if (!toast) return;
@@ -250,6 +280,10 @@ function MyWorkList() {
           {toast}
         </div>
       )}
+
+      {/* Summary header — at-a-glance overview. Renders zeros + "—" cleanly
+          for candidates with no hired-intern data. */}
+      <OverviewHeader overview={overview} error={overviewError} />
 
       {/* Assignments */}
       <div>
@@ -532,6 +566,91 @@ function MyWorkList() {
         />
       )}
     </section>
+  );
+}
+
+function OverviewHeader({
+  overview,
+  error,
+}: {
+  overview: SupervisedOverviewResponse | null;
+  error: string | null;
+}) {
+  // Defensive UI: never assume the response shape is complete. Optional-chain
+  // everything; render "—" when a value is missing or null.
+  const totalApprovedHours = (() => {
+    const raw = overview?.totalApprovedHours;
+    if (raw === null || raw === undefined) return 0;
+    const n = typeof raw === 'number' ? raw : Number(raw);
+    return Number.isNaN(n) ? 0 : n;
+  })();
+  const openAssignments = overview?.openAssignments ?? 0;
+
+  const nextEvalDate = overview?.nextEvaluation?.scheduledAt ?? null;
+  const nextEvalEvaluator = overview?.nextEvaluation?.evaluatorName ?? null;
+  const latestRating = overview?.latestEvaluation?.overallRating ?? null;
+  const evaluatorName = overview?.evaluatorName ?? null;
+
+  if (error) {
+    return (
+      <div className="rounded border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+        {error}
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <StatCard
+          label="Approved hours"
+          value={overview === null ? '—' : `${formatHours(totalApprovedHours)} hrs`}
+        />
+        <StatCard
+          label="Open assignments"
+          value={overview === null ? '—' : String(openAssignments)}
+        />
+        <StatCard
+          label="Next eval"
+          value={overview === null || !nextEvalDate ? '—' : formatDateOnly(nextEvalDate)}
+          hint={nextEvalEvaluator ? `with ${nextEvalEvaluator}` : undefined}
+        />
+        <StatCard
+          label="Latest rating"
+          value={
+            overview === null || latestRating === null ? (
+              '—'
+            ) : (
+              <StarRow value={latestRating} />
+            )
+          }
+        />
+      </div>
+      <p className="mt-3 text-sm text-gray-600">
+        Evaluator:{' '}
+        <span className="font-medium text-gray-900">
+          {overview === null ? '—' : evaluatorName ?? '— unassigned'}
+        </span>
+      </p>
+    </div>
+  );
+}
+
+function StatCard({
+  label,
+  value,
+  hint,
+}: {
+  label: string;
+  value: React.ReactNode;
+  hint?: string;
+}) {
+  return (
+    <div className="rounded-lg border border-gray-200 bg-white p-4">
+      <div className="text-xs font-medium uppercase tracking-wide text-gray-500">{label}</div>
+      <div className="mt-1 text-lg font-semibold text-gray-900">{value}</div>
+      {hint && <div className="mt-0.5 text-xs text-gray-500">{hint}</div>}
+    </div>
   );
 }
 

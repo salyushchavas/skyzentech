@@ -49,4 +49,16 @@ public interface WorkAssignmentRepository extends JpaRepository<WorkAssignment, 
             "JOIN FETCH wa.assignedBy ab " +
             "WHERE wa.id = :id")
     Optional<WorkAssignment> findByIdWithGraph(@Param("id") UUID id);
+
+    /** Count of an intern's assignments that have NOT been REVIEWED yet. */
+    @Query("SELECT COUNT(wa) FROM WorkAssignment wa " +
+            "WHERE wa.intern.user.id = :userId " +
+            "AND wa.status <> com.skyzen.careers.enums.WorkAssignmentStatus.REVIEWED")
+    long countOpenForCandidateUser(@org.springframework.data.repository.query.Param("userId") UUID userId);
+
+    /** Count of REVIEWED assignments for an intern. */
+    @Query("SELECT COUNT(wa) FROM WorkAssignment wa " +
+            "WHERE wa.intern.user.id = :userId " +
+            "AND wa.status = com.skyzen.careers.enums.WorkAssignmentStatus.REVIEWED")
+    long countReviewedForCandidateUser(@org.springframework.data.repository.query.Param("userId") UUID userId);
 }
