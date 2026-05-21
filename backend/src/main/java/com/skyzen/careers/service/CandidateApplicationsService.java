@@ -18,6 +18,7 @@ import com.skyzen.careers.repository.AuditLogRepository;
 import com.skyzen.careers.repository.CandidateRepository;
 import com.skyzen.careers.repository.InterviewRepository;
 import com.skyzen.careers.repository.OfferRepository;
+import com.skyzen.careers.repository.ScreeningRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
@@ -57,6 +58,7 @@ public class CandidateApplicationsService {
     private final OfferRepository offerRepository;
     private final AuditLogRepository auditLogRepository;
     private final CandidateRepository candidateRepository;
+    private final ScreeningRepository screeningRepository;
 
     @Transactional(readOnly = true)
     public List<ApplicationJourneyResponse> listJourneyForCandidate(User caller) {
@@ -145,7 +147,7 @@ public class CandidateApplicationsService {
                         .build();
 
         ApplicationJourneyResponse.ActionNeeded action =
-                pickActionNeeded(status, latestOffer);
+                pickActionNeeded(a, latestOffer);
 
         return ApplicationJourneyResponse.builder()
                 .id(a.getId())
@@ -181,7 +183,7 @@ public class CandidateApplicationsService {
     }
 
     private ApplicationJourneyResponse.ActionNeeded pickActionNeeded(
-            ApplicationStatus status, Offer latestOffer) {
+            Application application, Offer latestOffer) {
         // Live offer is the only universally-actionable thing on this view.
         if (latestOffer != null
                 && latestOffer.getStatus() == OfferStatus.SENT
@@ -191,6 +193,22 @@ public class CandidateApplicationsService {
                     .label("Respond to offer")
                     .href("/careers/candidate/offers/" + latestOffer.getId())
                     .build();
+        }
+        // Phase 2.1: surface the take-screening CTA when the recruiter has sent
+        // a screening that's still pending. Resolves the Screening id so the
+        // link goes straight to the questionnaire.
+        if (application != null
+                && application.getStatus() == ApplicationStatus.SCREENING_SENT) {
+            UUID screeningId = screeningRepository
+                    .findByApplicationIdWithGraph(application.getId())
+                    .map(s -> s.getId())
+                    .orElse(null);
+            if (screeningId != null) {
+                return ApplicationJourneyResponse.ActionNeeded.builder()
+                        .label("Complete screening")
+                        .href("/careers/screening/" + screeningId)
+                        .build();
+            }
         }
         return null;
     }

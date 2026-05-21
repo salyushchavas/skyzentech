@@ -22,6 +22,7 @@ import com.skyzen.careers.repository.InterviewRepository;
 import com.skyzen.careers.repository.OfferRepository;
 import com.skyzen.careers.repository.OnboardingTaskRepository;
 import com.skyzen.careers.repository.ResumeRepository;
+import com.skyzen.careers.repository.ScreeningRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
@@ -68,6 +69,7 @@ public class CandidateDashboardService {
     private final OnboardingTaskRepository onboardingTaskRepository;
     private final ResumeRepository resumeRepository;
     private final AuditLogRepository auditLogRepository;
+    private final ScreeningRepository screeningRepository;
 
     @Transactional(readOnly = true)
     public CandidateDashboardResponse build(User caller) {
@@ -202,7 +204,37 @@ public class CandidateDashboardService {
                     .build();
         }
 
-        // 2. Upcoming interview.
+        // 2. Screening sent — candidate needs to complete it before the
+        //    application can advance. Resolve the screening id so the CTA
+        //    deep-links to the take-screening page. If the lookup fails (a
+        //    stray SCREENING_SENT with no Screening row, which shouldn't
+        //    happen post-1.1b but we don't want a 500) we fall through.
+        Application withScreening = activeApps.stream()
+                .filter(a -> a.getStatus() == ApplicationStatus.SCREENING_SENT)
+                .findFirst()
+                .orElse(null);
+        if (withScreening != null) {
+            UUID screeningId = screeningRepository
+                    .findByApplicationIdWithGraph(withScreening.getId())
+                    .map(s -> s.getId())
+                    .orElse(null);
+            if (screeningId != null) {
+                String position = withScreening.getJobPosting() != null
+                        ? withScreening.getJobPosting().getTitle()
+                        : null;
+                return CandidateDashboardResponse.NextStep.builder()
+                        .type("SCREENING")
+                        .title(position != null
+                                ? "Complete screening — " + position
+                                : "Complete screening")
+                        .subtitle("A short questionnaire from the recruiter")
+                        .ctaLabel("Take screening")
+                        .ctaHref("/careers/screening/" + screeningId)
+                        .build();
+            }
+        }
+
+        // 3. Upcoming interview.
         Interview nextInterview = upcomingInterviews.stream().findFirst().orElse(null);
         if (nextInterview != null) {
             String position = nextInterview.getApplication() != null

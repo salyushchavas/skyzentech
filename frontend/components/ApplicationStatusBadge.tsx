@@ -6,6 +6,9 @@ interface Props {
 
 const COLOR_MAP: Record<string, string> = {
   APPLIED: 'bg-blue-100 text-blue-800',
+  // Phase 2.1 screening — visually grouped near Applied/Shortlisted band.
+  SCREENING_SENT: 'bg-sky-100 text-sky-800',
+  SCREENING_COMPLETED: 'bg-sky-100 text-sky-900',
   SHORTLISTED: 'bg-indigo-100 text-indigo-800',
   INTERVIEW_SCHEDULED: 'bg-purple-100 text-purple-800',
   INTERVIEWED: 'bg-violet-100 text-violet-800',

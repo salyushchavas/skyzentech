@@ -103,6 +103,9 @@ export interface Page<T> {
 
 export type ApplicationStatus =
   | 'APPLIED'
+  // Phase 2.1 — lightweight web screening sits between Applied and Shortlisted.
+  | 'SCREENING_SENT'
+  | 'SCREENING_COMPLETED'
   | 'SHORTLISTED'
   | 'INTERVIEW_SCHEDULED'
   | 'INTERVIEWED'
@@ -116,6 +119,72 @@ export type ApplicationStatus =
   | 'WITHDRAWN'
   | 'LAPSED'
   | 'NO_SHOW';
+
+// === Screening (phase 2.1) ===================================================
+
+export type ScreeningStatus = 'SENT' | 'COMPLETED';
+export type ScreeningQuestionType = 'SINGLE_CHOICE' | 'FREE_TEXT';
+
+export interface ScreeningSummaryResponse {
+  id: Uuid;
+  applicationId: Uuid;
+  status: ScreeningStatus;
+  sentAt: IsoDateTime;
+  completedAt?: IsoDateTime;
+  score?: number;
+  maxScore?: number;
+}
+
+export interface ScreeningCandidateResponse {
+  id: Uuid;
+  status: ScreeningStatus;
+  sentAt: IsoDateTime;
+  completedAt?: IsoDateTime;
+  jobPostingTitle?: string;
+  entityName?: string;
+  questions: Array<{
+    id: Uuid;
+    orderIndex: number;
+    type: ScreeningQuestionType;
+    prompt: string;
+    /** Present for SINGLE_CHOICE only; absent for FREE_TEXT. */
+    choices?: string[];
+  }>;
+}
+
+export interface ScreeningStaffResponse {
+  id: Uuid;
+  applicationId: Uuid;
+  status: ScreeningStatus;
+  sentAt: IsoDateTime;
+  completedAt?: IsoDateTime;
+  score?: number;
+  maxScore?: number;
+  candidateName?: string;
+  candidateEmail?: string;
+  jobPostingTitle?: string;
+  entityName?: string;
+  answers: Array<{
+    questionId: Uuid;
+    orderIndex: number;
+    type: ScreeningQuestionType;
+    prompt: string;
+    choices?: string[];
+    correctChoiceIndex?: number;
+    choiceIndex?: number;
+    freeText?: string;
+    points?: number;
+    awardedPoints?: number;
+  }>;
+}
+
+export interface ScreeningSubmitRequest {
+  answers: Array<{
+    questionId: Uuid;
+    choiceIndex?: number;
+    freeText?: string;
+  }>;
+}
 
 export interface ApplicationResponse {
   id: Uuid;

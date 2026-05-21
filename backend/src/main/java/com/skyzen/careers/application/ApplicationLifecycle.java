@@ -44,7 +44,10 @@ public final class ApplicationLifecycle {
         if (s == null) return 0;
         return switch (s) {
             case APPLIED -> 0;
-            case SHORTLISTED -> 1;
+            // Screening is a sub-stage of Shortlisted in the 5-stage stepper —
+            // the candidate has been picked out of "Applied" but not yet
+            // formally shortlisted, so band=1 keeps the visual progression honest.
+            case SCREENING_SENT, SCREENING_COMPLETED, SHORTLISTED -> 1;
             case INTERVIEW_SCHEDULED, INTERVIEWED -> 2;
             case OFFERED, ACCEPTED -> 3;
             case ONBOARDING, ACTIVE, HIRED, COMPLETED -> 4;
@@ -77,8 +80,23 @@ public final class ApplicationLifecycle {
      */
     public static final Map<ApplicationStatus, Set<ApplicationStatus>> LEGAL_TRANSITIONS = Map.ofEntries(
             Map.entry(ApplicationStatus.APPLIED, EnumSet.of(
+                    ApplicationStatus.SCREENING_SENT,
                     ApplicationStatus.SHORTLISTED,
                     ApplicationStatus.OFFERED,
+                    ApplicationStatus.REJECTED,
+                    ApplicationStatus.WITHDRAWN)),
+            // Phase 2.1 screening. SHORTLISTED is NOT reachable from
+            // SCREENING_SENT — the recruiter has to wait for completion (or
+            // explicitly reject/withdraw). Once completed, SHORTLISTED and
+            // INTERVIEW_SCHEDULED both become legal so staff can advance or
+            // skip the shortlist step entirely.
+            Map.entry(ApplicationStatus.SCREENING_SENT, EnumSet.of(
+                    ApplicationStatus.SCREENING_COMPLETED,
+                    ApplicationStatus.REJECTED,
+                    ApplicationStatus.WITHDRAWN)),
+            Map.entry(ApplicationStatus.SCREENING_COMPLETED, EnumSet.of(
+                    ApplicationStatus.SHORTLISTED,
+                    ApplicationStatus.INTERVIEW_SCHEDULED,
                     ApplicationStatus.REJECTED,
                     ApplicationStatus.WITHDRAWN)),
             Map.entry(ApplicationStatus.SHORTLISTED, EnumSet.of(

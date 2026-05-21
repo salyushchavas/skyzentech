@@ -8,10 +8,12 @@ import {
   Briefcase,
   Calendar,
   Check,
+  ClipboardList,
   Download,
   ExternalLink,
   Mail,
   MapPin,
+  Send,
   Star,
   X,
 } from 'lucide-react';
@@ -27,9 +29,15 @@ import type {
   ApplicationStatus,
   Page,
   RecruiterDecisionRequest,
+  ScreeningStaffResponse,
+  ScreeningSummaryResponse,
 } from '@/types';
 
+// Statuses where the Shortlist action is disabled. Includes SCREENING_SENT
+// because SCREENING_SENT -> SHORTLISTED is illegal in LEGAL_TRANSITIONS — the
+// candidate must complete the screening (or be rejected/withdrawn) first.
 const SHORTLIST_LOCKED: ReadonlyArray<ApplicationStatus> = [
+  'SCREENING_SENT',
   'SHORTLISTED',
   'INTERVIEW_SCHEDULED',
   'INTERVIEWED',
@@ -67,8 +75,13 @@ function Body() {
   // Decision panel state
   const [rating, setRating] = useState<number>(0);
   const [note, setNote] = useState<string>('');
-  const [busy, setBusy] = useState<'shortlist' | 'reject' | null>(null);
+  const [busy, setBusy] = useState<'shortlist' | 'reject' | 'send_screening' | null>(null);
   const [rejectOpen, setRejectOpen] = useState(false);
+
+  // Screening state. {screening} is the staff view (with score + answers when
+  // COMPLETED). Null while loading or when the app has no screening yet.
+  const [screening, setScreening] = useState<ScreeningStaffResponse | null>(null);
+  const [screeningChecked, setScreeningChecked] = useState(false);
 
   const load = useCallback(async () => {
     if (!id) return;
@@ -87,6 +100,18 @@ function Body() {
     } catch (err: any) {
       setError(err?.response?.data?.error ?? "Couldn't load this application.");
       setApp(null);
+    }
+    // Best-effort: a 404 here just means no screening has been sent yet,
+    // which is the common case for APPLIED. Don't bubble the error.
+    try {
+      const screeningRes = await api.get<ScreeningStaffResponse>(
+        `/api/v1/applications/${id}/screening`,
+      );
+      setScreening(screeningRes.data);
+    } catch {
+      setScreening(null);
+    } finally {
+      setScreeningChecked(true);
     }
   }, [id]);
 
@@ -111,6 +136,29 @@ function Body() {
     }
     return { applied, shortlisted, interviewed };
   }, [allApps]);
+
+  async function sendScreening() {
+    if (!app || busy) return;
+    setBusy('send_screening');
+    try {
+      const res = await api.post<ScreeningSummaryResponse>(
+        `/api/v1/applications/${app.id}/screening/send`,
+      );
+      // Re-fetch app + screening so the status badge + screening panel reflect
+      // the transition. The send is idempotent — if already sent, the panel
+      // simply re-renders with the existing screening.
+      await load();
+      toast.success(
+        res.data.status === 'COMPLETED'
+          ? 'Screening already completed by candidate.'
+          : 'Screening sent to candidate.',
+      );
+    } catch (err: any) {
+      toast.error(err?.response?.data?.error ?? "Couldn't send screening.");
+    } finally {
+      setBusy(null);
+    }
+  }
 
   async function callDecision(kind: 'shortlist' | 'reject') {
     if (!app || busy) return;
@@ -174,6 +222,9 @@ function Body() {
     app.status !== 'REJECTED' &&
     app.status !== 'WITHDRAWN';
   const canReject = app.status !== 'REJECTED';
+  // Screening is only legally sendable from APPLIED. Once SCREENING_SENT or
+  // beyond, the existing screening row is shown; the button is hidden.
+  const canSendScreening = app.status === 'APPLIED' && !screening;
 
   return (
     <>
@@ -198,7 +249,13 @@ function Body() {
         <MetaRow app={app} />
 
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1.4fr_1fr]">
-          <ResumeColumn app={app} />
+          <div className="space-y-4">
+            <ResumeColumn app={app} />
+            <ScreeningPanel
+              screening={screening}
+              checked={screeningChecked}
+            />
+          </div>
           <ActionPanel
             app={app}
             rating={rating}
@@ -207,9 +264,12 @@ function Body() {
             onNoteChange={setNote}
             canShortlist={canShortlist}
             canReject={canReject}
+            canSendScreening={canSendScreening}
+            screeningStatus={screening?.status ?? null}
             busy={busy}
             onShortlist={() => void callDecision('shortlist')}
             onRejectClick={() => setRejectOpen(true)}
+            onSendScreening={() => void sendScreening()}
           />
         </div>
       </div>
@@ -468,9 +528,12 @@ function ActionPanel({
   onNoteChange,
   canShortlist,
   canReject,
+  canSendScreening,
+  screeningStatus,
   busy,
   onShortlist,
   onRejectClick,
+  onSendScreening,
 }: {
   app: ApplicationResponse;
   rating: number;
@@ -479,12 +542,35 @@ function ActionPanel({
   onNoteChange: (v: string) => void;
   canShortlist: boolean;
   canReject: boolean;
-  busy: 'shortlist' | 'reject' | null;
+  canSendScreening: boolean;
+  screeningStatus: 'SENT' | 'COMPLETED' | null;
+  busy: 'shortlist' | 'reject' | 'send_screening' | null;
   onShortlist: () => void;
   onRejectClick: () => void;
+  onSendScreening: () => void;
 }) {
   return (
     <aside className="flex flex-col gap-3 rounded-md border border-gray-200 p-4">
+      {canSendScreening && (
+        <button
+          type="button"
+          onClick={onSendScreening}
+          disabled={busy !== null}
+          className="inline-flex w-full items-center justify-center gap-2 rounded-md border border-accent/30 bg-accent/5 px-4 py-2 text-sm font-semibold text-accent transition-colors hover:bg-accent/10 disabled:opacity-50"
+        >
+          {busy === 'send_screening' ? (
+            <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-accent border-t-transparent" />
+          ) : (
+            <Send className="h-4 w-4" strokeWidth={2} />
+          )}
+          Send screening
+        </button>
+      )}
+      {screeningStatus === 'SENT' && (
+        <p className="rounded-md border border-sky-200 bg-sky-50 px-3 py-2 text-xs text-sky-800">
+          Screening sent — waiting on the candidate.
+        </p>
+      )}
       <div>
         <label className="mb-1.5 block text-sm font-medium text-gray-900">
           Your rating
@@ -546,10 +632,106 @@ function ActionPanel({
         app.status !== 'REJECTED' &&
         app.status !== 'WITHDRAWN' && (
           <p className="text-xs text-gray-500">
-            This applicant is already past the shortlist stage.
+            {app.status === 'SCREENING_SENT'
+              ? 'Waiting on the candidate to complete the screening.'
+              : 'This applicant is already past the shortlist stage.'}
           </p>
         )}
     </aside>
+  );
+}
+
+// ── Screening panel ─────────────────────────────────────────────────────────
+
+function ScreeningPanel({
+  screening,
+  checked,
+}: {
+  screening: ScreeningStaffResponse | null;
+  checked: boolean;
+}) {
+  // Render nothing until the GET resolves so we don't flash "no screening yet"
+  // on first paint while the request is in flight.
+  if (!checked) return null;
+  if (!screening) return null;
+
+  return (
+    <section className="rounded-md border border-gray-200 bg-white p-4">
+      <header className="mb-3 flex items-center justify-between gap-3">
+        <div className="flex items-center gap-2">
+          <ClipboardList className="h-4 w-4 text-gray-500" strokeWidth={2} />
+          <h3 className="text-sm font-medium text-gray-900">Screening</h3>
+        </div>
+        {screening.status === 'COMPLETED' &&
+        typeof screening.score === 'number' &&
+        typeof screening.maxScore === 'number' ? (
+          <span className="rounded-full bg-emerald-100 px-2.5 py-0.5 text-xs font-semibold text-emerald-800">
+            Score: {screening.score} / {screening.maxScore}
+          </span>
+        ) : (
+          <span className="rounded-full bg-sky-100 px-2.5 py-0.5 text-xs font-medium text-sky-800">
+            Pending
+          </span>
+        )}
+      </header>
+
+      {screening.status === 'SENT' && (
+        <p className="text-xs text-gray-500">
+          The candidate hasn&apos;t completed the screening yet.
+        </p>
+      )}
+
+      {screening.status === 'COMPLETED' && (
+        <ol className="space-y-3">
+          {screening.answers.map((a) => (
+            <li
+              key={a.questionId}
+              className="rounded-md border border-gray-200 bg-gray-50 p-3 text-xs"
+            >
+              <div className="mb-1 font-medium text-gray-900">
+                {a.orderIndex}. {a.prompt}
+              </div>
+              {a.type === 'SINGLE_CHOICE' && (
+                <ul className="space-y-1">
+                  {(a.choices ?? []).map((c, ci) => {
+                    const isCandidate = a.choiceIndex === ci;
+                    const isCorrect = a.correctChoiceIndex === ci;
+                    const cls = isCandidate && isCorrect
+                      ? 'border-emerald-300 bg-emerald-50 text-emerald-800'
+                      : isCandidate
+                        ? 'border-red-300 bg-red-50 text-red-800'
+                        : isCorrect
+                          ? 'border-emerald-200 bg-white text-emerald-700'
+                          : 'border-gray-200 bg-white text-gray-600';
+                    return (
+                      <li
+                        key={ci}
+                        className={'flex items-center gap-2 rounded border px-2 py-1 ' + cls}
+                      >
+                        <span className="text-[10px] font-semibold uppercase tracking-wide">
+                          {isCandidate ? 'Picked' : isCorrect ? 'Correct' : ''}
+                        </span>
+                        <span>{c}</span>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+              {a.type === 'FREE_TEXT' && (
+                <p className="whitespace-pre-wrap rounded border border-gray-200 bg-white px-2 py-1.5 text-gray-700">
+                  {a.freeText ?? <span className="italic text-gray-400">No answer</span>}
+                </p>
+              )}
+              {a.type === 'SINGLE_CHOICE' && (
+                <p className="mt-1 text-[11px] text-gray-500">
+                  {a.awardedPoints ?? 0} / {a.points ?? 0} points
+                </p>
+              )}
+            </li>
+          ))}
+        </ol>
+      )}
+    </section>
   );
 }
 
