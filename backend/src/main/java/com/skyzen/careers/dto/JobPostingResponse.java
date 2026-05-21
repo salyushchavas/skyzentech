@@ -24,4 +24,16 @@ public class JobPostingResponse {
     private String entityName;
     private Instant publishedAt;
     private Instant createdAt;
+
+    /**
+     * Populated only when the caller is an authenticated CANDIDATE — the
+     * candidate's applications for this posting drive these three fields.
+     * Public/unauthenticated callers always see {@code applied=false} +
+     * nulls; the frontend treats all such postings as "available".
+     */
+    private boolean applied;
+    /** Most-recent application id for this candidate × posting, or null. */
+    private UUID applicationId;
+    /** Real {@code ApplicationStatus} enum name, or null. */
+    private String applicationStatus;
 }

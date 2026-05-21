@@ -53,6 +53,14 @@ export interface JobPostingResponse {
   entityName?: string;
   publishedAt?: IsoDateTime;
   createdAt: IsoDateTime;
+  /**
+   * Populated by the backend only when the caller is an authenticated
+   * CANDIDATE. Public / staff callers always see {@code applied = false}
+   * (or the field absent) and undefined application fields.
+   */
+  applied?: boolean;
+  applicationId?: Uuid;
+  applicationStatus?: ApplicationStatus | string;
 }
 
 // Paged envelope returned by every list endpoint. The backend returns a custom

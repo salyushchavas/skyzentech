@@ -30,10 +30,14 @@ public class JobPostingController {
     @GetMapping
     public PagedResponse<JobPostingResponse> listOpen(
             @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "20") int size) {
+            @RequestParam(defaultValue = "20") int size,
+            @AuthenticationPrincipal User user) {
         Pageable pageable = PageRequest.of(Math.max(0, page), Math.min(100, Math.max(1, size)),
                 Sort.by(Sort.Direction.DESC, "publishedAt"));
-        return PagedResponse.of(jobPostingService.listOpen(pageable));
+        // When the caller is an authenticated CANDIDATE the service decorates
+        // each posting with their applied state in a single extra query.
+        // Public/non-candidate callers go through the plain listOpen path.
+        return PagedResponse.of(jobPostingService.listOpenForCandidate(user, pageable));
     }
 
     @GetMapping("/admin/all")

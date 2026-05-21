@@ -3,12 +3,16 @@ package com.skyzen.careers.service;
 import com.skyzen.careers.dto.JobPostingCreateRequest;
 import com.skyzen.careers.dto.JobPostingResponse;
 import com.skyzen.careers.dto.JobPostingUpdateRequest;
+import com.skyzen.careers.entity.Application;
+import com.skyzen.careers.entity.Candidate;
 import com.skyzen.careers.entity.JobPosting;
 import com.skyzen.careers.entity.StaffingEntity;
 import com.skyzen.careers.entity.User;
 import com.skyzen.careers.enums.JobPostingStatus;
 import com.skyzen.careers.enums.UserRole;
 import com.skyzen.careers.exception.ResourceNotFoundException;
+import com.skyzen.careers.repository.ApplicationRepository;
+import com.skyzen.careers.repository.CandidateRepository;
 import com.skyzen.careers.repository.JobPostingRepository;
 import com.skyzen.careers.repository.StaffingEntityRepository;
 import lombok.RequiredArgsConstructor;
@@ -18,7 +22,11 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
+import java.util.Comparator;
+import java.util.HashMap;
+import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.UUID;
 
 @Service
@@ -27,11 +35,70 @@ public class JobPostingService {
 
     private final JobPostingRepository jobPostingRepository;
     private final StaffingEntityRepository staffingEntityRepository;
+    private final ApplicationRepository applicationRepository;
+    private final CandidateRepository candidateRepository;
 
     @Transactional(readOnly = true)
     public Page<JobPostingResponse> listOpen(Pageable pageable) {
         return jobPostingRepository.findByStatus(JobPostingStatus.OPEN, pageable)
                 .map(this::toResponse);
+    }
+
+    /**
+     * Same paged list as {@link #listOpen(Pageable)}, but decorated with the
+     * authenticated candidate's per-posting application state (applied,
+     * applicationId, applicationStatus). Detection is a SINGLE query
+     * ({@code findByCandidateId}) so the openings page stays O(1) regardless
+     * of how many postings are on screen — no N+1.
+     *
+     * For non-candidates and unauthenticated callers we fall back to plain
+     * {@link #listOpen(Pageable)} — those callers see the public shape.
+     */
+    @Transactional(readOnly = true)
+    public Page<JobPostingResponse> listOpenForCandidate(User caller, Pageable pageable) {
+        if (caller == null
+                || caller.getRoles() == null
+                || !caller.getRoles().contains(UserRole.CANDIDATE)) {
+            return listOpen(pageable);
+        }
+
+        Candidate candidate = candidateRepository.findByUserId(caller.getId()).orElse(null);
+        if (candidate == null) {
+            return listOpen(pageable);
+        }
+
+        // One round-trip: pull every application this candidate has, then
+        // group by jobPostingId and keep the most-recent one (by appliedAt).
+        List<Application> apps = applicationRepository.findByCandidateId(candidate.getId());
+        Map<UUID, Application> byPostingId = new HashMap<>();
+        for (Application a : apps) {
+            if (a.getJobPosting() == null) continue;
+            UUID postingId = a.getJobPosting().getId();
+            Application existing = byPostingId.get(postingId);
+            if (existing == null
+                    || moreRecent(a.getAppliedAt(), existing.getAppliedAt())) {
+                byPostingId.put(postingId, a);
+            }
+        }
+
+        return jobPostingRepository.findByStatus(JobPostingStatus.OPEN, pageable)
+                .map(p -> {
+                    JobPostingResponse base = toResponse(p);
+                    Application app = byPostingId.get(p.getId());
+                    if (app != null) {
+                        base.setApplied(true);
+                        base.setApplicationId(app.getId());
+                        base.setApplicationStatus(
+                                app.getStatus() != null ? app.getStatus().name() : null);
+                    }
+                    return base;
+                });
+    }
+
+    private boolean moreRecent(Instant a, Instant b) {
+        // a "wins" when it's strictly later than b. Null safely returns false
+        // so an entry with a real timestamp beats one without.
+        return Comparator.nullsLast(Comparator.<Instant>naturalOrder()).compare(a, b) > 0;
     }
 
     @Transactional(readOnly = true)

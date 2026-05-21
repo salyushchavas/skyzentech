@@ -1,8 +1,8 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { fetchOpenJobPostings } from '@/lib/server-api';
-import JobPostingCard from '@/components/JobPostingCard';
 import AdaptiveCareersLayout from '@/components/careers/AdaptiveCareersLayout';
+import OpeningsSplit from '@/components/careers/OpeningsSplit';
 
 export const metadata: Metadata = {
   title: 'Open Internships — Skyzen Careers',
@@ -44,19 +44,11 @@ export default async function OpeningsPage() {
               .
             </p>
           </div>
-        ) : postings.length === 0 ? (
-          <div className="rounded-lg border border-dashed border-slate-300 bg-white p-12 text-center">
-            <p className="text-base font-medium text-slate-700">
-              No open positions right now.
-            </p>
-            <p className="mt-1 text-sm text-slate-500">Check back soon.</p>
-          </div>
         ) : (
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {postings.map((p) => (
-              <JobPostingCard key={p.id} posting={p} />
-            ))}
-          </div>
+          // OpeningsSplit handles its own empty state. For authenticated
+          // candidates it refetches client-side to layer in the applied flags
+          // and splits into "Your applications" + "Available internships".
+          <OpeningsSplit initialPostings={postings} />
         )}
       </section>
     </AdaptiveCareersLayout>
