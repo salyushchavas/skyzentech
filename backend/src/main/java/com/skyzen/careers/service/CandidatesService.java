@@ -39,7 +39,10 @@ public class CandidatesService {
     @Transactional(readOnly = true)
     public PagedResponse<CandidateListItemResponse> list(String search, Pageable pageable) {
         String normalized = (search != null && !search.isBlank()) ? search.trim() : null;
-        Page<Candidate> page = candidateRepository.searchWithUser(normalized, pageable);
+        Page<Candidate> page = candidateRepository.findAll(
+                com.skyzen.careers.repository.CandidateSpecifications
+                        .nameOrEmailMatches(normalized),
+                pageable);
         return PagedResponse.of(page, this::toListItem);
     }
 

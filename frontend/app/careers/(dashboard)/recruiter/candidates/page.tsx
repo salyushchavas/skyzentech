@@ -105,7 +105,9 @@ function CandidatesList() {
         </label>
       </div>
 
-      {error && (
+      {/* error / loading / empty / list are mutually exclusive — the error
+          branch returns first so the empty state never renders alongside it. */}
+      {error ? (
         <div className="mb-4 rounded border border-red-200 bg-red-50 p-3 text-sm text-red-700">
           <p className="mb-2">{error}</p>
           <button
@@ -116,11 +118,9 @@ function CandidatesList() {
             Retry
           </button>
         </div>
-      )}
-
-      {data === null && !error ? (
+      ) : data === null ? (
         <div className="py-10 text-center text-sm text-gray-500">Loading…</div>
-      ) : (data?.content?.length ?? 0) === 0 ? (
+      ) : (data.content?.length ?? 0) === 0 ? (
         <div className="rounded-lg border border-dashed border-gray-300 bg-white p-10 text-center">
           <Users className="mx-auto mb-3 h-8 w-8 text-gray-400" strokeWidth={1.5} />
           <p className="text-sm text-gray-600">
