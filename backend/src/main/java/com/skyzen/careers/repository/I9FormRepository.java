@@ -22,4 +22,7 @@ public interface I9FormRepository extends JpaRepository<I9Form, UUID> {
     Page<I9Form> findAllByOrderByUpdatedAtDesc(Pageable pageable);
 
     List<I9Form> findByStatusAndFirstDayOfEmploymentBefore(I9Status status, LocalDate cutoff);
+
+    /** Count of I-9 forms NOT yet in {@link I9Status#COMPLETED}. */
+    long countByStatusNot(I9Status status);
 }

@@ -17,6 +17,7 @@ import {
   KanbanSquare,
   LayoutDashboard,
   ListChecks,
+  ScrollText,
   ShieldCheck,
   Users,
   Video,
@@ -72,13 +73,14 @@ const ROLE_LINKS: Record<UserRole, NavLink[]> = {
     { icon: Users, label: 'Supervised', href: '/careers/supervised' },
   ],
   ADMIN: [
-    { icon: LayoutDashboard, label: 'Dashboard', href: '/careers/admin' },
+    { icon: LayoutDashboard, label: 'Overview', href: '/careers/admin' },
     { icon: Briefcase, label: 'Postings', href: '/careers/admin/postings' },
     { icon: KanbanSquare, label: 'Pipeline', href: '/careers/recruiter' },
     { icon: FileSignature, label: 'Offer Letters', href: '/careers/hr/offers' },
     { icon: Users, label: 'Supervised', href: '/careers/supervised' },
     { icon: Users, label: 'Users', href: '/careers/admin/users' },
     { icon: Building2, label: 'Entities', href: '/careers/admin/entities' },
+    { icon: ScrollText, label: 'Audit Log', href: '/careers/admin/audit-log' },
   ],
 };
 

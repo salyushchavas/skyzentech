@@ -20,4 +20,7 @@ public interface EVerifyCaseRepository extends JpaRepository<EVerifyCase, UUID> 
     Page<EVerifyCase> findByStatusOrderByCreatedAtDesc(EVerifyStatus status, Pageable pageable);
 
     boolean existsByI9FormId(UUID i9FormId);
+
+    /** Count of E-Verify cases in any of the supplied statuses. */
+    long countByStatusIn(java.util.Collection<EVerifyStatus> statuses);
 }

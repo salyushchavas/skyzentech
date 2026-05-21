@@ -21,6 +21,12 @@ public interface ApplicationRepository extends JpaRepository<Application, UUID> 
     boolean existsByResumeId(UUID resumeId);
     boolean existsByStatus(ApplicationStatus status);
 
+    long countByStatus(ApplicationStatus status);
+
+    /** Distinct candidates with at least one application in the given status. */
+    @Query("SELECT COUNT(DISTINCT a.candidate.id) FROM Application a WHERE a.status = :status")
+    long countDistinctCandidatesByStatus(@Param("status") ApplicationStatus status);
+
     @Query("SELECT a FROM Application a " +
             "WHERE (:status IS NULL OR a.status = :status) " +
             "AND (:jobPostingId IS NULL OR a.jobPosting.id = :jobPostingId)")

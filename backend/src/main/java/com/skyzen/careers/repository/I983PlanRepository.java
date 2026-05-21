@@ -22,4 +22,7 @@ public interface I983PlanRepository extends JpaRepository<I983Plan, UUID> {
     Page<I983Plan> findByEntityIdOrderByUpdatedAtDesc(UUID entityId, Pageable pageable);
 
     long countByStatus(I983Status status);
+
+    /** Count of I-983 plans NOT yet DSO_APPROVED. */
+    long countByStatusNot(I983Status status);
 }
