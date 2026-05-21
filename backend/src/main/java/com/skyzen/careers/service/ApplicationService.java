@@ -5,6 +5,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.skyzen.careers.dto.ApplicationCreateRequest;
 import com.skyzen.careers.dto.ApplicationResponse;
 import com.skyzen.careers.dto.ApplicationStatusUpdateRequest;
+import com.skyzen.careers.dto.BulkApplicationActionRequest;
+import com.skyzen.careers.dto.BulkApplicationActionResponse;
 import com.skyzen.careers.dto.RecruiterDecisionRequest;
 import com.skyzen.careers.entity.Application;
 import com.skyzen.careers.entity.AuditLog;
@@ -20,6 +22,7 @@ import com.skyzen.careers.exception.ConflictException;
 import com.skyzen.careers.exception.ForbiddenException;
 import com.skyzen.careers.exception.ResourceNotFoundException;
 import com.skyzen.careers.repository.ApplicationRepository;
+import com.skyzen.careers.repository.ApplicationSpecifications;
 import com.skyzen.careers.repository.AuditLogRepository;
 import com.skyzen.careers.repository.CandidateRepository;
 import com.skyzen.careers.repository.JobPostingRepository;
@@ -32,8 +35,10 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
@@ -94,9 +99,27 @@ public class ApplicationService {
                 .stream().map(this::toResponse).toList();
     }
 
+    /**
+     * Staff applications list with composable filters + sorting + paging.
+     * Backed by a JPA Specification that fetch-joins candidate→user and
+     * jobPosting→entity so the DTO mapper never lazy-loads / N+1's.
+     *
+     * @param search      case-insensitive substring match on candidate
+     *                    fullName OR email; null/blank to skip
+     * @param statuses    optional set of statuses; null/empty to skip
+     * @param entityId    optional StaffingEntity id filter
+     * @param jobPostingId optional JobPosting id filter
+     */
     @Transactional(readOnly = true)
-    public Page<ApplicationResponse> search(ApplicationStatus status, UUID jobPostingId, Pageable pageable) {
-        return applicationRepository.search(status, jobPostingId, pageable).map(this::toResponse);
+    public Page<ApplicationResponse> search(String search,
+                                            Collection<ApplicationStatus> statuses,
+                                            UUID entityId,
+                                            UUID jobPostingId,
+                                            Pageable pageable) {
+        return applicationRepository
+                .findAll(ApplicationSpecifications.withFilters(search, statuses, entityId, jobPostingId),
+                        pageable)
+                .map(this::toResponse);
     }
 
     @Transactional(readOnly = true)
@@ -144,6 +167,51 @@ public class ApplicationService {
     @Transactional
     public ApplicationResponse reject(UUID id, RecruiterDecisionRequest req, User caller) {
         return changeStatusWithAudit(id, ApplicationStatus.REJECTED, "REJECT", req, caller);
+    }
+
+    /**
+     * Bulk variant of {@link #shortlist} / {@link #reject}. Loops the existing
+     * single-id path per application so audit + statusUpdatedAt + side-effects
+     * stay consistent with one-by-one usage. Idempotent: ids already at the
+     * target status (or not found) are counted into {@code skipped}; only real
+     * transitions count toward {@code updated}.
+     */
+    @Transactional
+    public BulkApplicationActionResponse bulkAction(BulkApplicationActionRequest req, User caller) {
+        ApplicationStatus target = req.getAction() == BulkApplicationActionRequest.BulkAction.SHORTLIST
+                ? ApplicationStatus.SHORTLISTED
+                : ApplicationStatus.REJECTED;
+        String auditAction = req.getAction() == BulkApplicationActionRequest.BulkAction.SHORTLIST
+                ? "SHORTLIST"
+                : "REJECT";
+
+        // Pre-fetch once so we can pre-check the target status without N+1.
+        List<Application> apps = applicationRepository.findAllById(req.getIds());
+        Map<UUID, Application> byId = new HashMap<>();
+        for (Application a : apps) byId.put(a.getId(), a);
+
+        int updated = 0;
+        int skipped = 0;
+        for (UUID id : req.getIds()) {
+            Application app = byId.get(id);
+            if (app == null) {
+                // Unknown id — count as skipped rather than failing the whole batch.
+                skipped++;
+                continue;
+            }
+            if (app.getStatus() == target) {
+                skipped++;
+                continue;
+            }
+            // Reuse the audit/status-update path. We pass null decision —
+            // bulk callers don't supply per-row rating/note.
+            changeStatusWithAudit(id, target, auditAction, null, caller);
+            updated++;
+        }
+        return BulkApplicationActionResponse.builder()
+                .updated(updated)
+                .skipped(skipped)
+                .build();
     }
 
     private ApplicationResponse changeStatusWithAudit(UUID id,

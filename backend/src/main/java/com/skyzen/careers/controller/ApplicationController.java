@@ -3,6 +3,8 @@ package com.skyzen.careers.controller;
 import com.skyzen.careers.dto.ApplicationCreateRequest;
 import com.skyzen.careers.dto.ApplicationResponse;
 import com.skyzen.careers.dto.ApplicationStatusUpdateRequest;
+import com.skyzen.careers.dto.BulkApplicationActionRequest;
+import com.skyzen.careers.dto.BulkApplicationActionResponse;
 import com.skyzen.careers.dto.RecruiterDecisionRequest;
 import com.skyzen.careers.dto.candidate.ApplicationJourneyResponse;
 import com.skyzen.careers.dto.common.PagedResponse;
@@ -59,16 +61,56 @@ public class ApplicationController {
         return candidateApplicationsService.listJourneyForCandidate(user);
     }
 
+    /**
+     * Staff applications list. Supports:
+     *   - search   substring (case-insensitive) on candidate fullName OR email
+     *   - status   accepts multiple (?status=APPLIED&status=SHORTLISTED)
+     *   - entityId / jobPostingId narrow the result set
+     *   - sort     "appliedAt|status|candidateName,asc|desc" (default appliedAt,desc)
+     *   - page / size (size capped at 100)
+     */
     @GetMapping
     @PreAuthorize("hasAnyRole('RECRUITER', 'ERM', 'HR_COMPLIANCE', 'ADMIN')")
     public PagedResponse<ApplicationResponse> list(
-            @RequestParam(required = false) ApplicationStatus status,
+            @RequestParam(required = false) String search,
+            @RequestParam(required = false) List<ApplicationStatus> status,
+            @RequestParam(required = false) UUID entityId,
             @RequestParam(required = false) UUID jobPostingId,
+            @RequestParam(required = false) String sort,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size) {
-        Pageable pageable = PageRequest.of(Math.max(0, page), Math.min(100, Math.max(1, size)),
-                Sort.by(Sort.Direction.DESC, "appliedAt"));
-        return PagedResponse.of(applicationService.search(status, jobPostingId, pageable));
+        Pageable pageable = PageRequest.of(
+                Math.max(0, page),
+                Math.min(100, Math.max(1, size)),
+                parseSort(sort));
+        return PagedResponse.of(
+                applicationService.search(search, status, entityId, jobPostingId, pageable));
+    }
+
+    /**
+     * Whitelist-driven sort parsing — keeps SQL safe against unexpected
+     * property names. Format: "field,direction" (direction optional, defaults
+     * to ASC). Unknown fields fall back to the original default.
+     */
+    private static Sort parseSort(String raw) {
+        Sort defaultSort = Sort.by(Sort.Direction.DESC, "appliedAt");
+        if (raw == null || raw.isBlank()) return defaultSort;
+        String[] parts = raw.split(",", 2);
+        String field = parts[0].trim();
+        Sort.Direction dir = (parts.length > 1
+                && "desc".equalsIgnoreCase(parts[1].trim()))
+                ? Sort.Direction.DESC
+                : Sort.Direction.ASC;
+        String mapped = switch (field) {
+            case "appliedAt" -> "appliedAt";
+            case "status" -> "status";
+            // Spring Data resolves dotted paths against the entity graph; the
+            // Specification's joins make this column reachable.
+            case "candidateName" -> "candidate.user.fullName";
+            default -> null;
+        };
+        if (mapped == null) return defaultSort;
+        return Sort.by(dir, mapped);
     }
 
     @GetMapping("/{id}")
@@ -112,5 +154,18 @@ public class ApplicationController {
             @Valid @RequestBody(required = false) RecruiterDecisionRequest req,
             @AuthenticationPrincipal User user) {
         return applicationService.reject(id, req, user);
+    }
+
+    /**
+     * Bulk shortlist/reject for the data-table view. Idempotent — applications
+     * already at the target status are counted as skipped, not failures.
+     * Returns {@code { updated, skipped }} so the UI can render an honest toast.
+     */
+    @PostMapping("/bulk")
+    @PreAuthorize("hasAnyRole('RECRUITER', 'ERM', 'ADMIN')")
+    public BulkApplicationActionResponse bulkAction(
+            @Valid @RequestBody BulkApplicationActionRequest req,
+            @AuthenticationPrincipal User user) {
+        return applicationService.bulkAction(req, user);
     }
 }
