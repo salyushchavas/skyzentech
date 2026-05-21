@@ -1,9 +1,9 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { ClipboardList, Clock, Plus } from 'lucide-react';
+import { CalendarClock, ClipboardList, Clock, Plus, Star } from 'lucide-react';
 import api from '@/lib/api';
-import { formatDateOnly } from '@/lib/format-date';
+import { formatDateOnly, formatFull } from '@/lib/format-date';
 import ProtectedRoute from '@/components/ProtectedRoute';
 import DashboardLayout from '@/components/dashboard/DashboardLayout';
 import type { Uuid } from '@/types';
@@ -45,6 +45,22 @@ interface TimesheetListResponse {
   totalApprovedHours: number | string;
 }
 
+type EvaluationStatus = 'SCHEDULED' | 'COMPLETED' | 'MISSED';
+
+interface EvaluationSessionResponse {
+  id: Uuid;
+  scheduledAt: string;
+  status: EvaluationStatus;
+  evaluatorName: string | null;
+  evaluatorId: Uuid | null;
+  overallRating: number | null;
+  strengths: string | null;
+  areasForImprovement: string | null;
+  notes: string | null;
+  completedAt: string | null;
+  createdAt: string;
+}
+
 const ASSIGNMENT_COLOR: Record<AssignmentStatus, string> = {
   ASSIGNED: 'bg-blue-100 text-blue-800',
   IN_PROGRESS: 'bg-amber-100 text-amber-800',
@@ -58,6 +74,48 @@ const TIMESHEET_COLOR: Record<TimesheetStatus, string> = {
   APPROVED: 'bg-emerald-100 text-emerald-800',
   REJECTED: 'bg-red-100 text-red-800',
 };
+
+const EVALUATION_COLOR: Record<EvaluationStatus, string> = {
+  SCHEDULED: 'bg-blue-100 text-blue-800',
+  COMPLETED: 'bg-emerald-100 text-emerald-800',
+  MISSED: 'bg-gray-100 text-gray-700',
+};
+
+function EvaluationBadge({ status }: { status: EvaluationStatus }) {
+  const labels: Record<EvaluationStatus, string> = {
+    SCHEDULED: 'Scheduled',
+    COMPLETED: 'Completed ✓',
+    MISSED: 'Missed',
+  };
+  return (
+    <span
+      className={
+        'inline-block whitespace-nowrap rounded-full px-2.5 py-0.5 text-xs font-medium ' +
+        EVALUATION_COLOR[status]
+      }
+    >
+      {labels[status]}
+    </span>
+  );
+}
+
+function StarRow({ value, size = 16 }: { value: number; size?: number }) {
+  return (
+    <div className="flex items-center gap-0.5">
+      {[1, 2, 3, 4, 5].map((n) => {
+        const filled = n <= value;
+        return (
+          <Star
+            key={n}
+            className={filled ? 'fill-amber-400 text-amber-400' : 'text-gray-300'}
+            style={{ width: size, height: size }}
+            strokeWidth={1.5}
+          />
+        );
+      })}
+    </div>
+  );
+}
 
 function AssignmentBadge({ status }: { status: AssignmentStatus }) {
   return (
@@ -120,6 +178,9 @@ function MyWorkList() {
   const [showLog, setShowLog] = useState(false);
   const [editing, setEditing] = useState<TimesheetResponse | null>(null);
 
+  const [sessions, setSessions] = useState<EvaluationSessionResponse[] | null>(null);
+  const [sessionError, setSessionError] = useState<string | null>(null);
+
   const loadAssignments = useCallback(async () => {
     setAssignmentError(null);
     try {
@@ -142,10 +203,22 @@ function MyWorkList() {
     }
   }, []);
 
+  const loadSessions = useCallback(async () => {
+    setSessionError(null);
+    try {
+      const res = await api.get<EvaluationSessionResponse[]>('/api/v1/supervised/my/evaluations');
+      setSessions(res.data ?? []);
+    } catch (err: any) {
+      setSessionError(err?.response?.data?.error ?? "Couldn't load your evaluations.");
+      setSessions([]);
+    }
+  }, []);
+
   useEffect(() => {
     void loadAssignments();
     void loadTimesheets();
-  }, [loadAssignments, loadTimesheets]);
+    void loadSessions();
+  }, [loadAssignments, loadTimesheets, loadSessions]);
 
   useEffect(() => {
     if (!toast) return;
@@ -360,6 +433,77 @@ function MyWorkList() {
         )}
       </div>
 
+      {/* Evaluations (read-only) */}
+      <div>
+        <h2 className="mb-3 text-lg font-semibold text-gray-900">Evaluations</h2>
+
+        {sessionError && (
+          <div className="mb-4 rounded border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+            {sessionError}
+          </div>
+        )}
+
+        {sessions === null ? (
+          <div className="py-8 text-center text-sm text-gray-500">Loading…</div>
+        ) : sessions.length === 0 ? (
+          <div className="rounded-lg border border-dashed border-gray-300 bg-white p-10 text-center">
+            <CalendarClock className="mx-auto mb-3 h-8 w-8 text-gray-400" strokeWidth={1.5} />
+            <p className="text-sm text-gray-600">No evaluation sessions yet.</p>
+          </div>
+        ) : (
+          <>
+            <UpcomingSessionBanner sessions={sessions} />
+            <ul className="space-y-3">
+              {sessions
+                .filter((s) => s.status !== 'SCHEDULED')
+                .map((s) => (
+                  <li key={s.id} className="rounded-lg border border-gray-200 bg-white p-5">
+                    <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
+                      <div className="font-semibold text-gray-900">
+                        {formatDateOnly(s.scheduledAt)}
+                        {s.evaluatorName ? (
+                          <span className="font-normal text-gray-600"> · {s.evaluatorName}</span>
+                        ) : null}
+                      </div>
+                      <EvaluationBadge status={s.status} />
+                    </div>
+                    {s.status === 'COMPLETED' && (
+                      <div className="mt-3 space-y-2 text-sm">
+                        {s.overallRating != null && (
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                              Rating
+                            </span>
+                            <StarRow value={s.overallRating} />
+                          </div>
+                        )}
+                        {s.strengths && (
+                          <div>
+                            <div className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                              Strengths
+                            </div>
+                            <p className="whitespace-pre-wrap text-gray-800">{s.strengths}</p>
+                          </div>
+                        )}
+                        {s.areasForImprovement && (
+                          <div>
+                            <div className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                              Areas for improvement
+                            </div>
+                            <p className="whitespace-pre-wrap text-gray-800">
+                              {s.areasForImprovement}
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </li>
+                ))}
+            </ul>
+          </>
+        )}
+      </div>
+
       {submitFor && (
         <SubmitWorkModal
           assignment={submitFor}
@@ -388,6 +532,24 @@ function MyWorkList() {
         />
       )}
     </section>
+  );
+}
+
+function UpcomingSessionBanner({ sessions }: { sessions: EvaluationSessionResponse[] }) {
+  const now = Date.now();
+  // Earliest SCHEDULED session in the future. List is ordered DESC, so we
+  // re-filter and pick the soonest manually.
+  const upcoming = sessions
+    .filter((s) => s.status === 'SCHEDULED' && new Date(s.scheduledAt).getTime() >= now)
+    .sort(
+      (a, b) => new Date(a.scheduledAt).getTime() - new Date(b.scheduledAt).getTime(),
+    )[0];
+  if (!upcoming) return null;
+  return (
+    <div className="mb-3 rounded-md border border-blue-200 bg-blue-50 px-4 py-2 text-sm text-blue-900">
+      <span className="font-medium">Upcoming:</span> {formatFull(upcoming.scheduledAt)}
+      {upcoming.evaluatorName ? <> with {upcoming.evaluatorName}</> : null}
+    </div>
   );
 }
 
