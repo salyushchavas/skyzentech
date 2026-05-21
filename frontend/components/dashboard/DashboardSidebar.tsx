@@ -13,6 +13,7 @@ import {
   FileSignature,
   FileText,
   FolderArchive,
+  Hammer,
   KanbanSquare,
   LayoutDashboard,
   ListChecks,
@@ -41,6 +42,7 @@ const ROLE_LINKS: Record<UserRole, NavLink[]> = {
     { icon: ListChecks, label: 'Onboarding', href: '/careers/candidate/onboarding' },
     { icon: ShieldCheck, label: 'I-9 Form', href: '/careers/candidate/i9' },
     { icon: FileBadge, label: 'Training Plan', href: '/careers/candidate/training-plans' },
+    { icon: Hammer, label: 'My Work', href: '/careers/intern/work' },
   ],
   RECRUITER: [
     { icon: KanbanSquare, label: 'Pipeline', href: '/careers/recruiter' },
