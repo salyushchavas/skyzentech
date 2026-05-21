@@ -9,6 +9,7 @@ public enum ApplicationStatus {
     ACCEPTED,
     ONBOARDING,
     ACTIVE,
+    HIRED,
     COMPLETED,
     REJECTED,
     WITHDRAWN,

@@ -19,6 +19,7 @@ public interface ApplicationRepository extends JpaRepository<Application, UUID> 
 
     boolean existsByCandidateIdAndJobPostingId(UUID candidateId, UUID jobPostingId);
     boolean existsByResumeId(UUID resumeId);
+    boolean existsByStatus(ApplicationStatus status);
 
     @Query("SELECT a FROM Application a " +
             "WHERE (:status IS NULL OR a.status = :status) " +
@@ -26,4 +27,25 @@ public interface ApplicationRepository extends JpaRepository<Application, UUID> 
     Page<Application> search(@Param("status") ApplicationStatus status,
                              @Param("jobPostingId") UUID jobPostingId,
                              Pageable pageable);
+
+    /**
+     * Hired applications with their full candidate + posting + entity graph
+     * eagerly loaded, for the Supervised Interns roster (Group C). A candidate
+     * may have multiple HIRED rows (rare, but allowed); the service dedupes by
+     * candidate id, keeping the most recent by statusUpdatedAt thanks to the
+     * ORDER BY clause.
+     */
+    @Query("SELECT a FROM Application a " +
+            "JOIN FETCH a.candidate c " +
+            "JOIN FETCH c.user u " +
+            "LEFT JOIN FETCH c.assignedEvaluator ae " +
+            "JOIN FETCH a.jobPosting jp " +
+            "JOIN FETCH jp.entity e " +
+            "WHERE a.status = com.skyzen.careers.enums.ApplicationStatus.HIRED " +
+            "AND (:entityId IS NULL OR e.id = :entityId) " +
+            "AND (:search IS NULL OR LOWER(u.fullName) LIKE LOWER(CONCAT('%', :search, '%')) " +
+            "                    OR LOWER(u.email)    LIKE LOWER(CONCAT('%', :search, '%'))) " +
+            "ORDER BY a.statusUpdatedAt DESC")
+    List<Application> findHiredInterns(@Param("entityId") UUID entityId,
+                                       @Param("search") String search);
 }

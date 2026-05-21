@@ -29,6 +29,15 @@ public class Candidate {
     @Column(name = "default_resume_id")
     private UUID defaultResumeId;
 
+    /**
+     * Technical Evaluator assigned to this intern's biweekly evaluation sessions
+     * (Group C — Supervised Work). Nullable: candidates are assigned an evaluator
+     * after they reach HIRED status.
+     */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "assigned_evaluator_id")
+    private User assignedEvaluator;
+
     @Column(nullable = false, updatable = false)
     private Instant createdAt;
 
