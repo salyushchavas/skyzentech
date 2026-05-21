@@ -10,10 +10,18 @@ import org.springframework.boot.CommandLineRunner;
 import org.springframework.core.annotation.Order;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
-import org.springframework.transaction.annotation.Transactional;
 
 import java.util.EnumSet;
 
+/**
+ * Bootstraps the initial admin user from {@code admin.email}/{@code admin.password}
+ * properties. Idempotent — skips when any user with the ADMIN role already exists.
+ *
+ * Body is wrapped in try/catch so a seeding failure logs a WARN and never crashes
+ * startup. No class-level {@code @Transactional}: the single save runs in its own
+ * short auto-transaction, avoiding the commit-time {@code UnexpectedRollbackException}
+ * trap where Spring rolls back after we've caught the underlying JPA exception.
+ */
 @Component
 @Order(1)
 @RequiredArgsConstructor
@@ -30,22 +38,25 @@ public class AdminSeeder implements CommandLineRunner {
     private String adminPassword;
 
     @Override
-    @Transactional
     public void run(String... args) {
-        boolean adminExists = userRepository.findAll().stream()
-                .anyMatch(u -> u.getRoles().contains(UserRole.ADMIN));
-        if (adminExists) {
-            return;
+        try {
+            boolean adminExists = userRepository.findAll().stream()
+                    .anyMatch(u -> u.getRoles().contains(UserRole.ADMIN));
+            if (adminExists) {
+                return;
+            }
+
+            User admin = User.builder()
+                    .email(adminEmail)
+                    .passwordHash(passwordEncoder.encode(adminPassword))
+                    .fullName("Bootstrap Admin")
+                    .roles(EnumSet.of(UserRole.ADMIN))
+                    .build();
+            userRepository.save(admin);
+
+            log.warn("Bootstrap admin created — CHANGE PASSWORD IMMEDIATELY in any non-dev environment");
+        } catch (Exception e) {
+            log.warn("Admin seeder failed (non-fatal): {}", e.getMessage(), e);
         }
-
-        User admin = User.builder()
-                .email(adminEmail)
-                .passwordHash(passwordEncoder.encode(adminPassword))
-                .fullName("Bootstrap Admin")
-                .roles(EnumSet.of(UserRole.ADMIN))
-                .build();
-        userRepository.save(admin);
-
-        log.warn("Bootstrap admin created — CHANGE PASSWORD IMMEDIATELY in any non-dev environment");
     }
 }

@@ -11,11 +11,18 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
-import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
 import java.util.List;
 
+/**
+ * Seeds the default StaffingEntity + sample job postings on first boot.
+ *
+ * Body is wrapped in try/catch so a seeding failure logs a WARN and never
+ * crashes startup. No class-level {@code @Transactional}: {@code saveAll}
+ * still batches in its own short auto-transaction, and the per-call auto-tx
+ * model avoids the commit-time {@code UnexpectedRollbackException} trap.
+ */
 @Component
 @Order(2)
 @RequiredArgsConstructor
@@ -26,8 +33,15 @@ public class SeedJobPostingsRunner implements CommandLineRunner {
     private final JobPostingRepository jobPostingRepository;
 
     @Override
-    @Transactional
     public void run(String... args) {
+        try {
+            doRun();
+        } catch (Exception e) {
+            log.warn("Job-postings seeder failed (non-fatal): {}", e.getMessage(), e);
+        }
+    }
+
+    private void doRun() {
         StaffingEntity entity = ensureStaffingEntity();
         if (jobPostingRepository.count() > 0) {
             return;

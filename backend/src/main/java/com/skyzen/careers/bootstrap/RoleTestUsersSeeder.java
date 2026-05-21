@@ -9,7 +9,6 @@ import org.springframework.boot.CommandLineRunner;
 import org.springframework.core.annotation.Order;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
-import org.springframework.transaction.annotation.Transactional;
 
 import java.util.EnumSet;
 import java.util.List;
@@ -41,24 +40,27 @@ public class RoleTestUsersSeeder implements CommandLineRunner {
     );
 
     @Override
-    @Transactional
     public void run(String... args) {
-        int created = 0;
-        for (TestUser tu : TEST_USERS) {
-            if (userRepository.existsByEmail(tu.email())) continue;
-            User user = User.builder()
-                    .email(tu.email())
-                    .passwordHash(passwordEncoder.encode(tu.password()))
-                    .fullName(tu.fullName())
-                    .roles(EnumSet.of(tu.role()))
-                    .build();
-            userRepository.save(user);
-            created++;
-            log.warn("Demo {} user created — {} / {} (change in any non-dev environment)",
-                    tu.role(), tu.email(), tu.password());
-        }
-        if (created == 0) {
-            log.info("Demo role test users already present — skipping seed");
+        try {
+            int created = 0;
+            for (TestUser tu : TEST_USERS) {
+                if (userRepository.existsByEmail(tu.email())) continue;
+                User user = User.builder()
+                        .email(tu.email())
+                        .passwordHash(passwordEncoder.encode(tu.password()))
+                        .fullName(tu.fullName())
+                        .roles(EnumSet.of(tu.role()))
+                        .build();
+                userRepository.save(user);
+                created++;
+                log.warn("Demo {} user created — {} / {} (change in any non-dev environment)",
+                        tu.role(), tu.email(), tu.password());
+            }
+            if (created == 0) {
+                log.info("Demo role test users already present — skipping seed");
+            }
+        } catch (Exception e) {
+            log.warn("Role test users seeder failed (non-fatal): {}", e.getMessage(), e);
         }
     }
 }

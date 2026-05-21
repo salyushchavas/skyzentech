@@ -34,28 +34,34 @@ public class OnboardingBackfillRunner implements CommandLineRunner {
 
     @Override
     public void run(String... args) {
-        List<Offer> accepted = offerRepository
-                .findByStatusOrderByCreatedAtDesc(OfferStatus.ACCEPTED, Pageable.unpaged())
-                .getContent();
+        try {
+            List<Offer> accepted = offerRepository
+                    .findByStatusOrderByCreatedAtDesc(OfferStatus.ACCEPTED, Pageable.unpaged())
+                    .getContent();
 
-        int backfilled = 0;
-        for (Offer offer : accepted) {
-            if (offer.getApplication() == null
-                    || offer.getApplication().getCandidate() == null) {
-                continue;
+            int backfilled = 0;
+            for (Offer offer : accepted) {
+                if (offer.getApplication() == null
+                        || offer.getApplication().getCandidate() == null) {
+                    continue;
+                }
+                UUID candidateId = offer.getApplication().getCandidate().getId();
+                if (taskRepository.existsByCandidateIdAndOfferId(candidateId, offer.getId())) {
+                    continue;
+                }
+                try {
+                    onboardingService.seedTasksForAcceptedOffer(offer);
+                    backfilled++;
+                } catch (Exception e) {
+                    log.warn("Onboarding backfill failed for offer {}: {}",
+                            offer.getId(), e.getMessage());
+                }
             }
-            UUID candidateId = offer.getApplication().getCandidate().getId();
-            if (taskRepository.existsByCandidateIdAndOfferId(candidateId, offer.getId())) {
-                continue;
-            }
-            try {
-                onboardingService.seedTasksForAcceptedOffer(offer);
-                backfilled++;
-            } catch (Exception e) {
-                log.warn("Onboarding backfill failed for offer {}: {}",
-                        offer.getId(), e.getMessage());
-            }
+            log.info("Backfilled onboarding tasks for {} previously-accepted offer(s)", backfilled);
+        } catch (Exception e) {
+            // Defense-in-depth: even the offerRepository.find / taskRepository.exists
+            // calls can fail (DB hiccup, schema drift) — never let that crash startup.
+            log.warn("Onboarding backfill runner failed (non-fatal): {}", e.getMessage(), e);
         }
-        log.info("Backfilled onboarding tasks for {} previously-accepted offer(s)", backfilled);
     }
 }
