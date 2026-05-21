@@ -10,6 +10,7 @@ import com.skyzen.careers.entity.StaffingEntity;
 import com.skyzen.careers.entity.User;
 import com.skyzen.careers.enums.JobPostingStatus;
 import com.skyzen.careers.enums.UserRole;
+import com.skyzen.careers.exception.EmailUnverifiedException;
 import com.skyzen.careers.exception.ResourceNotFoundException;
 import com.skyzen.careers.repository.ApplicationRepository;
 import com.skyzen.careers.repository.CandidateRepository;
@@ -59,7 +60,17 @@ public class JobPostingService {
         if (caller == null
                 || caller.getRoles() == null
                 || !caller.getRoles().contains(UserRole.CANDIDATE)) {
+            // Anonymous + staff callers see the public openings list — they
+            // don't need an Applicant ID and aren't subject to the gate.
             return listOpen(pageable);
+        }
+
+        // Phase 1.3 gate: a CANDIDATE must verify their email before the
+        // openings list unlocks. Frontend keys off the "EMAIL_UNVERIFIED"
+        // code returned via GlobalExceptionHandler.
+        if (!Boolean.TRUE.equals(caller.getEmailVerified())) {
+            throw new EmailUnverifiedException(
+                    "Verify your email to unlock internships");
         }
 
         Candidate candidate = candidateRepository.findByUserId(caller.getId()).orElse(null);

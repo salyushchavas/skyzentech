@@ -32,7 +32,23 @@ export default function RegisterPage() {
 
     setLoading(true);
     try {
-      await register(email, password, fullName, phoneNumber || undefined);
+      const { user, devVerificationCode } = await register(
+        email,
+        password,
+        fullName,
+        phoneNumber || undefined
+      );
+      // Phase 1.2: every fresh registration starts unverified. Route to the
+      // verify-email page with the dev stub code prefilled when present so
+      // the end-to-end flow is testable without SMTP.
+      if (user.emailVerified === false || user.emailVerified === undefined) {
+        const params = new URLSearchParams({ email: user.email });
+        if (devVerificationCode) params.set('devCode', devVerificationCode);
+        const returnTo = safeReturnTo();
+        if (returnTo) params.set('returnTo', returnTo);
+        router.replace(`/careers/verify-email?${params.toString()}`);
+        return;
+      }
       const returnTo = safeReturnTo();
       router.replace(returnTo ?? '/careers/candidate');
     } catch (err: any) {

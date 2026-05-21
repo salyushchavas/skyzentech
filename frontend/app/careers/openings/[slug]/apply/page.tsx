@@ -32,6 +32,9 @@ function ApplyFlow() {
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [showUploader, setShowUploader] = useState(false);
+  // Phase 1.3: when the apply endpoint returns 403 + EMAIL_UNVERIFIED, swap
+  // the whole form for the verify-prompt rather than show a raw error toast.
+  const [emailUnverified, setEmailUnverified] = useState(false);
 
   useEffect(() => {
     if (!slug) return;
@@ -90,7 +93,10 @@ function ApplyFlow() {
       router.replace('/careers/candidate/applications?just_applied=1');
     } catch (err: any) {
       const status = err?.response?.status;
-      if (status === 409) {
+      const code = err?.response?.data?.code;
+      if (status === 403 && code === 'EMAIL_UNVERIFIED') {
+        setEmailUnverified(true);
+      } else if (status === 409) {
         setSubmitError(
           "You've already applied to this position. View it on your applications page."
         );
@@ -136,6 +142,27 @@ function ApplyFlow() {
           className="rounded bg-accent px-3 py-1.5 text-sm font-medium text-white hover:bg-accent-dark"
         >
           Back to all openings
+        </Link>
+      </div>
+    );
+  }
+
+  if (emailUnverified) {
+    const returnTo = `/careers/openings/${posting.slug}/apply`;
+    return (
+      <div className="mx-auto max-w-2xl rounded-lg border border-amber-200 bg-amber-50 p-8 text-center">
+        <h2 className="mb-2 text-lg font-semibold text-amber-900">
+          Verify your email to apply
+        </h2>
+        <p className="mb-5 text-sm text-amber-800">
+          We need to confirm your email before you can submit an application
+          and receive your Skyzen Applicant ID.
+        </p>
+        <Link
+          href={`/careers/verify-email?returnTo=${encodeURIComponent(returnTo)}`}
+          className="inline-flex items-center justify-center rounded-full bg-gradient-to-r from-accent to-accent-dark px-5 py-2 font-semibold text-white shadow-glow-accent hover:shadow-glow-accent-lg"
+        >
+          Verify email
         </Link>
       </div>
     );

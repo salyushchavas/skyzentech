@@ -40,7 +40,9 @@ public class SecurityConfig {
                                 "/auth/register",
                                 "/auth/login",
                                 "/auth/forgot-password",
-                                "/auth/reset-password"
+                                "/auth/reset-password",
+                                "/auth/verify-email",
+                                "/auth/resend-verification"
                         ).permitAll()
                         .requestMatchers("/health", "/error").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/v1/job-postings").permitAll()

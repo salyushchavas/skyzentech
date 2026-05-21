@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import api from '@/lib/api';
 import { formatRelative } from '@/lib/format-date';
+import { useAuth } from '@/lib/auth-context';
 import DashboardLayout from '@/components/dashboard/DashboardLayout';
 import ProtectedRoute from '@/components/ProtectedRoute';
 import ApplicationStatusBadge from '@/components/ApplicationStatusBadge';
@@ -69,6 +70,7 @@ export default function CandidateDashboardPage() {
 }
 
 function CandidateDashboardBody() {
+  const { user } = useAuth();
   const [data, setData] = useState<CandidateDashboardResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -118,13 +120,25 @@ function CandidateDashboardBody() {
     <section className="space-y-6">
       {/* Welcome header */}
       <header>
-        <h1 className="text-2xl font-semibold text-gray-900">
-          Welcome back{data.candidateName ? `, ${data.candidateName}` : ''}.
-        </h1>
-        <p className="mt-1 text-sm text-gray-600">
-          {apps.length} active application{apps.length === 1 ? '' : 's'} · profile{' '}
-          {profilePct}% complete
-        </p>
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h1 className="text-2xl font-semibold text-gray-900">
+              Welcome back{data.candidateName ? `, ${data.candidateName}` : ''}.
+            </h1>
+            <p className="mt-1 text-sm text-gray-600">
+              {apps.length} active application{apps.length === 1 ? '' : 's'} · profile{' '}
+              {profilePct}% complete
+            </p>
+          </div>
+          {user?.applicantId && (
+            <div
+              className="rounded-full border border-accent/30 bg-accent/5 px-3 py-1 text-xs font-medium text-accent-dark"
+              title="Your Skyzen Applicant ID"
+            >
+              ID: {user.applicantId}
+            </div>
+          )}
+        </div>
       </header>
 
       {/* Next-step hero */}

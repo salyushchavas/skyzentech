@@ -5,7 +5,10 @@ import com.skyzen.careers.auth.dto.ForgotPasswordRequest;
 import com.skyzen.careers.auth.dto.LoginRequest;
 import com.skyzen.careers.auth.dto.MeResponse;
 import com.skyzen.careers.auth.dto.RegisterRequest;
+import com.skyzen.careers.auth.dto.ResendVerificationRequest;
 import com.skyzen.careers.auth.dto.ResetPasswordRequest;
+import com.skyzen.careers.auth.dto.VerifyEmailRequest;
+import com.skyzen.careers.auth.dto.VerifyEmailResponse;
 import com.skyzen.careers.entity.User;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -47,6 +50,20 @@ public class AuthController {
     public ResponseEntity<Map<String, String>> resetPassword(@Valid @RequestBody ResetPasswordRequest req) {
         authService.resetPassword(req);
         return ResponseEntity.ok(Map.of("message", "Password reset successful"));
+    }
+
+    @PostMapping("/verify-email")
+    public ResponseEntity<VerifyEmailResponse> verifyEmail(@Valid @RequestBody VerifyEmailRequest req) {
+        return ResponseEntity.ok(authService.verifyEmail(req));
+    }
+
+    @PostMapping("/resend-verification")
+    public ResponseEntity<Map<String, String>> resendVerification(
+            @Valid @RequestBody ResendVerificationRequest req) {
+        authService.resendVerification(req);
+        // Always 200 — we don't reveal whether an account exists for that email.
+        return ResponseEntity.ok(Map.of("message",
+                "If the account exists and is unverified, a new code has been sent"));
     }
 
     @GetMapping("/me")

@@ -48,5 +48,38 @@ public class SchemaFixupRunner implements CommandLineRunner {
         } catch (Exception e) {
             log.warn("users.active column ensure failed (non-fatal): {}", e.getMessage(), e);
         }
+
+        // Phase 1.2: email-verification gate + Skyzen Applicant ID.
+        // Existing rows are backfilled to email_verified=TRUE via the column
+        // DEFAULT so they aren't locked out by the new gate. New CANDIDATE
+        // registrations are written explicitly with FALSE by the JPA insert.
+        try {
+            jdbcTemplate.execute(
+                    "ALTER TABLE users ADD COLUMN IF NOT EXISTS email_verified BOOLEAN NOT NULL DEFAULT TRUE");
+            jdbcTemplate.execute(
+                    "ALTER TABLE users ADD COLUMN IF NOT EXISTS email_verification_code VARCHAR(16)");
+            jdbcTemplate.execute(
+                    "ALTER TABLE users ADD COLUMN IF NOT EXISTS email_verification_sent_at TIMESTAMP");
+            jdbcTemplate.execute(
+                    "ALTER TABLE users ADD COLUMN IF NOT EXISTS email_verification_expires_at TIMESTAMP");
+            jdbcTemplate.execute(
+                    "ALTER TABLE users ADD COLUMN IF NOT EXISTS applicant_id VARCHAR(32) UNIQUE");
+            jdbcTemplate.execute(
+                    "ALTER TABLE users ADD COLUMN IF NOT EXISTS applicant_id_created_at TIMESTAMP");
+            log.info("Ensured users verification + applicant_id columns exist.");
+        } catch (Exception e) {
+            log.warn("users verification columns ensure failed (non-fatal): {}", e.getMessage(), e);
+        }
+
+        // Sequence backing SKZ-INT-YYYY-NNNNNN. Atomic nextval() under
+        // concurrency; CACHE 1 keeps the suffix monotonically increasing
+        // across boots even if pre-cached values would otherwise be skipped.
+        try {
+            jdbcTemplate.execute(
+                    "CREATE SEQUENCE IF NOT EXISTS skyzen_applicant_seq START WITH 1 INCREMENT BY 1 CACHE 1");
+            log.info("Ensured skyzen_applicant_seq exists.");
+        } catch (Exception e) {
+            log.warn("skyzen_applicant_seq ensure failed (non-fatal): {}", e.getMessage(), e);
+        }
     }
 }

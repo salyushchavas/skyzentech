@@ -40,6 +40,20 @@ public class GlobalExceptionHandler {
         return error(HttpStatus.FORBIDDEN, ex.getMessage(), null);
     }
 
+    /**
+     * Email-verification gate (phase 1.3). Returns 403 with a top-level
+     * {@code code} field so the frontend can distinguish this from generic
+     * forbidden responses and render the verify-email prompt instead of a raw
+     * "Access denied" toast.
+     */
+    @ExceptionHandler(EmailUnverifiedException.class)
+    public ResponseEntity<Map<String, Object>> handleEmailUnverified(EmailUnverifiedException ex) {
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("error", ex.getMessage());
+        body.put("code", "EMAIL_UNVERIFIED");
+        return ResponseEntity.status(HttpStatus.FORBIDDEN).body(body);
+    }
+
     @ExceptionHandler(AccessDeniedException.class)
     public ResponseEntity<Map<String, Object>> handleAccessDenied(AccessDeniedException ex) {
         return error(HttpStatus.FORBIDDEN, "Access denied", null);

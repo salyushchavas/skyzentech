@@ -29,6 +29,10 @@ export default function OpeningsSplit({ initialPostings }: Props) {
 
   const [postings, setPostings] = useState<JobPostingResponse[]>(initialPostings);
   const [refetching, setRefetching] = useState(false);
+  // Phase 1.3: the authed re-fetch can 403 with code=EMAIL_UNVERIFIED. When it
+  // does, we render the verify-prompt instead of the list rather than swallow
+  // the error silently — the candidate needs to be told why the list is gated.
+  const [emailUnverified, setEmailUnverified] = useState(false);
 
   // For candidates only: re-fetch with auth so the response includes the
   // applied/applicationStatus fields. The SSR call was unauthenticated so
@@ -38,15 +42,23 @@ export default function OpeningsSplit({ initialPostings }: Props) {
     if (isLoading || !isCandidate) return;
     let cancelled = false;
     setRefetching(true);
+    setEmailUnverified(false);
     (async () => {
       try {
         const res = await api.get<Page<JobPostingResponse>>(
           '/api/v1/job-postings?page=0&size=50',
         );
         if (!cancelled) setPostings(res.data?.content ?? initialPostings);
-      } catch {
-        // Keep the SSR seed on failure — the user still sees a working list,
-        // just without the applied/available split. Honest degradation.
+      } catch (err: any) {
+        if (
+          !cancelled
+          && err?.response?.status === 403
+          && err?.response?.data?.code === 'EMAIL_UNVERIFIED'
+        ) {
+          setEmailUnverified(true);
+        }
+        // For other failures keep the SSR seed — the user still sees a working
+        // list, just without the applied/available split. Honest degradation.
       } finally {
         if (!cancelled) setRefetching(false);
       }
@@ -58,6 +70,10 @@ export default function OpeningsSplit({ initialPostings }: Props) {
     // sufficient; we don't want to re-trigger on parent re-renders.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isCandidate, isLoading]);
+
+  if (isCandidate && emailUnverified) {
+    return <VerifyEmailPrompt email={user?.email} />;
+  }
 
   // Public / non-candidate path — render the original single list.
   if (!isCandidate) {
@@ -137,6 +153,34 @@ function EmptyState() {
         No open positions right now.
       </p>
       <p className="mt-1 text-sm text-slate-500">Check back soon.</p>
+    </div>
+  );
+}
+
+/**
+ * Rendered when the openings endpoint returns 403 + code=EMAIL_UNVERIFIED.
+ * Links straight to the verify-email page with the candidate's email
+ * prefilled and a returnTo back to the openings list.
+ */
+function VerifyEmailPrompt({ email }: { email?: string }) {
+  const params = new URLSearchParams();
+  if (email) params.set('email', email);
+  params.set('returnTo', '/careers/openings');
+  return (
+    <div className="rounded-lg border border-amber-200 bg-amber-50 p-8 text-center">
+      <h2 className="mb-2 text-lg font-semibold text-amber-900">
+        Verify your email to unlock internships
+      </h2>
+      <p className="mb-5 text-sm text-amber-800">
+        We sent a 6-digit code to {email ?? 'your inbox'}. Enter it on the next
+        screen to receive your Skyzen Applicant ID and start applying.
+      </p>
+      <Link
+        href={`/careers/verify-email?${params.toString()}`}
+        className="inline-flex items-center justify-center rounded-full bg-gradient-to-r from-accent to-accent-dark px-5 py-2 font-semibold text-white shadow-glow-accent hover:shadow-glow-accent-lg"
+      >
+        Verify email
+      </Link>
     </div>
   );
 }

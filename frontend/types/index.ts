@@ -25,6 +25,9 @@ export interface User {
   phoneNumber?: string;
   roles: UserRole[];
   createdAt?: string;
+  // Phase 1.2: account-journey state lives on the User.
+  emailVerified?: boolean;
+  applicantId?: string;
 }
 
 export interface AuthResponse {
@@ -33,6 +36,20 @@ export interface AuthResponse {
   email: string;
   fullName: string;
   roles: UserRole[];
+  emailVerified?: boolean;
+  applicantId?: string;
+  /**
+   * Stub verification code echoed by the dev backend immediately after
+   * registration so the verify-email page can prefill it. Production sets
+   * {@code app.notification.surface-stub=false} and this field is absent.
+   */
+  devVerificationCode?: string;
+}
+
+export interface VerifyEmailResponse {
+  emailVerified: boolean;
+  applicantId?: string;
+  message?: string;
 }
 
 // === Job postings ============================================================

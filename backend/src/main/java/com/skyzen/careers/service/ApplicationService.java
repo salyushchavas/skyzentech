@@ -20,6 +20,7 @@ import com.skyzen.careers.enums.JobPostingStatus;
 import com.skyzen.careers.enums.UserRole;
 import com.skyzen.careers.exception.BadRequestException;
 import com.skyzen.careers.exception.ConflictException;
+import com.skyzen.careers.exception.EmailUnverifiedException;
 import com.skyzen.careers.exception.ForbiddenException;
 import com.skyzen.careers.exception.ResourceNotFoundException;
 import com.skyzen.careers.repository.ApplicationRepository;
@@ -59,6 +60,14 @@ public class ApplicationService {
 
     @Transactional
     public ApplicationResponse apply(User user, ApplicationCreateRequest req) {
+        // Phase 1.3 gate: cannot apply without a verified email. The
+        // EmailUnverifiedException -> 403 + code=EMAIL_UNVERIFIED is what the
+        // apply screen keys off to render the "verify your email" prompt.
+        if (!Boolean.TRUE.equals(user.getEmailVerified())) {
+            throw new EmailUnverifiedException(
+                    "Verify your email to apply for internships");
+        }
+
         Candidate candidate = candidateRepository.findByUserId(user.getId())
                 .orElseGet(() -> {
                     log.warn("Lazy-creating Candidate for user {} during application submit", user.getId());
