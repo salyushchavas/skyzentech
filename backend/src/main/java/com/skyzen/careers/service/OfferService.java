@@ -146,7 +146,7 @@ public class OfferService {
 
     @Transactional
     public OfferResponse update(UUID offerId, UpdateOfferRequest req, User actor) {
-        Offer offer = offerRepository.findById(offerId)
+        Offer offer = offerRepository.findByIdWithGraph(offerId)
                 .orElseThrow(() -> new ResourceNotFoundException("Offer not found: " + offerId));
 
         if (offer.getStatus() != OfferStatus.DRAFT) {
@@ -211,7 +211,7 @@ public class OfferService {
 
     @Transactional
     public OfferResponse send(UUID offerId, User sender) {
-        Offer offer = offerRepository.findById(offerId)
+        Offer offer = offerRepository.findByIdWithGraph(offerId)
                 .orElseThrow(() -> new ResourceNotFoundException("Offer not found: " + offerId));
 
         if (offer.getStatus() != OfferStatus.DRAFT) {
@@ -246,7 +246,7 @@ public class OfferService {
 
     @Transactional
     public Offer acceptInternal(UUID offerId, User candidateUser) {
-        Offer offer = offerRepository.findById(offerId)
+        Offer offer = offerRepository.findByIdWithGraph(offerId)
                 .orElseThrow(() -> new ResourceNotFoundException("Offer not found: " + offerId));
         ensureCandidateOwns(offer, candidateUser);
 
@@ -292,7 +292,7 @@ public class OfferService {
 
     @Transactional
     public Offer declineInternal(UUID offerId, DeclineOfferRequest req, User candidateUser) {
-        Offer offer = offerRepository.findById(offerId)
+        Offer offer = offerRepository.findByIdWithGraph(offerId)
                 .orElseThrow(() -> new ResourceNotFoundException("Offer not found: " + offerId));
         ensureCandidateOwns(offer, candidateUser);
 
@@ -330,7 +330,7 @@ public class OfferService {
 
     @Transactional
     public OfferResponse revoke(UUID offerId, User actor) {
-        Offer offer = offerRepository.findById(offerId)
+        Offer offer = offerRepository.findByIdWithGraph(offerId)
                 .orElseThrow(() -> new ResourceNotFoundException("Offer not found: " + offerId));
 
         if (offer.getStatus() != OfferStatus.SENT) {
@@ -352,7 +352,7 @@ public class OfferService {
 
     @Transactional
     public void delete(UUID offerId, User actor) {
-        Offer offer = offerRepository.findById(offerId)
+        Offer offer = offerRepository.findByIdWithGraph(offerId)
                 .orElseThrow(() -> new ResourceNotFoundException("Offer not found: " + offerId));
         if (offer.getStatus() != OfferStatus.DRAFT) {
             throw new BadRequestException(
@@ -374,7 +374,7 @@ public class OfferService {
 
     @Transactional
     public CandidateOfferResponse getDetailCandidate(UUID offerId, User candidateUser) {
-        Offer offer = offerRepository.findById(offerId).orElse(null);
+        Offer offer = offerRepository.findByIdWithGraph(offerId).orElse(null);
         if (offer == null
                 || !candidateOwnsSilent(offer, candidateUser)
                 || offer.getStatus() == OfferStatus.DRAFT) {
@@ -412,8 +412,10 @@ public class OfferService {
 
     @Transactional
     public List<CandidateOfferResponse> listForCandidate(User candidateUser) {
+        // Fetch with the full application → candidate → user + jobPosting → entity
+        // graph so toCandidateResponse never lazy-loads after this method returns.
         List<Offer> offers = offerRepository
-                .findByApplication_Candidate_User_IdOrderByCreatedAtDesc(candidateUser.getId());
+                .findByCandidateUserIdWithGraph(candidateUser.getId());
 
         List<CandidateOfferResponse> result = new ArrayList<>(offers.size());
         for (Offer o : offers) {
@@ -431,7 +433,7 @@ public class OfferService {
         if (isCandidateView) {
             // Re-uses the candidate-side checks (404 on draft / not-owned).
             getDetailCandidate(offerId, caller);
-            offer = offerRepository.findById(offerId).orElseThrow();
+            offer = offerRepository.findByIdWithGraph(offerId).orElseThrow();
         } else {
             offer = loadAndLazyExpire(offerId);
         }
@@ -462,7 +464,7 @@ public class OfferService {
     }
 
     private Offer loadAndLazyExpire(UUID offerId) {
-        Offer offer = offerRepository.findById(offerId)
+        Offer offer = offerRepository.findByIdWithGraph(offerId)
                 .orElseThrow(() -> new ResourceNotFoundException("Offer not found: " + offerId));
         lazyExpireIfNeeded(offer);
         return offer;

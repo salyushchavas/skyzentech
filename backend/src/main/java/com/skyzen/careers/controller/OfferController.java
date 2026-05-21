@@ -74,8 +74,12 @@ public class OfferController {
     }
 
     @GetMapping("/{id}")
+    @PreAuthorize("hasAnyRole('CANDIDATE', 'RECRUITER', 'ERM', 'HR_COMPLIANCE', 'ADMIN')")
     public Object getOne(@PathVariable UUID id,
                          @AuthenticationPrincipal User user) {
+        // Candidate path returns the redacted view + enforces ownership in the
+        // service; staff path returns the full offer. Controller guard keeps
+        // unauthenticated requests out.
         if (isCandidateOnly(user)) {
             return offerService.getDetailCandidate(id, user);
         }

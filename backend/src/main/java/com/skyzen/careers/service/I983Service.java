@@ -187,12 +187,15 @@ public class I983Service {
 
         plan = planRepository.save(plan);
         writeAudit(plan.getId(), "CREATE", creator.getId(), null, snapshot(plan));
-        return plan;
+        // Re-read through the fetch-join so toResponse can render candidate +
+        // entity without lazy-loading after this @Transactional returns.
+        return planRepository.findByIdWithGraph(plan.getId())
+                .orElseThrow(() -> new IllegalStateException("Just-created I-983 plan vanished"));
     }
 
     @Transactional
     public I983Plan updateFields(UUID planId, UpdateI983Request req, User actor) {
-        I983Plan plan = planRepository.findById(planId)
+        I983Plan plan = planRepository.findByIdWithGraph(planId)
                 .orElseThrow(() -> new ResourceNotFoundException(
                         "I-983 plan not found: " + planId));
 
@@ -270,7 +273,7 @@ public class I983Service {
 
     @Transactional
     public I983Plan signEmployer(UUID planId, User signer) {
-        I983Plan plan = planRepository.findById(planId)
+        I983Plan plan = planRepository.findByIdWithGraph(planId)
                 .orElseThrow(() -> new ResourceNotFoundException(
                         "I-983 plan not found: " + planId));
 
@@ -349,7 +352,7 @@ public class I983Service {
 
     @Transactional
     public I983Plan signStudent(UUID planId, User student) {
-        I983Plan plan = planRepository.findById(planId)
+        I983Plan plan = planRepository.findByIdWithGraph(planId)
                 .orElseThrow(() -> new ResourceNotFoundException(
                         "I-983 plan not found: " + planId));
 
@@ -401,7 +404,7 @@ public class I983Service {
 
     @Transactional
     public I983Plan submitToDso(UUID planId, SubmitToDsoRequest req, User actor) {
-        I983Plan plan = planRepository.findById(planId)
+        I983Plan plan = planRepository.findByIdWithGraph(planId)
                 .orElseThrow(() -> new ResourceNotFoundException(
                         "I-983 plan not found: " + planId));
 
@@ -434,7 +437,7 @@ public class I983Service {
 
     @Transactional
     public I983Plan recordDsoResponse(UUID planId, DsoResponseRequest req, User actor) {
-        I983Plan plan = planRepository.findById(planId)
+        I983Plan plan = planRepository.findByIdWithGraph(planId)
                 .orElseThrow(() -> new ResourceNotFoundException(
                         "I-983 plan not found: " + planId));
 
@@ -504,7 +507,7 @@ public class I983Service {
 
     @Transactional(readOnly = true)
     public I983Plan getById(UUID planId, User caller) {
-        I983Plan plan = planRepository.findById(planId)
+        I983Plan plan = planRepository.findByIdWithGraph(planId)
                 .orElseThrow(() -> new ResourceNotFoundException(
                         "I-983 plan not found: " + planId));
         requireReadAccess(plan, caller);
@@ -541,7 +544,7 @@ public class I983Service {
 
     @Transactional(readOnly = true)
     public List<I983HistoryEntryResponse> getHistory(UUID planId, User caller) {
-        I983Plan plan = planRepository.findById(planId)
+        I983Plan plan = planRepository.findByIdWithGraph(planId)
                 .orElseThrow(() -> new ResourceNotFoundException(
                         "I-983 plan not found: " + planId));
         requireReadAccess(plan, caller);

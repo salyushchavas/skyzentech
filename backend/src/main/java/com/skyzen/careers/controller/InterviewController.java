@@ -69,8 +69,11 @@ public class InterviewController {
     }
 
     @GetMapping("/{id}")
+    @PreAuthorize("hasAnyRole('CANDIDATE', 'RECRUITER', 'ERM', 'HR_COMPLIANCE', 'TECHNICAL_EVALUATOR', 'ADMIN')")
     public InterviewResponse getOne(@PathVariable UUID id,
                                     @AuthenticationPrincipal User user) {
+        // Service-side check enforces candidate ownership / interviewer / staff
+        // privilege; the controller guard keeps unauthenticated calls out.
         return interviewService.getDetail(id, user);
     }
 
@@ -83,9 +86,12 @@ public class InterviewController {
     }
 
     @PostMapping("/{id}/feedback")
+    @PreAuthorize("hasAnyRole('TECHNICAL_EVALUATOR', 'ERM', 'ADMIN')")
     public InterviewResponse submitFeedback(@PathVariable UUID id,
                                             @Valid @RequestBody SubmitFeedbackRequest req,
                                             @AuthenticationPrincipal User user) {
+        // Service further restricts to the assigned interviewer + ERM/ADMIN;
+        // controller guard rejects other roles before any work happens.
         return interviewService.submitFeedback(id, req, user);
     }
 

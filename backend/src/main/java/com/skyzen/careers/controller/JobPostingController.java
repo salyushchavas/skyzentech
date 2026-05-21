@@ -65,7 +65,7 @@ public class JobPostingController {
     @PutMapping("/{id}")
     @PreAuthorize("hasAnyRole('ADMIN', 'ERM')")
     public JobPostingResponse update(@PathVariable UUID id,
-                                     @RequestBody JobPostingUpdateRequest req) {
+                                     @Valid @RequestBody JobPostingUpdateRequest req) {
         return jobPostingService.update(id, req);
     }
 

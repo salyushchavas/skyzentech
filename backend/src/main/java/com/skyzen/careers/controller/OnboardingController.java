@@ -59,10 +59,13 @@ public class OnboardingController {
     }
 
     @PatchMapping("/tasks/{taskId}")
+    @PreAuthorize("hasAnyRole('CANDIDATE', 'HR_COMPLIANCE', 'ERM', 'ADMIN')")
     public OnboardingTaskResponse updateStatus(
             @PathVariable UUID taskId,
             @Valid @RequestBody UpdateTaskStatusRequest req,
             @AuthenticationPrincipal User user) {
+        // Service enforces "candidate can only update their own task"; the
+        // controller guard rejects unrelated roles (recruiter/evaluator) outright.
         return onboardingService.updateStatus(taskId, req, user);
     }
 

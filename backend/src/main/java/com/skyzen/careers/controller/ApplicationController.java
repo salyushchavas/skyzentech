@@ -58,8 +58,12 @@ public class ApplicationController {
     }
 
     @GetMapping("/{id}")
+    @PreAuthorize("hasAnyRole('CANDIDATE', 'RECRUITER', 'ERM', 'HR_COMPLIANCE', 'TECHNICAL_EVALUATOR', 'ADMIN')")
     public ApplicationResponse getOne(@PathVariable UUID id,
                                       @AuthenticationPrincipal User user) {
+        // CANDIDATE is gated to their own application in ApplicationService.findById;
+        // this controller guard is defense-in-depth so an unauthenticated request
+        // is rejected before the service runs.
         return applicationService.findById(id, user);
     }
 

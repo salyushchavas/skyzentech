@@ -86,7 +86,9 @@ public class I9FormService {
 
     @Transactional
     public I9Form getOrCreateForCandidate(UUID candidateId, User creator) {
-        return formRepository.findByCandidateId(candidateId)
+        // Use the fetch-join variant so the returned form already has its
+        // candidate/user graph populated for the controller-level toResponse.
+        return formRepository.findByCandidateIdWithGraph(candidateId)
                 .orElseGet(() -> createForCandidate(candidateId, creator));
     }
 
@@ -112,7 +114,10 @@ public class I9FormService {
         writeAudit(form.getId(), "CREATE",
                 creator != null ? creator.getId() : candidate.getUser().getId(),
                 null, snapshot(form));
-        return form;
+        // Re-read through the fetch-join so the returned entity has candidate
+        // + user already initialized for the controller's toResponse call.
+        return formRepository.findByIdWithGraph(form.getId())
+                .orElseThrow(() -> new IllegalStateException("Just-created I-9 form vanished"));
     }
 
     @Transactional
@@ -125,7 +130,7 @@ public class I9FormService {
 
     @Transactional(readOnly = true)
     public I9Form getById(UUID formId, User caller) {
-        I9Form form = formRepository.findById(formId)
+        I9Form form = formRepository.findByIdWithGraph(formId)
                 .orElseThrow(() -> new ResourceNotFoundException(
                         "I-9 form not found: " + formId));
         requireReadAccess(form, caller);
@@ -136,7 +141,7 @@ public class I9FormService {
 
     @Transactional
     public I9Form saveSection1(UUID formId, Section1Request req, User actor) {
-        I9Form form = formRepository.findById(formId)
+        I9Form form = formRepository.findByIdWithGraph(formId)
                 .orElseThrow(() -> new ResourceNotFoundException(
                         "I-9 form not found: " + formId));
         requireSection1WriteAccess(form, actor);
@@ -221,7 +226,7 @@ public class I9FormService {
 
     @Transactional
     public I9Form saveSection2(UUID formId, Section2Request req, User actor) {
-        I9Form form = formRepository.findById(formId)
+        I9Form form = formRepository.findByIdWithGraph(formId)
                 .orElseThrow(() -> new ResourceNotFoundException(
                         "I-9 form not found: " + formId));
 
@@ -305,7 +310,7 @@ public class I9FormService {
 
     @Transactional
     public I9Form reopenForm(UUID formId, String reason, User adminActor) {
-        I9Form form = formRepository.findById(formId)
+        I9Form form = formRepository.findByIdWithGraph(formId)
                 .orElseThrow(() -> new ResourceNotFoundException(
                         "I-9 form not found: " + formId));
 
@@ -348,7 +353,7 @@ public class I9FormService {
 
     @Transactional(readOnly = true)
     public List<I9HistoryEntryResponse> getHistory(UUID formId, User caller) {
-        I9Form form = formRepository.findById(formId)
+        I9Form form = formRepository.findByIdWithGraph(formId)
                 .orElseThrow(() -> new ResourceNotFoundException(
                         "I-9 form not found: " + formId));
         requireReadAccess(form, caller);

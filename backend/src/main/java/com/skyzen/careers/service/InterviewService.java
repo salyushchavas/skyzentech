@@ -245,7 +245,9 @@ public class InterviewService {
 
     @Transactional(readOnly = true)
     public InterviewResponse getDetail(UUID interviewId, User caller) {
-        Interview interview = interviewRepository.findById(interviewId)
+        // Fetch-join application → candidate → user + jobPosting + interviewer
+        // so the DTO mapper doesn't N+1 / lazy-load after this method returns.
+        Interview interview = interviewRepository.findByIdWithGraph(interviewId)
                 .orElseThrow(() -> new ResourceNotFoundException("Interview not found: " + interviewId));
 
         if (caller == null) {

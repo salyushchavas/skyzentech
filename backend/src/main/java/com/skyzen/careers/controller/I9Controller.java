@@ -45,8 +45,11 @@ public class I9Controller {
     }
 
     @GetMapping("/{id}")
+    @PreAuthorize("hasAnyRole('CANDIDATE', 'RECRUITER', 'ERM', 'HR_COMPLIANCE', 'TECHNICAL_EVALUATOR', 'ADMIN')")
     public I9FormResponse getOne(@PathVariable UUID id,
                                  @AuthenticationPrincipal User user) {
+        // Service-side requireReadAccess enforces candidate ownership; the
+        // controller guard rejects unauthenticated requests up front.
         return service.toResponse(service.getById(id, user));
     }
 
@@ -89,6 +92,7 @@ public class I9Controller {
     }
 
     @GetMapping("/{id}/history")
+    @PreAuthorize("hasAnyRole('CANDIDATE', 'RECRUITER', 'ERM', 'HR_COMPLIANCE', 'TECHNICAL_EVALUATOR', 'ADMIN')")
     public List<I9HistoryEntryResponse> getHistory(@PathVariable UUID id,
                                                    @AuthenticationPrincipal User user) {
         return service.getHistory(id, user);

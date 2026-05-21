@@ -11,6 +11,7 @@ import org.springframework.stereotype.Repository;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 @Repository
@@ -30,9 +31,28 @@ public interface InterviewRepository extends JpaRepository<Interview, UUID> {
     boolean existsByApplicationIdAndStatus(UUID applicationId, InterviewStatus status);
 
     @Query("SELECT i FROM Interview i " +
-            "WHERE i.application.candidate.user.id = :userId " +
+            "JOIN FETCH i.application a " +
+            "JOIN FETCH a.candidate c " +
+            "JOIN FETCH c.user u " +
+            "LEFT JOIN FETCH a.jobPosting jp " +
+            "LEFT JOIN FETCH i.interviewer ir " +
+            "WHERE u.id = :userId " +
             "ORDER BY i.scheduledAt DESC")
     List<Interview> findAllForCandidateUser(@Param("userId") UUID userId);
+
+    /**
+     * Single interview with application → candidate → user, application →
+     * jobPosting, and interviewer eagerly loaded — used by the getDetail path
+     * so the DTO mapper doesn't lazy-load after the transaction closes.
+     */
+    @Query("SELECT i FROM Interview i " +
+            "JOIN FETCH i.application a " +
+            "JOIN FETCH a.candidate c " +
+            "JOIN FETCH c.user u " +
+            "LEFT JOIN FETCH a.jobPosting jp " +
+            "LEFT JOIN FETCH i.interviewer ir " +
+            "WHERE i.id = :id")
+    Optional<Interview> findByIdWithGraph(@Param("id") UUID id);
 
     @Query("SELECT i FROM Interview i " +
             "WHERE (:applicationId IS NULL OR i.application.id = :applicationId) " +

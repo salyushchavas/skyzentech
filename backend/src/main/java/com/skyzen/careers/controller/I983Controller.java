@@ -70,8 +70,10 @@ public class I983Controller {
     }
 
     @GetMapping("/{id}")
+    @PreAuthorize("hasAnyRole('CANDIDATE', 'ERM', 'HR_COMPLIANCE', 'ADMIN')")
     public I983PlanResponse getOne(@PathVariable UUID id,
                                    @AuthenticationPrincipal User user) {
+        // Service-side ownership check still gates candidate access.
         return service.toResponse(service.getById(id, user));
     }
 
@@ -101,7 +103,7 @@ public class I983Controller {
     @PreAuthorize("hasAnyRole('ERM', 'HR_COMPLIANCE', 'ADMIN')")
     public I983PlanResponse submitToDso(
             @PathVariable UUID id,
-            @RequestBody(required = false) SubmitToDsoRequest req,
+            @Valid @RequestBody(required = false) SubmitToDsoRequest req,
             @AuthenticationPrincipal User user) {
         return service.toResponse(service.submitToDso(id, req, user));
     }
@@ -116,6 +118,7 @@ public class I983Controller {
     }
 
     @GetMapping("/{id}/history")
+    @PreAuthorize("hasAnyRole('CANDIDATE', 'ERM', 'HR_COMPLIANCE', 'ADMIN')")
     public List<I983HistoryEntryResponse> getHistory(@PathVariable UUID id,
                                                      @AuthenticationPrincipal User user) {
         return service.getHistory(id, user);
