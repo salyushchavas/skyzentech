@@ -78,6 +78,7 @@ export type ApplicationStatus =
   | 'ACCEPTED'
   | 'ONBOARDING'
   | 'ACTIVE'
+  | 'HIRED'
   | 'COMPLETED'
   | 'REJECTED'
   | 'WITHDRAWN'

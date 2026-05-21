@@ -12,13 +12,14 @@ import {
 } from '@dnd-kit/core';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { RefreshCw } from 'lucide-react';
+import { KanbanSquare, RefreshCw, Table } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '@/lib/api';
 import ProtectedRoute from '@/components/ProtectedRoute';
 import DashboardLayout from '@/components/dashboard/DashboardLayout';
 import ApplicationCard from '@/components/ApplicationCard';
 import ApplicationDetailDrawer from '@/components/ApplicationDetailDrawer';
+import PipelineTable from '@/components/recruiter/PipelineTable';
 import type {
   ApplicationResponse,
   ApplicationStatus,
@@ -26,13 +27,96 @@ import type {
   Page,
 } from '@/types';
 
+type ViewMode = 'board' | 'table';
+
 export default function RecruiterPipelinePage() {
   return (
-    <ProtectedRoute requiredRoles={['RECRUITER', 'ERM', 'ADMIN']}>
+    <ProtectedRoute
+      requiredRoles={['RECRUITER', 'ERM', 'HR_COMPLIANCE', 'ADMIN']}
+    >
       <DashboardLayout title="Application Pipeline">
-        <PipelineBoard />
+        <PipelineShell />
       </DashboardLayout>
     </ProtectedRoute>
+  );
+}
+
+/**
+ * Owns the Board | Table view toggle and the shared postings list. The Kanban
+ * view stays exactly as it was — the toggle just swaps in the new table view
+ * for the 50–100-applicant case. Default is Board to keep the established
+ * recruiter workflow.
+ */
+function PipelineShell() {
+  const [view, setView] = useState<ViewMode>('board');
+  const [postings, setPostings] = useState<JobPostingResponse[]>([]);
+
+  // Postings are needed by both views' filter dropdowns; fetch once at this
+  // level so switching tabs doesn't reload them.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await api.get<Page<JobPostingResponse>>(
+          '/api/v1/job-postings/admin/all?page=0&size=200',
+        );
+        if (!cancelled) setPostings(res.data?.content ?? []);
+      } catch {
+        if (!cancelled) setPostings([]);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  return (
+    <div className="space-y-4">
+      <div className="inline-flex rounded-md border border-gray-200 bg-white p-0.5">
+        <ViewTabButton
+          active={view === 'board'}
+          onClick={() => setView('board')}
+          icon={<KanbanSquare className="h-4 w-4" strokeWidth={2} />}
+          label="Board"
+        />
+        <ViewTabButton
+          active={view === 'table'}
+          onClick={() => setView('table')}
+          icon={<Table className="h-4 w-4" strokeWidth={2} />}
+          label="Table"
+        />
+      </div>
+      {view === 'board' ? <PipelineBoard /> : <PipelineTable postings={postings} />}
+    </div>
+  );
+}
+
+function ViewTabButton({
+  active,
+  onClick,
+  icon,
+  label,
+}: {
+  active: boolean;
+  onClick: () => void;
+  icon: React.ReactNode;
+  label: string;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={
+        'inline-flex items-center gap-1.5 rounded px-3 py-1.5 text-sm transition ' +
+        (active
+          ? 'bg-accent text-white shadow-sm'
+          : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900')
+      }
+      aria-pressed={active}
+    >
+      {icon}
+      {label}
+    </button>
   );
 }
 
