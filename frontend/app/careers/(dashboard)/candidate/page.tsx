@@ -329,6 +329,7 @@ function NextStepIcon({ type }: { type: string }) {
       return <CalendarClock className={cn} strokeWidth={2} />;
     case 'ONBOARDING':
     case 'WORK':
+    case 'SCREENING':
       return <ClipboardList className={cn} strokeWidth={2} />;
     case 'PROFILE':
       return <UserCircle className={cn} strokeWidth={2} />;
