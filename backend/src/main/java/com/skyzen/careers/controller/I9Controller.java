@@ -6,13 +6,13 @@ import com.skyzen.careers.dto.i9.I9SummaryResponse;
 import com.skyzen.careers.dto.i9.ReopenRequest;
 import com.skyzen.careers.dto.i9.Section1Request;
 import com.skyzen.careers.dto.i9.Section2Request;
+import com.skyzen.careers.dto.common.PagedResponse;
 import com.skyzen.careers.entity.I9Form;
 import com.skyzen.careers.entity.User;
 import com.skyzen.careers.enums.I9Status;
 import com.skyzen.careers.service.I9FormService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
-import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
@@ -52,7 +52,7 @@ public class I9Controller {
 
     @GetMapping
     @PreAuthorize("hasAnyRole('HR_COMPLIANCE', 'ADMIN')")
-    public Page<I9SummaryResponse> list(
+    public PagedResponse<I9SummaryResponse> list(
             @RequestParam(required = false) I9Status status,
             @RequestParam(defaultValue = "false") boolean overdueOnly,
             @RequestParam(defaultValue = "0") int page,
@@ -61,7 +61,7 @@ public class I9Controller {
                 Math.max(0, page),
                 Math.min(100, Math.max(1, size)),
                 Sort.by(Sort.Direction.DESC, "updatedAt"));
-        return service.list(status, overdueOnly, pageable);
+        return PagedResponse.of(service.list(status, overdueOnly, pageable));
     }
 
     @PostMapping("/{id}/section1")

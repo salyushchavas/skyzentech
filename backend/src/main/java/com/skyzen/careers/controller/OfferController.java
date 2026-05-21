@@ -6,6 +6,7 @@ import com.skyzen.careers.dto.offer.DeclineOfferRequest;
 import com.skyzen.careers.dto.offer.OfferResponse;
 import com.skyzen.careers.dto.offer.OfferSummaryResponse;
 import com.skyzen.careers.dto.offer.UpdateOfferRequest;
+import com.skyzen.careers.dto.common.PagedResponse;
 import com.skyzen.careers.entity.Offer;
 import com.skyzen.careers.entity.User;
 import com.skyzen.careers.enums.OfferStatus;
@@ -13,7 +14,6 @@ import com.skyzen.careers.enums.UserRole;
 import com.skyzen.careers.service.OfferService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
-import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
@@ -55,7 +55,7 @@ public class OfferController {
 
     @GetMapping
     @PreAuthorize("hasAnyRole('RECRUITER', 'ERM', 'HR_COMPLIANCE', 'ADMIN')")
-    public Page<OfferSummaryResponse> list(
+    public PagedResponse<OfferSummaryResponse> list(
             @RequestParam(required = false) OfferStatus status,
             @RequestParam(required = false) UUID applicationId,
             @RequestParam(defaultValue = "0") int page,
@@ -64,7 +64,7 @@ public class OfferController {
                 Math.max(0, page),
                 Math.min(100, Math.max(1, size)),
                 Sort.by(Sort.Direction.DESC, "createdAt"));
-        return offerService.list(status, applicationId, pageable);
+        return PagedResponse.of(offerService.list(status, applicationId, pageable));
     }
 
     @GetMapping("/me")

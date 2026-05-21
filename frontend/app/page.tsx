@@ -905,131 +905,6 @@ window.addEventListener('scroll', () => {
 // Logo marquee: pause on hover is handled via CSS (.logo-marquee-track:hover)
 `;
 
-const CONTACT_FORM_SCRIPT = `
-// ── Contact form ──
-var borderColor = "#333";
-$("#contact_body").submit(function(e) {
-  e.preventDefault();
-  var proceed = true;
-  $("#contact_results").html('');
-
-  if (!$('#contactConsent').is(':checked')) {
-    $("#contact_results").html('<div class="form-feedback error">Please check the consent box before submitting.</div>');
-    return;
-  }
-  $(this).find("input[data-required=true], textarea[data-required=true]").each(function() {
-    if (!$.trim($(this).val())) { $(this).css('border-color','#ef4444'); proceed = false; }
-    var emailReg = /^([\\w-\\.]+@([\\w-]+\\.)+[\\w-]{2,4})?$/;
-    if ($(this).attr("type") == "email" && !emailReg.test($.trim($(this).val()))) {
-      $(this).css('border-color','#ef4444'); proceed = false;
-    }
-  }).on("input", function() { $(this).css('border-color', borderColor); });
-
-  if (proceed) { this.submit(); }
-});
-
-var params = new URLSearchParams(window.location.search);
-var contactStatus = params.get("contact");
-if (contactStatus === "success") {
-  $("#contact_results").html('<div class="form-feedback success">Thanks for reaching out! Your message has been sent successfully.</div>');
-} else if (contactStatus === "error") {
-  $("#contact_results").html('<div class="form-feedback error">Something went wrong. Please try again.</div>');
-} else if (contactStatus === "invalid") {
-  $("#contact_results").html('<div class="form-feedback error">Please complete all required fields with a valid email address.</div>');
-}
-`;
-
-const HEADLINE_ANIM_SCRIPT = `
-// ── Word headline animation ──
-jQuery(document).ready(function($) {
-  var animationDelay = 5000, lettersDelay = 50;
-  initBoxHeadline();
-  function initBoxHeadline() {
-    singleLetters($('.box-headline.letters').find('b'));
-    animateBoxHeadline($('.box-headline'));
-  }
-  function singleLetters($words) {
-    $words.each(function() {
-      var word = $(this), letters = word.text().split(''), selected = word.hasClass('is-visible');
-      for (var i in letters) {
-        if (word.parents('.rotate-2').length > 0) letters[i] = '<em>' + letters[i] + '</em>';
-        letters[i] = selected ? '<i class="in">' + letters[i] + '</i>' : '<i>' + letters[i] + '</i>';
-      }
-      word.html(letters.join('')).css('opacity', 1);
-    });
-  }
-  function animateBoxHeadline($headlines) {
-    $headlines.each(function() {
-      var headline = $(this);
-      var words = headline.find('.box-words-wrapper b'), width = 0;
-      words.each(function() { if ($(this).width() > width) width = $(this).width(); });
-      headline.find('.box-words-wrapper').css('width', width);
-      setTimeout(function() { hideBoxWord(headline.find('.is-visible').eq(0)); }, animationDelay);
-    });
-  }
-  function hideBoxWord($word) {
-    var nextWord = takeNextBox($word);
-    var bool = ($word.children('i').length >= nextWord.children('i').length);
-    hideBoxLetter($word.find('i').eq(0), $word, bool, lettersDelay);
-    showBoxLetter(nextWord.find('i').eq(0), nextWord, bool, lettersDelay);
-  }
-  function hideBoxLetter($letter, $word, $bool, $duration) {
-    $letter.removeClass('in').addClass('out');
-    if (!$letter.is(':last-child')) {
-      setTimeout(function() { hideBoxLetter($letter.next(), $word, $bool, $duration); }, $duration);
-    } else if ($bool) {
-      setTimeout(function() { hideBoxWord(takeNextBox($word)); }, animationDelay);
-    }
-  }
-  function showBoxLetter($letter, $word, $bool, $duration) {
-    $letter.addClass('in').removeClass('out');
-    if (!$letter.is(':last-child')) {
-      setTimeout(function() { showBoxLetter($letter.next(), $word, $bool, $duration); }, $duration);
-    } else if (!$bool) {
-      setTimeout(function() { hideBoxWord($word); }, animationDelay);
-    }
-  }
-  function takeNextBox($word) {
-    return (!$word.is(':last-child')) ? $word.next() : $word.parent().children().eq(0);
-  }
-});
-
-// ── Clip headline animation ──
-jQuery(document).ready(function($) {
-  var animationDelay = 3500, revealDuration = 500, revealAnimationDelay = 2800;
-  initCdHeadline();
-  function initCdHeadline() {
-    animateCdHeadline($('.cd-headline'));
-  }
-  function animateCdHeadline($headlines) {
-    $headlines.each(function() {
-      var headline = $(this);
-      var spanWrapper = headline.find('.cd-words-wrapper');
-      spanWrapper.css('width', spanWrapper.width() + 10);
-      setTimeout(function() { hideCdWord(headline.find('.is-visible').eq(0)); }, animationDelay);
-    });
-  }
-  function hideCdWord($word) {
-    var nextWord = takeCdNext($word);
-    $word.parents('.cd-words-wrapper').animate({ width: '2px' }, revealDuration, function() {
-      switchCdWord($word, nextWord);
-      showCdWord(nextWord);
-    });
-  }
-  function showCdWord($word) {
-    $word.parents('.cd-words-wrapper').animate({ width: $word.width() + 10 }, revealDuration, function() {
-      setTimeout(function() { hideCdWord($word); }, revealAnimationDelay);
-    });
-  }
-  function switchCdWord($oldWord, $newWord) {
-    $oldWord.removeClass('is-visible').addClass('is-hidden');
-    $newWord.removeClass('is-hidden').addClass('is-visible');
-  }
-  function takeCdNext($word) {
-    return (!$word.is(':last-child')) ? $word.next() : $word.parent().children().eq(0);
-  }
-});
-`;
 
 const PARTICLE_CANVAS_SCRIPT = `
 // ── Particle canvas ──
@@ -2094,30 +1969,17 @@ export default function HomePage() {
         </footer>
       </div>
 
-      {/* External scripts — load in order, after page is interactive */}
-      <Script
-        src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.1.1/jquery.min.js"
-        strategy="afterInteractive"
-      />
-      <Script src="/plugins/bootstrap/js/bootstrap.min.js" strategy="afterInteractive" />
-      <Script
-        src="https://cdnjs.cloudflare.com/ajax/libs/slick-carousel/1.6.0/slick.js"
-        strategy="afterInteractive"
-      />
-      <Script
-        src="https://cdnjs.cloudflare.com/ajax/libs/gsap/1.19.1/TweenMax.min.js"
-        strategy="afterInteractive"
-      />
-
-      {/* Inline scripts (verbatim port) */}
+      {/*
+        Inline scripts that survived the legacy-port cleanup: vanilla JS only.
+        jQuery / bootstrap / slick / GSAP were removed in Sprint 2 R1 — they
+        caused "$ is not defined" errors in the browser console across the app
+        and weren't actually used outside the headline animation + contact form
+        client-side validation. The contact form still posts (server handles
+        redirect via ?contact=success/error/invalid); headline animations now
+        render statically.
+      */}
       <Script id="home-nav-and-reveal" strategy="afterInteractive">
         {NAV_AND_REVEAL_SCRIPT}
-      </Script>
-      <Script id="home-contact-form" strategy="afterInteractive">
-        {CONTACT_FORM_SCRIPT}
-      </Script>
-      <Script id="home-headline-anim" strategy="afterInteractive">
-        {HEADLINE_ANIM_SCRIPT}
       </Script>
       <Script id="home-particle-canvas" strategy="afterInteractive">
         {PARTICLE_CANVAS_SCRIPT}

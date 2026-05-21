@@ -7,12 +7,12 @@ import com.skyzen.careers.dto.interview.ScheduleInterviewRequest;
 import com.skyzen.careers.dto.interview.SubmitFeedbackRequest;
 import com.skyzen.careers.dto.interview.UpdateInterviewRequest;
 import com.skyzen.careers.dto.interview.UpdateStatusRequest;
+import com.skyzen.careers.dto.common.PagedResponse;
 import com.skyzen.careers.entity.User;
 import com.skyzen.careers.enums.InterviewStatus;
 import com.skyzen.careers.service.InterviewService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
-import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
@@ -44,7 +44,7 @@ public class InterviewController {
 
     @GetMapping
     @PreAuthorize("hasAnyRole('RECRUITER', 'ERM', 'HR_COMPLIANCE', 'ADMIN', 'TECHNICAL_EVALUATOR')")
-    public Page<InterviewSummaryResponse> list(
+    public PagedResponse<InterviewSummaryResponse> list(
             @RequestParam(required = false) UUID applicationId,
             @RequestParam(required = false) InterviewStatus status,
             @RequestParam(required = false) UUID interviewerId,
@@ -58,7 +58,8 @@ public class InterviewController {
                 Math.max(0, page),
                 Math.min(100, Math.max(1, size)),
                 sort);
-        return interviewService.list(applicationId, status, interviewerId, upcoming, pageable);
+        return PagedResponse.of(
+                interviewService.list(applicationId, status, interviewerId, upcoming, pageable));
     }
 
     @GetMapping("/me")

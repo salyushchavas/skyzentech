@@ -55,16 +55,16 @@ export interface JobPostingResponse {
   createdAt: IsoDateTime;
 }
 
-// Spring Page<T> envelope returned by the paginated list endpoints.
+// Paged envelope returned by every list endpoint. The backend returns a custom
+// PagedResponse<T> instead of Spring's PageImpl (deprecated for serialization
+// in Spring Boot 3 — see backend/.../dto/common/PagedResponse.java). Field
+// shape mirrors PagedAuditLogResponse from D2 for cross-endpoint consistency.
 export interface Page<T> {
   content: T[];
+  page: number;
+  size: number;
   totalElements: number;
   totalPages: number;
-  number: number;
-  size: number;
-  first: boolean;
-  last: boolean;
-  empty: boolean;
 }
 
 // === Applications ============================================================

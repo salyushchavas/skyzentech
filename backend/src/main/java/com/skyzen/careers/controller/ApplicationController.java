@@ -4,12 +4,12 @@ import com.skyzen.careers.dto.ApplicationCreateRequest;
 import com.skyzen.careers.dto.ApplicationResponse;
 import com.skyzen.careers.dto.ApplicationStatusUpdateRequest;
 import com.skyzen.careers.dto.RecruiterDecisionRequest;
+import com.skyzen.careers.dto.common.PagedResponse;
 import com.skyzen.careers.entity.User;
 import com.skyzen.careers.enums.ApplicationStatus;
 import com.skyzen.careers.service.ApplicationService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
-import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
@@ -47,14 +47,14 @@ public class ApplicationController {
 
     @GetMapping
     @PreAuthorize("hasAnyRole('RECRUITER', 'ERM', 'HR_COMPLIANCE', 'ADMIN')")
-    public Page<ApplicationResponse> list(
+    public PagedResponse<ApplicationResponse> list(
             @RequestParam(required = false) ApplicationStatus status,
             @RequestParam(required = false) UUID jobPostingId,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size) {
         Pageable pageable = PageRequest.of(Math.max(0, page), Math.min(100, Math.max(1, size)),
                 Sort.by(Sort.Direction.DESC, "appliedAt"));
-        return applicationService.search(status, jobPostingId, pageable);
+        return PagedResponse.of(applicationService.search(status, jobPostingId, pageable));
     }
 
     @GetMapping("/{id}")

@@ -7,12 +7,12 @@ import com.skyzen.careers.dto.i983.I983PlanResponse;
 import com.skyzen.careers.dto.i983.I983SummaryResponse;
 import com.skyzen.careers.dto.i983.SubmitToDsoRequest;
 import com.skyzen.careers.dto.i983.UpdateI983Request;
+import com.skyzen.careers.dto.common.PagedResponse;
 import com.skyzen.careers.entity.User;
 import com.skyzen.careers.enums.I983Status;
 import com.skyzen.careers.service.I983Service;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
-import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
@@ -44,7 +44,7 @@ public class I983Controller {
 
     @GetMapping
     @PreAuthorize("hasAnyRole('HR_COMPLIANCE', 'ERM', 'ADMIN')")
-    public Page<I983SummaryResponse> list(
+    public PagedResponse<I983SummaryResponse> list(
             @RequestParam(required = false) I983Status status,
             @RequestParam(required = false) UUID candidateId,
             @RequestParam(required = false) UUID entityId,
@@ -54,7 +54,7 @@ public class I983Controller {
                 Math.max(0, page),
                 Math.min(100, Math.max(1, size)),
                 Sort.by(Sort.Direction.DESC, "updatedAt"));
-        return service.list(status, candidateId, entityId, pageable);
+        return PagedResponse.of(service.list(status, candidateId, entityId, pageable));
     }
 
     @GetMapping("/me")

@@ -1,11 +1,11 @@
 package com.skyzen.careers.controller;
 
+import com.skyzen.careers.dto.common.PagedResponse;
 import com.skyzen.careers.dto.documents.DocumentRecordResponse;
 import com.skyzen.careers.enums.DocumentType;
 import com.skyzen.careers.service.DocumentService;
 import com.skyzen.careers.service.DocumentService.DocumentFilters;
 import lombok.RequiredArgsConstructor;
-import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -23,7 +23,7 @@ public class DocumentController {
 
     @GetMapping
     @PreAuthorize("hasAnyRole('HR_COMPLIANCE', 'ERM', 'ADMIN')")
-    public Page<DocumentRecordResponse> list(
+    public PagedResponse<DocumentRecordResponse> list(
             @RequestParam(required = false) DocumentType type,
             @RequestParam(required = false) UUID candidateId,
             @RequestParam(required = false) String statusContains,
@@ -45,6 +45,6 @@ public class DocumentController {
         DocumentFilters filters = new DocumentFilters(
                 type, candidateId, statusContains, searchQuery, fromDate, toDate, sort
         );
-        return documentService.listAll(filters, pageable);
+        return PagedResponse.of(documentService.listAll(filters, pageable));
     }
 }

@@ -7,12 +7,12 @@ import com.skyzen.careers.dto.everify.EVerifyCaseSummaryResponse;
 import com.skyzen.careers.dto.everify.EVerifyHistoryEntryResponse;
 import com.skyzen.careers.dto.everify.UpdateCaseRequest;
 import com.skyzen.careers.dto.everify.UpdateStatusRequest;
+import com.skyzen.careers.dto.common.PagedResponse;
 import com.skyzen.careers.entity.User;
 import com.skyzen.careers.enums.EVerifyStatus;
 import com.skyzen.careers.service.EVerifyService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
-import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
@@ -44,7 +44,7 @@ public class EVerifyController {
 
     @GetMapping
     @PreAuthorize("hasAnyRole('HR_COMPLIANCE', 'ERM', 'ADMIN')")
-    public Page<EVerifyCaseSummaryResponse> list(
+    public PagedResponse<EVerifyCaseSummaryResponse> list(
             @RequestParam(required = false) EVerifyStatus status,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size) {
@@ -52,7 +52,7 @@ public class EVerifyController {
                 Math.max(0, page),
                 Math.min(100, Math.max(1, size)),
                 Sort.by(Sort.Direction.DESC, "createdAt"));
-        return service.list(status, pageable);
+        return PagedResponse.of(service.list(status, pageable));
     }
 
     @GetMapping("/{id}")
