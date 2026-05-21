@@ -4,9 +4,11 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.skyzen.careers.dto.interview.CandidateInterviewResponse;
 import com.skyzen.careers.dto.interview.InterviewResponse;
+import com.skyzen.careers.dto.interview.InterviewScorecardSummary;
 import com.skyzen.careers.dto.interview.InterviewSummaryResponse;
 import com.skyzen.careers.dto.interview.ScheduleInterviewRequest;
 import com.skyzen.careers.dto.interview.SubmitFeedbackRequest;
+import com.skyzen.careers.dto.interview.SubmitScorecardRequest;
 import com.skyzen.careers.dto.interview.UpdateInterviewRequest;
 import com.skyzen.careers.entity.Application;
 import com.skyzen.careers.entity.AuditLog;
@@ -179,6 +181,64 @@ public class InterviewService {
         return toResponse(interview);
     }
 
+    /**
+     * Phase 2.2 — structured scorecard submission. Writes the three dimension
+     * ratings + recommendation + unified comments. The overall rating is auto-
+     * computed as the rounded average of the dimensions so existing surfaces
+     * (interview summary, recruiter table) keep working without a schema-only
+     * change. Same submitter idempotency as {@code submitFeedback}: the assigned
+     * interviewer (or ERM/ADMIN) can resubmit to overwrite their prior scorecard.
+     */
+    @Transactional
+    public InterviewResponse submitScorecard(UUID interviewId,
+                                             SubmitScorecardRequest req,
+                                             User submitter) {
+        Interview interview = interviewRepository.findById(interviewId)
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "Interview not found: " + interviewId));
+
+        ensureCanSubmitFeedback(interview, submitter);
+
+        if (interview.getStatus() != InterviewStatus.SCHEDULED
+                && interview.getStatus() != InterviewStatus.COMPLETED) {
+            throw new BadRequestException(
+                    "Cannot submit scorecard for interview in status " + interview.getStatus());
+        }
+
+        Map<String, Object> before = snapshot(interview);
+
+        int tech = req.getTechnicalRating();
+        int comm = req.getCommunicationRating();
+        int ps = req.getProblemSolvingRating();
+        // Rounded-half-up average; min 1, max 5 — bounds are already enforced
+        // by @Min/@Max on the DTO so the clamp here is belt-and-braces.
+        int overall = Math.max(1, Math.min(5, (int) Math.round((tech + comm + ps) / 3.0)));
+
+        interview.setFeedbackTechnicalRating(tech);
+        interview.setFeedbackCommunicationRating(comm);
+        interview.setFeedbackProblemSolvingRating(ps);
+        interview.setFeedbackOverallRating(overall);
+        interview.setFeedbackRecommendation(req.getRecommendation());
+        interview.setFeedbackComments(req.getComments());
+        interview.setFeedbackSubmittedAt(Instant.now());
+        interview.setFeedbackSubmittedBy(submitter.getId());
+        interview.setStatus(InterviewStatus.COMPLETED);
+        interview = interviewRepository.save(interview);
+
+        Application application = interview.getApplication();
+        if (application.getStatus() == ApplicationStatus.INTERVIEW_SCHEDULED) {
+            // INTERVIEW_SCHEDULED → INTERVIEWED is the only legal advance from
+            // this state; the 1.1 guard rejects any other move, and the audit
+            // row is written inside transitionTo.
+            applicationService.transitionTo(application, ApplicationStatus.INTERVIEWED,
+                    "STATUS_CHANGE", submitter);
+        }
+
+        writeAudit("Interview", interview.getId(), "SUBMIT_SCORECARD", submitter.getId(),
+                before, snapshot(interview));
+        return toResponse(interview);
+    }
+
     @Transactional
     public InterviewResponse updateStatus(UUID interviewId, InterviewStatus newStatus, User actor) {
         Interview interview = interviewRepository.findById(interviewId)
@@ -269,6 +329,65 @@ public class InterviewService {
         throw new ForbiddenException("Not allowed to view this interview");
     }
 
+    /**
+     * Phase 2.2 — latest submitted scorecard for the application, used by the
+     * recruiter review screen to surface the recommendation + scores so the
+     * advance-vs-reject decision is informed. Returns {@code null} when no
+     * interview on this application has feedback yet (the review screen
+     * renders an empty state for that case).
+     */
+    @Transactional(readOnly = true)
+    public InterviewScorecardSummary findLatestScorecardForApplication(UUID applicationId,
+                                                                       User caller) {
+        ensureStaffCanRead(caller);
+        // findByApplicationIdOrderByScheduledAtDesc already orders DESC by
+        // scheduledAt — we walk that list and take the first one with feedback.
+        List<Interview> interviews = interviewRepository
+                .findByApplicationIdOrderByScheduledAtDesc(applicationId);
+        for (Interview i : interviews) {
+            if (i.getFeedbackSubmittedAt() != null) {
+                return toScorecardSummary(i);
+            }
+        }
+        return null;
+    }
+
+    private InterviewScorecardSummary toScorecardSummary(Interview i) {
+        return InterviewScorecardSummary.builder()
+                .interviewId(i.getId())
+                .applicationId(i.getApplication() != null ? i.getApplication().getId() : null)
+                .technicalRating(i.getFeedbackTechnicalRating())
+                .communicationRating(i.getFeedbackCommunicationRating())
+                .problemSolvingRating(i.getFeedbackProblemSolvingRating())
+                .overallRating(i.getFeedbackOverallRating())
+                .recommendation(i.getFeedbackRecommendation())
+                .comments(firstNonBlank(i.getFeedbackComments(), i.getFeedbackStrengths()))
+                .submittedByName(lookupUserName(i.getFeedbackSubmittedBy()))
+                .submittedAt(i.getFeedbackSubmittedAt())
+                .scheduledAt(i.getScheduledAt())
+                .build();
+    }
+
+    private String firstNonBlank(String a, String b) {
+        if (a != null && !a.isBlank()) return a;
+        if (b != null && !b.isBlank()) return b;
+        return null;
+    }
+
+    private void ensureStaffCanRead(User caller) {
+        if (caller == null || caller.getRoles() == null) {
+            throw new ForbiddenException("Authentication required");
+        }
+        boolean allowed = caller.getRoles().contains(UserRole.ADMIN)
+                || caller.getRoles().contains(UserRole.RECRUITER)
+                || caller.getRoles().contains(UserRole.ERM)
+                || caller.getRoles().contains(UserRole.HR_COMPLIANCE)
+                || caller.getRoles().contains(UserRole.TECHNICAL_EVALUATOR);
+        if (!allowed) {
+            throw new ForbiddenException("Not allowed to view interview scorecards");
+        }
+    }
+
     @Transactional(readOnly = true)
     public List<CandidateInterviewResponse> listForCandidate(User candidate) {
         return interviewRepository.findAllForCandidateUser(candidate.getId())
@@ -327,8 +446,10 @@ public class InterviewService {
                 .feedbackOverallRating(i.getFeedbackOverallRating())
                 .feedbackTechnicalRating(i.getFeedbackTechnicalRating())
                 .feedbackCommunicationRating(i.getFeedbackCommunicationRating())
+                .feedbackProblemSolvingRating(i.getFeedbackProblemSolvingRating())
                 .feedbackStrengths(i.getFeedbackStrengths())
                 .feedbackConcerns(i.getFeedbackConcerns())
+                .feedbackComments(i.getFeedbackComments())
                 .feedbackRecommendation(i.getFeedbackRecommendation())
                 .feedbackSubmittedAt(i.getFeedbackSubmittedAt())
                 .feedbackSubmittedByName(lookupUserName(i.getFeedbackSubmittedBy()))
@@ -391,8 +512,10 @@ public class InterviewService {
         m.put("feedbackOverallRating", i.getFeedbackOverallRating());
         m.put("feedbackTechnicalRating", i.getFeedbackTechnicalRating());
         m.put("feedbackCommunicationRating", i.getFeedbackCommunicationRating());
+        m.put("feedbackProblemSolvingRating", i.getFeedbackProblemSolvingRating());
         m.put("feedbackStrengths", i.getFeedbackStrengths());
         m.put("feedbackConcerns", i.getFeedbackConcerns());
+        m.put("feedbackComments", i.getFeedbackComments());
         m.put("feedbackRecommendation", i.getFeedbackRecommendation());
         m.put("feedbackSubmittedAt", i.getFeedbackSubmittedAt());
         m.put("feedbackSubmittedBy", i.getFeedbackSubmittedBy());

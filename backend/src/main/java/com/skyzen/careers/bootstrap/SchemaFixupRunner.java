@@ -81,5 +81,18 @@ public class SchemaFixupRunner implements CommandLineRunner {
         } catch (Exception e) {
             log.warn("skyzen_applicant_seq ensure failed (non-fatal): {}", e.getMessage(), e);
         }
+
+        // Phase 2.2: scorecard dimensions. New columns are nullable (legacy
+        // rows pre-2.2 simply won't have a problem-solving score) so the
+        // ADD COLUMN IF NOT EXISTS is safe on a populated table.
+        try {
+            jdbcTemplate.execute(
+                    "ALTER TABLE interviews ADD COLUMN IF NOT EXISTS feedback_problem_solving_rating INTEGER");
+            jdbcTemplate.execute(
+                    "ALTER TABLE interviews ADD COLUMN IF NOT EXISTS feedback_comments TEXT");
+            log.info("Ensured interviews scorecard columns exist.");
+        } catch (Exception e) {
+            log.warn("interviews scorecard columns ensure failed (non-fatal): {}", e.getMessage(), e);
+        }
     }
 }

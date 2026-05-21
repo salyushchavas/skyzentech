@@ -253,13 +253,40 @@ export interface InterviewResponse {
   feedbackOverallRating?: number;
   feedbackTechnicalRating?: number;
   feedbackCommunicationRating?: number;
+  /** Phase 2.2 scorecard dimension; null for legacy /feedback submissions. */
+  feedbackProblemSolvingRating?: number;
   feedbackStrengths?: string;
   feedbackConcerns?: string;
+  /** Phase 2.2 unified scorecard comments; legacy rows use strengths/concerns. */
+  feedbackComments?: string;
   feedbackRecommendation?: InterviewRecommendation;
   feedbackSubmittedAt?: IsoDateTime;
   feedbackSubmittedByName?: string;
   createdAt: IsoDateTime;
   createdByName?: string;
+}
+
+/** Phase 2.2 — slim staff-only view for the recruiter review screen. */
+export interface InterviewScorecardSummary {
+  interviewId: Uuid;
+  applicationId: Uuid;
+  technicalRating?: number;
+  communicationRating?: number;
+  problemSolvingRating?: number;
+  overallRating?: number;
+  recommendation?: InterviewRecommendation;
+  comments?: string;
+  submittedByName?: string;
+  submittedAt?: IsoDateTime;
+  scheduledAt?: IsoDateTime;
+}
+
+export interface SubmitScorecardRequest {
+  technicalRating: number;
+  communicationRating: number;
+  problemSolvingRating: number;
+  recommendation: InterviewRecommendation;
+  comments?: string;
 }
 
 export interface InterviewSummaryResponse {

@@ -32,8 +32,12 @@ public class InterviewResponse {
     private Integer feedbackOverallRating;
     private Integer feedbackTechnicalRating;
     private Integer feedbackCommunicationRating;
+    /** Phase 2.2 scorecard dimension; null for legacy rows submitted via /feedback. */
+    private Integer feedbackProblemSolvingRating;
     private String feedbackStrengths;
     private String feedbackConcerns;
+    /** Phase 2.2 unified scorecard comments; legacy rows use strengths/concerns. */
+    private String feedbackComments;
     private InterviewRecommendation feedbackRecommendation;
     private Instant feedbackSubmittedAt;
     private String feedbackSubmittedByName;

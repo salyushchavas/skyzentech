@@ -7,17 +7,16 @@ import RatingSelector from './RatingSelector';
 import type {
   InterviewRecommendation,
   InterviewResponse,
-  SubmitFeedbackRequest,
+  SubmitScorecardRequest,
 } from '@/types';
 
 interface Props {
   interviewId: string;
   initial?: Partial<{
-    overallRating: number;
     technicalRating: number;
     communicationRating: number;
-    strengths: string;
-    concerns: string;
+    problemSolvingRating: number;
+    comments: string;
     recommendation: InterviewRecommendation;
   }>;
   onSubmitted: (updated: InterviewResponse) => void;
@@ -31,23 +30,31 @@ const RECOMMENDATIONS: { value: InterviewRecommendation; label: string }[] = [
   { value: 'STRONG_NO_HIRE', label: 'Strong No Hire' },
 ];
 
+/**
+ * Phase 2.2 — structured interview scorecard. Replaces the freeform overall-
+ * rating + strengths/concerns flow with three dimension ratings (technical /
+ * communication / problemSolving), a required recommendation, and a single
+ * comments box. The backend computes overallRating as the rounded average so
+ * existing surfaces (recruiter table, dashboard) keep showing a single score.
+ */
 export default function FeedbackForm({
   interviewId,
   initial,
   onSubmitted,
   onCancel,
 }: Props) {
-  const [overall, setOverall] = useState<number | null>(initial?.overallRating ?? null);
   const [technical, setTechnical] = useState<number | null>(
-    initial?.technicalRating ?? null
+    initial?.technicalRating ?? null,
   );
   const [communication, setCommunication] = useState<number | null>(
-    initial?.communicationRating ?? null
+    initial?.communicationRating ?? null,
   );
-  const [strengths, setStrengths] = useState(initial?.strengths ?? '');
-  const [concerns, setConcerns] = useState(initial?.concerns ?? '');
+  const [problemSolving, setProblemSolving] = useState<number | null>(
+    initial?.problemSolvingRating ?? null,
+  );
+  const [comments, setComments] = useState(initial?.comments ?? '');
   const [recommendation, setRecommendation] = useState<InterviewRecommendation | null>(
-    initial?.recommendation ?? null
+    initial?.recommendation ?? null,
   );
 
   const [submitting, setSubmitting] = useState(false);
@@ -57,8 +64,16 @@ export default function FeedbackForm({
     e.preventDefault();
     setFieldError(null);
 
-    if (overall === null) {
-      setFieldError('Overall rating is required.');
+    if (technical === null) {
+      setFieldError('Technical rating is required.');
+      return;
+    }
+    if (communication === null) {
+      setFieldError('Communication rating is required.');
+      return;
+    }
+    if (problemSolving === null) {
+      setFieldError('Problem-solving rating is required.');
       return;
     }
     if (!recommendation) {
@@ -66,25 +81,24 @@ export default function FeedbackForm({
       return;
     }
 
-    const body: SubmitFeedbackRequest = {
-      overallRating: overall,
-      technicalRating: technical ?? undefined,
-      communicationRating: communication ?? undefined,
-      strengths: strengths.trim() || undefined,
-      concerns: concerns.trim() || undefined,
+    const body: SubmitScorecardRequest = {
+      technicalRating: technical,
+      communicationRating: communication,
+      problemSolvingRating: problemSolving,
       recommendation,
+      comments: comments.trim() || undefined,
     };
 
     setSubmitting(true);
     try {
       const res = await api.post<InterviewResponse>(
-        `/api/v1/interviews/${interviewId}/feedback`,
-        body
+        `/api/v1/interviews/${interviewId}/scorecard`,
+        body,
       );
-      toast.success('Feedback submitted');
+      toast.success('Scorecard submitted');
       onSubmitted(res.data);
     } catch (err: any) {
-      const msg = err?.response?.data?.error ?? 'Could not submit feedback';
+      const msg = err?.response?.data?.error ?? 'Could not submit scorecard';
       toast.error(msg);
       setFieldError(msg);
     } finally {
@@ -95,47 +109,32 @@ export default function FeedbackForm({
   return (
     <form onSubmit={handleSubmit} className="space-y-5">
       <RatingSelector
-        value={overall}
-        onChange={setOverall}
-        label="Overall rating *"
-      />
-
-      <RatingSelector
         value={technical}
         onChange={setTechnical}
-        label="Technical rating"
-        allowSkip
+        label="Technical rating *"
       />
 
       <RatingSelector
         value={communication}
         onChange={setCommunication}
-        label="Communication rating"
-        allowSkip
+        label="Communication rating *"
+      />
+
+      <RatingSelector
+        value={problemSolving}
+        onChange={setProblemSolving}
+        label="Problem-solving rating *"
       />
 
       <div>
         <label className="mb-1.5 block text-sm font-medium text-gray-700">
-          Strengths
+          Comments
         </label>
         <textarea
-          value={strengths}
-          onChange={(e) => setStrengths(e.target.value)}
-          rows={4}
-          placeholder="What the candidate did well…"
-          className="w-full resize-y rounded-md border border-gray-300 p-2.5 text-sm focus:border-primary-700 focus:outline-none focus:ring-1 focus:ring-primary-700"
-        />
-      </div>
-
-      <div>
-        <label className="mb-1.5 block text-sm font-medium text-gray-700">
-          Concerns
-        </label>
-        <textarea
-          value={concerns}
-          onChange={(e) => setConcerns(e.target.value)}
-          rows={4}
-          placeholder="Areas that need follow-up or that gave you pause…"
+          value={comments}
+          onChange={(e) => setComments(e.target.value)}
+          rows={5}
+          placeholder="Strengths, concerns, follow-ups, anything the recruiter should know…"
           className="w-full resize-y rounded-md border border-gray-300 p-2.5 text-sm focus:border-primary-700 focus:outline-none focus:ring-1 focus:ring-primary-700"
         />
       </div>
@@ -189,7 +188,7 @@ export default function FeedbackForm({
           disabled={submitting}
           className="rounded-md bg-accent px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-accent-dark disabled:opacity-50"
         >
-          {submitting ? 'Submitting…' : 'Submit feedback'}
+          {submitting ? 'Submitting…' : 'Submit scorecard'}
         </button>
       </div>
     </form>

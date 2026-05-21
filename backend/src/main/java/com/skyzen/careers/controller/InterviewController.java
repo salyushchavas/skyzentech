@@ -2,9 +2,11 @@ package com.skyzen.careers.controller;
 
 import com.skyzen.careers.dto.interview.CandidateInterviewResponse;
 import com.skyzen.careers.dto.interview.InterviewResponse;
+import com.skyzen.careers.dto.interview.InterviewScorecardSummary;
 import com.skyzen.careers.dto.interview.InterviewSummaryResponse;
 import com.skyzen.careers.dto.interview.ScheduleInterviewRequest;
 import com.skyzen.careers.dto.interview.SubmitFeedbackRequest;
+import com.skyzen.careers.dto.interview.SubmitScorecardRequest;
 import com.skyzen.careers.dto.interview.UpdateInterviewRequest;
 import com.skyzen.careers.dto.interview.UpdateStatusRequest;
 import com.skyzen.careers.dto.common.PagedResponse;
@@ -90,9 +92,22 @@ public class InterviewController {
     public InterviewResponse submitFeedback(@PathVariable UUID id,
                                             @Valid @RequestBody SubmitFeedbackRequest req,
                                             @AuthenticationPrincipal User user) {
-        // Service further restricts to the assigned interviewer + ERM/ADMIN;
-        // controller guard rejects other roles before any work happens.
+        // Legacy freeform path — kept for backward compatibility with any
+        // pre-2.2 clients. New code should POST to /scorecard.
         return interviewService.submitFeedback(id, req, user);
+    }
+
+    /**
+     * Phase 2.2 — structured scorecard. Same auth shape as /feedback but with
+     * required problemSolvingRating + structured comments, and validated
+     * bounds (1-5) on each dimension. Idempotent: same interviewer can resubmit.
+     */
+    @PostMapping("/{id}/scorecard")
+    @PreAuthorize("hasAnyRole('TECHNICAL_EVALUATOR', 'ERM', 'ADMIN')")
+    public InterviewResponse submitScorecard(@PathVariable UUID id,
+                                             @Valid @RequestBody SubmitScorecardRequest req,
+                                             @AuthenticationPrincipal User user) {
+        return interviewService.submitScorecard(id, req, user);
     }
 
     @PatchMapping("/{id}/status")

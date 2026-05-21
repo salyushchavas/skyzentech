@@ -70,11 +70,26 @@ public class Interview {
     @Column(name = "feedback_communication_rating")
     private Integer feedbackCommunicationRating;
 
+    /**
+     * Phase 2.2 — third dimension in the structured scorecard. 1-5; null when the
+     * interviewer skipped it (legacy /feedback rows or before the column existed).
+     */
+    @Column(name = "feedback_problem_solving_rating")
+    private Integer feedbackProblemSolvingRating;
+
     @Column(name = "feedback_strengths", columnDefinition = "TEXT")
     private String feedbackStrengths;
 
     @Column(name = "feedback_concerns", columnDefinition = "TEXT")
     private String feedbackConcerns;
+
+    /**
+     * Phase 2.2 — unified scorecard comments. The legacy strengths/concerns
+     * pair is preserved so existing rows keep rendering; the new /scorecard
+     * path writes to this single column.
+     */
+    @Column(name = "feedback_comments", columnDefinition = "TEXT")
+    private String feedbackComments;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "feedback_recommendation")

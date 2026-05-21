@@ -27,6 +27,8 @@ import { formatRelative } from '@/lib/format-date';
 import type {
   ApplicationResponse,
   ApplicationStatus,
+  InterviewRecommendation,
+  InterviewScorecardSummary,
   Page,
   RecruiterDecisionRequest,
   ScreeningStaffResponse,
@@ -83,6 +85,11 @@ function Body() {
   const [screening, setScreening] = useState<ScreeningStaffResponse | null>(null);
   const [screeningChecked, setScreeningChecked] = useState(false);
 
+  // Phase 2.2 — latest interview scorecard for the application. Null until
+  // the request resolves; remains null when no interview has feedback yet
+  // (200 with body, 204, or 404 — all collapse to "no scorecard").
+  const [scorecard, setScorecard] = useState<InterviewScorecardSummary | null>(null);
+
   const load = useCallback(async () => {
     if (!id) return;
     setError(null);
@@ -112,6 +119,16 @@ function Body() {
       setScreening(null);
     } finally {
       setScreeningChecked(true);
+    }
+    // Phase 2.2 — scorecard summary. Backend returns 204 when no interview
+    // has feedback yet, which axios surfaces as a 2xx with empty body.
+    try {
+      const scorecardRes = await api.get<InterviewScorecardSummary>(
+        `/api/v1/applications/${id}/scorecard`,
+      );
+      setScorecard(scorecardRes.status === 204 ? null : scorecardRes.data ?? null);
+    } catch {
+      setScorecard(null);
     }
   }, [id]);
 
@@ -251,6 +268,7 @@ function Body() {
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1.4fr_1fr]">
           <div className="space-y-4">
             <ResumeColumn app={app} />
+            <ScorecardPanel scorecard={scorecard} />
             <ScreeningPanel
               screening={screening}
               checked={screeningChecked}
@@ -638,6 +656,92 @@ function ActionPanel({
           </p>
         )}
     </aside>
+  );
+}
+
+// ── Scorecard panel (phase 2.2) ─────────────────────────────────────────────
+
+const RECOMMENDATION_LABEL: Record<InterviewRecommendation, string> = {
+  STRONG_HIRE: 'Strong Hire',
+  HIRE: 'Hire',
+  NO_HIRE: 'No Hire',
+  STRONG_NO_HIRE: 'Strong No Hire',
+};
+
+const RECOMMENDATION_COLOR: Record<InterviewRecommendation, string> = {
+  STRONG_HIRE: 'bg-emerald-100 text-emerald-800',
+  HIRE: 'bg-teal-100 text-teal-800',
+  NO_HIRE: 'bg-amber-100 text-amber-800',
+  STRONG_NO_HIRE: 'bg-red-100 text-red-700',
+};
+
+/**
+ * Surfaces the latest interview scorecard so the recruiter can advance/reject
+ * with the recommendation + dimension scores visible. Renders nothing when no
+ * interview on the application has feedback yet — the empty state is the
+ * absence of the panel, which keeps the review screen tight.
+ */
+function ScorecardPanel({
+  scorecard,
+}: {
+  scorecard: InterviewScorecardSummary | null;
+}) {
+  if (!scorecard) return null;
+  const rec = scorecard.recommendation;
+  const dims: { label: string; value?: number }[] = [
+    { label: 'Tech', value: scorecard.technicalRating },
+    { label: 'Comm', value: scorecard.communicationRating },
+    { label: 'Problem', value: scorecard.problemSolvingRating },
+  ];
+  return (
+    <section className="rounded-md border border-gray-200 bg-white p-4">
+      <header className="mb-3 flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-2">
+          <Star className="h-4 w-4 text-gray-500" strokeWidth={2} />
+          <h3 className="text-sm font-medium text-gray-900">
+            Interview scorecard
+          </h3>
+        </div>
+        {rec && (
+          <span
+            className={
+              'rounded-full px-2.5 py-0.5 text-xs font-semibold ' +
+              RECOMMENDATION_COLOR[rec]
+            }
+          >
+            {RECOMMENDATION_LABEL[rec]}
+          </span>
+        )}
+      </header>
+      <div className="mb-3 flex flex-wrap gap-2">
+        {dims
+          .filter((d) => typeof d.value === 'number')
+          .map((d) => (
+            <span
+              key={d.label}
+              className="rounded-md border border-gray-200 bg-gray-50 px-2.5 py-1 text-xs font-medium text-gray-700"
+            >
+              {d.label}: {d.value}/5
+            </span>
+          ))}
+        {typeof scorecard.overallRating === 'number' && (
+          <span className="rounded-md border border-accent/30 bg-accent/5 px-2.5 py-1 text-xs font-semibold text-accent-dark">
+            Overall: {scorecard.overallRating}/5
+          </span>
+        )}
+      </div>
+      {scorecard.comments && (
+        <p className="mb-2 whitespace-pre-wrap rounded-md border border-gray-200 bg-gray-50 p-2 text-xs text-gray-700">
+          {scorecard.comments}
+        </p>
+      )}
+      <p className="text-[11px] text-gray-500">
+        Submitted by {scorecard.submittedByName ?? '—'}
+        {scorecard.submittedAt
+          ? ' · ' + formatRelative(scorecard.submittedAt)
+          : ''}
+      </p>
+    </section>
   );
 }
 

@@ -284,12 +284,18 @@ function Body() {
               initial={
                 hasFeedback
                   ? {
-                      overallRating: interview.feedbackOverallRating ?? undefined,
                       technicalRating: interview.feedbackTechnicalRating ?? undefined,
                       communicationRating:
                         interview.feedbackCommunicationRating ?? undefined,
-                      strengths: interview.feedbackStrengths ?? undefined,
-                      concerns: interview.feedbackConcerns ?? undefined,
+                      problemSolvingRating:
+                        interview.feedbackProblemSolvingRating ?? undefined,
+                      // Phase 2.2 stores unified comments on a new column.
+                      // Legacy rows back-fill from strengths so prior feedback
+                      // survives an edit without manual re-entry.
+                      comments:
+                        interview.feedbackComments
+                          ?? interview.feedbackStrengths
+                          ?? undefined,
                       recommendation: interview.feedbackRecommendation ?? undefined,
                     }
                   : undefined
@@ -349,8 +355,27 @@ function FeedbackDisplay({
       {interview.feedbackCommunicationRating != null && (
         <RatingRow label="Communication" value={interview.feedbackCommunicationRating} />
       )}
+      {interview.feedbackProblemSolvingRating != null && (
+        <RatingRow
+          label="Problem solving"
+          value={interview.feedbackProblemSolvingRating}
+        />
+      )}
 
-      {interview.feedbackStrengths && (
+      {interview.feedbackComments && (
+        <div>
+          <div className="mb-1 text-xs uppercase tracking-wide text-gray-500">
+            Comments
+          </div>
+          <p className="whitespace-pre-wrap text-sm text-gray-700">
+            {interview.feedbackComments}
+          </p>
+        </div>
+      )}
+
+      {/* Legacy /feedback rows wrote into the strengths/concerns pair — keep
+          rendering them when present so historical scorecards remain visible. */}
+      {!interview.feedbackComments && interview.feedbackStrengths && (
         <div>
           <div className="mb-1 text-xs uppercase tracking-wide text-gray-500">
             Strengths
@@ -361,7 +386,7 @@ function FeedbackDisplay({
         </div>
       )}
 
-      {interview.feedbackConcerns && (
+      {!interview.feedbackComments && interview.feedbackConcerns && (
         <div>
           <div className="mb-1 text-xs uppercase tracking-wide text-gray-500">
             Concerns
