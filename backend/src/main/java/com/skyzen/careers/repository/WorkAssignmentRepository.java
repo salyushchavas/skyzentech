@@ -61,4 +61,21 @@ public interface WorkAssignmentRepository extends JpaRepository<WorkAssignment, 
             "WHERE wa.intern.user.id = :userId " +
             "AND wa.status = com.skyzen.careers.enums.WorkAssignmentStatus.REVIEWED")
     long countReviewedForCandidateUser(@org.springframework.data.repository.query.Param("userId") UUID userId);
+
+    /**
+     * Every assignment for interns whose {@code assignedEvaluator} is the
+     * given user, newest first. Optional status filter — pass {@code null}
+     * to skip. Fetch-joins intern.user + assignedBy so the list mappers
+     * don't lazy-load.
+     */
+    @Query("SELECT wa FROM WorkAssignment wa " +
+            "JOIN FETCH wa.intern i " +
+            "JOIN FETCH i.user iu " +
+            "JOIN FETCH wa.assignedBy ab " +
+            "WHERE i.assignedEvaluator.id = :evaluatorUserId " +
+            "AND (:status IS NULL OR wa.status = :status) " +
+            "ORDER BY wa.createdAt DESC")
+    List<WorkAssignment> findForEvaluatorAssignedInterns(
+            @org.springframework.data.repository.query.Param("evaluatorUserId") UUID evaluatorUserId,
+            @org.springframework.data.repository.query.Param("status") com.skyzen.careers.enums.WorkAssignmentStatus status);
 }

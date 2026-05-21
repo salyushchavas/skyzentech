@@ -54,4 +54,20 @@ public interface ApplicationRepository extends JpaRepository<Application, UUID> 
             "ORDER BY a.statusUpdatedAt DESC")
     List<Application> findHiredInterns(@Param("entityId") UUID entityId,
                                        @Param("search") String search);
+
+    /**
+     * Hired applications for interns whose {@code assignedEvaluator} is the
+     * given user. Used by the Evaluator area to scope lists/dashboard to the
+     * caller's own roster. Same fetch graph as {@link #findHiredInterns} so
+     * mappers can read position + entityName without lazy-loading.
+     */
+    @Query("SELECT a FROM Application a " +
+            "JOIN FETCH a.candidate c " +
+            "JOIN FETCH c.user u " +
+            "JOIN FETCH a.jobPosting jp " +
+            "JOIN FETCH jp.entity e " +
+            "WHERE a.status = com.skyzen.careers.enums.ApplicationStatus.HIRED " +
+            "AND c.assignedEvaluator.id = :evaluatorUserId " +
+            "ORDER BY a.statusUpdatedAt DESC")
+    List<Application> findHiredInternsForEvaluator(@Param("evaluatorUserId") UUID evaluatorUserId);
 }

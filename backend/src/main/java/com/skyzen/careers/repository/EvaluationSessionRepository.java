@@ -75,4 +75,17 @@ public interface EvaluationSessionRepository extends JpaRepository<EvaluationSes
             "ORDER BY s.completedAt DESC")
     List<EvaluationSession> findLatestCompletedForCandidateUser(@Param("userId") UUID userId,
                                                                 Pageable pageable);
+
+    /**
+     * Every session whose {@code evaluator} is the given user. Fetch-joins
+     * intern + intern.user so the Evaluator-area list mappers can render
+     * candidate names without lazy-loading.
+     */
+    @Query("SELECT s FROM EvaluationSession s " +
+            "JOIN FETCH s.intern i " +
+            "JOIN FETCH i.user u " +
+            "LEFT JOIN FETCH s.evaluator e " +
+            "WHERE e.id = :evaluatorUserId " +
+            "ORDER BY s.scheduledAt DESC")
+    List<EvaluationSession> findForEvaluatorUser(@Param("evaluatorUserId") UUID evaluatorUserId);
 }
