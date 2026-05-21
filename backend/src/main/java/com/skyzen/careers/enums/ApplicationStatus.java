@@ -9,6 +9,10 @@ public enum ApplicationStatus {
     SHORTLISTED,
     INTERVIEW_SCHEDULED,
     INTERVIEWED,
+    // Phase 2.3 — conditional selection. Staff confirm "you're selected,
+    // pending the formal offer + compliance" off the 2.2 scorecard; the offer
+    // follows. Sits in the Offer band of the 5-stage stepper.
+    SELECTED_CONDITIONAL,
     OFFERED,
     ACCEPTED,
     ONBOARDING,

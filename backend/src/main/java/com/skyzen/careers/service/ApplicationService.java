@@ -23,6 +23,7 @@ import com.skyzen.careers.exception.ConflictException;
 import com.skyzen.careers.exception.EmailUnverifiedException;
 import com.skyzen.careers.exception.ForbiddenException;
 import com.skyzen.careers.exception.ResourceNotFoundException;
+import com.skyzen.careers.notification.NotificationStub;
 import com.skyzen.careers.repository.ApplicationRepository;
 import com.skyzen.careers.repository.ApplicationSpecifications;
 import com.skyzen.careers.repository.AuditLogRepository;
@@ -57,6 +58,7 @@ public class ApplicationService {
     private final CandidateRepository candidateRepository;
     private final AuditLogRepository auditLogRepository;
     private final ObjectMapper objectMapper;
+    private final NotificationStub notificationStub;
 
     @Transactional
     public ApplicationResponse apply(User user, ApplicationCreateRequest req) {
@@ -231,6 +233,60 @@ public class ApplicationService {
     @Transactional
     public ApplicationResponse reject(UUID id, RecruiterDecisionRequest req, User caller) {
         return changeStatusWithAudit(id, ApplicationStatus.REJECTED, "REJECT", req, caller);
+    }
+
+    /**
+     * Phase 2.3 — conditional employment confirmation. Staff (RECRUITER/ERM/
+     * ADMIN) signal "selected, pending offer + compliance" off the 2.2
+     * scorecard. The 1.1 guard owns gating: INTERVIEWED → SELECTED_CONDITIONAL
+     * is the canonical advance; same-state is a no-op (idempotent re-click);
+     * any other source state 400s with a clear message.
+     *
+     * Side-effects: stub-send the confirmation email and write a
+     * CONDITIONAL_SELECT audit row. Email lookup is best-effort — a missing
+     * candidate / user / email logs a warning but does NOT roll back the
+     * status change; the audit row is the durable record.
+     */
+    @Transactional
+    public ApplicationResponse conditionalSelect(UUID id, User caller) {
+        Application application = applicationRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "Application not found: " + id));
+
+        // Idempotent: a re-click on an already-selected app just returns the
+        // current state without re-firing the email or re-auditing.
+        if (application.getStatus() == ApplicationStatus.SELECTED_CONDITIONAL) {
+            return toResponse(application);
+        }
+
+        // transitionTo enforces LEGAL_TRANSITIONS and writes the
+        // CONDITIONAL_SELECT audit row internally — one audit per real move.
+        transitionTo(application, ApplicationStatus.SELECTED_CONDITIONAL,
+                "CONDITIONAL_SELECT", caller);
+
+        // Stub confirmation. Pull candidate email + posting/entity within the
+        // same @Transactional so the lazy associations are still attached.
+        try {
+            Candidate candidate = application.getCandidate();
+            User user = candidate != null ? candidate.getUser() : null;
+            JobPosting posting = application.getJobPosting();
+            String email = user != null ? user.getEmail() : null;
+            String jobTitle = posting != null ? posting.getTitle() : null;
+            String entityName = posting != null && posting.getEntity() != null
+                    ? posting.getEntity().getName()
+                    : null;
+            if (email != null) {
+                notificationStub.sendConditionalSelectionConfirmation(
+                        email, jobTitle, entityName);
+            } else {
+                log.warn("Conditional-select email skipped — no candidate email on application {}", id);
+            }
+        } catch (Exception e) {
+            log.warn("Conditional-select notification failed (non-fatal) for app {}: {}",
+                    id, e.getMessage());
+        }
+
+        return toResponse(application);
     }
 
     /**

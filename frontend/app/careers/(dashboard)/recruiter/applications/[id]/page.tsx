@@ -43,6 +43,8 @@ const SHORTLIST_LOCKED: ReadonlyArray<ApplicationStatus> = [
   'SHORTLISTED',
   'INTERVIEW_SCHEDULED',
   'INTERVIEWED',
+  // Phase 2.3 — past Shortlist; shortlist would 400 against LEGAL_TRANSITIONS.
+  'SELECTED_CONDITIONAL',
   'OFFERED',
   'ACCEPTED',
   'ONBOARDING',
@@ -77,7 +79,9 @@ function Body() {
   // Decision panel state
   const [rating, setRating] = useState<number>(0);
   const [note, setNote] = useState<string>('');
-  const [busy, setBusy] = useState<'shortlist' | 'reject' | 'send_screening' | null>(null);
+  const [busy, setBusy] = useState<
+    'shortlist' | 'reject' | 'send_screening' | 'conditional_select' | null
+  >(null);
   const [rejectOpen, setRejectOpen] = useState(false);
 
   // Screening state. {screening} is the staff view (with score + answers when
@@ -177,6 +181,27 @@ function Body() {
     }
   }
 
+  async function sendConditionalSelect() {
+    if (!app || busy) return;
+    setBusy('conditional_select');
+    try {
+      const res = await api.post<ApplicationResponse>(
+        `/api/v1/applications/${app.id}/conditional-select`,
+      );
+      setApp(res.data);
+      toast.success('Conditional selection confirmation sent.');
+    } catch (err: any) {
+      // 400 from the lifecycle guard (illegal source state) is surfaced verbatim
+      // so the recruiter sees "Cannot move application from ... to SELECTED_CONDITIONAL"
+      // rather than a generic toast.
+      toast.error(
+        err?.response?.data?.error ?? "Couldn't send conditional selection.",
+      );
+    } finally {
+      setBusy(null);
+    }
+  }
+
   async function callDecision(kind: 'shortlist' | 'reject') {
     if (!app || busy) return;
     const previous = app;
@@ -242,6 +267,11 @@ function Body() {
   // Screening is only legally sendable from APPLIED. Once SCREENING_SENT or
   // beyond, the existing screening row is shown; the button is hidden.
   const canSendScreening = app.status === 'APPLIED' && !screening;
+  // Phase 2.3 — conditional selection is only legally sendable from INTERVIEWED.
+  // We additionally require a submitted scorecard so the recruiter has the
+  // 2.2 signal in front of them before committing to "selected, pending offer".
+  const canSendConditional =
+    app.status === 'INTERVIEWED' && scorecard != null;
 
   return (
     <>
@@ -284,10 +314,12 @@ function Body() {
             canReject={canReject}
             canSendScreening={canSendScreening}
             screeningStatus={screening?.status ?? null}
+            canSendConditional={canSendConditional}
             busy={busy}
             onShortlist={() => void callDecision('shortlist')}
             onRejectClick={() => setRejectOpen(true)}
             onSendScreening={() => void sendScreening()}
+            onSendConditional={() => void sendConditionalSelect()}
           />
         </div>
       </div>
@@ -548,10 +580,12 @@ function ActionPanel({
   canReject,
   canSendScreening,
   screeningStatus,
+  canSendConditional,
   busy,
   onShortlist,
   onRejectClick,
   onSendScreening,
+  onSendConditional,
 }: {
   app: ApplicationResponse;
   rating: number;
@@ -562,10 +596,17 @@ function ActionPanel({
   canReject: boolean;
   canSendScreening: boolean;
   screeningStatus: 'SENT' | 'COMPLETED' | null;
-  busy: 'shortlist' | 'reject' | 'send_screening' | null;
+  canSendConditional: boolean;
+  busy:
+    | 'shortlist'
+    | 'reject'
+    | 'send_screening'
+    | 'conditional_select'
+    | null;
   onShortlist: () => void;
   onRejectClick: () => void;
   onSendScreening: () => void;
+  onSendConditional: () => void;
 }) {
   return (
     <aside className="flex flex-col gap-3 rounded-md border border-gray-200 p-4">
@@ -587,6 +628,26 @@ function ActionPanel({
       {screeningStatus === 'SENT' && (
         <p className="rounded-md border border-sky-200 bg-sky-50 px-3 py-2 text-xs text-sky-800">
           Screening sent — waiting on the candidate.
+        </p>
+      )}
+      {canSendConditional && (
+        <button
+          type="button"
+          onClick={onSendConditional}
+          disabled={busy !== null}
+          className="inline-flex w-full items-center justify-center gap-2 rounded-md border border-teal-300 bg-teal-50 px-4 py-2 text-sm font-semibold text-teal-800 transition-colors hover:bg-teal-100 disabled:opacity-50"
+        >
+          {busy === 'conditional_select' ? (
+            <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-teal-700 border-t-transparent" />
+          ) : (
+            <Send className="h-4 w-4" strokeWidth={2} />
+          )}
+          Send conditional selection
+        </button>
+      )}
+      {app.status === 'SELECTED_CONDITIONAL' && (
+        <p className="rounded-md border border-teal-200 bg-teal-50 px-3 py-2 text-xs text-teal-800">
+          Conditional confirmation sent. HR will issue the formal offer next.
         </p>
       )}
       <div>

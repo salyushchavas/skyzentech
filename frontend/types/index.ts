@@ -109,6 +109,8 @@ export type ApplicationStatus =
   | 'SHORTLISTED'
   | 'INTERVIEW_SCHEDULED'
   | 'INTERVIEWED'
+  // Phase 2.3 — conditional employment confirmation sent; formal offer pending.
+  | 'SELECTED_CONDITIONAL'
   | 'OFFERED'
   | 'ACCEPTED'
   | 'ONBOARDING'

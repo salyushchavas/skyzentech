@@ -296,6 +296,20 @@ public class CandidateDashboardService {
                     ? furthest.getJobPosting().getTitle()
                     : null;
             ApplicationStatus status = furthest.getStatus();
+            // Phase 2.3 — conditional selection. Informational state on the
+            // candidate side: they're picked but the formal offer hasn't been
+            // sent yet, so there's no CTA — just reassurance.
+            if (status == ApplicationStatus.SELECTED_CONDITIONAL) {
+                return CandidateDashboardResponse.NextStep.builder()
+                        .type("SELECTED_CONDITIONAL")
+                        .title(position != null
+                                ? "Conditionally selected — " + position
+                                : "Conditionally selected")
+                        .subtitle("Offer pending. HR will send the formal offer next.")
+                        .ctaLabel("View application")
+                        .ctaHref("/careers/candidate/applications")
+                        .build();
+            }
             if (status == ApplicationStatus.SHORTLISTED) {
                 return CandidateDashboardResponse.NextStep.builder()
                         .type("SHORTLISTED")

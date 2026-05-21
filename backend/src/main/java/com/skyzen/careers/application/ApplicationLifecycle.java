@@ -49,7 +49,9 @@ public final class ApplicationLifecycle {
             // formally shortlisted, so band=1 keeps the visual progression honest.
             case SCREENING_SENT, SCREENING_COMPLETED, SHORTLISTED -> 1;
             case INTERVIEW_SCHEDULED, INTERVIEWED -> 2;
-            case OFFERED, ACCEPTED -> 3;
+            // Phase 2.3: conditional selection is part of the Offer band —
+            // formal offer hasn't been issued yet but the staff decision is made.
+            case SELECTED_CONDITIONAL, OFFERED, ACCEPTED -> 3;
             case ONBOARDING, ACTIVE, HIRED, COMPLETED -> 4;
             // Exit statuses (REJECTED/WITHDRAWN/LAPSED/NO_SHOW) are not on
             // the stepper — callers gate by isExited() first.
@@ -112,6 +114,16 @@ public final class ApplicationLifecycle {
                     ApplicationStatus.REJECTED,
                     ApplicationStatus.WITHDRAWN)),
             Map.entry(ApplicationStatus.INTERVIEWED, EnumSet.of(
+                    // Phase 2.3 — usual advance is via conditional selection
+                    // first, but direct INTERVIEWED → OFFERED is kept legal so
+                    // teams that skip the conditional step still work.
+                    ApplicationStatus.SELECTED_CONDITIONAL,
+                    ApplicationStatus.OFFERED,
+                    ApplicationStatus.REJECTED,
+                    ApplicationStatus.WITHDRAWN)),
+            // Phase 2.3 — conditional employment confirmation has been sent; the
+            // formal offer (OfferService.send) is the legal next advance.
+            Map.entry(ApplicationStatus.SELECTED_CONDITIONAL, EnumSet.of(
                     ApplicationStatus.OFFERED,
                     ApplicationStatus.REJECTED,
                     ApplicationStatus.WITHDRAWN)),

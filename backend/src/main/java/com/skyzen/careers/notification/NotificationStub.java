@@ -44,4 +44,19 @@ public class NotificationStub {
     public void sendApplicantIdIssued(String email, String applicantId) {
         log.info("[STUB EMAIL] Applicant ID issued for {}: {}", email, applicantId);
     }
+
+    /**
+     * Phase 2.3 — conditional employment confirmation. Sent after the recruiter
+     * picks a candidate off the 2.2 scorecard but before HR issues the formal
+     * offer. The body in real-send land would explain "selected, pending offer
+     * + compliance"; here we just log so the integration test can see it fired.
+     */
+    public void sendConditionalSelectionConfirmation(String email,
+                                                     String jobPostingTitle,
+                                                     String entityName) {
+        log.info("[STUB EMAIL] Conditional selection confirmed for {} — {}{}",
+                email,
+                jobPostingTitle != null ? jobPostingTitle : "(role)",
+                entityName != null ? " @ " + entityName : "");
+    }
 }

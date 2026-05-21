@@ -157,6 +157,20 @@ public class ApplicationController {
     }
 
     /**
+     * Phase 2.3 — staff send the conditional employment confirmation off the
+     * interview scorecard. Body is empty; the recruiter's identity comes from
+     * the principal. Idempotent: re-clicking on an already-selected app is a
+     * no-op (no duplicate audit, no duplicate stub email).
+     */
+    @PostMapping("/{id}/conditional-select")
+    @PreAuthorize("hasAnyRole('RECRUITER', 'ERM', 'ADMIN')")
+    public ApplicationResponse conditionalSelect(
+            @PathVariable UUID id,
+            @AuthenticationPrincipal User user) {
+        return applicationService.conditionalSelect(id, user);
+    }
+
+    /**
      * Bulk shortlist/reject for the data-table view. Idempotent — applications
      * already at the target status are counted as skipped, not failures.
      * Returns {@code { updated, skipped }} so the UI can render an honest toast.

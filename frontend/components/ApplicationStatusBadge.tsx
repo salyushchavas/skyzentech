@@ -12,6 +12,8 @@ const COLOR_MAP: Record<string, string> = {
   SHORTLISTED: 'bg-indigo-100 text-indigo-800',
   INTERVIEW_SCHEDULED: 'bg-purple-100 text-purple-800',
   INTERVIEWED: 'bg-violet-100 text-violet-800',
+  // Phase 2.3 — slot in the Offer band visually so the stepper colors stay coherent.
+  SELECTED_CONDITIONAL: 'bg-teal-50 text-teal-700 ring-1 ring-teal-200',
   OFFERED: 'bg-teal-100 text-teal-800',
   ACCEPTED: 'bg-green-100 text-green-800',
   ONBOARDING: 'bg-cyan-100 text-cyan-800',
