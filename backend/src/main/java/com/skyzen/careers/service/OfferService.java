@@ -93,6 +93,7 @@ public class OfferService {
     private final ObjectMapper objectMapper;
     private final OnboardingService onboardingService;
     private final ApplicationService applicationService;
+    private final EngagementService engagementService;
 
     // ── Commands ────────────────────────────────────────────────────────────
 
@@ -281,6 +282,17 @@ public class OfferService {
             onboardingService.seedTasksForAcceptedOffer(offer);
         } catch (Exception e) {
             log.warn("Failed to seed onboarding tasks for accepted offer {}: {}",
+                    offer.getId(), e.getMessage(), e);
+        }
+
+        // Phase 3 step 3 — spin up the Engagement (PENDING_COMPLIANCE + track
+        // snapshot). REQUIRES_NEW inside; best-effort try/catch out here so a
+        // compliance-side bug never blocks acceptance. The step-11 backfill
+        // catches anything missed.
+        try {
+            engagementService.createForAcceptedOffer(offer, candidateUser);
+        } catch (Exception e) {
+            log.warn("Failed to create engagement for accepted offer {}: {}",
                     offer.getId(), e.getMessage(), e);
         }
         return offer;

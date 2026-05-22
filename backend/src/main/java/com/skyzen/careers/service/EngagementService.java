@@ -3,24 +3,31 @@ package com.skyzen.careers.service;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.skyzen.careers.application.EngagementLifecycle;
+import com.skyzen.careers.entity.Application;
 import com.skyzen.careers.entity.AuditLog;
+import com.skyzen.careers.entity.Candidate;
 import com.skyzen.careers.entity.Engagement;
+import com.skyzen.careers.entity.JobPosting;
+import com.skyzen.careers.entity.Offer;
+import com.skyzen.careers.entity.StaffingEntity;
 import com.skyzen.careers.entity.User;
 import com.skyzen.careers.enums.EngagementStatus;
+import com.skyzen.careers.enums.WorkAuthTrack;
 import com.skyzen.careers.exception.BadRequestException;
 import com.skyzen.careers.repository.AuditLogRepository;
 import com.skyzen.careers.repository.EngagementRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.Instant;
 import java.time.LocalDate;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 
@@ -47,6 +54,90 @@ public class EngagementService {
     private final EngagementRepository engagementRepository;
     private final AuditLogRepository auditLogRepository;
     private final ObjectMapper objectMapper;
+
+    /**
+     * Phase 3 step 3 — spin up an Engagement at OFFER_ACCEPTED. Snapshots the
+     * candidate's {@code expectedTrack} onto the engagement (so later
+     * Candidate.expectedTrack edits don't drift the compliance routing) and
+     * stamps the planned dates from the offer.
+     *
+     * Idempotent: if an Engagement already exists for this offer, we return it
+     * untouched (no duplicate audit, no duplicate row). The DB also enforces
+     * uniqueness on offer_id and application_id as a safety net.
+     *
+     * Runs in {@code REQUIRES_NEW} so a creation failure rolls back ONLY this
+     * inner transaction — the surrounding {@code OfferService.acceptInternal}
+     * keeps its ACCEPTED transitions intact even if engagement-create blips.
+     * The step-11 backfill is the safety net for any miss here.
+     */
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public Engagement createForAcceptedOffer(Offer offer, User actor) {
+        if (offer == null || offer.getId() == null) {
+            throw new IllegalArgumentException("offer must be non-null with an id");
+        }
+
+        // Idempotency check before insert — return the existing row gracefully
+        // instead of letting the unique constraint surface a 409.
+        Optional<Engagement> existing = engagementRepository.findByOfferId(offer.getId());
+        if (existing.isPresent()) {
+            return existing.get();
+        }
+
+        // Resolve associations. The caller (acceptInternal) loaded the offer
+        // via findByIdWithGraph which fetch-joins application → candidate →
+        // jobPosting → entity, so these reads are already populated even
+        // though we're now in a fresh persistence context.
+        Application application = offer.getApplication();
+        Candidate candidate = application != null ? application.getCandidate() : null;
+        JobPosting posting = application != null ? application.getJobPosting() : null;
+        StaffingEntity entity = posting != null ? posting.getEntity() : null;
+        if (application == null || candidate == null || entity == null) {
+            log.warn("Cannot create engagement for offer {} — missing application/candidate/entity",
+                    offer.getId());
+            return null;
+        }
+
+        WorkAuthTrack trackSnapshot = candidate.getExpectedTrack(); // may be null
+        UUID actorId = actor != null ? actor.getId() : null;
+
+        Engagement engagement = Engagement.builder()
+                .application(application)
+                .candidate(candidate)
+                .offer(offer)
+                .entity(entity)
+                .track(trackSnapshot)
+                .status(EngagementStatus.PENDING_COMPLIANCE)
+                .plannedStartDate(offer.getStartDate())
+                .plannedEndDate(offer.getExpectedEndDate())
+                .createdBy(actorId)
+                .build();
+
+        engagement = engagementRepository.save(engagement);
+        writeCreateAudit(engagement, actorId);
+        log.info("Engagement {} created for accepted offer {} (track={}, start={})",
+                engagement.getId(), offer.getId(), trackSnapshot, offer.getStartDate());
+        return engagement;
+    }
+
+    private void writeCreateAudit(Engagement engagement, UUID actorId) {
+        Map<String, Object> afterJson = new LinkedHashMap<>();
+        afterJson.put("status", engagement.getStatus());
+        afterJson.put("track", engagement.getTrack());
+        afterJson.put("plannedStartDate", engagement.getPlannedStartDate());
+        afterJson.put("plannedEndDate", engagement.getPlannedEndDate());
+        afterJson.put("applicationId", engagement.getApplication() != null
+                ? engagement.getApplication().getId() : null);
+        afterJson.put("offerId", engagement.getOffer() != null
+                ? engagement.getOffer().getId() : null);
+        AuditLog entry = AuditLog.builder()
+                .entityType("Engagement")
+                .entityId(engagement.getId())
+                .action("CREATE")
+                .userId(actorId)
+                .afterJson(serializeJson(afterJson))
+                .build();
+        auditLogRepository.save(entry);
+    }
 
     /**
      * Gated status transition — the single entry point every Engagement
