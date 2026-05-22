@@ -40,10 +40,38 @@ public class I9Form {
     @JoinColumn(name = "candidate_id", nullable = false, unique = true)
     private Candidate candidate;
 
+    /**
+     * Phase 3 step 5 — link to the {@link Engagement} this I-9 belongs to.
+     * Nullable: legacy I-9 rows pre-date Engagement and stay candidate-keyed.
+     * New rows (created via {@code I9FormService.createForCandidate}) resolve
+     * the candidate's most-recent in-funnel engagement and set this FK.
+     */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "engagement_id")
+    private Engagement engagement;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     @Builder.Default
     private I9Status status = I9Status.NOT_STARTED;
+
+    // ── Deadlines (Phase 3 step 5) ──────────────────────────────────────────
+
+    /**
+     * When the candidate must complete Section 1 by. Equals the first day of
+     * employment per the I-9 regulation. Backfilled at create time from the
+     * accepted offer / engagement start date.
+     */
+    @Column(name = "section_1_due_date")
+    private java.time.LocalDate section1DueDate;
+
+    /**
+     * When HR must complete Section 2 by. Equals 3 business days after the
+     * first day of employment. Recomputed when {@code firstDayOfEmployment}
+     * is set/changed during Section 2 entry.
+     */
+    @Column(name = "section_2_due_date")
+    private java.time.LocalDate section2DueDate;
 
     // ── Section 1 ───────────────────────────────────────────────────────────
 

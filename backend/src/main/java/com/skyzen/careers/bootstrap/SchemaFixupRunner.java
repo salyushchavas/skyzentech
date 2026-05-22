@@ -36,6 +36,18 @@ public class SchemaFixupRunner implements CommandLineRunner {
             log.warn("applications_status_check drop failed (non-fatal): {}", e.getMessage(), e);
         }
 
+        // Phase 3 step 5: SECTION_2_PENDING was added to I9Status. ddl-auto
+        // never updates the existing CHECK constraint, so we drop it here
+        // before any row tries to write the new value. Application-layer
+        // @Enumerated(EnumType.STRING) remains the real source of truth.
+        try {
+            jdbcTemplate.execute(
+                    "ALTER TABLE i9_forms DROP CONSTRAINT IF EXISTS i9_forms_status_check");
+            log.info("Dropped stale i9_forms_status_check (if present).");
+        } catch (Exception e) {
+            log.warn("i9_forms_status_check drop failed (non-fatal): {}", e.getMessage(), e);
+        }
+
         try {
             // Adds the `users.active` column on existing databases. Hibernate's
             // ddl-auto=update can't add a NOT NULL column to a table with rows

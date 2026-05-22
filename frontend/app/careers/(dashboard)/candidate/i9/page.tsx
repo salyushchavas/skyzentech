@@ -61,7 +61,10 @@ function Body() {
 
   const isEditable =
     form.status === 'NOT_STARTED' || form.status === 'REOPENED';
-  const isSection1Done = form.status === 'SECTION_1_COMPLETE';
+  // Phase 3 step 5 — SECTION_2_PENDING is the canonical "Section 1 done"
+  // state; SECTION_1_COMPLETE is the legacy alias kept for old rows.
+  const isSection1Done =
+    form.status === 'SECTION_2_PENDING' || form.status === 'SECTION_1_COMPLETE';
   const isCompleted = form.status === 'COMPLETED';
 
   return (

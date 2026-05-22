@@ -31,7 +31,10 @@ type Filter = 'ALL' | I9Status;
 const FILTER_OPTIONS: { key: Filter; label: string }[] = [
   { key: 'ALL', label: 'All' },
   { key: 'NOT_STARTED', label: 'Not Started' },
-  { key: 'SECTION_1_COMPLETE', label: 'Section 1 Complete' },
+  // Phase 3 step 5 — canonical "Section 1 done, Section 2 due" filter.
+  // SECTION_1_COMPLETE is left out of the filter dropdown since it's a legacy
+  // alias of the same logical state.
+  { key: 'SECTION_2_PENDING', label: 'Section 2 Pending' },
   { key: 'COMPLETED', label: 'Completed' },
   { key: 'REOPENED', label: 'Reopened' },
 ];
@@ -161,10 +164,14 @@ function I9TabContent() {
     let overdue = 0;
     let completedThisMonth = 0;
     for (const r of rows) {
-      if (r.status === 'NOT_STARTED' || r.status === 'SECTION_1_COMPLETE') {
+      if (
+        r.status === 'NOT_STARTED'
+        || r.status === 'SECTION_2_PENDING'
+        || r.status === 'SECTION_1_COMPLETE'
+      ) {
         pending++;
       }
-      if (r.overdue) overdue++;
+      if (r.section2Overdue ?? r.overdue) overdue++;
       if (r.status === 'COMPLETED') {
         // Summary doesn't carry section2SignedAt — fall back to firstDayOfEmployment
         // as a reasonable proxy for "completed this month" (close enough for v1).
@@ -184,7 +191,7 @@ function I9TabContent() {
     const q = search.trim().toLowerCase();
     return rows.filter((r) => {
       if (filter !== 'ALL' && r.status !== filter) return false;
-      if (overdueOnly && !r.overdue) return false;
+      if (overdueOnly && !(r.section2Overdue ?? r.overdue)) return false;
       if (q) {
         const hay =
           (r.candidateName ?? '').toLowerCase() +
@@ -373,7 +380,7 @@ function DaysRemainingCell({ row }: { row: I9SummaryResponse }) {
   }
   const d = row.daysUntilDue;
   if (d == null) return <span className="text-sm text-gray-500">—</span>;
-  if (row.overdue) {
+  if (row.section2Overdue ?? row.overdue) {
     return (
       <span className="text-sm font-medium text-red-700">
         Overdue by {Math.abs(d)}d
@@ -403,7 +410,7 @@ function EmptyState({
   if (!hasAnyRows) msg = 'No I-9 forms yet';
   else if (overdueOnly) msg = 'No overdue I-9s — all current ✓';
   else if (filter === 'NOT_STARTED') msg = 'No forms awaiting Section 1';
-  else if (filter === 'SECTION_1_COMPLETE')
+  else if (filter === 'SECTION_2_PENDING' || filter === 'SECTION_1_COMPLETE')
     msg = 'No forms awaiting Section 2';
   else if (filter === 'COMPLETED') msg = 'No completed I-9s';
   else if (filter === 'REOPENED') msg = 'No reopened forms';

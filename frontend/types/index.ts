@@ -491,6 +491,9 @@ export interface UpdateTaskStatusRequest {
 
 export type I9Status =
   | 'NOT_STARTED'
+  // Phase 3 step 5 — explicit "Section 1 done, Section 2 due" phase.
+  | 'SECTION_2_PENDING'
+  /** @deprecated legacy alias for SECTION_2_PENDING; existing rows still load. */
   | 'SECTION_1_COMPLETE'
   | 'COMPLETED'
   | 'REOPENED';
@@ -554,9 +557,12 @@ export interface I9FormResponse {
   section2SignedAt?: IsoDateTime;
   section2SignedByName?: string;
 
-  // Computed
+  // Computed — Phase 3 step 5 split.
+  section1DueDate?: string;
   section2DueDate?: string;
-  /** Jackson serializes the boolean isOverdue() getter as "overdue". */
+  section1Overdue?: boolean;
+  section2Overdue?: boolean;
+  /** @deprecated alias for section2Overdue; new code should read section2Overdue. */
   overdue: boolean;
   daysUntilDue?: number;
 
@@ -572,7 +578,11 @@ export interface I9SummaryResponse {
   jobPostingTitle?: string;
   status: I9Status;
   firstDayOfEmployment?: string;
+  section1DueDate?: string;
   section2DueDate?: string;
+  section1Overdue?: boolean;
+  section2Overdue?: boolean;
+  /** @deprecated alias for section2Overdue. */
   overdue: boolean;
   daysUntilDue?: number;
 }

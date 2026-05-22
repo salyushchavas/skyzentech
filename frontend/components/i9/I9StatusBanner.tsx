@@ -11,16 +11,33 @@ const BASE =
 
 export default function I9StatusBanner({ form }: Props) {
   if (form.status === 'NOT_STARTED') {
+    const due = form.section1DueDate;
+    const section1Overdue = form.section1Overdue;
     return (
-      <div className={BASE + ' bg-blue-50 border-blue-200 text-blue-900'}>
+      <div
+        className={
+          BASE +
+          (section1Overdue
+            ? ' bg-red-50 border-red-200 text-red-900'
+            : ' bg-blue-50 border-blue-200 text-blue-900')
+        }
+      >
         <FileText className="h-6 w-6 flex-shrink-0" strokeWidth={2} />
         <div>
           <div className="text-base font-medium">
             Let&apos;s complete your I-9 — Section 1
           </div>
           <div className="text-sm opacity-80">
-            Federal employment eligibility verification. Required by your first day of work.
+            Federal employment eligibility verification.{' '}
+            {due
+              ? `Required by your first day of work — ${formatDateOnly(due)}.`
+              : 'Required by your first day of work.'}
           </div>
+          {section1Overdue && (
+            <div className="mt-1 text-sm font-medium">
+              Section 1 is past due — please complete now.
+            </div>
+          )}
         </div>
       </div>
     );
@@ -42,9 +59,9 @@ export default function I9StatusBanner({ form }: Props) {
     );
   }
 
-  if (form.status === 'SECTION_1_COMPLETE') {
+  if (form.status === 'SECTION_2_PENDING' || form.status === 'SECTION_1_COMPLETE') {
     const days = form.daysUntilDue;
-    const overdue = form.overdue;
+    const overdue = form.section2Overdue ?? form.overdue;
     return (
       <div className={BASE + ' bg-amber-50 border-amber-200 text-amber-900'}>
         <Clock className="h-6 w-6 flex-shrink-0" strokeWidth={2} />

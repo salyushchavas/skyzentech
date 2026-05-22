@@ -262,7 +262,9 @@ public class DocumentService {
         if (s == null) return "gray";
         return switch (s) {
             case NOT_STARTED -> "gray";
-            case SECTION_1_COMPLETE -> "amber";
+            // SECTION_1_COMPLETE is the legacy alias for SECTION_2_PENDING —
+            // both render with the same amber "waiting on Section 2" treatment.
+            case SECTION_2_PENDING, SECTION_1_COMPLETE -> "amber";
             case COMPLETED -> "green";
             case REOPENED -> "orange";
         };
@@ -296,6 +298,7 @@ public class DocumentService {
         if (s == null) return null;
         return switch (s) {
             case NOT_STARTED -> "Not Started";
+            case SECTION_2_PENDING -> "Section 2 Pending";
             case SECTION_1_COMPLETE -> "Section 1 Complete";
             case COMPLETED -> "Completed";
             case REOPENED -> "Reopened";

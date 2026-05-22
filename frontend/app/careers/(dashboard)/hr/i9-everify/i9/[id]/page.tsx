@@ -122,7 +122,7 @@ function Body() {
       setTab(fromHash as Tab);
       return;
     }
-    if (form.status === 'SECTION_1_COMPLETE' || form.status === 'REOPENED') {
+    if (form.status === 'SECTION_2_PENDING' || form.status === 'SECTION_1_COMPLETE' || form.status === 'REOPENED') {
       setTab('section2');
     } else {
       setTab('section1');

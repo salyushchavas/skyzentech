@@ -21,7 +21,7 @@ export default function Section2WaitingCard({ form }: Props) {
         work.
       </p>
 
-      <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
+      <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-3">
         <div>
           <div className="text-xs uppercase tracking-wide text-amber-800/80">
             First day of work
@@ -30,6 +30,18 @@ export default function Section2WaitingCard({ form }: Props) {
             {form.firstDayOfEmployment
               ? formatDateOnly(form.firstDayOfEmployment)
               : 'Not yet set'}
+          </div>
+        </div>
+        <div>
+          <div className="text-xs uppercase tracking-wide text-amber-800/80">
+            Section 1 deadline
+          </div>
+          <div className="mt-1 text-sm font-medium text-gray-900">
+            {form.section1DueDate
+              ? formatDateOnly(form.section1DueDate)
+              : form.firstDayOfEmployment
+                ? formatDateOnly(form.firstDayOfEmployment)
+                : 'Will be set with start date'}
           </div>
         </div>
         <div>
@@ -53,11 +65,11 @@ export default function Section2WaitingCard({ form }: Props) {
         </div>
       </div>
 
-      {form.overdue && (
+      {(form.section2Overdue ?? form.overdue) && (
         <div className="mt-4 flex items-start gap-2 rounded-md border border-red-300 bg-red-50 p-3 text-sm text-red-800">
           <AlertTriangle className="h-4 w-4 flex-shrink-0" strokeWidth={2} />
           <span>
-            This is overdue. Please contact your HR representative.
+            Section 2 is past due. Please contact your HR representative.
           </span>
         </div>
       )}

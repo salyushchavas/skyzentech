@@ -9,11 +9,13 @@ import com.skyzen.careers.dto.i9.Section1Request;
 import com.skyzen.careers.dto.i9.Section2Request;
 import com.skyzen.careers.entity.AuditLog;
 import com.skyzen.careers.entity.Candidate;
+import com.skyzen.careers.entity.Engagement;
 import com.skyzen.careers.entity.I9Form;
 import com.skyzen.careers.entity.JobPosting;
 import com.skyzen.careers.entity.Offer;
 import com.skyzen.careers.entity.User;
 import com.skyzen.careers.enums.CitizenshipStatus;
+import com.skyzen.careers.enums.EngagementStatus;
 import com.skyzen.careers.enums.I9Status;
 import com.skyzen.careers.enums.OfferStatus;
 import com.skyzen.careers.enums.UserRole;
@@ -21,6 +23,7 @@ import com.skyzen.careers.exception.BadRequestException;
 import com.skyzen.careers.exception.ResourceNotFoundException;
 import com.skyzen.careers.repository.AuditLogRepository;
 import com.skyzen.careers.repository.CandidateRepository;
+import com.skyzen.careers.repository.EngagementRepository;
 import com.skyzen.careers.repository.I9FormRepository;
 import com.skyzen.careers.repository.OfferRepository;
 import com.skyzen.careers.repository.UserRepository;
@@ -80,6 +83,7 @@ public class I9FormService {
     private final OfferRepository offerRepository;
     private final UserRepository userRepository;
     private final AuditLogRepository auditLogRepository;
+    private final EngagementRepository engagementRepository;
     private final ObjectMapper objectMapper;
 
     // ── Lazy-create + lookups ───────────────────────────────────────────────
@@ -97,18 +101,37 @@ public class I9FormService {
                 .orElseThrow(() -> new ResourceNotFoundException(
                         "Candidate not found: " + candidateId));
 
+        // Phase 3 step 5 — link to an engagement when one exists. Legacy
+        // candidates pre-Engagement keep the candidate-keyed path with a null
+        // engagement FK; the rest of the flow is identical.
+        Engagement engagement = resolveActiveEngagement(candidateId);
+
         I9Form form = I9Form.builder()
                 .candidate(candidate)
+                .engagement(engagement)
                 .status(I9Status.NOT_STARTED)
                 .preparerTranslatorUsed(false)
                 .createdBy(creator != null ? creator.getId() : candidate.getUser().getId())
                 .build();
 
-        // Pre-fill firstDayOfEmployment from the candidate's most recent accepted offer.
-        LocalDate preset = mostRecentAcceptedOfferStartDate(candidate);
-        if (preset != null) {
-            form.setFirstDayOfEmployment(preset);
+        // Pre-fill firstDayOfEmployment from the engagement's planned start
+        // when available, otherwise fall back to the most-recent accepted
+        // offer's startDate. Either source feeds the same due-date math.
+        LocalDate firstDay = engagement != null
+                ? engagement.getPlannedStartDate()
+                : null;
+        if (firstDay == null) {
+            firstDay = mostRecentAcceptedOfferStartDate(candidate);
         }
+        if (firstDay != null) {
+            form.setFirstDayOfEmployment(firstDay);
+        }
+        // Section 1 must be done by first day; Section 2 within 3 business
+        // days. Both fields stay null when we don't yet know the start date.
+        form.setSection1DueDate(firstDay);
+        form.setSection2DueDate(firstDay != null
+                ? plusBusinessDays(firstDay, SECTION_2_DEADLINE_BUSINESS_DAYS)
+                : null);
 
         form = formRepository.save(form);
         writeAudit(form.getId(), "CREATE",
@@ -118,6 +141,21 @@ public class I9FormService {
         // + user already initialized for the controller's toResponse call.
         return formRepository.findByIdWithGraph(form.getId())
                 .orElseThrow(() -> new IllegalStateException("Just-created I-9 form vanished"));
+    }
+
+    /**
+     * Phase 3 step 5 — find the candidate's most-recent in-funnel engagement.
+     * Excludes blocked/terminated since those don't get an I-9. Returns null
+     * for legacy candidates with no engagement (pre-Phase-3); the I-9 flow
+     * stays candidate-keyed for those.
+     */
+    private Engagement resolveActiveEngagement(UUID candidateId) {
+        return engagementRepository.findByCandidateId(candidateId).stream()
+                .filter(e -> e.getStatus() != EngagementStatus.BLOCKED_NO_AUTHORIZATION
+                        && e.getStatus() != EngagementStatus.TERMINATED)
+                .max(Comparator.comparing(Engagement::getCreatedAt,
+                        Comparator.nullsLast(Comparator.naturalOrder())))
+                .orElse(null);
     }
 
     @Transactional
@@ -181,8 +219,10 @@ public class I9FormService {
             form.setSection1SignedAt(Instant.now());
             form.setSection1SignedByName(
                     (safe(form.getFirstName()) + " " + safe(form.getLastName())).trim());
+            // Phase 3 step 5: NOT_STARTED → SECTION_2_PENDING (new explicit phase).
+            // REOPENED stays REOPENED until Section 2 is signed.
             if (form.getStatus() == I9Status.NOT_STARTED) {
-                form.setStatus(I9Status.SECTION_1_COMPLETE);
+                form.setStatus(I9Status.SECTION_2_PENDING);
             }
         }
 
@@ -230,7 +270,11 @@ public class I9FormService {
                 .orElseThrow(() -> new ResourceNotFoundException(
                         "I-9 form not found: " + formId));
 
-        if (form.getStatus() != I9Status.SECTION_1_COMPLETE
+        // SECTION_2_PENDING is the canonical pre-state from step 5; the
+        // SECTION_1_COMPLETE / COMPLETED / REOPENED checks stay for legacy
+        // rows and for HR-edit-after-completion cases.
+        if (form.getStatus() != I9Status.SECTION_2_PENDING
+                && form.getStatus() != I9Status.SECTION_1_COMPLETE
                 && form.getStatus() != I9Status.COMPLETED
                 && form.getStatus() != I9Status.REOPENED) {
             throw new BadRequestException(
@@ -241,6 +285,13 @@ public class I9FormService {
         Map<String, Object> before = snapshot(form);
 
         form.setFirstDayOfEmployment(req.getFirstDayOfEmployment());
+        // Recompute the deadlines whenever the start date is set/changed
+        // during Section 2 entry — keeps the audit story aligned with reality.
+        if (req.getFirstDayOfEmployment() != null) {
+            form.setSection1DueDate(req.getFirstDayOfEmployment());
+            form.setSection2DueDate(plusBusinessDays(
+                    req.getFirstDayOfEmployment(), SECTION_2_DEADLINE_BUSINESS_DAYS));
+        }
         form.setListATitle(req.getListATitle());
         form.setListAIssuingAuthority(req.getListAIssuingAuthority());
         form.setListADocumentNumber(req.getListADocumentNumber());
@@ -460,15 +511,29 @@ public class I9FormService {
 
     // ── Mapping ─────────────────────────────────────────────────────────────
 
+    @SuppressWarnings("deprecation") // populating the legacy `overdue` alias intentionally
     public I9FormResponse toResponse(I9Form f) {
         Candidate candidate = f.getCandidate();
         User candidateUser = candidate != null ? candidate.getUser() : null;
-        LocalDate section2Due = f.getFirstDayOfEmployment() != null
-                ? plusBusinessDays(f.getFirstDayOfEmployment(), SECTION_2_DEADLINE_BUSINESS_DAYS)
-                : null;
+        // Phase 3 step 5 — prefer the persisted due-date columns when set.
+        // Fall back to deriving from firstDayOfEmployment so legacy I-9 rows
+        // (which lack the columns until ddl-auto adds them) still surface a
+        // due date.
+        LocalDate section1Due = f.getSection1DueDate() != null
+                ? f.getSection1DueDate()
+                : f.getFirstDayOfEmployment();
+        LocalDate section2Due = f.getSection2DueDate() != null
+                ? f.getSection2DueDate()
+                : (f.getFirstDayOfEmployment() != null
+                        ? plusBusinessDays(f.getFirstDayOfEmployment(), SECTION_2_DEADLINE_BUSINESS_DAYS)
+                        : null);
         LocalDate today = LocalDate.now();
-        boolean overdue = section2Due != null
+        boolean section1Overdue = section1Due != null
+                && f.getSection1SignedAt() == null
+                && section1Due.isBefore(today);
+        boolean section2Overdue = section2Due != null
                 && f.getStatus() != I9Status.COMPLETED
+                && f.getSection2SignedAt() == null
                 && section2Due.isBefore(today);
         Long daysUntilDue = section2Due != null
                 ? ChronoUnit.DAYS.between(today, section2Due)
@@ -527,24 +592,39 @@ public class I9FormService {
                 .businessAddress(f.getBusinessAddress())
                 .section2SignedAt(f.getSection2SignedAt())
                 .section2SignedByName(section2By)
-                // Computed
+                // Computed (Phase 3 step 5 split)
+                .section1DueDate(section1Due)
                 .section2DueDate(section2Due)
-                .overdue(overdue)
+                .section1Overdue(section1Overdue)
+                .section2Overdue(section2Overdue)
+                .overdue(section2Overdue) // legacy alias
                 .daysUntilDue(daysUntilDue)
                 .createdAt(f.getCreatedAt())
                 .updatedAt(f.getUpdatedAt())
                 .build();
     }
 
+    @SuppressWarnings("deprecation") // populating the legacy `overdue` alias intentionally
     public I9SummaryResponse toSummary(I9Form f) {
         Candidate candidate = f.getCandidate();
         User candidateUser = candidate != null ? candidate.getUser() : null;
-        LocalDate section2Due = f.getFirstDayOfEmployment() != null
-                ? plusBusinessDays(f.getFirstDayOfEmployment(), SECTION_2_DEADLINE_BUSINESS_DAYS)
-                : null;
+        // Same due-date resolution as toResponse — prefer persisted columns,
+        // fall back to firstDayOfEmployment derivation for legacy rows.
+        LocalDate section1Due = f.getSection1DueDate() != null
+                ? f.getSection1DueDate()
+                : f.getFirstDayOfEmployment();
+        LocalDate section2Due = f.getSection2DueDate() != null
+                ? f.getSection2DueDate()
+                : (f.getFirstDayOfEmployment() != null
+                        ? plusBusinessDays(f.getFirstDayOfEmployment(), SECTION_2_DEADLINE_BUSINESS_DAYS)
+                        : null);
         LocalDate today = LocalDate.now();
-        boolean overdue = section2Due != null
+        boolean section1Overdue = section1Due != null
+                && f.getSection1SignedAt() == null
+                && section1Due.isBefore(today);
+        boolean section2Overdue = section2Due != null
                 && f.getStatus() != I9Status.COMPLETED
+                && f.getSection2SignedAt() == null
                 && section2Due.isBefore(today);
         Long daysUntilDue = section2Due != null
                 ? ChronoUnit.DAYS.between(today, section2Due)
@@ -573,8 +653,11 @@ public class I9FormService {
                 .jobPostingTitle(jobPostingTitle)
                 .status(f.getStatus())
                 .firstDayOfEmployment(f.getFirstDayOfEmployment())
+                .section1DueDate(section1Due)
                 .section2DueDate(section2Due)
-                .overdue(overdue)
+                .section1Overdue(section1Overdue)
+                .section2Overdue(section2Overdue)
+                .overdue(section2Overdue) // legacy alias
                 .daysUntilDue(daysUntilDue)
                 .build();
     }
@@ -591,7 +674,10 @@ public class I9FormService {
         Map<String, Object> m = new LinkedHashMap<>();
         m.put("id", f.getId());
         m.put("candidateId", f.getCandidate() != null ? f.getCandidate().getId() : null);
+        m.put("engagementId", f.getEngagement() != null ? f.getEngagement().getId() : null);
         m.put("status", f.getStatus());
+        m.put("section1DueDate", f.getSection1DueDate());
+        m.put("section2DueDate", f.getSection2DueDate());
         // Section 1
         m.put("lastName", f.getLastName());
         m.put("firstName", f.getFirstName());

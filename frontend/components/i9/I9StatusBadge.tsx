@@ -7,6 +7,9 @@ interface Props {
 
 const COLOR: Record<string, string> = {
   NOT_STARTED: 'bg-gray-200 text-gray-700',
+  // Phase 3 step 5 — both the new canonical SECTION_2_PENDING and the legacy
+  // SECTION_1_COMPLETE alias render with the same amber "Section 2 due" colour.
+  SECTION_2_PENDING: 'bg-amber-100 text-amber-800',
   SECTION_1_COMPLETE: 'bg-amber-100 text-amber-800',
   COMPLETED: 'bg-green-100 text-green-800',
   REOPENED: 'bg-orange-100 text-orange-800',
@@ -14,6 +17,7 @@ const COLOR: Record<string, string> = {
 
 const LABEL: Record<string, string> = {
   NOT_STARTED: 'Not Started',
+  SECTION_2_PENDING: 'Section 2 Pending',
   SECTION_1_COMPLETE: 'Section 1 Complete',
   COMPLETED: 'Complete',
   REOPENED: 'Reopened',

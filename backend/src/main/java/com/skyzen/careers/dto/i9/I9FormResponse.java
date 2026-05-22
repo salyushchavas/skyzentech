@@ -66,9 +66,15 @@ public class I9FormResponse {
     private Instant section2SignedAt;
     private String section2SignedByName;
 
-    // Computed
+    // Computed — Phase 3 step 5 split: Section 1 and Section 2 each have their
+    // own due-by date and overdue flag. Legacy {@code overdue} stays for one
+    // release and now mirrors {@code section2Overdue} so existing UI keeps working.
+    private LocalDate section1DueDate;
     private LocalDate section2DueDate;
-    /** Jackson serializes the boolean isOverdue() getter as "overdue". */
+    private boolean section1Overdue;
+    private boolean section2Overdue;
+    /** @deprecated alias for section2Overdue. Will be removed once UI consumers move. */
+    @Deprecated
     private boolean overdue;
     /** Days from today to section2DueDate; negative when overdue; null when no due date. */
     private Long daysUntilDue;
