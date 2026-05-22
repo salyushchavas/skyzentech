@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import {
   ArrowRight,
+  BadgeCheck,
   Briefcase,
   CalendarClock,
   ClipboardList,
@@ -331,6 +332,8 @@ function NextStepIcon({ type }: { type: string }) {
     case 'WORK':
     case 'SCREENING':
       return <ClipboardList className={cn} strokeWidth={2} />;
+    case 'SELECTED_CONDITIONAL':
+      return <BadgeCheck className={cn} strokeWidth={2} />;
     case 'PROFILE':
       return <UserCircle className={cn} strokeWidth={2} />;
     case 'BROWSE':

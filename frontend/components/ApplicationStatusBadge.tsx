@@ -30,6 +30,13 @@ const COLOR_MAP: Record<string, string> = {
   HIRED: 'bg-emerald-100 text-emerald-800',
 };
 
+// Override the title-cased default for statuses whose enum name reads awkwardly.
+// Phase 2.3 — "Conditionally Selected" matches the candidate-side phrasing from
+// the dashboard hero so both surfaces tell the same story.
+const LABEL_OVERRIDE: Record<string, string> = {
+  SELECTED_CONDITIONAL: 'Conditionally Selected',
+};
+
 function titleCase(raw: string): string {
   return raw
     .split('_')
@@ -39,13 +46,14 @@ function titleCase(raw: string): string {
 
 export default function ApplicationStatusBadge({ status }: Props) {
   const color = COLOR_MAP[status] ?? 'bg-gray-100 text-gray-700';
+  const label = LABEL_OVERRIDE[status] ?? titleCase(status);
   return (
     <span
       className={
         'inline-block whitespace-nowrap rounded-full px-2.5 py-0.5 text-xs font-medium ' + color
       }
     >
-      {titleCase(status)}
+      {label}
     </span>
   );
 }
