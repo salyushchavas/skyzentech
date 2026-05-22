@@ -10,6 +10,7 @@ import ProtectedRoute from '@/components/ProtectedRoute';
 import I983StatusBadge from '@/components/i983/I983StatusBadge';
 import CompensationDisplay from '@/components/offers/CompensationDisplay';
 import { formatDateOnly } from '@/lib/format-date';
+import { useAuth } from '@/lib/auth-context';
 import type { I983PlanResponse } from '@/types';
 
 export default function CandidateTrainingPlansPage() {
@@ -24,8 +25,15 @@ export default function CandidateTrainingPlansPage() {
 
 function Body() {
   const router = useRouter();
+  const { user, isLoading: authLoading } = useAuth();
   const [plans, setPlans] = useState<I983PlanResponse[] | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  // Phase 3 step 6 — I-983 is STEM-OPT-only. For other tracks we render a
+  // dedicated "not applicable" panel instead of loading the empty list.
+  // Resolved client-side via the user.expectedTrack the auth context already
+  // refreshes from /auth/me; the backend gate at create() is the authority.
+  const isStemOpt = user?.expectedTrack === 'STEM_OPT';
 
   const load = useCallback(async () => {
     setError(null);
@@ -41,9 +49,12 @@ function Body() {
   }, []);
 
   useEffect(() => {
+    if (!isStemOpt) return; // skip the fetch — not relevant for non-STEM
     void load();
-  }, [load]);
+  }, [load, isStemOpt]);
 
+  if (authLoading) return <LoadingSkeleton />;
+  if (!isStemOpt) return <NotApplicablePanel />;
   if (plans === null && !error) return <LoadingSkeleton />;
 
   if (error) {
@@ -157,6 +168,31 @@ function Body() {
           </div>
         </button>
       ))}
+    </div>
+  );
+}
+
+function NotApplicablePanel() {
+  return (
+    <div className="mx-auto max-w-md py-16 text-center">
+      <FileBadge
+        className="mx-auto h-16 w-16 text-gray-300"
+        strokeWidth={1.5}
+      />
+      <h2 className="mt-4 text-xl font-semibold text-gray-900">
+        Training Plan not required
+      </h2>
+      <p className="mt-2 text-sm text-gray-500">
+        Form I-983 is only required for STEM OPT engagements. Your current
+        work-authorization track doesn&apos;t need one. If this looks wrong,
+        update your work-authorization details on your profile and contact HR.
+      </p>
+      <Link
+        href="/careers/candidate/profile"
+        className="mt-6 inline-flex items-center gap-1.5 rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+      >
+        Edit profile
+      </Link>
     </div>
   );
 }

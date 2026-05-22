@@ -5,6 +5,11 @@ import com.fasterxml.jackson.annotation.JsonInclude;
 import java.time.Instant;
 import java.util.List;
 
+/**
+ * Bootstrap payload for the SPA's auth context. Phase 3 step 6 adds
+ * {@code expectedTrack} so the candidate sidebar can hide the I-983 Training
+ * Plan tile for non-STEM-OPT candidates without an extra round-trip.
+ */
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public record MeResponse(
         String userId,
@@ -14,5 +19,6 @@ public record MeResponse(
         List<String> roles,
         Instant createdAt,
         Boolean emailVerified,
-        String applicantId
+        String applicantId,
+        String expectedTrack
 ) {}

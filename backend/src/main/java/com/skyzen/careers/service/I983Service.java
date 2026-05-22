@@ -12,6 +12,7 @@ import com.skyzen.careers.dto.i983.UpdateI983Request;
 import com.skyzen.careers.entity.Application;
 import com.skyzen.careers.entity.AuditLog;
 import com.skyzen.careers.entity.Candidate;
+import com.skyzen.careers.entity.Engagement;
 import com.skyzen.careers.entity.I983Plan;
 import com.skyzen.careers.entity.JobPosting;
 import com.skyzen.careers.entity.Offer;
@@ -19,14 +20,17 @@ import com.skyzen.careers.entity.StaffingEntity;
 import com.skyzen.careers.entity.User;
 import com.skyzen.careers.enums.ApplicationStatus;
 import com.skyzen.careers.enums.DsoApprovalStatus;
+import com.skyzen.careers.enums.EngagementStatus;
 import com.skyzen.careers.enums.I983Status;
 import com.skyzen.careers.enums.OfferStatus;
 import com.skyzen.careers.enums.UserRole;
+import com.skyzen.careers.enums.WorkAuthTrack;
 import com.skyzen.careers.exception.BadRequestException;
 import com.skyzen.careers.exception.ResourceNotFoundException;
 import com.skyzen.careers.repository.ApplicationRepository;
 import com.skyzen.careers.repository.AuditLogRepository;
 import com.skyzen.careers.repository.CandidateRepository;
+import com.skyzen.careers.repository.EngagementRepository;
 import com.skyzen.careers.repository.I983PlanRepository;
 import com.skyzen.careers.repository.OfferRepository;
 import com.skyzen.careers.repository.UserRepository;
@@ -88,6 +92,7 @@ public class I983Service {
     private final OfferRepository offerRepository;
     private final UserRepository userRepository;
     private final AuditLogRepository auditLogRepository;
+    private final EngagementRepository engagementRepository;
     private final ObjectMapper objectMapper;
 
     // ── Commands ────────────────────────────────────────────────────────────
@@ -157,6 +162,20 @@ public class I983Service {
                     "Cannot create I-983 — application's job posting has no staffing entity");
         }
 
+        // Phase 3 step 6 — resolve the candidate's engagement and gate the
+        // create on STEM_OPT. Engagement.track is the snapshot taken at offer
+        // acceptance (the source of truth); fall back to candidate.expectedTrack
+        // for legacy candidates that pre-date Engagement.
+        Engagement engagement = engagementRepository.findByApplicationId(application.getId())
+                .orElseGet(() -> resolveCandidateEngagement(candidate.getId()));
+        WorkAuthTrack track = engagement != null && engagement.getTrack() != null
+                ? engagement.getTrack()
+                : candidate.getExpectedTrack();
+        if (track != WorkAuthTrack.STEM_OPT) {
+            throw new BadRequestException(
+                    "I-983 is required only for STEM OPT engagements.");
+        }
+
         // Split candidate's fullName for first/last student name auto-fill.
         User candidateUser = candidate.getUser();
         String[] nameParts = splitFullName(
@@ -166,6 +185,7 @@ public class I983Service {
                 .candidate(candidate)
                 .application(application)
                 .offer(offer)
+                .engagement(engagement)
                 .entity(entity)
                 .status(I983Status.DRAFT)
                 .dsoApprovalStatus(DsoApprovalStatus.NOT_SUBMITTED)
@@ -797,6 +817,21 @@ public class I983Service {
     }
 
     // ── Utility ─────────────────────────────────────────────────────────────
+
+    /**
+     * Phase 3 step 6 fallback when the application has no engagement (legacy
+     * acceptances pre-Phase-3 or staff calling create with a candidateId-only
+     * payload). Picks the candidate's most-recent in-funnel engagement, the
+     * same way {@code I9FormService.resolveActiveEngagement} does.
+     */
+    private Engagement resolveCandidateEngagement(UUID candidateId) {
+        return engagementRepository.findByCandidateId(candidateId).stream()
+                .filter(e -> e.getStatus() != EngagementStatus.BLOCKED_NO_AUTHORIZATION
+                        && e.getStatus() != EngagementStatus.TERMINATED)
+                .max(Comparator.comparing(Engagement::getCreatedAt,
+                        Comparator.nullsLast(Comparator.naturalOrder())))
+                .orElse(null);
+    }
 
     /** Splits a fullName into [firstName, lastName]. If a single word, [word, ""]. */
     private static String[] splitFullName(String fullName) {

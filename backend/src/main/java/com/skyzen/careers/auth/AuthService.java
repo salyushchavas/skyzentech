@@ -273,6 +273,14 @@ public class AuthService {
 
     public MeResponse me(User user) {
         List<String> roles = user.getRoles().stream().map(Enum::name).toList();
+        // Phase 3 step 6 — surface expectedTrack so the candidate sidebar can
+        // hide non-STEM-OPT-only tiles (I-983 Training Plan). Only candidates
+        // have a Candidate row; staff users return null here.
+        String expectedTrack = candidateRepository.findByUserId(user.getId())
+                .map(c -> c.getExpectedTrack() != null
+                        ? c.getExpectedTrack().name()
+                        : null)
+                .orElse(null);
         return new MeResponse(
                 user.getId().toString(),
                 user.getEmail(),
@@ -281,7 +289,8 @@ public class AuthService {
                 roles,
                 user.getCreatedAt(),
                 user.getEmailVerified(),
-                user.getApplicantId()
+                user.getApplicantId(),
+                expectedTrack
         );
     }
 

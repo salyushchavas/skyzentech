@@ -48,6 +48,16 @@ public class I983Plan {
     @JoinColumn(name = "offer_id")
     private Offer offer;
 
+    /**
+     * Phase 3 step 6 — link the I-983 plan to its {@link Engagement}. Nullable:
+     * legacy plans pre-date Engagement and stay candidate-keyed. New plans
+     * resolve the engagement from the (candidate, accepted-application) pair
+     * during {@code I983Service.createPlan}.
+     */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "engagement_id")
+    private Engagement engagement;
+
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "entity_id", nullable = false)
     private StaffingEntity entity;

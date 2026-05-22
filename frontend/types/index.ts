@@ -33,6 +33,12 @@ export interface User {
   // Phase 1.2: account-journey state lives on the User.
   emailVerified?: boolean;
   applicantId?: string;
+  /**
+   * Phase 3 step 6: candidate's expected work-auth track. Populated from
+   * the Candidate row via {@code /auth/me}; staff accounts will be undefined.
+   * Used to gate STEM-OPT-only UI (I-983 Training Plan tile, page).
+   */
+  expectedTrack?: WorkAuthTrack;
 }
 
 export interface AuthResponse {

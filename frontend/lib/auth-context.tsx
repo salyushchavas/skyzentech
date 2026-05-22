@@ -33,6 +33,8 @@ interface MeResponse {
   createdAt?: string;
   emailVerified?: boolean;
   applicantId?: string;
+  /** Phase 3 step 6 — candidate's expectedTrack so the sidebar can hide STEM-only tiles. */
+  expectedTrack?: WorkAuthTrack;
 }
 
 interface RegisterResult {
@@ -107,6 +109,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           createdAt: me.createdAt ?? curr?.createdAt,
           emailVerified: me.emailVerified,
           applicantId: me.applicantId,
+          expectedTrack: me.expectedTrack,
         };
         setUser(next);
         return next;

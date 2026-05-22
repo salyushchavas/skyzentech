@@ -102,7 +102,17 @@ export default function DashboardSidebar({ onNavigate }: Props) {
   // Pick the first role we have nav for. CANDIDATE is the fallback so the
   // sidebar still renders something while auth hydrates.
   const role: UserRole = user?.roles?.find((r) => r in ROLE_LINKS) ?? 'CANDIDATE';
-  const links = ROLE_LINKS[role];
+  const baseLinks = ROLE_LINKS[role];
+
+  // Phase 3 step 6 — hide the Training Plan tile for non-STEM-OPT candidates.
+  // STEM_OPT is the source of truth (snapshot on the engagement, mirrored by
+  // candidate.expectedTrack on the user payload). Candidates with no track
+  // yet also have the tile hidden — they haven't asked for STEM_OPT routing.
+  const links = baseLinks.filter((l) => {
+    if (role !== 'CANDIDATE') return true;
+    if (l.href !== '/careers/candidate/training-plans') return true;
+    return user?.expectedTrack === 'STEM_OPT';
+  });
   const activeHref = pickLongestMatch(pathname, links);
 
   return (
