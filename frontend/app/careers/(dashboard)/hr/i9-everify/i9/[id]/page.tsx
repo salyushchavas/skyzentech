@@ -405,7 +405,14 @@ function Section2Tab({
     );
   }
 
-  if (form.status === 'SECTION_1_COMPLETE' || form.status === 'REOPENED') {
+  // SECTION_2_PENDING is the canonical post-Section-1 state (Phase 3 step 5);
+  // SECTION_1_COMPLETE is the legacy alias kept for pre-3.5 rows. REOPENED also
+  // re-enters the Section 2 form so HR can re-sign after an admin reopen.
+  if (
+    form.status === 'SECTION_2_PENDING'
+    || form.status === 'SECTION_1_COMPLETE'
+    || form.status === 'REOPENED'
+  ) {
     return <Section2Form form={form} onSaved={onSaved} />;
   }
 
