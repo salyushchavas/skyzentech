@@ -3,8 +3,16 @@ package com.skyzen.careers.service;
 import com.skyzen.careers.entity.Candidate;
 import com.skyzen.careers.entity.Engagement;
 import com.skyzen.careers.entity.User;
+import com.skyzen.careers.enums.EVerifyStatus;
 import com.skyzen.careers.enums.EngagementStatus;
+import com.skyzen.careers.enums.I983Status;
+import com.skyzen.careers.enums.I9Status;
+import com.skyzen.careers.enums.OnboardingTaskStatus;
 import com.skyzen.careers.enums.WorkAuthTrack;
+import com.skyzen.careers.repository.EVerifyCaseRepository;
+import com.skyzen.careers.repository.I9FormRepository;
+import com.skyzen.careers.repository.I983PlanRepository;
+import com.skyzen.careers.repository.OnboardingTaskRepository;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -44,6 +52,10 @@ public class ComplianceRoutingService {
 
     private final EngagementService engagementService;
     private final OnboardingService onboardingService;
+    private final I9FormRepository i9FormRepository;
+    private final I983PlanRepository i983PlanRepository;
+    private final EVerifyCaseRepository everifyCaseRepository;
+    private final OnboardingTaskRepository onboardingTaskRepository;
 
     /**
      * Whether to require E-Verify for non-STEM_OPT tracks. Default FALSE.
@@ -55,9 +67,17 @@ public class ComplianceRoutingService {
     public ComplianceRoutingService(
             EngagementService engagementService,
             OnboardingService onboardingService,
+            I9FormRepository i9FormRepository,
+            I983PlanRepository i983PlanRepository,
+            EVerifyCaseRepository everifyCaseRepository,
+            OnboardingTaskRepository onboardingTaskRepository,
             @Value("${app.compliance.everify-non-stem:false}") boolean everifyEnabledForNonStem) {
         this.engagementService = engagementService;
         this.onboardingService = onboardingService;
+        this.i9FormRepository = i9FormRepository;
+        this.i983PlanRepository = i983PlanRepository;
+        this.everifyCaseRepository = everifyCaseRepository;
+        this.onboardingTaskRepository = onboardingTaskRepository;
         this.everifyEnabledForNonStem = everifyEnabledForNonStem;
     }
 
@@ -137,5 +157,95 @@ public class ComplianceRoutingService {
             keys.add(TASK_EVERIFY_BY_DAY_3);
         }
         return keys;
+    }
+
+    // ── Phase 3 step 9 — compliance gate ────────────────────────────────────
+
+    /**
+     * Per-track "is this engagement ready to start?" check. Returns
+     * {@code true} when every required compliance item is in its "done"
+     * terminal state for the engagement's track snapshot:
+     *
+     *   - I-9 always required → {@link I9Status#COMPLETED}
+     *   - I-983 required for STEM_OPT → {@link I983Status#DSO_APPROVED}
+     *   - E-Verify required for STEM_OPT (and non-STEM when
+     *     {@code everifyEnabledForNonStem}) → {@link EVerifyStatus#EMPLOYMENT_AUTHORIZED}
+     *   - CPT_I20_VERIFY onboarding task complete for CPT
+     *
+     * Engagements in terminal states (TERMINATED / BLOCKED_NO_AUTHORIZATION)
+     * return false — they shouldn't advance regardless of compliance state.
+     */
+    public boolean requirementsSatisfied(Engagement engagement) {
+        return missingRequirements(engagement).isEmpty();
+    }
+
+    /**
+     * Companion to {@link #requirementsSatisfied}. Returns a human-friendly
+     * list of what's missing so the HR "mark ready" 400 response can name the
+     * blockers ("Not ready: I-9 incomplete, E-Verify pending").
+     */
+    public List<String> missingRequirements(Engagement engagement) {
+        List<String> missing = new ArrayList<>();
+        if (engagement == null || engagement.getCandidate() == null) {
+            missing.add("Engagement or candidate missing");
+            return missing;
+        }
+        if (engagement.getStatus() == EngagementStatus.TERMINATED
+                || engagement.getStatus() == EngagementStatus.BLOCKED_NO_AUTHORIZATION) {
+            missing.add("Engagement is in a terminal state");
+            return missing;
+        }
+
+        WorkAuthTrack track = engagement.getTrack();
+        UUID candidateId = engagement.getCandidate().getId();
+        UUID offerId = engagement.getOffer() != null ? engagement.getOffer().getId() : null;
+
+        // I-9 always required.
+        var i9 = i9FormRepository.findByCandidateId(candidateId).orElse(null);
+        if (i9 == null || i9.getStatus() != I9Status.COMPLETED) {
+            missing.add("I-9 incomplete");
+        }
+
+        // E-Verify: required for STEM, and non-STEM when the operator opts in.
+        // Reached via the I-9 (case is 1:1 with the I-9 row).
+        boolean everifyRequired = track == WorkAuthTrack.STEM_OPT
+                || (everifyEnabledForNonStem && track != null);
+        if (everifyRequired) {
+            var everify = i9 != null
+                    ? everifyCaseRepository.findByI9FormId(i9.getId()).orElse(null)
+                    : null;
+            if (everify == null || everify.getStatus() != EVerifyStatus.EMPLOYMENT_AUTHORIZED) {
+                missing.add("E-Verify pending");
+            }
+        }
+
+        // I-983 required for STEM only. A candidate may have multiple plans
+        // (amendments) — any plan in DSO_APPROVED satisfies the gate.
+        if (track == WorkAuthTrack.STEM_OPT) {
+            boolean hasApproved = i983PlanRepository
+                    .findByCandidateIdOrderByCreatedAtDesc(candidateId).stream()
+                    .anyMatch(p -> p.getStatus() == I983Status.DSO_APPROVED);
+            if (!hasApproved) {
+                missing.add("I-983 not yet DSO-approved");
+            }
+        }
+
+        // CPT-specific: I-20 CPT authorization must be confirmed via the
+        // onboarding task seeded by the router. Without an offer link we can't
+        // resolve the task uniquely, so we flag it as missing.
+        if (track == WorkAuthTrack.CPT) {
+            boolean cptVerified = false;
+            if (offerId != null) {
+                cptVerified = onboardingTaskRepository
+                        .findByCandidateIdAndTaskKeyAndOfferId(candidateId, TASK_CPT_I20_VERIFY, offerId)
+                        .map(t -> t.getStatus() == OnboardingTaskStatus.COMPLETED)
+                        .orElse(false);
+            }
+            if (!cptVerified) {
+                missing.add("CPT I-20 verification pending");
+            }
+        }
+
+        return missing;
     }
 }

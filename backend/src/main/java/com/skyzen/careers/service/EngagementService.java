@@ -140,6 +140,48 @@ public class EngagementService {
     }
 
     /**
+     * Phase 3 step 9 — HR-driven "mark ready" action. Consults the compliance
+     * router for per-track requirements; on success, gates through
+     * {@link #transitionTo} from PENDING_COMPLIANCE to READY_TO_START. On
+     * failure, throws {@link BadRequestException} with a comma-joined list of
+     * the missing items so the UI can render a clear blocker message.
+     *
+     * Callers MUST pre-load the engagement via the repo before calling.
+     * Same-state (already READY_TO_START) is a legal no-op via transitionTo.
+     */
+    @Transactional
+    public Engagement markReady(Engagement engagement,
+                                com.skyzen.careers.service.ComplianceRoutingService router,
+                                User actor) {
+        if (engagement == null) {
+            throw new com.skyzen.careers.exception.BadRequestException(
+                    "Engagement not found");
+        }
+        java.util.List<String> missing = router.missingRequirements(engagement);
+        if (!missing.isEmpty()) {
+            throw new com.skyzen.careers.exception.BadRequestException(
+                    "Not ready: " + String.join(", ", missing));
+        }
+        return transitionTo(engagement, EngagementStatus.READY_TO_START,
+                "MARK_READY", actor);
+    }
+
+    /**
+     * Phase 3 step 9 — HR-driven "start" action. Pure manual: HR confirms the
+     * intern is actually starting today. The {@link #transitionTo} path
+     * stamps {@code actualStartDate = today} when moving to ACTIVE, so this
+     * is one call.
+     */
+    @Transactional
+    public Engagement startEngagement(Engagement engagement, User actor) {
+        if (engagement == null) {
+            throw new com.skyzen.careers.exception.BadRequestException(
+                    "Engagement not found");
+        }
+        return transitionTo(engagement, EngagementStatus.ACTIVE, "START", actor);
+    }
+
+    /**
      * Phase 3 step 8 — "the active engagement" lookup used by onboarding +
      * Group C creation paths to attach an {@code engagement_id} to new rows.
      * Picks the candidate's most-recent in-funnel engagement (excludes

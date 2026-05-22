@@ -3,12 +3,14 @@ package com.skyzen.careers.service;
 import com.skyzen.careers.dto.admin.AdminOverviewResponse;
 import com.skyzen.careers.enums.ApplicationStatus;
 import com.skyzen.careers.enums.EVerifyStatus;
+import com.skyzen.careers.enums.EngagementStatus;
 import com.skyzen.careers.enums.I9Status;
 import com.skyzen.careers.enums.I983Status;
 import com.skyzen.careers.enums.JobPostingStatus;
 import com.skyzen.careers.repository.ApplicationRepository;
 import com.skyzen.careers.repository.CandidateRepository;
 import com.skyzen.careers.repository.EVerifyCaseRepository;
+import com.skyzen.careers.repository.EngagementRepository;
 import com.skyzen.careers.repository.I9FormRepository;
 import com.skyzen.careers.repository.I983PlanRepository;
 import com.skyzen.careers.repository.JobPostingRepository;
@@ -31,12 +33,24 @@ public class AdminOverviewService {
             EVerifyStatus.TENTATIVE_NONCONFIRMATION
     );
 
+    /**
+     * Phase 3 step 10 — engagement statuses that mean "this candidate has been
+     * hired" (post-acceptance, in the employment lifecycle).
+     */
+    private static final List<EngagementStatus> HIRED_ENGAGEMENT_STATUSES = List.of(
+            EngagementStatus.PENDING_COMPLIANCE,
+            EngagementStatus.READY_TO_START,
+            EngagementStatus.ACTIVE,
+            EngagementStatus.COMPLETED
+    );
+
     private final CandidateRepository candidateRepository;
     private final ApplicationRepository applicationRepository;
     private final JobPostingRepository jobPostingRepository;
     private final I9FormRepository i9FormRepository;
     private final I983PlanRepository i983PlanRepository;
     private final EVerifyCaseRepository everifyCaseRepository;
+    private final EngagementRepository engagementRepository;
 
     @Transactional(readOnly = true)
     public AdminOverviewResponse build() {
@@ -47,8 +61,23 @@ public class AdminOverviewService {
             applicationsByStatus.put(s.name(), applicationRepository.countByStatus(s));
         }
 
-        long totalHired = applicationsByStatus.getOrDefault(ApplicationStatus.HIRED.name(), 0L);
-        long activeInterns = applicationRepository.countDistinctCandidatesByStatus(ApplicationStatus.HIRED);
+        // Phase 3 step 10 — totalHired + activeInterns now come from
+        // Engagement.status. Legacy fallback (candidates with a HIRED
+        // application but no engagement yet) is added on top so the dashboard
+        // doesn't suddenly drop legacy hires until step-11 backfill catches up.
+        long engagementHired = engagementRepository.countByStatusIn(HIRED_ENGAGEMENT_STATUSES);
+        long engagementActive = engagementRepository.countByStatus(EngagementStatus.ACTIVE);
+        @SuppressWarnings("deprecation")
+        long legacyHired = applicationsByStatus.getOrDefault(ApplicationStatus.HIRED.name(), 0L);
+        @SuppressWarnings("deprecation")
+        long legacyActiveCandidates = applicationRepository
+                .countDistinctCandidatesByStatus(ApplicationStatus.HIRED);
+        // No exact overlap eliminator yet — step-11 backfill removes the
+        // double-count by ensuring every legacy HIRED row has an engagement.
+        // For now we expose the engagement-first count alongside legacy as
+        // upper-bound estimates: that's accurate during the transition window.
+        long totalHired = Math.max(engagementHired, legacyHired);
+        long activeInterns = Math.max(engagementActive, legacyActiveCandidates);
         long openPostings = jobPostingRepository.findByStatus(JobPostingStatus.OPEN).size();
         long totalCandidates = candidateRepository.count();
 

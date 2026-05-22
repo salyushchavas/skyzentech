@@ -5,6 +5,7 @@ import com.skyzen.careers.dto.candidate.CandidateDashboardResponse;
 import com.skyzen.careers.entity.Application;
 import com.skyzen.careers.entity.AuditLog;
 import com.skyzen.careers.entity.Candidate;
+import com.skyzen.careers.entity.Engagement;
 import com.skyzen.careers.entity.Interview;
 import com.skyzen.careers.entity.JobPosting;
 import com.skyzen.careers.entity.Offer;
@@ -12,12 +13,14 @@ import com.skyzen.careers.entity.OnboardingTask;
 import com.skyzen.careers.entity.StaffingEntity;
 import com.skyzen.careers.entity.User;
 import com.skyzen.careers.enums.ApplicationStatus;
+import com.skyzen.careers.enums.EngagementStatus;
 import com.skyzen.careers.enums.InterviewStatus;
 import com.skyzen.careers.enums.OfferStatus;
 import com.skyzen.careers.enums.OnboardingTaskStatus;
 import com.skyzen.careers.repository.ApplicationRepository;
 import com.skyzen.careers.repository.AuditLogRepository;
 import com.skyzen.careers.repository.CandidateRepository;
+import com.skyzen.careers.repository.EngagementRepository;
 import com.skyzen.careers.repository.InterviewRepository;
 import com.skyzen.careers.repository.OfferRepository;
 import com.skyzen.careers.repository.OnboardingTaskRepository;
@@ -70,6 +73,7 @@ public class CandidateDashboardService {
     private final ResumeRepository resumeRepository;
     private final AuditLogRepository auditLogRepository;
     private final ScreeningRepository screeningRepository;
+    private final EngagementRepository engagementRepository;
 
     @Transactional(readOnly = true)
     public CandidateDashboardResponse build(User caller) {
@@ -137,9 +141,18 @@ public class CandidateDashboardService {
         List<OnboardingTask> tasks = onboardingTaskRepository
                 .findByCandidateIdOrderBySortOrderAsc(candidate.getId());
 
+        // Phase 3 step 10 — the candidate's active engagement, if any. Source
+        // of truth for post-offer state on the dashboard; pickNextStep falls
+        // back to Application post-offer statuses when engagement is null.
+        Engagement engagement = engagementRepository.findByCandidateId(candidate.getId()).stream()
+                .filter(e -> e.getStatus() != EngagementStatus.BLOCKED_NO_AUTHORIZATION
+                        && e.getStatus() != EngagementStatus.TERMINATED)
+                .findFirst()
+                .orElse(null);
+
         // ── nextStep priority ladder ─────────────────────────────────────────
         CandidateDashboardResponse.NextStep nextStep = pickNextStep(
-                apps, offers, upcomingInterviews, tasks, profileComplete);
+                apps, offers, upcomingInterviews, tasks, profileComplete, engagement);
 
         // ── Upcoming items ────────────────────────────────────────────────────
         List<CandidateDashboardResponse.UpcomingItem> upcoming = assembleUpcoming(
@@ -190,7 +203,8 @@ public class CandidateDashboardService {
             List<Offer> offers,
             List<Interview> upcomingInterviews,
             List<OnboardingTask> tasks,
-            int profileComplete) {
+            int profileComplete,
+            Engagement engagement) {
 
         List<Application> activeApps = apps.stream()
                 .filter(a -> !ApplicationLifecycle.isExited(a.getStatus()))
@@ -271,8 +285,14 @@ public class CandidateDashboardService {
         }
 
         // 3. Onboarding incomplete after acceptance/hire.
-        boolean hasAcceptedOrHired = activeApps.stream()
-                .anyMatch(a -> a.getStatus() == ApplicationStatus.ACCEPTED
+        // Phase 3 step 10 — engagement.status is the new source of truth.
+        // Fallback to Application post-offer statuses for legacy candidates
+        // that don't have an engagement yet (step-11 backfill cleans this up).
+        boolean hasAcceptedOrHired = engagement != null
+                ? (engagement.getStatus() == EngagementStatus.PENDING_COMPLIANCE
+                        || engagement.getStatus() == EngagementStatus.READY_TO_START
+                        || engagement.getStatus() == EngagementStatus.ACTIVE)
+                : activeApps.stream().anyMatch(a -> a.getStatus() == ApplicationStatus.ACCEPTED
                         || a.getStatus() == ApplicationStatus.HIRED
                         || a.getStatus() == ApplicationStatus.ONBOARDING);
         long totalTasks = tasks.size();
@@ -289,9 +309,11 @@ public class CandidateDashboardService {
                     .build();
         }
 
-        // 4. HIRED + active intern — weekly work submission.
-        boolean isActiveIntern = activeApps.stream()
-                .anyMatch(a -> a.getStatus() == ApplicationStatus.HIRED
+        // 4. ACTIVE intern — weekly work submission. Engagement-first; legacy
+        // fallback for candidates pre-Phase-3 step-3.
+        boolean isActiveIntern = engagement != null
+                ? engagement.getStatus() == EngagementStatus.ACTIVE
+                : activeApps.stream().anyMatch(a -> a.getStatus() == ApplicationStatus.HIRED
                         || a.getStatus() == ApplicationStatus.ACTIVE);
         if (isActiveIntern) {
             return CandidateDashboardResponse.NextStep.builder()

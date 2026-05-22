@@ -15,10 +15,15 @@ public enum ApplicationStatus {
     SELECTED_CONDITIONAL,
     OFFERED,
     ACCEPTED,
-    ONBOARDING,
-    ACTIVE,
-    HIRED,
-    COMPLETED,
+    // ── Phase 3 step 10 — DEPRECATED post-offer states ──────────────────────
+    // The post-offer phase now lives on Engagement.status. These values stay
+    // in the enum so existing audit rows + applications still deserialize;
+    // new code should NOT write them. Dashboards read Engagement.status and
+    // fall back to these only for candidates without an engagement yet.
+    @Deprecated ONBOARDING,
+    @Deprecated ACTIVE,
+    @Deprecated HIRED,
+    @Deprecated COMPLETED,
     REJECTED,
     WITHDRAWN,
     LAPSED,
