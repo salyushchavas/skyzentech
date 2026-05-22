@@ -5,7 +5,10 @@ import com.skyzen.careers.dto.candidate.CandidateDashboardResponse;
 import com.skyzen.careers.entity.Application;
 import com.skyzen.careers.entity.AuditLog;
 import com.skyzen.careers.entity.Candidate;
+import com.skyzen.careers.entity.EVerifyCase;
 import com.skyzen.careers.entity.Engagement;
+import com.skyzen.careers.entity.I983Plan;
+import com.skyzen.careers.entity.I9Form;
 import com.skyzen.careers.entity.Interview;
 import com.skyzen.careers.entity.JobPosting;
 import com.skyzen.careers.entity.Offer;
@@ -13,19 +16,27 @@ import com.skyzen.careers.entity.OnboardingTask;
 import com.skyzen.careers.entity.StaffingEntity;
 import com.skyzen.careers.entity.User;
 import com.skyzen.careers.enums.ApplicationStatus;
+import com.skyzen.careers.enums.EVerifyStatus;
 import com.skyzen.careers.enums.EngagementStatus;
+import com.skyzen.careers.enums.I983Status;
+import com.skyzen.careers.enums.I9Status;
 import com.skyzen.careers.enums.InterviewStatus;
 import com.skyzen.careers.enums.OfferStatus;
 import com.skyzen.careers.enums.OnboardingTaskStatus;
+import com.skyzen.careers.enums.WorkAuthTrack;
 import com.skyzen.careers.repository.ApplicationRepository;
 import com.skyzen.careers.repository.AuditLogRepository;
 import com.skyzen.careers.repository.CandidateRepository;
+import com.skyzen.careers.repository.EVerifyCaseRepository;
 import com.skyzen.careers.repository.EngagementRepository;
+import com.skyzen.careers.repository.I9FormRepository;
+import com.skyzen.careers.repository.I983PlanRepository;
 import com.skyzen.careers.repository.InterviewRepository;
 import com.skyzen.careers.repository.OfferRepository;
 import com.skyzen.careers.repository.OnboardingTaskRepository;
 import com.skyzen.careers.repository.ResumeRepository;
 import com.skyzen.careers.repository.ScreeningRepository;
+import com.skyzen.careers.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
@@ -74,6 +85,10 @@ public class CandidateDashboardService {
     private final AuditLogRepository auditLogRepository;
     private final ScreeningRepository screeningRepository;
     private final EngagementRepository engagementRepository;
+    private final I9FormRepository i9FormRepository;
+    private final I983PlanRepository i983PlanRepository;
+    private final EVerifyCaseRepository everifyCaseRepository;
+    private final UserRepository userRepository;
 
     @Transactional(readOnly = true)
     public CandidateDashboardResponse build(User caller) {
@@ -174,6 +189,9 @@ public class CandidateDashboardService {
         CandidateDashboardResponse.EngagementSummary engagementSummary =
                 buildEngagementSummary(stepperEngagement, tasks);
 
+        List<CandidateDashboardResponse.ComplianceItem> compliance =
+                buildComplianceItems(candidate.getId(), stepperEngagement, offers);
+
         return CandidateDashboardResponse.builder()
                 .candidateName(candidateName)
                 .profileComplete(profileComplete)
@@ -182,6 +200,7 @@ public class CandidateDashboardService {
                 .upcoming(upcoming)
                 .recentActivity(recentActivity)
                 .engagement(engagementSummary)
+                .compliance(compliance)
                 .build();
     }
 
@@ -244,6 +263,167 @@ public class CandidateDashboardService {
         int filled = 0;
         for (boolean b : flags) if (b) filled++;
         return (filled * 100) / flags.length;
+    }
+
+    // ── Compliance status panel ──────────────────────────────────────────────
+
+    /**
+     * Build the candidate-visible compliance status list. Returns an empty
+     * list pre-offer (no engagement and no I-9 row) so the frontend hides the
+     * panel entirely. Each item names who acted, when, and what's pending —
+     * the candidate should never have to ask "did HR finish my I-9 yet?".
+     *
+     * Items returned (depending on engagement track + state):
+     *   I9_SECTION_1 — always when an I-9 row exists
+     *   I9_SECTION_2 — always when an I-9 row exists
+     *   EVERIFY      — STEM_OPT, or any track when an E-Verify case exists
+     *   I983         — STEM_OPT only
+     */
+    private List<CandidateDashboardResponse.ComplianceItem> buildComplianceItems(
+            UUID candidateId, Engagement engagement, List<Offer> offers) {
+        List<CandidateDashboardResponse.ComplianceItem> items = new ArrayList<>();
+        if (candidateId == null) return items;
+
+        I9Form i9 = i9FormRepository.findByCandidateId(candidateId).orElse(null);
+        boolean hasAcceptedOffer = offers.stream()
+                .anyMatch(o -> o.getStatus() == OfferStatus.ACCEPTED);
+        // Hide the panel entirely until there's actually compliance work to
+        // surface (no accepted offer AND no I-9 row → pre-offer noise).
+        if (i9 == null && !hasAcceptedOffer && engagement == null) {
+            return items;
+        }
+
+        // ── I-9 Section 1 (candidate) ────────────────────────────────────────
+        if (i9 != null) {
+            String s1State;
+            String s1Sub;
+            Instant s1At = i9.getSection1SignedAt();
+            if (s1At != null) {
+                s1State = "COMPLETED";
+                String who = i9.getSection1SignedByName() != null
+                        ? i9.getSection1SignedByName()
+                        : "you";
+                s1Sub = "Signed by " + who + " on " + formatDate(s1At);
+            } else if (i9.getStatus() == I9Status.NOT_STARTED) {
+                s1State = "NOT_STARTED";
+                s1Sub = "Not started yet";
+            } else {
+                s1State = "IN_PROGRESS";
+                s1Sub = "Draft saved — finish signing to submit";
+            }
+            items.add(CandidateDashboardResponse.ComplianceItem.builder()
+                    .kind("I9_SECTION_1")
+                    .label("Form I-9 — Section 1")
+                    .state(s1State)
+                    .subtitle(s1Sub)
+                    .href("/careers/candidate/i9")
+                    .completedAt(s1At)
+                    .build());
+
+            // ── I-9 Section 2 (HR) ───────────────────────────────────────────
+            String s2State;
+            String s2Sub;
+            Instant s2At = i9.getSection2SignedAt();
+            if (i9.getStatus() == I9Status.COMPLETED && s2At != null) {
+                s2State = "COMPLETED";
+                String hrName = lookupUserName(i9.getSection2SignedByUserId());
+                s2Sub = hrName != null
+                        ? "Verified by " + hrName + " on " + formatDate(s2At)
+                        : "Verified by HR on " + formatDate(s2At);
+            } else if (i9.getStatus() == I9Status.SECTION_2_PENDING
+                    || i9.getStatus() == I9Status.SECTION_1_COMPLETE) {
+                s2State = "AWAITING_HR";
+                s2Sub = "Awaiting HR verification";
+            } else if (i9.getStatus() == I9Status.REOPENED) {
+                s2State = "AWAITING_HR";
+                s2Sub = "Reopened — awaiting HR re-verification";
+            } else {
+                s2State = "NOT_STARTED";
+                s2Sub = "Section 1 must be completed first";
+            }
+            items.add(CandidateDashboardResponse.ComplianceItem.builder()
+                    .kind("I9_SECTION_2")
+                    .label("Form I-9 — Section 2 (HR)")
+                    .state(s2State)
+                    .subtitle(s2Sub)
+                    .href(null)
+                    .completedAt(s2At)
+                    .build());
+        }
+
+        // ── E-Verify (HR, post-I-9) ──────────────────────────────────────────
+        WorkAuthTrack track = engagement != null ? engagement.getTrack() : null;
+        EVerifyCase everify = i9 != null
+                ? everifyCaseRepository.findByI9FormId(i9.getId()).orElse(null)
+                : null;
+        boolean everifyRelevant = track == WorkAuthTrack.STEM_OPT || everify != null;
+        if (everifyRelevant) {
+            String state;
+            String sub;
+            Instant at = null;
+            if (everify == null) {
+                state = "NOT_STARTED";
+                sub = "HR will open the E-Verify case after Form I-9 is complete";
+            } else if (everify.getStatus() == EVerifyStatus.EMPLOYMENT_AUTHORIZED) {
+                state = "COMPLETED";
+                sub = "Employment authorized";
+            } else if (everify.getStatus() == EVerifyStatus.PENDING_SUBMISSION) {
+                state = "IN_PROGRESS";
+                sub = "Case created — HR will submit shortly";
+            } else {
+                state = "IN_PROGRESS";
+                sub = "Case status: " + everify.getStatus().name();
+            }
+            items.add(CandidateDashboardResponse.ComplianceItem.builder()
+                    .kind("EVERIFY")
+                    .label("E-Verify")
+                    .state(state)
+                    .subtitle(sub)
+                    .href(null)
+                    .completedAt(at)
+                    .build());
+        }
+
+        // ── I-983 Training Plan (STEM_OPT only) ──────────────────────────────
+        if (track == WorkAuthTrack.STEM_OPT) {
+            List<I983Plan> plans = i983PlanRepository
+                    .findByCandidateIdOrderByCreatedAtDesc(candidateId);
+            I983Plan latest = plans.isEmpty() ? null : plans.get(0);
+            String state;
+            String sub;
+            if (latest == null) {
+                state = "NOT_STARTED";
+                sub = "ERM will draft your training plan";
+            } else if (latest.getStatus() == I983Status.DSO_APPROVED) {
+                state = "COMPLETED";
+                sub = "DSO-approved";
+            } else {
+                state = "IN_PROGRESS";
+                sub = "Status: " + latest.getStatus().name();
+            }
+            items.add(CandidateDashboardResponse.ComplianceItem.builder()
+                    .kind("I983")
+                    .label("Form I-983 Training Plan")
+                    .state(state)
+                    .subtitle(sub)
+                    .href("/careers/candidate/training-plans")
+                    .completedAt(null)
+                    .build());
+        }
+
+        return items;
+    }
+
+    private String formatDate(Instant at) {
+        if (at == null) return "—";
+        return at.atZone(java.time.ZoneOffset.UTC)
+                .toLocalDate()
+                .format(java.time.format.DateTimeFormatter.ofPattern("MMM d, yyyy"));
+    }
+
+    private String lookupUserName(UUID userId) {
+        if (userId == null) return null;
+        return userRepository.findById(userId).map(User::getFullName).orElse(null);
     }
 
     // ── nextStep ─────────────────────────────────────────────────────────────

@@ -3,13 +3,17 @@
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import {
+  AlertTriangle,
   ArrowRight,
   BadgeCheck,
   Briefcase,
   CalendarClock,
+  Check,
   ClipboardList,
   Clock,
   FileSignature,
+  Hourglass,
+  ShieldCheck,
   Sparkles,
   UserCircle,
 } from 'lucide-react';
@@ -60,6 +64,22 @@ interface EngagementSummary {
   onboardingCompleted: number;
 }
 
+type ComplianceState =
+  | 'NOT_STARTED'
+  | 'IN_PROGRESS'
+  | 'AWAITING_HR'
+  | 'COMPLETED'
+  | 'BLOCKED';
+
+interface ComplianceItem {
+  kind: 'I9_SECTION_1' | 'I9_SECTION_2' | 'EVERIFY' | 'I983';
+  label: string | null;
+  state: ComplianceState;
+  subtitle: string | null;
+  href: string | null;
+  completedAt: string | null;
+}
+
 interface CandidateDashboardResponse {
   candidateName: string | null;
   profileComplete: number;
@@ -68,6 +88,7 @@ interface CandidateDashboardResponse {
   upcoming: UpcomingItem[] | null;
   recentActivity: ActivityItem[] | null;
   engagement: EngagementSummary | null;
+  compliance: ComplianceItem[] | null;
 }
 
 export default function CandidateDashboardPage() {
@@ -226,8 +247,12 @@ function CandidateDashboardBody() {
           )}
         </div>
 
-        {/* Right column: Upcoming + Recent activity */}
+        {/* Right column: Compliance status + Upcoming + Recent activity */}
         <div className="space-y-6">
+          {data.compliance && data.compliance.length > 0 && (
+            <ComplianceStatusCard items={data.compliance} />
+          )}
+
           <section className="rounded-lg border border-gray-200 bg-white p-5">
             <h2 className="mb-3 text-sm font-semibold text-gray-900">Upcoming</h2>
             {upcoming.length === 0 && !showProfileNudge ? (
@@ -362,6 +387,115 @@ function NextStepIcon({ type }: { type: string }) {
       return <Briefcase className={cn} strokeWidth={2} />;
     default:
       return <Sparkles className={cn} strokeWidth={2} />;
+  }
+}
+
+function ComplianceStatusCard({ items }: { items: ComplianceItem[] }) {
+  return (
+    <section className="rounded-lg border border-gray-200 bg-white p-5">
+      <div className="mb-3 flex items-center gap-2">
+        <ShieldCheck className="h-4 w-4 text-accent" strokeWidth={2} />
+        <h2 className="text-sm font-semibold text-gray-900">Compliance status</h2>
+      </div>
+      <ul className="space-y-3">
+        {items.map((item) => {
+          const visuals = complianceVisuals(item.state);
+          const row = (
+            <div className="flex items-start gap-3">
+              <div
+                className={`mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full ${visuals.bg} ${visuals.fg}`}
+              >
+                {visuals.icon}
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="flex flex-wrap items-center gap-2">
+                  <div className="text-sm font-medium text-gray-900">
+                    {item.label ?? '—'}
+                  </div>
+                  <span
+                    className={`rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${visuals.badge}`}
+                  >
+                    {visuals.badgeLabel}
+                  </span>
+                </div>
+                {item.subtitle && (
+                  <div className="mt-0.5 text-xs text-gray-500">
+                    {item.subtitle}
+                  </div>
+                )}
+              </div>
+            </div>
+          );
+          return (
+            <li key={item.kind}>
+              {item.href ? (
+                <Link
+                  href={item.href}
+                  className="-mx-2 block rounded-md p-2 hover:bg-gray-50"
+                >
+                  {row}
+                </Link>
+              ) : (
+                <div className="-mx-2 p-2">{row}</div>
+              )}
+            </li>
+          );
+        })}
+      </ul>
+    </section>
+  );
+}
+
+function complianceVisuals(state: ComplianceState): {
+  icon: JSX.Element;
+  bg: string;
+  fg: string;
+  badge: string;
+  badgeLabel: string;
+} {
+  const iconCn = 'h-3.5 w-3.5';
+  switch (state) {
+    case 'COMPLETED':
+      return {
+        icon: <Check className={iconCn} strokeWidth={3} />,
+        bg: 'bg-green-100',
+        fg: 'text-green-700',
+        badge: 'bg-green-100 text-green-700',
+        badgeLabel: 'Done',
+      };
+    case 'AWAITING_HR':
+      return {
+        icon: <Hourglass className={iconCn} strokeWidth={2} />,
+        bg: 'bg-amber-100',
+        fg: 'text-amber-700',
+        badge: 'bg-amber-100 text-amber-800',
+        badgeLabel: 'Awaiting HR',
+      };
+    case 'IN_PROGRESS':
+      return {
+        icon: <Clock className={iconCn} strokeWidth={2} />,
+        bg: 'bg-blue-100',
+        fg: 'text-blue-700',
+        badge: 'bg-blue-100 text-blue-700',
+        badgeLabel: 'In progress',
+      };
+    case 'BLOCKED':
+      return {
+        icon: <AlertTriangle className={iconCn} strokeWidth={2} />,
+        bg: 'bg-red-100',
+        fg: 'text-red-700',
+        badge: 'bg-red-100 text-red-700',
+        badgeLabel: 'Blocked',
+      };
+    case 'NOT_STARTED':
+    default:
+      return {
+        icon: <Clock className={iconCn} strokeWidth={2} />,
+        bg: 'bg-gray-100',
+        fg: 'text-gray-500',
+        badge: 'bg-gray-100 text-gray-600',
+        badgeLabel: 'Not started',
+      };
   }
 }
 

@@ -41,6 +41,13 @@ public class CandidateDashboardResponse {
      */
     private EngagementSummary engagement;
 
+    /**
+     * Post-offer compliance status panel — surfaces "HR has completed your I-9
+     * verification" / "Awaiting HR" + E-Verify + I-983 (STEM_OPT only) to the
+     * candidate so they know who owes what next. Null/empty pre-offer.
+     */
+    private List<ComplianceItem> compliance;
+
     @Getter
     @Setter
     @NoArgsConstructor
@@ -100,6 +107,28 @@ public class CandidateDashboardResponse {
      * for the matched row, replaces the hardcoded "Hired" label and styling
      * with these values so the stepper reads coherently with the banner.
      */
+    /**
+     * Per-compliance-item state row. {@code kind} is the stable key the
+     * frontend keys icons + deep-links off ("I9_SECTION_1", "I9_SECTION_2",
+     * "EVERIFY", "I983"). {@code state} is the visible label state —
+     * "NOT_STARTED" / "IN_PROGRESS" / "AWAITING_HR" / "COMPLETED" / "BLOCKED".
+     */
+    @Getter
+    @Setter
+    @NoArgsConstructor
+    @AllArgsConstructor
+    @Builder
+    public static class ComplianceItem {
+        private String kind;
+        private String label;
+        private String state;
+        /** Human subtitle — e.g. "Verified by Casey Lee on May 22, 2026". */
+        private String subtitle;
+        /** Optional deep link to where the candidate can act or view detail. */
+        private String href;
+        private Instant completedAt;
+    }
+
     @Getter
     @Setter
     @NoArgsConstructor
