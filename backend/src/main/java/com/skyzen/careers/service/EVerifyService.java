@@ -237,23 +237,27 @@ public class EVerifyService {
 
     @Transactional(readOnly = true)
     public EVerifyCaseResponse getById(UUID caseId) {
-        return toResponse(caseRepository.findById(caseId)
+        // Phase-3 sweep — fetch graph eagerly so toResponse's candidate-name
+        // reads through the I-9 don't 500 under open-in-view=false.
+        return toResponse(caseRepository.findByIdWithGraph(caseId)
                 .orElseThrow(() -> new ResourceNotFoundException(
                         "E-Verify case not found: " + caseId)));
     }
 
     @Transactional(readOnly = true)
     public EVerifyCaseResponse getByI9FormId(UUID i9FormId) {
-        return toResponse(caseRepository.findByI9FormId(i9FormId)
+        return toResponse(caseRepository.findByI9FormIdWithGraph(i9FormId)
                 .orElseThrow(() -> new ResourceNotFoundException(
                         "No E-Verify case for I-9: " + i9FormId)));
     }
 
     @Transactional(readOnly = true)
     public Page<EVerifyCaseSummaryResponse> list(EVerifyStatus status, Pageable pageable) {
+        // Phase-3 sweep — fetch graph (I-9 → candidate → user) eagerly so the
+        // HR list doesn't 500 mid-page-map under open-in-view=false.
         Page<EVerifyCase> page = status != null
-                ? caseRepository.findByStatusOrderByCreatedAtDesc(status, pageable)
-                : caseRepository.findAllByOrderByCreatedAtDesc(pageable);
+                ? caseRepository.findByStatusWithGraph(status, pageable)
+                : caseRepository.findAllWithGraph(pageable);
         return page.map(this::toSummary);
     }
 

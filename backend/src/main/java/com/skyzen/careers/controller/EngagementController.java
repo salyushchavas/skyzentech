@@ -46,7 +46,7 @@ public class EngagementController {
     @PreAuthorize("hasAnyRole('HR_COMPLIANCE', 'ERM', 'ADMIN', 'RECRUITER')")
     @Transactional(readOnly = true)
     public EngagementResponse getOne(@PathVariable UUID id) {
-        Engagement engagement = engagementRepository.findById(id)
+        Engagement engagement = engagementRepository.findByIdWithGraph(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Engagement not found: " + id));
         return toResponse(engagement);
     }
@@ -57,7 +57,7 @@ public class EngagementController {
     public ResponseEntity<EngagementResponse> markReady(
             @PathVariable UUID id,
             @AuthenticationPrincipal User caller) {
-        Engagement engagement = engagementRepository.findById(id)
+        Engagement engagement = engagementRepository.findByIdWithGraph(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Engagement not found: " + id));
         Engagement updated = engagementService.markReady(engagement, complianceRoutingService, caller);
         return ResponseEntity.ok(toResponse(updated));
@@ -69,7 +69,7 @@ public class EngagementController {
     public ResponseEntity<EngagementResponse> start(
             @PathVariable UUID id,
             @AuthenticationPrincipal User caller) {
-        Engagement engagement = engagementRepository.findById(id)
+        Engagement engagement = engagementRepository.findByIdWithGraph(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Engagement not found: " + id));
         Engagement updated = engagementService.startEngagement(engagement, caller);
         return ResponseEntity.ok(toResponse(updated));

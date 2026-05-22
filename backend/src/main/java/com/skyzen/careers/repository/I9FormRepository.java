@@ -19,9 +19,40 @@ public interface I9FormRepository extends JpaRepository<I9Form, UUID> {
 
     Optional<I9Form> findByCandidateId(UUID candidateId);
 
+    /**
+     * @deprecated The HR list path needs candidate + user fetch-joined so the
+     * summary mapper can read fullName/email without a LazyInit 500 under
+     * {@code spring.jpa.open-in-view=false}. Use {@link #findAllWithGraph} or
+     * {@link #findByStatusWithGraph} instead. Kept for any one-off internal call.
+     */
+    @Deprecated
     Page<I9Form> findByStatusOrderByUpdatedAtDesc(I9Status status, Pageable pageable);
 
+    /** @deprecated use {@link #findAllWithGraph} for HR list reads. */
+    @Deprecated
     Page<I9Form> findAllByOrderByUpdatedAtDesc(Pageable pageable);
+
+    /**
+     * Phase-3 sweep — HR list query with the toSummary fetch graph
+     * (candidate + user) eagerly loaded. Single-valued joins are safe under
+     * Pageable. Explicit {@code countQuery} keeps pagination O(1).
+     */
+    @Query(value =
+            "SELECT f FROM I9Form f " +
+            "JOIN FETCH f.candidate c " +
+            "JOIN FETCH c.user u " +
+            "ORDER BY f.updatedAt DESC",
+            countQuery = "SELECT COUNT(f) FROM I9Form f")
+    Page<I9Form> findAllWithGraph(Pageable pageable);
+
+    @Query(value =
+            "SELECT f FROM I9Form f " +
+            "JOIN FETCH f.candidate c " +
+            "JOIN FETCH c.user u " +
+            "WHERE f.status = :status " +
+            "ORDER BY f.updatedAt DESC",
+            countQuery = "SELECT COUNT(f) FROM I9Form f WHERE f.status = :status")
+    Page<I9Form> findByStatusWithGraph(@Param("status") I9Status status, Pageable pageable);
 
     List<I9Form> findByStatusAndFirstDayOfEmploymentBefore(I9Status status, LocalDate cutoff);
 

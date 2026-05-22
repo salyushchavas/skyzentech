@@ -23,6 +23,24 @@ public interface EngagementRepository extends JpaRepository<Engagement, UUID> {
 
     Optional<Engagement> findByOfferId(UUID offerId);
 
+    /**
+     * Phase-3 sweep — single engagement with the full {@code toResponse} graph
+     * eagerly loaded (application → posting + candidate → user + entity +
+     * supervisor + offer). Used by the detail endpoint so the DTO mapping
+     * doesn't lazy-load after the @Transactional method closes under
+     * {@code spring.jpa.open-in-view=false}.
+     */
+    @Query("SELECT e FROM Engagement e " +
+            "JOIN FETCH e.candidate c " +
+            "JOIN FETCH c.user u " +
+            "JOIN FETCH e.entity en " +
+            "LEFT JOIN FETCH e.application a " +
+            "LEFT JOIN FETCH a.jobPosting jp " +
+            "LEFT JOIN FETCH e.offer o " +
+            "LEFT JOIN FETCH e.supervisor s " +
+            "WHERE e.id = :id")
+    Optional<Engagement> findByIdWithGraph(@Param("id") UUID id);
+
     List<Engagement> findByCandidateId(UUID candidateId);
 
     List<Engagement> findByCandidateIdAndStatus(UUID candidateId, EngagementStatus status);

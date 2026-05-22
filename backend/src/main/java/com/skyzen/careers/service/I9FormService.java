@@ -387,9 +387,11 @@ public class I9FormService {
 
     @Transactional(readOnly = true)
     public Page<I9SummaryResponse> list(I9Status status, boolean overdueOnly, Pageable pageable) {
+        // Phase-3 sweep — fetch the toSummary graph (candidate + user) eagerly
+        // so this list doesn't 500 under spring.jpa.open-in-view=false.
         Page<I9Form> page = status != null
-                ? formRepository.findByStatusOrderByUpdatedAtDesc(status, pageable)
-                : formRepository.findAllByOrderByUpdatedAtDesc(pageable);
+                ? formRepository.findByStatusWithGraph(status, pageable)
+                : formRepository.findAllWithGraph(pageable);
 
         List<I9SummaryResponse> rows = page.getContent().stream()
                 .map(this::toSummary)

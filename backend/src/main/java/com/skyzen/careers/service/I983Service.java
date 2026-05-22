@@ -550,15 +550,17 @@ public class I983Service {
             return new PageImpl<>(all.subList(from, to), pageable, all.size())
                     .map(this::toSummary);
         }
+        // Phase-3 sweep — graph-fetching list queries so toSummary's
+        // candidate.user / entity reads don't 500 under open-in-view=false.
         if (entityId != null) {
-            return planRepository.findByEntityIdOrderByUpdatedAtDesc(entityId, pageable)
+            return planRepository.findByEntityIdWithGraph(entityId, pageable)
                     .map(this::toSummary);
         }
         if (status != null) {
-            return planRepository.findByStatusOrderByUpdatedAtDesc(status, pageable)
+            return planRepository.findByStatusWithGraph(status, pageable)
                     .map(this::toSummary);
         }
-        return planRepository.findAllByOrderByUpdatedAtDesc(pageable)
+        return planRepository.findAllWithGraph(pageable)
                 .map(this::toSummary);
     }
 
