@@ -33,6 +33,16 @@ public class Timesheet {
     @JoinColumn(name = "intern_id", nullable = false)
     private Candidate intern;
 
+    /**
+     * Phase 3 step 8 — link to the {@link Engagement} this timesheet is for.
+     * Nullable for back-compat with legacy rows + interns whose engagement
+     * can't be resolved at logging time. Step-11 backfill (opt-in) handles
+     * the existing rows.
+     */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "engagement_id")
+    private Engagement engagement;
+
     @Column(name = "week_start", nullable = false)
     private LocalDate weekStart;
 

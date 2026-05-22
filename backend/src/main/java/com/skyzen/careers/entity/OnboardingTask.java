@@ -46,6 +46,18 @@ public class OnboardingTask {
     @JoinColumn(name = "offer_id")
     private Offer offer;
 
+    /**
+     * Phase 3 step 8 — link to the {@link Engagement} this task belongs to.
+     * Nullable: existing rows pre-date Engagement and remain candidate-keyed
+     * for back-compat; the step-11 backfill (opt-in) will populate them.
+     * Does NOT participate in the existing
+     * {@code (candidate_id, task_key, offer_id)} uniqueness — that key is
+     * preserved verbatim so duplicate-task prevention keeps working.
+     */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "engagement_id")
+    private Engagement engagement;
+
     @Column(name = "task_key", nullable = false, length = 50)
     private String taskKey;
 

@@ -32,6 +32,16 @@ public class WorkAssignment {
     @JoinColumn(name = "intern_id", nullable = false)
     private Candidate intern;
 
+    /**
+     * Phase 3 step 8 — link to the {@link Engagement} this assignment is for.
+     * Nullable so legacy rows + interns with no resolvable engagement keep
+     * working via the existing intern_id-keyed queries. Step-11 backfill
+     * (opt-in) will populate legacy rows.
+     */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "engagement_id")
+    private Engagement engagement;
+
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "assigned_by", nullable = false)
     private User assignedBy;

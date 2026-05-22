@@ -88,4 +88,19 @@ public interface EvaluationSessionRepository extends JpaRepository<EvaluationSes
             "WHERE e.id = :evaluatorUserId " +
             "ORDER BY s.scheduledAt DESC")
     List<EvaluationSession> findForEvaluatorUser(@Param("evaluatorUserId") UUID evaluatorUserId);
+
+    // ── Phase 3 step 8 — engagement-scoped queries (alongside intern_id ones) ──
+
+    /**
+     * All sessions for a given engagement, newest scheduled first. Same
+     * fetch graph as {@link #findForIntern(UUID)}; legacy rows with null
+     * engagement_id stay reachable via the intern-keyed query.
+     */
+    @Query("SELECT s FROM EvaluationSession s " +
+            "JOIN FETCH s.intern i " +
+            "JOIN FETCH i.user iu " +
+            "LEFT JOIN FETCH s.evaluator e " +
+            "WHERE s.engagement.id = :engagementId " +
+            "ORDER BY s.scheduledAt DESC")
+    List<EvaluationSession> findForEngagement(@Param("engagementId") UUID engagementId);
 }

@@ -59,4 +59,25 @@ public interface TimesheetRepository extends JpaRepository<Timesheet, UUID> {
             "WHERE t.intern.user.id = :userId " +
             "AND t.status = com.skyzen.careers.enums.TimesheetStatus.APPROVED")
     BigDecimal sumApprovedHoursForCandidateUser(@Param("userId") UUID userId);
+
+    // ── Phase 3 step 8 — engagement-scoped queries (alongside intern_id ones) ──
+
+    /**
+     * All timesheets for a given engagement, newest week first. Same fetch
+     * graph as the intern-keyed reads. Legacy rows with null engagement_id
+     * stay accessible via {@link #findForIntern(UUID)} until step-11 backfill.
+     */
+    @Query("SELECT t FROM Timesheet t " +
+            "JOIN FETCH t.intern i " +
+            "JOIN FETCH i.user iu " +
+            "LEFT JOIN FETCH t.approvedBy ab " +
+            "WHERE t.engagement.id = :engagementId " +
+            "ORDER BY t.weekStart DESC, t.createdAt DESC")
+    List<Timesheet> findForEngagement(@Param("engagementId") UUID engagementId);
+
+    /** Sum of APPROVED hours scoped to one engagement (post-step-8 rows). */
+    @Query("SELECT COALESCE(SUM(t.hours), 0) FROM Timesheet t " +
+            "WHERE t.engagement.id = :engagementId " +
+            "AND t.status = com.skyzen.careers.enums.TimesheetStatus.APPROVED")
+    BigDecimal sumApprovedHoursForEngagement(@Param("engagementId") UUID engagementId);
 }

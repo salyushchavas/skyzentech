@@ -7,6 +7,7 @@ import com.skyzen.careers.dto.supervised.EvaluatorOption;
 import com.skyzen.careers.dto.supervised.InternSummaryResponse;
 import com.skyzen.careers.dto.supervised.ScheduleEvaluationRequest;
 import com.skyzen.careers.entity.Candidate;
+import com.skyzen.careers.entity.Engagement;
 import com.skyzen.careers.entity.EvaluationSession;
 import com.skyzen.careers.entity.User;
 import com.skyzen.careers.enums.EvaluationSessionStatus;
@@ -31,6 +32,7 @@ public class EvaluationSessionService {
     private final EvaluationSessionRepository sessionRepository;
     private final CandidateRepository candidateRepository;
     private final UserRepository userRepository;
+    private final EngagementService engagementService;
 
     @Transactional(readOnly = true)
     public List<EvaluatorOption> listEvaluators() {
@@ -88,8 +90,15 @@ public class EvaluationSessionService {
             evaluator = intern.getAssignedEvaluator();
         }
 
+        // Phase 3 step 8 — link to the intern's active engagement when one
+        // exists. Null is fine: row stays reachable via the intern-keyed
+        // queries; step-11 backfill (opt-in) handles legacy rows.
+        Engagement engagement = engagementService
+                .resolveActiveForCandidate(intern.getId())
+                .orElse(null);
         EvaluationSession s = EvaluationSession.builder()
                 .intern(intern)
+                .engagement(engagement)
                 .evaluator(evaluator)
                 .scheduledAt(req.getScheduledAt())
                 .status(EvaluationSessionStatus.SCHEDULED)

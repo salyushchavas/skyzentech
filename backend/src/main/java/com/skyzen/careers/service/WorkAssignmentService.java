@@ -5,6 +5,7 @@ import com.skyzen.careers.dto.supervised.CreateAssignmentRequest;
 import com.skyzen.careers.dto.supervised.ReviewAssignmentRequest;
 import com.skyzen.careers.dto.supervised.SubmitAssignmentRequest;
 import com.skyzen.careers.entity.Candidate;
+import com.skyzen.careers.entity.Engagement;
 import com.skyzen.careers.entity.User;
 import com.skyzen.careers.entity.WorkAssignment;
 import com.skyzen.careers.enums.WorkAssignmentStatus;
@@ -27,6 +28,7 @@ public class WorkAssignmentService {
 
     private final WorkAssignmentRepository workAssignmentRepository;
     private final CandidateRepository candidateRepository;
+    private final EngagementService engagementService;
 
     @Transactional
     public AssignmentResponse create(UUID candidateId, CreateAssignmentRequest req, User caller) {
@@ -37,8 +39,17 @@ public class WorkAssignmentService {
                 .orElseThrow(() -> new ResourceNotFoundException(
                         "Candidate not found: " + candidateId));
 
+        // Phase 3 step 8 — link to the intern's active engagement when one
+        // exists. Null is fine: the assignment stays reachable via the
+        // intern-keyed queries (back-compat) and step-11 backfill can populate
+        // engagement later.
+        Engagement engagement = engagementService
+                .resolveActiveForCandidate(intern.getId())
+                .orElse(null);
+
         WorkAssignment wa = WorkAssignment.builder()
                 .intern(intern)
+                .engagement(engagement)
                 .assignedBy(caller)
                 .title(req.getTitle())
                 .description(req.getDescription())

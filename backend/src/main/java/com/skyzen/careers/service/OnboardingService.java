@@ -19,6 +19,7 @@ import com.skyzen.careers.enums.UserRole;
 import com.skyzen.careers.exception.ResourceNotFoundException;
 import com.skyzen.careers.repository.AuditLogRepository;
 import com.skyzen.careers.repository.CandidateRepository;
+import com.skyzen.careers.repository.EngagementRepository;
 import com.skyzen.careers.repository.OfferRepository;
 import com.skyzen.careers.repository.OnboardingTaskRepository;
 import com.skyzen.careers.repository.UserRepository;
@@ -49,6 +50,7 @@ public class OnboardingService {
     private final OfferRepository offerRepository;
     private final UserRepository userRepository;
     private final AuditLogRepository auditLogRepository;
+    private final EngagementRepository engagementRepository;
     private final ObjectMapper objectMapper;
 
     // ── Templates ───────────────────────────────────────────────────────────
@@ -243,6 +245,11 @@ public class OnboardingService {
         Application application = offer.getApplication();
         UUID candidateUserId = candidate.getUser() != null ? candidate.getUser().getId() : null;
         Instant now = Instant.now();
+        // Phase 3 step 8 — resolve the engagement that was just created at
+        // OFFER_ACCEPTED (the acceptInternal flow creates the Engagement before
+        // calling this method now). May be null for legacy paths or if the
+        // engagement create blipped — back-compat queries still work.
+        Engagement engagement = engagementRepository.findByOfferId(offerId).orElse(null);
 
         int created = 0;
         for (TaskTemplate t : TEMPLATES) {
@@ -261,6 +268,7 @@ public class OnboardingService {
                     .candidate(candidate)
                     .application(application)
                     .offer(offer)
+                    .engagement(engagement)
                     .taskKey(t.taskKey())
                     .title(t.title())
                     .description(t.description())
@@ -327,6 +335,7 @@ public class OnboardingService {
                     .candidate(candidate)
                     .application(application)
                     .offer(offer)
+                    .engagement(engagement)
                     .taskKey(t.taskKey())
                     .title(t.title())
                     .description(t.description())

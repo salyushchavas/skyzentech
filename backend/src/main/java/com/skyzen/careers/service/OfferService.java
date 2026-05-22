@@ -277,24 +277,26 @@ public class OfferService {
         writeAudit("Offer", offer.getId(), "ACCEPT", candidateUser.getId(),
                 before, snapshot(offer));
 
-        // Seed onboarding tasks. Wrapped in try/catch so a downstream onboarding
-        // bug never prevents a candidate from accepting their offer.
-        try {
-            onboardingService.seedTasksForAcceptedOffer(offer);
-        } catch (Exception e) {
-            log.warn("Failed to seed onboarding tasks for accepted offer {}: {}",
-                    offer.getId(), e.getMessage(), e);
-        }
-
-        // Phase 3 step 3 — spin up the Engagement (PENDING_COMPLIANCE + track
-        // snapshot). REQUIRES_NEW inside; best-effort try/catch out here so a
-        // compliance-side bug never blocks acceptance. The step-11 backfill
-        // catches anything missed.
+        // Phase 3 step 8 — engagement now precedes the onboarding seed so the
+        // seeded tasks can carry an engagement_id. REQUIRES_NEW inside the
+        // engagement create + best-effort try/catch out here means a
+        // compliance-side bug still never blocks acceptance.
         com.skyzen.careers.entity.Engagement engagement = null;
         try {
             engagement = engagementService.createForAcceptedOffer(offer, candidateUser);
         } catch (Exception e) {
             log.warn("Failed to create engagement for accepted offer {}: {}",
+                    offer.getId(), e.getMessage(), e);
+        }
+
+        // Seed onboarding tasks. Wrapped in try/catch so a downstream onboarding
+        // bug never prevents a candidate from accepting their offer. With step 8,
+        // the seed resolves the just-created engagement via offer_id and links it
+        // onto each task.
+        try {
+            onboardingService.seedTasksForAcceptedOffer(offer);
+        } catch (Exception e) {
+            log.warn("Failed to seed onboarding tasks for accepted offer {}: {}",
                     offer.getId(), e.getMessage(), e);
         }
 

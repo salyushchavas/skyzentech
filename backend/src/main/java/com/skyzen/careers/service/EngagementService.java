@@ -140,6 +140,26 @@ public class EngagementService {
     }
 
     /**
+     * Phase 3 step 8 — "the active engagement" lookup used by onboarding +
+     * Group C creation paths to attach an {@code engagement_id} to new rows.
+     * Picks the candidate's most-recent in-funnel engagement (excludes
+     * BLOCKED_NO_AUTHORIZATION + TERMINATED, which shouldn't accrue new work).
+     * Returns {@code Optional.empty()} for legacy candidates with no
+     * engagement; callers must tolerate null and fall back to candidate-keyed
+     * behaviour (back-compat is mandatory through step 11's backfill).
+     */
+    @Transactional(readOnly = true)
+    public java.util.Optional<Engagement> resolveActiveForCandidate(UUID candidateId) {
+        if (candidateId == null) return java.util.Optional.empty();
+        return engagementRepository.findByCandidateId(candidateId).stream()
+                .filter(e -> e.getStatus() != EngagementStatus.BLOCKED_NO_AUTHORIZATION
+                        && e.getStatus() != EngagementStatus.TERMINATED)
+                .max(java.util.Comparator.comparing(
+                        Engagement::getCreatedAt,
+                        java.util.Comparator.nullsLast(java.util.Comparator.naturalOrder())));
+    }
+
+    /**
      * Gated status transition — the single entry point every Engagement
      * write-site must go through (once consumers exist). Same-state target is
      * a no-op; illegal target throws {@link BadRequestException}. On a real

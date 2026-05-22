@@ -6,6 +6,7 @@ import com.skyzen.careers.dto.supervised.TimesheetListResponse;
 import com.skyzen.careers.dto.supervised.TimesheetResponse;
 import com.skyzen.careers.dto.supervised.UpdateTimesheetRequest;
 import com.skyzen.careers.entity.Candidate;
+import com.skyzen.careers.entity.Engagement;
 import com.skyzen.careers.entity.Timesheet;
 import com.skyzen.careers.entity.User;
 import com.skyzen.careers.enums.TimesheetStatus;
@@ -31,6 +32,7 @@ public class TimesheetService {
 
     private final TimesheetRepository timesheetRepository;
     private final CandidateRepository candidateRepository;
+    private final EngagementService engagementService;
 
     @Transactional
     public TimesheetResponse logHours(LogTimesheetRequest req, User caller) {
@@ -40,8 +42,15 @@ public class TimesheetService {
                         "Candidate profile not found for user " + caller.getId()));
 
         boolean submitNow = Boolean.TRUE.equals(req.getSubmit());
+        // Phase 3 step 8 — link to the intern's active engagement when one
+        // exists. Null is fine: row stays reachable via the intern-keyed
+        // queries; step-11 backfill (opt-in) handles legacy rows.
+        Engagement engagement = engagementService
+                .resolveActiveForCandidate(intern.getId())
+                .orElse(null);
         Timesheet t = Timesheet.builder()
                 .intern(intern)
+                .engagement(engagement)
                 .weekStart(req.getWeekStart())
                 .hours(req.getHours())
                 .description(req.getDescription())

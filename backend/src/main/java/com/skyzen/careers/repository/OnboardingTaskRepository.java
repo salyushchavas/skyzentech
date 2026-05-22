@@ -23,4 +23,10 @@ public interface OnboardingTaskRepository extends JpaRepository<OnboardingTask, 
     boolean existsByCandidateIdAndOfferId(UUID candidateId, UUID offerId);
 
     long countByCandidateIdAndStatus(UUID candidateId, OnboardingTaskStatus status);
+
+    // ── Phase 3 step 8 — engagement-scoped queries (alongside candidate-keyed) ──
+
+    List<OnboardingTask> findByEngagementIdOrderBySortOrderAsc(UUID engagementId);
+
+    boolean existsByEngagementId(UUID engagementId);
 }

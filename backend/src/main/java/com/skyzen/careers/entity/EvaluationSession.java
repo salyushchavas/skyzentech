@@ -32,6 +32,16 @@ public class EvaluationSession {
     @JoinColumn(name = "intern_id", nullable = false)
     private Candidate intern;
 
+    /**
+     * Phase 3 step 8 — link to the {@link Engagement} this session belongs to.
+     * Nullable for back-compat with legacy rows + interns whose engagement
+     * can't be resolved at schedule time. Step-11 backfill (opt-in) handles
+     * the existing rows.
+     */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "engagement_id")
+    private Engagement engagement;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "evaluator_id")
     private User evaluator;

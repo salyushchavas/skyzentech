@@ -78,4 +78,20 @@ public interface WorkAssignmentRepository extends JpaRepository<WorkAssignment, 
     List<WorkAssignment> findForEvaluatorAssignedInterns(
             @org.springframework.data.repository.query.Param("evaluatorUserId") UUID evaluatorUserId,
             @org.springframework.data.repository.query.Param("status") com.skyzen.careers.enums.WorkAssignmentStatus status);
+
+    // ── Phase 3 step 8 — engagement-scoped queries (alongside intern_id ones) ──
+
+    /**
+     * All assignments for a given engagement, newest first. Same fetch graph
+     * as {@link #findForIntern(UUID)} so DTO mappers don't lazy-load. New
+     * rows post-step-8 carry an engagement_id; legacy rows (null) stay
+     * reachable via the intern-keyed queries above.
+     */
+    @Query("SELECT wa FROM WorkAssignment wa " +
+            "JOIN FETCH wa.intern i " +
+            "JOIN FETCH i.user iu " +
+            "JOIN FETCH wa.assignedBy ab " +
+            "WHERE wa.engagement.id = :engagementId " +
+            "ORDER BY wa.createdAt DESC")
+    List<WorkAssignment> findForEngagement(@Param("engagementId") UUID engagementId);
 }
