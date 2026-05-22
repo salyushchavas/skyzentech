@@ -132,7 +132,7 @@ function I9TabContent() {
   const load = useCallback(async () => {
     setError(null);
     try {
-      const res = await api.get<Page<I9SummaryResponse>>('/api/v1/i9/', {
+      const res = await api.get<Page<I9SummaryResponse>>('/api/v1/i9', {
         params: { size: 200 },
       });
       setRows(res.data?.content ?? []);

@@ -11,6 +11,7 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.multipart.MaxUploadSizeExceededException;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 import java.util.HashMap;
 import java.util.LinkedHashMap;
@@ -89,6 +90,17 @@ public class GlobalExceptionHandler {
         log.warn("Data integrity violation: {}", ex.getMostSpecificCause().getMessage());
         return error(HttpStatus.CONFLICT,
                 "Data integrity violation: a duplicate or conflicting record exists", null);
+    }
+
+    /**
+     * Unmatched routes (Spring 6 stopped auto-trimming trailing slashes; any URL
+     * that no controller maps falls through to the static-resource handler and
+     * throws this). Return a clean 404 instead of logging "Unhandled exception"
+     * and emitting 500.
+     */
+    @ExceptionHandler(NoResourceFoundException.class)
+    public ResponseEntity<Map<String, Object>> handleNoResource(NoResourceFoundException ex) {
+        return error(HttpStatus.NOT_FOUND, "Not Found", null);
     }
 
     @ExceptionHandler(Exception.class)
