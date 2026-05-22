@@ -20,6 +20,9 @@ public interface ApplicationRepository
     List<Application> findByCandidateId(UUID candidateId);
     List<Application> findByJobPostingId(UUID jobPostingId);
 
+    /** Phase 3 step 11 — bounded lookup for the engagement backfill runner. */
+    List<Application> findByStatusIn(java.util.Collection<ApplicationStatus> statuses);
+
     /**
      * Candidate's applications with the JobPosting + StaffingEntity chain
      * eagerly loaded — used by the staff-side candidate detail page so the
