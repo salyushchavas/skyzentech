@@ -93,12 +93,28 @@ public class CandidateDashboardService {
         }
 
         // ── Profile completeness ─────────────────────────────────────────────
+        // Phase 1.4 — factors expanded to include intake fields + the neutral
+        // self-attestation. dateOfBirth + resume are kept so the existing 0-100
+        // semantics don't regress for candidates who already filled them in.
         boolean hasName = caller.getFullName() != null && !caller.getFullName().isBlank();
         boolean hasPhone = caller.getPhoneNumber() != null && !caller.getPhoneNumber().isBlank();
         boolean hasDob = candidate.getDateOfBirth() != null;
         boolean hasResume = candidate.getDefaultResumeId() != null
                 || !resumeRepository.findByCandidateId(candidate.getId()).isEmpty();
-        int profileComplete = percentFilled(hasName, hasPhone, hasDob, hasResume);
+        boolean hasSkillset = candidate.getSkillset() != null && !candidate.getSkillset().isBlank();
+        // Either the freeform education line OR the school/degree pair counts —
+        // candidates entering one or the other shouldn't be penalised.
+        boolean hasEducation =
+                (candidate.getEducation() != null && !candidate.getEducation().isBlank())
+                || (candidate.getSchool() != null && !candidate.getSchool().isBlank())
+                || (candidate.getDegree() != null && !candidate.getDegree().isBlank());
+        // "Attestation answered" = the candidate has expressed a position on
+        // the primary authorised-to-work prompt. sponsorshipNeeded/expectedTrack/
+        // validityDate are not required to count as answered.
+        boolean hasAttestation = candidate.getAuthorizedToWork() != null;
+        int profileComplete = percentFilled(
+                hasName, hasPhone, hasDob, hasResume,
+                hasSkillset, hasEducation, hasAttestation);
 
         // ── Applications + stage mapping ─────────────────────────────────────
         List<Application> apps = applicationRepository

@@ -3,7 +3,26 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import api from './api';
 import { clearAuth, getToken, getUser, setToken, setUser } from './auth-storage';
-import type { AuthResponse, User } from '@/types';
+import type { AuthResponse, User, WorkAuthTrack } from '@/types';
+
+/**
+ * Phase 1.4 — optional intake profile + neutral work-auth self-attestation
+ * the registration form can collect up-front. Every field is optional so an
+ * older caller passing only the four legacy params keeps working unchanged.
+ */
+export interface RegistrationIntake {
+  legalName?: string;
+  preferredName?: string;
+  education?: string;
+  school?: string;
+  degree?: string;
+  skillset?: string;
+  authorizedToWork?: boolean;
+  sponsorshipNeeded?: boolean;
+  expectedTrack?: WorkAuthTrack;
+  /** ISO yyyy-mm-dd; only set when the candidate self-discloses. */
+  validityDate?: string;
+}
 
 interface MeResponse {
   userId: string;
@@ -30,7 +49,8 @@ interface AuthContextValue {
     email: string,
     password: string,
     fullName: string,
-    phoneNumber?: string
+    phoneNumber?: string,
+    intake?: RegistrationIntake
   ) => Promise<RegisterResult>;
   /**
    * Update the locally-cached user object after a state change (e.g.
@@ -109,13 +129,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     email: string,
     password: string,
     fullName: string,
-    phoneNumber?: string
+    phoneNumber?: string,
+    intake?: RegistrationIntake
   ): Promise<RegisterResult> {
     const res = await api.post<AuthResponse>('/auth/register', {
       email,
       password,
       fullName,
       phoneNumber,
+      // Phase 1.4 intake + neutral self-attestation. Fields the user didn't
+      // fill stay undefined and serialise as absent rather than empty strings.
+      legalName: intake?.legalName,
+      preferredName: intake?.preferredName,
+      education: intake?.education,
+      school: intake?.school,
+      degree: intake?.degree,
+      skillset: intake?.skillset,
+      authorizedToWork: intake?.authorizedToWork,
+      sponsorshipNeeded: intake?.sponsorshipNeeded,
+      expectedTrack: intake?.expectedTrack,
+      validityDate: intake?.validityDate,
     });
     setToken(res.data.token);
     const u = userFromAuthResponse(res.data, phoneNumber);

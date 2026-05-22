@@ -76,8 +76,22 @@ public class AuthService {
                 .build();
         userRepository.save(user);
 
+        // Phase 1.4 — persist whatever intake + attestation values the
+        // registration form sent. Each field is null-tolerant; the profile
+        // page is the primary edit surface, registration just captures what
+        // the candidate volunteered up-front.
         Candidate candidate = Candidate.builder()
                 .user(user)
+                .legalName(emptyToNull(req.legalName()))
+                .preferredName(emptyToNull(req.preferredName()))
+                .education(emptyToNull(req.education()))
+                .school(emptyToNull(req.school()))
+                .degree(emptyToNull(req.degree()))
+                .skillset(emptyToNull(req.skillset()))
+                .authorizedToWork(req.authorizedToWork())
+                .sponsorshipNeeded(req.sponsorshipNeeded())
+                .expectedTrack(req.expectedTrack())
+                .validityDate(req.validityDate())
                 .build();
         candidateRepository.save(candidate);
 
@@ -177,6 +191,17 @@ public class AuthService {
     private String generateVerificationCode() {
         // 000000 - 999999, zero-padded so it's always 6 chars on the wire.
         return String.format("%06d", RNG.nextInt(1_000_000));
+    }
+
+    /**
+     * Treat an empty/whitespace-only string as null so intake fields the user
+     * left blank don't show up as " " or "" rows in the DB. JSON deserialisation
+     * keeps explicit nulls null already; this only handles the empty-string case.
+     */
+    private static String emptyToNull(String s) {
+        if (s == null) return null;
+        String trimmed = s.trim();
+        return trimmed.isEmpty() ? null : trimmed;
     }
 
     private void writeAccountAudit(UUID userId, String action) {

@@ -1,0 +1,52 @@
+package com.skyzen.careers.controller;
+
+import com.skyzen.careers.dto.users.ChangePasswordRequest;
+import com.skyzen.careers.dto.users.UpdateProfileRequest;
+import com.skyzen.careers.dto.users.UserProfileResponse;
+import com.skyzen.careers.entity.User;
+import com.skyzen.careers.service.UserProfileService;
+import jakarta.validation.Valid;
+import lombok.RequiredArgsConstructor;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
+
+/**
+ * Current-user profile endpoints. Read + edit personal info and change
+ * password. Distinct from the {@code /auth/me} JWT-bootstrap endpoint —
+ * that one stays as-is so the auth client doesn't need to change.
+ */
+@RestController
+@RequestMapping("/api/v1/users")
+@RequiredArgsConstructor
+public class UserProfileController {
+
+    private final UserProfileService userProfileService;
+
+    @GetMapping("/me")
+    @PreAuthorize("isAuthenticated()")
+    public UserProfileResponse getMe(@AuthenticationPrincipal User caller) {
+        return userProfileService.getProfile(caller);
+    }
+
+    @PutMapping("/me")
+    @PreAuthorize("isAuthenticated()")
+    public UserProfileResponse updateMe(@Valid @RequestBody UpdateProfileRequest req,
+                                        @AuthenticationPrincipal User caller) {
+        return userProfileService.updateProfile(caller, req);
+    }
+
+    @PostMapping("/me/change-password")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<Void> changePassword(@Valid @RequestBody ChangePasswordRequest req,
+                                               @AuthenticationPrincipal User caller) {
+        userProfileService.changePassword(caller, req);
+        return ResponseEntity.noContent().build();
+    }
+}
