@@ -54,12 +54,37 @@ public interface InterviewRepository extends JpaRepository<Interview, UUID> {
             "WHERE i.id = :id")
     Optional<Interview> findByIdWithGraph(@Param("id") UUID id);
 
-    @Query("SELECT i FROM Interview i " +
-            "WHERE (:applicationId IS NULL OR i.application.id = :applicationId) " +
-            "AND (:status IS NULL OR i.status = :status) " +
-            "AND (:interviewerId IS NULL OR i.interviewer.id = :interviewerId) " +
-            "AND (:upcomingCutoff IS NULL OR i.scheduledAt >= :upcomingCutoff) " +
-            "AND (:pastCutoff IS NULL OR i.scheduledAt < :pastCutoff)")
+    /**
+     * Staff list of interviews with the full mapping graph (application →
+     * candidate → user, application → jobPosting, interviewer) eagerly loaded.
+     * The fetches are needed because {@code InterviewService.toSummary} reads
+     * candidate name + posting title + interviewer name — without the JOIN
+     * FETCH these reads triggered a LazyInitializationException mid-page-map
+     * (the cause of the historical /api/v1/interviews 500 for ERM/HR).
+     *
+     * Pageable + JOIN FETCH is safe here because every fetched association is
+     * single-valued ({@code @ManyToOne}); Hibernate's HHH000104 "firstResult/
+     * maxResults specified with collection fetch" only fires for collection
+     * fetches. An explicit {@code countQuery} keeps the count fast (no joins).
+     */
+    @Query(
+            value = "SELECT i FROM Interview i " +
+                    "JOIN FETCH i.application a " +
+                    "JOIN FETCH a.candidate c " +
+                    "JOIN FETCH c.user u " +
+                    "LEFT JOIN FETCH a.jobPosting jp " +
+                    "JOIN FETCH i.interviewer ir " +
+                    "WHERE (:applicationId IS NULL OR a.id = :applicationId) " +
+                    "AND (:status IS NULL OR i.status = :status) " +
+                    "AND (:interviewerId IS NULL OR ir.id = :interviewerId) " +
+                    "AND (:upcomingCutoff IS NULL OR i.scheduledAt >= :upcomingCutoff) " +
+                    "AND (:pastCutoff IS NULL OR i.scheduledAt < :pastCutoff)",
+            countQuery = "SELECT COUNT(i) FROM Interview i " +
+                    "WHERE (:applicationId IS NULL OR i.application.id = :applicationId) " +
+                    "AND (:status IS NULL OR i.status = :status) " +
+                    "AND (:interviewerId IS NULL OR i.interviewer.id = :interviewerId) " +
+                    "AND (:upcomingCutoff IS NULL OR i.scheduledAt >= :upcomingCutoff) " +
+                    "AND (:pastCutoff IS NULL OR i.scheduledAt < :pastCutoff)")
     Page<Interview> search(@Param("applicationId") UUID applicationId,
                            @Param("status") InterviewStatus status,
                            @Param("interviewerId") UUID interviewerId,
