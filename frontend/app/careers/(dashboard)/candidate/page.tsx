@@ -51,6 +51,15 @@ interface ActivityItem {
   at: string | null;
 }
 
+interface EngagementSummary {
+  applicationId: Uuid | null;
+  status: string | null;
+  finalStageLabel: string | null;
+  finalStageState: 'current' | 'completed' | 'blocked' | null;
+  onboardingTotal: number;
+  onboardingCompleted: number;
+}
+
 interface CandidateDashboardResponse {
   candidateName: string | null;
   profileComplete: number;
@@ -58,6 +67,7 @@ interface CandidateDashboardResponse {
   applications: ApplicationSummary[] | null;
   upcoming: UpcomingItem[] | null;
   recentActivity: ActivityItem[] | null;
+  engagement: EngagementSummary | null;
 }
 
 export default function CandidateDashboardPage() {
@@ -197,6 +207,18 @@ function CandidateDashboardBody() {
                     currentIndex={a.stageIndex}
                     isExited={a.isExited}
                     size="mini"
+                    finalLabel={
+                      data.engagement
+                      && data.engagement.applicationId === a.id
+                        ? data.engagement.finalStageLabel
+                        : null
+                    }
+                    finalState={
+                      data.engagement
+                      && data.engagement.applicationId === a.id
+                        ? data.engagement.finalStageState
+                        : null
+                    }
                   />
                 </li>
               ))}

@@ -144,11 +144,20 @@ public class CandidateDashboardService {
         // Phase 3 step 10 — the candidate's active engagement, if any. Source
         // of truth for post-offer state on the dashboard; pickNextStep falls
         // back to Application post-offer statuses when engagement is null.
+        // For nextStep we ignore BLOCKED/TERMINATED. For the stepper override
+        // we want to know about a BLOCKED engagement so the final dot can be
+        // rendered with a blocked indicator — collected separately below.
         Engagement engagement = engagementRepository.findByCandidateId(candidate.getId()).stream()
                 .filter(e -> e.getStatus() != EngagementStatus.BLOCKED_NO_AUTHORIZATION
                         && e.getStatus() != EngagementStatus.TERMINATED)
                 .findFirst()
                 .orElse(null);
+        Engagement stepperEngagement = engagement != null
+                ? engagement
+                : engagementRepository.findByCandidateId(candidate.getId()).stream()
+                        .filter(e -> e.getStatus() != EngagementStatus.TERMINATED)
+                        .findFirst()
+                        .orElse(null);
 
         // ── nextStep priority ladder ─────────────────────────────────────────
         CandidateDashboardResponse.NextStep nextStep = pickNextStep(
@@ -162,6 +171,9 @@ public class CandidateDashboardService {
         List<CandidateDashboardResponse.ActivityItem> recentActivity =
                 assembleRecentActivity(apps, offers);
 
+        CandidateDashboardResponse.EngagementSummary engagementSummary =
+                buildEngagementSummary(stepperEngagement, tasks);
+
         return CandidateDashboardResponse.builder()
                 .candidateName(candidateName)
                 .profileComplete(profileComplete)
@@ -169,6 +181,44 @@ public class CandidateDashboardService {
                 .applications(appSummaries)
                 .upcoming(upcoming)
                 .recentActivity(recentActivity)
+                .engagement(engagementSummary)
+                .build();
+    }
+
+    /**
+     * Maps Engagement.status to the frontend final-stage label/state pair so
+     * the stepper agrees with the banner. Returns null when there's no
+     * engagement (pre-offer / legacy). Onboarding counts are derived from the
+     * already-loaded tasks list to avoid an extra round-trip.
+     */
+    private CandidateDashboardResponse.EngagementSummary buildEngagementSummary(
+            Engagement engagement, List<OnboardingTask> tasks) {
+        if (engagement == null) return null;
+        EngagementStatus status = engagement.getStatus();
+        String label;
+        String state;
+        switch (status) {
+            case PENDING_COMPLIANCE, READY_TO_START -> { label = "Onboarding"; state = "current"; }
+            case ACTIVE -> { label = "Active"; state = "current"; }
+            case COMPLETED -> { label = "Completed"; state = "completed"; }
+            case BLOCKED_NO_AUTHORIZATION -> { label = "Blocked"; state = "blocked"; }
+            case TERMINATED -> { label = "Ended"; state = "blocked"; }
+            default -> { label = "Hired"; state = "current"; }
+        }
+        long total = tasks.size();
+        long done = tasks.stream()
+                .filter(t -> t.getStatus() == OnboardingTaskStatus.COMPLETED)
+                .count();
+        UUID applicationId = engagement.getApplication() != null
+                ? engagement.getApplication().getId()
+                : null;
+        return CandidateDashboardResponse.EngagementSummary.builder()
+                .applicationId(applicationId)
+                .status(status != null ? status.name() : null)
+                .finalStageLabel(label)
+                .finalStageState(state)
+                .onboardingTotal(total)
+                .onboardingCompleted(done)
                 .build();
     }
 

@@ -32,6 +32,15 @@ public class CandidateDashboardResponse {
 
     private List<ActivityItem> recentActivity;
 
+    /**
+     * Phase 3 step 10 follow-up — the candidate's active engagement summary,
+     * used by the per-application stepper to override the final-stage label
+     * ("Onboarding" / "Active" / "Completed" / "Blocked") so it agrees with
+     * the dashboard banner. Null when the candidate has no post-offer
+     * engagement (pre-offer state, or accepted-but-no-engagement legacy).
+     */
+    private EngagementSummary engagement;
+
     @Getter
     @Setter
     @NoArgsConstructor
@@ -83,5 +92,29 @@ public class CandidateDashboardResponse {
     public static class ActivityItem {
         private String text;
         private Instant at;
+    }
+
+    /**
+     * Engagement-derived overrides for the per-application stepper's final
+     * (post-offer) stage. The frontend matches by {@code applicationId} and,
+     * for the matched row, replaces the hardcoded "Hired" label and styling
+     * with these values so the stepper reads coherently with the banner.
+     */
+    @Getter
+    @Setter
+    @NoArgsConstructor
+    @AllArgsConstructor
+    @Builder
+    public static class EngagementSummary {
+        /** Application id that owns this engagement (joins the per-app stepper). */
+        private UUID applicationId;
+        /** EngagementStatus enum name verbatim. */
+        private String status;
+        /** Label to render at stage 4 — "Onboarding" / "Active" / "Completed" / "Blocked". */
+        private String finalStageLabel;
+        /** Visual state — "current" / "completed" / "blocked". */
+        private String finalStageState;
+        private long onboardingTotal;
+        private long onboardingCompleted;
     }
 }

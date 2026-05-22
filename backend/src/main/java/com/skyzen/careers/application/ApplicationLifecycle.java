@@ -51,8 +51,14 @@ public final class ApplicationLifecycle {
             case INTERVIEW_SCHEDULED, INTERVIEWED -> 2;
             // Phase 2.3: conditional selection is part of the Offer band —
             // formal offer hasn't been issued yet but the staff decision is made.
-            case SELECTED_CONDITIONAL, OFFERED, ACCEPTED -> 3;
-            case ONBOARDING, ACTIVE, HIRED, COMPLETED -> 4;
+            case SELECTED_CONDITIONAL, OFFERED -> 3;
+            // ACCEPTED leaves the Offer band immediately: the candidate has
+            // signed, an Engagement was created, and they're now in the
+            // post-offer "Hired" block. The frontend stepper substitutes the
+            // engagement-derived final-stage label ("Onboarding"/"Active"/
+            // "Completed"/"Blocked") so this band reads coherently with the
+            // banner.
+            case ACCEPTED, ONBOARDING, ACTIVE, HIRED, COMPLETED -> 4;
             // Exit statuses (REJECTED/WITHDRAWN/LAPSED/NO_SHOW) are not on
             // the stepper — callers gate by isExited() first.
             default -> -1;

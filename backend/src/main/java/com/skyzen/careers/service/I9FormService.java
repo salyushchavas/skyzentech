@@ -20,6 +20,7 @@ import com.skyzen.careers.enums.I9Status;
 import com.skyzen.careers.enums.OfferStatus;
 import com.skyzen.careers.enums.UserRole;
 import com.skyzen.careers.exception.BadRequestException;
+import com.skyzen.careers.exception.OfferRequiredException;
 import com.skyzen.careers.exception.ResourceNotFoundException;
 import com.skyzen.careers.repository.AuditLogRepository;
 import com.skyzen.careers.repository.CandidateRepository;
@@ -84,6 +85,7 @@ public class I9FormService {
     private final UserRepository userRepository;
     private final AuditLogRepository auditLogRepository;
     private final EngagementRepository engagementRepository;
+    private final OnboardingService onboardingService;
     private final ObjectMapper objectMapper;
 
     // ── Lazy-create + lookups ───────────────────────────────────────────────
@@ -163,6 +165,14 @@ public class I9FormService {
         Candidate candidate = candidateRepository.findByUserId(candidateUser.getId())
                 .orElseThrow(() -> new BadRequestException(
                         "No candidate profile found for the current user"));
+        // GAP A1 — hard post-offer gate for the candidate-initiated path. If an
+        // I-9 row already exists (e.g. seeded by HR pre-Phase-3) we still
+        // surface it; the gate only blocks new-row creation. Staff path
+        // (`/api/v1/i9/candidate/{id}`) goes through getOrCreateForCandidate
+        // directly and is NOT gated.
+        if (formRepository.findByCandidateIdWithGraph(candidate.getId()).isEmpty()) {
+            requireCandidateOfferEligibility(candidate, candidateUser);
+        }
         return getOrCreateForCandidate(candidate.getId(), candidateUser);
     }
 
@@ -183,6 +193,14 @@ public class I9FormService {
                 .orElseThrow(() -> new ResourceNotFoundException(
                         "I-9 form not found: " + formId));
         requireSection1WriteAccess(form, actor);
+
+        // GAP A1 — candidate path is post-offer-gated. ADMINs (the only other
+        // role allowed on this endpoint by @PreAuthorize) keep the corrective
+        // write path; they need to edit Section 1 to fix bad data even when
+        // the candidate's offer history is unusual.
+        if (!isAdmin(actor) && form.getCandidate() != null) {
+            requireCandidateOfferEligibility(form.getCandidate(), actor);
+        }
 
         if (form.getStatus() == I9Status.COMPLETED) {
             throw new BadRequestException(
@@ -230,6 +248,11 @@ public class I9FormService {
         writeAudit(form.getId(),
                 req.isDraft() ? "SECTION_1_DRAFT_SAVE" : "SECTION_1_SUBMIT",
                 actor.getId(), before, snapshot(form));
+        // Reconcile the onboarding checklist so the candidate's I9_SECTION_1
+        // task flips to COMPLETED in the same transaction as the submit.
+        if (!req.isDraft() && form.getCandidate() != null) {
+            onboardingService.reconcileFromCompliance(form.getCandidate().getId(), actor);
+        }
         return form;
     }
 
@@ -320,6 +343,12 @@ public class I9FormService {
         writeAudit(form.getId(),
                 req.isDraft() ? "SECTION_2_DRAFT_SAVE" : "SECTION_2_SUBMIT",
                 actor.getId(), before, snapshot(form));
+        // After a successful (non-draft) submit, the form is COMPLETED — flip
+        // the I9_SECTION_2 onboarding task so the candidate dashboard's count
+        // and "Upcoming" list reflect the real compliance state immediately.
+        if (!req.isDraft() && form.getCandidate() != null) {
+            onboardingService.reconcileFromCompliance(form.getCandidate().getId(), actor);
+        }
         return form;
     }
 
@@ -481,6 +510,76 @@ public class I9FormService {
             return;
         }
         throw new AccessDeniedException("Not allowed to edit Section 1 of this I-9 form");
+    }
+
+    // ── Post-offer gate (GAP A1) ────────────────────────────────────────────
+
+    /**
+     * Hard 403 gate for candidate-initiated I-9 paths. Eligibility predicate:
+     *   - candidate has at least one Offer in OfferStatus.ACCEPTED, AND
+     *   - candidate has NO Engagement in EngagementStatus.BLOCKED_NO_AUTHORIZATION.
+     *
+     * Both checks are required: an accepted offer that was later flipped to
+     * BLOCKED by the track router must NOT unlock I-9 — that candidate is
+     * referred to HR/legal, not to the I-9 form.
+     *
+     * Writes a single AuditLog row (action=I9_BLOCKED_NO_OFFER, entityType=
+     * Candidate) on block before throwing, so denied attempts are forensically
+     * visible. Staff-side reads/edits never reach this method — the staff
+     * controller path uses getOrCreateForCandidate directly.
+     */
+    private void requireCandidateOfferEligibility(Candidate candidate, User actor) {
+        UUID actorId = actor != null ? actor.getId() : null;
+        UUID candidateId = candidate != null ? candidate.getId() : null;
+        if (candidate == null) {
+            // Defensive — shouldn't happen because callers resolve the candidate
+            // first, but a null here would silently bypass the gate otherwise.
+            writeGateAudit(candidateId, "I9_BLOCKED_NO_OFFER", actorId,
+                    "candidate=null");
+            throw new OfferRequiredException(
+                    "I-9 is available after your offer is accepted.");
+        }
+        boolean blocked = engagementRepository.findByCandidateId(candidate.getId()).stream()
+                .anyMatch(e -> e.getStatus() == EngagementStatus.BLOCKED_NO_AUTHORIZATION);
+        if (blocked) {
+            writeGateAudit(candidateId, "I9_BLOCKED_NO_OFFER", actorId,
+                    "engagement=BLOCKED_NO_AUTHORIZATION");
+            throw new OfferRequiredException(
+                    "Your engagement is on hold pending HR review. I-9 isn't available yet.");
+        }
+        boolean hasAccepted = offerRepository
+                .findByApplication_Candidate_IdOrderByCreatedAtDesc(candidate.getId())
+                .stream()
+                .anyMatch(o -> o.getStatus() == OfferStatus.ACCEPTED);
+        if (!hasAccepted) {
+            writeGateAudit(candidateId, "I9_BLOCKED_NO_OFFER", actorId,
+                    "noAcceptedOffer");
+            throw new OfferRequiredException(
+                    "I-9 is available after your offer is accepted.");
+        }
+    }
+
+    private boolean isAdmin(User actor) {
+        return actor != null
+                && actor.getRoles() != null
+                && actor.getRoles().contains(UserRole.ADMIN);
+    }
+
+    private void writeGateAudit(UUID candidateId, String action, UUID actorId, String reason) {
+        // Lean AuditLog row — afterJson holds the structured "why we blocked".
+        // Mirrors the existing AuditLog.builder() pattern used by writeAudit
+        // but keyed on Candidate (not I9Form) because the block happens
+        // before any form id exists.
+        Map<String, Object> after = new LinkedHashMap<>();
+        after.put("reason", reason);
+        AuditLog entry = AuditLog.builder()
+                .entityType("Candidate")
+                .entityId(candidateId)
+                .action(action)
+                .userId(actorId)
+                .afterJson(serialize(after))
+                .build();
+        auditLogRepository.save(entry);
     }
 
     // ── Computed helpers ────────────────────────────────────────────────────

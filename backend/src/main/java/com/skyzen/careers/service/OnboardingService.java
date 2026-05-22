@@ -12,6 +12,9 @@ import com.skyzen.careers.entity.Engagement;
 import com.skyzen.careers.entity.Offer;
 import com.skyzen.careers.entity.OnboardingTask;
 import com.skyzen.careers.entity.User;
+import com.skyzen.careers.enums.EVerifyStatus;
+import com.skyzen.careers.enums.I983Status;
+import com.skyzen.careers.enums.I9Status;
 import com.skyzen.careers.enums.OfferStatus;
 import com.skyzen.careers.enums.OnboardingCategory;
 import com.skyzen.careers.enums.OnboardingTaskStatus;
@@ -19,7 +22,10 @@ import com.skyzen.careers.enums.UserRole;
 import com.skyzen.careers.exception.ResourceNotFoundException;
 import com.skyzen.careers.repository.AuditLogRepository;
 import com.skyzen.careers.repository.CandidateRepository;
+import com.skyzen.careers.repository.EVerifyCaseRepository;
 import com.skyzen.careers.repository.EngagementRepository;
+import com.skyzen.careers.repository.I9FormRepository;
+import com.skyzen.careers.repository.I983PlanRepository;
 import com.skyzen.careers.repository.OfferRepository;
 import com.skyzen.careers.repository.OnboardingTaskRepository;
 import com.skyzen.careers.repository.UserRepository;
@@ -51,6 +57,9 @@ public class OnboardingService {
     private final UserRepository userRepository;
     private final AuditLogRepository auditLogRepository;
     private final EngagementRepository engagementRepository;
+    private final I9FormRepository i9FormRepository;
+    private final I983PlanRepository i983PlanRepository;
+    private final EVerifyCaseRepository everifyCaseRepository;
     private final ObjectMapper objectMapper;
 
     // ── Templates ───────────────────────────────────────────────────────────
@@ -438,6 +447,89 @@ public class OnboardingService {
                 .progressPercent(progress)
                 .nextDueTask(next != null ? toResponse(next) : null)
                 .build();
+    }
+
+    // ── Reconcile from compliance ───────────────────────────────────────────
+
+    /**
+     * Mark the standard compliance onboarding tasks COMPLETED when the
+     * underlying compliance entity has reached its terminal state. Called
+     * after each compliance write (I-9 §1/§2 submit, I-983 sign/approve,
+     * E-Verify authorize) so the candidate dashboard's checklist count is
+     * always in sync with the real compliance state without requiring the
+     * candidate to manually tick each task off.
+     *
+     * Idempotent: tasks already COMPLETED are skipped. Failures are caught
+     * + logged so a sync bug never fails the outer compliance op.
+     *
+     * Task-key → compliance-entity-state mapping:
+     *   I9_SECTION_1        ← I9Form.section1SignedAt != null
+     *   I9_SECTION_2        ← I9Form.status == COMPLETED
+     *   I983_DRAFT          ← any I983Plan with student or employer signed
+     *   I983_PLAN           ← any I983Plan in DSO_APPROVED
+     *   I983_DSO_APPROVAL   ← any I983Plan in DSO_APPROVED
+     *   EVERIFY_BY_DAY_3    ← EVerifyCase in EMPLOYMENT_AUTHORIZED
+     *
+     * CPT_I20_VERIFY + HR_AUTHORIZATION_REVIEW are manual — HR ticks them off
+     * via the normal updateStatus path; no automation.
+     */
+    @Transactional
+    public void reconcileFromCompliance(UUID candidateId, User actor) {
+        if (candidateId == null) return;
+        try {
+            List<OnboardingTask> tasks =
+                    taskRepository.findByCandidateIdOrderBySortOrderAsc(candidateId);
+            if (tasks.isEmpty()) return;
+
+            var i9 = i9FormRepository.findByCandidateId(candidateId).orElse(null);
+            boolean i9Section1Done = i9 != null
+                    && (i9.getSection1SignedAt() != null
+                            || i9.getStatus() == I9Status.SECTION_2_PENDING
+                            || i9.getStatus() == I9Status.SECTION_1_COMPLETE
+                            || i9.getStatus() == I9Status.COMPLETED);
+            boolean i9Section2Done = i9 != null && i9.getStatus() == I9Status.COMPLETED;
+
+            var plans = i983PlanRepository.findByCandidateIdOrderByCreatedAtDesc(candidateId);
+            boolean i983Drafted = plans.stream()
+                    .anyMatch(p -> p.getStudentSignedAt() != null
+                            || p.getEmployerSignedAt() != null);
+            boolean i983Approved = plans.stream()
+                    .anyMatch(p -> p.getStatus() == I983Status.DSO_APPROVED);
+
+            boolean everifyAuthorized = i9 != null
+                    && everifyCaseRepository.findByI9FormId(i9.getId())
+                            .map(c -> c.getStatus() == EVerifyStatus.EMPLOYMENT_AUTHORIZED)
+                            .orElse(false);
+
+            for (OnboardingTask t : tasks) {
+                if (t.getStatus() == OnboardingTaskStatus.COMPLETED) continue;
+                boolean shouldComplete = switch (t.getTaskKey()) {
+                    case "I9_SECTION_1" -> i9Section1Done;
+                    case "I9_SECTION_2" -> i9Section2Done;
+                    case "I983_DRAFT" -> i983Drafted;
+                    case "I983_PLAN", "I983_DSO_APPROVAL" -> i983Approved;
+                    case "EVERIFY_BY_DAY_3" -> everifyAuthorized;
+                    default -> false;
+                };
+                if (shouldComplete) {
+                    completeTask(t, actor);
+                }
+            }
+        } catch (Exception e) {
+            log.warn("Onboarding reconcile failed for candidate {} (non-fatal): {}",
+                    candidateId, e.getMessage(), e);
+        }
+    }
+
+    private void completeTask(OnboardingTask task, User actor) {
+        Map<String, Object> beforeSnap = snapshot(task);
+        task.setStatus(OnboardingTaskStatus.COMPLETED);
+        task.setCompletedAt(Instant.now());
+        task.setCompletedBy(actor != null ? actor.getId() : null);
+        task = taskRepository.save(task);
+        writeAudit("OnboardingTask", task.getId(), "AUTO_COMPLETE",
+                actor != null ? actor.getId() : null,
+                beforeSnap, snapshot(task));
     }
 
     // ── Update ──────────────────────────────────────────────────────────────
