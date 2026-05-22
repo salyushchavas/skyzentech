@@ -11,6 +11,7 @@ import org.springframework.boot.CommandLineRunner;
 import org.springframework.core.annotation.Order;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.UUID;
@@ -33,8 +34,12 @@ public class OnboardingBackfillRunner implements CommandLineRunner {
     private final OnboardingService onboardingService;
 
     @Override
+    @Transactional(readOnly = true)
     public void run(String... args) {
         try {
+            // readOnly tx keeps the Hibernate session open across the loop so the
+            // lazy offer.application.candidate reads on line 44 don't throw
+            // LazyInitializationException (open-in-view=false in prod).
             List<Offer> accepted = offerRepository
                     .findByStatusOrderByCreatedAtDesc(OfferStatus.ACCEPTED, Pageable.unpaged())
                     .getContent();

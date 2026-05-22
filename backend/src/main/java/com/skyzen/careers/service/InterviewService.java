@@ -288,12 +288,18 @@ public class InterviewService {
                                                UUID interviewerId,
                                                Boolean upcoming,
                                                Pageable pageable) {
+        // Phase-3 fix — staff list runs through
+        // {@link InterviewSpecifications#withFilters}. The previous @Query
+        // bound null Instants via {@code :cutoff IS NULL OR ...} which
+        // surfaced Postgres SQLSTATE 42P18 ("could not determine data type
+        // of parameter $7"). Specifications add predicates only when a
+        // filter is provided, so null cutoffs never reach the SQL.
         Instant now = Instant.now();
         Instant upcomingCutoff = Boolean.TRUE.equals(upcoming) ? now : null;
         Instant pastCutoff = Boolean.FALSE.equals(upcoming) ? now : null;
-        return interviewRepository
-                .search(applicationId, status, interviewerId, upcomingCutoff, pastCutoff, pageable)
-                .map(this::toSummary);
+        var spec = com.skyzen.careers.repository.InterviewSpecifications.withFilters(
+                applicationId, status, interviewerId, upcomingCutoff, pastCutoff);
+        return interviewRepository.findAll(spec, pageable).map(this::toSummary);
     }
 
     @Transactional(readOnly = true)

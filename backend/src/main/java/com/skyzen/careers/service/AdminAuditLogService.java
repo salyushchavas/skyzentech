@@ -5,6 +5,7 @@ import com.skyzen.careers.dto.admin.PagedAuditLogResponse;
 import com.skyzen.careers.entity.AuditLog;
 import com.skyzen.careers.entity.User;
 import com.skyzen.careers.repository.AuditLogRepository;
+import com.skyzen.careers.repository.AuditLogSpecifications;
 import com.skyzen.careers.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -53,8 +54,11 @@ public class AdminAuditLogService {
         // (not a query that ignores the filter).
         Collection<UUID> userIds = resolveActorIds(actorSearch);
 
-        Page<AuditLog> resultPage = auditLogRepository.search(
-                normalizedAction, userIds, from, to, pageable);
+        // Phase-3 fix — Specification path; null filters omitted, never bound
+        // (kills Postgres 42P18 on nullable Instant params).
+        Page<AuditLog> resultPage = auditLogRepository.findAll(
+                AuditLogSpecifications.withFilters(normalizedAction, userIds, from, to),
+                pageable);
 
         // Batch-resolve actor names for the rows on this page only — keeps the
         // query count at O(1) regardless of page size.

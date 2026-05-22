@@ -5,6 +5,7 @@ import com.skyzen.careers.enums.InterviewStatus;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
@@ -15,7 +16,8 @@ import java.util.Optional;
 import java.util.UUID;
 
 @Repository
-public interface InterviewRepository extends JpaRepository<Interview, UUID> {
+public interface InterviewRepository extends JpaRepository<Interview, UUID>,
+        JpaSpecificationExecutor<Interview> {
 
     List<Interview> findByApplicationIdOrderByScheduledAtDesc(UUID applicationId);
 
@@ -54,41 +56,12 @@ public interface InterviewRepository extends JpaRepository<Interview, UUID> {
             "WHERE i.id = :id")
     Optional<Interview> findByIdWithGraph(@Param("id") UUID id);
 
-    /**
-     * Staff list of interviews with the full mapping graph (application →
-     * candidate → user, application → jobPosting, interviewer) eagerly loaded.
-     * The fetches are needed because {@code InterviewService.toSummary} reads
-     * candidate name + posting title + interviewer name — without the JOIN
-     * FETCH these reads triggered a LazyInitializationException mid-page-map
-     * (the cause of the historical /api/v1/interviews 500 for ERM/HR).
-     *
-     * Pageable + JOIN FETCH is safe here because every fetched association is
-     * single-valued ({@code @ManyToOne}); Hibernate's HHH000104 "firstResult/
-     * maxResults specified with collection fetch" only fires for collection
-     * fetches. An explicit {@code countQuery} keeps the count fast (no joins).
-     */
-    @Query(
-            value = "SELECT i FROM Interview i " +
-                    "JOIN FETCH i.application a " +
-                    "JOIN FETCH a.candidate c " +
-                    "JOIN FETCH c.user u " +
-                    "LEFT JOIN FETCH a.jobPosting jp " +
-                    "JOIN FETCH i.interviewer ir " +
-                    "WHERE (:applicationId IS NULL OR a.id = :applicationId) " +
-                    "AND (:status IS NULL OR i.status = :status) " +
-                    "AND (:interviewerId IS NULL OR ir.id = :interviewerId) " +
-                    "AND (:upcomingCutoff IS NULL OR i.scheduledAt >= :upcomingCutoff) " +
-                    "AND (:pastCutoff IS NULL OR i.scheduledAt < :pastCutoff)",
-            countQuery = "SELECT COUNT(i) FROM Interview i " +
-                    "WHERE (:applicationId IS NULL OR i.application.id = :applicationId) " +
-                    "AND (:status IS NULL OR i.status = :status) " +
-                    "AND (:interviewerId IS NULL OR i.interviewer.id = :interviewerId) " +
-                    "AND (:upcomingCutoff IS NULL OR i.scheduledAt >= :upcomingCutoff) " +
-                    "AND (:pastCutoff IS NULL OR i.scheduledAt < :pastCutoff)")
-    Page<Interview> search(@Param("applicationId") UUID applicationId,
-                           @Param("status") InterviewStatus status,
-                           @Param("interviewerId") UUID interviewerId,
-                           @Param("upcomingCutoff") Instant upcomingCutoff,
-                           @Param("pastCutoff") Instant pastCutoff,
-                           Pageable pageable);
+    // The staff list query was rewritten as a JPA Specification — see
+    // {@link InterviewSpecifications#withFilters}. Reason: the previous
+    // {@code @Query} used the {@code :param IS NULL OR col = :param} pattern
+    // with a nullable {@code Instant}, which surfaced Postgres
+    // SQLSTATE 42P18 ("could not determine data type of parameter $N") when
+    // the cutoff was null. Specifications add predicates only when the value
+    // is present, so null filters never bind. Callers use
+    // {@link org.springframework.data.jpa.repository.JpaSpecificationExecutor#findAll(Specification, Pageable)}.
 }
