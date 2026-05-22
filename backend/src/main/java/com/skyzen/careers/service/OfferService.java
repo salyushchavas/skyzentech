@@ -94,6 +94,7 @@ public class OfferService {
     private final OnboardingService onboardingService;
     private final ApplicationService applicationService;
     private final EngagementService engagementService;
+    private final ComplianceRoutingService complianceRoutingService;
 
     // ── Commands ────────────────────────────────────────────────────────────
 
@@ -289,11 +290,25 @@ public class OfferService {
         // snapshot). REQUIRES_NEW inside; best-effort try/catch out here so a
         // compliance-side bug never blocks acceptance. The step-11 backfill
         // catches anything missed.
+        com.skyzen.careers.entity.Engagement engagement = null;
         try {
-            engagementService.createForAcceptedOffer(offer, candidateUser);
+            engagement = engagementService.createForAcceptedOffer(offer, candidateUser);
         } catch (Exception e) {
             log.warn("Failed to create engagement for accepted offer {}: {}",
                     offer.getId(), e.getMessage(), e);
+        }
+
+        // Phase 3 step 4 — track router. Set per-track onboarding requirements
+        // and (when authorization is missing) flip to BLOCKED_NO_AUTHORIZATION.
+        // The router catches its own exceptions internally; the outer try is
+        // belt-and-braces against a broken bean wiring.
+        if (engagement != null) {
+            try {
+                complianceRoutingService.routeNewEngagement(engagement, candidateUser);
+            } catch (Exception e) {
+                log.warn("Failed to route engagement {} for accepted offer {}: {}",
+                        engagement.getId(), offer.getId(), e.getMessage(), e);
+            }
         }
         return offer;
     }

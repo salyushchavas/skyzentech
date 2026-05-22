@@ -8,6 +8,7 @@ import com.skyzen.careers.dto.onboarding.UpdateTaskStatusRequest;
 import com.skyzen.careers.entity.Application;
 import com.skyzen.careers.entity.AuditLog;
 import com.skyzen.careers.entity.Candidate;
+import com.skyzen.careers.entity.Engagement;
 import com.skyzen.careers.entity.Offer;
 import com.skyzen.careers.entity.OnboardingTask;
 import com.skyzen.careers.entity.User;
@@ -156,6 +157,61 @@ public class OnboardingService {
             )
     );
 
+    /**
+     * Phase 3 step 4 — per-track add-on tasks. Keyed by the spec's exact
+     * task_key strings so audit + tests can grep for them. The standard seed
+     * ({@link #TEMPLATES}) already covers the universal I-9 §1/§2 + I-983
+     * plan tasks for everyone; these templates are layered on top by the
+     * track router based on the candidate's expected work-auth track.
+     */
+    private static final Map<String, TaskTemplate> TRACK_TEMPLATES = Map.ofEntries(
+            Map.entry("HR_AUTHORIZATION_REVIEW", new TaskTemplate(
+                    "HR_AUTHORIZATION_REVIEW",
+                    "HR review — work-authorization follow-up",
+                    "The candidate has not self-attested work authorization. HR/legal must review before any compliance steps proceed. This is a process route, NOT a hiring decision.",
+                    OnboardingCategory.COMPLIANCE,
+                    15,
+                    null,
+                    null,
+                    false)),
+            Map.entry("I983_DRAFT", new TaskTemplate(
+                    "I983_DRAFT",
+                    "Draft Form I-983 Training Plan",
+                    "STEM OPT requires a signed I-983. ERM drafts the plan; the candidate and employer sign before submission to the DSO.",
+                    OnboardingCategory.COMPLIANCE,
+                    45,
+                    -7,
+                    "/careers/candidate/training-plans",
+                    false)),
+            Map.entry("I983_DSO_APPROVAL", new TaskTemplate(
+                    "I983_DSO_APPROVAL",
+                    "Submit I-983 to DSO for approval",
+                    "Once both parties have signed, submit the I-983 to the candidate's DSO. Engagement cannot reach READY_TO_START until DSO approval is recorded.",
+                    OnboardingCategory.COMPLIANCE,
+                    46,
+                    0,
+                    "/careers/candidate/training-plans",
+                    false)),
+            Map.entry("EVERIFY_BY_DAY_3", new TaskTemplate(
+                    "EVERIFY_BY_DAY_3",
+                    "Open E-Verify case",
+                    "Required by the 3rd business day after the candidate's first day. HR opens the case after Form I-9 is complete.",
+                    OnboardingCategory.COMPLIANCE,
+                    35,
+                    3,
+                    null,
+                    false)),
+            Map.entry("CPT_I20_VERIFY", new TaskTemplate(
+                    "CPT_I20_VERIFY",
+                    "Verify DSO-authorized CPT on Form I-20",
+                    "CPT employment must be authorized on the candidate's Form I-20 by their DSO. HR verifies before the engagement can start. No I-983 required for CPT.",
+                    OnboardingCategory.COMPLIANCE,
+                    25,
+                    -3,
+                    null,
+                    false))
+    );
+
     // ── Seeding ─────────────────────────────────────────────────────────────
 
     /**
@@ -223,6 +279,72 @@ public class OnboardingService {
         }
         log.info("Seeded {} onboarding tasks for candidate {} (offer {})",
                 created, candidateId, offerId);
+    }
+
+    /**
+     * Phase 3 step 4 — idempotently add per-track onboarding tasks for an
+     * engagement. Each {@code taskKey} must exist in {@link #TRACK_TEMPLATES}.
+     * If a task with the same key already exists for the engagement's
+     * (candidate, offer) pair, this is a no-op for that key — the DB unique
+     * constraint is the safety net even if the in-memory check races.
+     *
+     * Caller responsibility: pick the right keys per track. The router
+     * ({@link ComplianceRoutingService}) is the only caller today.
+     */
+    @Transactional
+    public void augmentTasksForTrack(Engagement engagement, List<String> taskKeys) {
+        if (engagement == null || engagement.getOffer() == null
+                || engagement.getCandidate() == null) {
+            log.warn("Cannot augment onboarding tasks — engagement missing offer/candidate");
+            return;
+        }
+        if (taskKeys == null || taskKeys.isEmpty()) return;
+
+        Offer offer = engagement.getOffer();
+        Candidate candidate = engagement.getCandidate();
+        Application application = engagement.getApplication();
+        UUID candidateId = candidate.getId();
+        UUID offerId = offer.getId();
+        LocalDate startDate = offer.getStartDate();
+
+        int added = 0;
+        for (String key : taskKeys) {
+            TaskTemplate t = TRACK_TEMPLATES.get(key);
+            if (t == null) {
+                log.warn("Unknown track task key '{}', skipping", key);
+                continue;
+            }
+            // Idempotency check — the unique constraint on (candidate, taskKey,
+            // offer) prevents duplicates even under concurrent calls.
+            if (taskRepository.findByCandidateIdAndTaskKeyAndOfferId(
+                    candidateId, key, offerId).isPresent()) {
+                continue;
+            }
+            LocalDate due = (t.dueDateOffsetFromStartDays() != null && startDate != null)
+                    ? startDate.plusDays(t.dueDateOffsetFromStartDays())
+                    : null;
+            OnboardingTask task = OnboardingTask.builder()
+                    .candidate(candidate)
+                    .application(application)
+                    .offer(offer)
+                    .taskKey(t.taskKey())
+                    .title(t.title())
+                    .description(t.description())
+                    .category(t.category())
+                    .status(OnboardingTaskStatus.PENDING)
+                    .sortOrder(t.sortOrder())
+                    .dueDate(due)
+                    .linkUrl(t.linkUrl())
+                    .build();
+            task = taskRepository.save(task);
+            writeAudit("OnboardingTask", task.getId(), "CREATE", null,
+                    null, snapshot(task));
+            added++;
+        }
+        if (added > 0) {
+            log.info("Augmented {} track-specific onboarding task(s) for engagement {}",
+                    added, engagement.getId());
+        }
     }
 
     @Transactional
