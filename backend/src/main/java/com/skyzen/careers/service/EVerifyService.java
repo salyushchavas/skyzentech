@@ -12,6 +12,7 @@ import com.skyzen.careers.dto.everify.UpdateStatusRequest;
 import com.skyzen.careers.entity.AuditLog;
 import com.skyzen.careers.entity.Candidate;
 import com.skyzen.careers.entity.EVerifyCase;
+import com.skyzen.careers.entity.Engagement;
 import com.skyzen.careers.entity.I9Form;
 import com.skyzen.careers.entity.User;
 import com.skyzen.careers.enums.EVerifyStatus;
@@ -95,18 +96,31 @@ public class EVerifyService {
                 .orElseThrow(() -> new ResourceNotFoundException(
                         "I-9 form not found: " + req.getI9FormId()));
 
+        // Phase 3 step 7 — federal sequencing: E-Verify case follows I-9, not
+        // the other way around. The wording matches the spec literally so the
+        // HR-side error UI can be tested against it.
         if (i9.getStatus() != I9Status.COMPLETED) {
             throw new BadRequestException(
-                    "Cannot create E-Verify case until I-9 Section 2 is complete");
+                    "E-Verify can be created only after Form I-9 is completed.");
         }
         if (caseRepository.existsByI9FormId(i9.getId())) {
             throw new BadRequestException(
                     "E-Verify case already exists for this I-9");
         }
 
+        // Phase 3 step 7 — dueBy = (engagement.actualStartDate ?? plannedStartDate)
+        // + 3 business days. Engagement reachability is via the linked I-9 (step 5
+        // added i9.engagement). Legacy I-9s with no engagement fall back to
+        // firstDayOfEmployment, which the I-9 has populated in either flow.
+        LocalDate startDate = resolveStartDate(i9);
+        LocalDate dueBy = startDate != null
+                ? I9FormService.plusBusinessDays(startDate, 3)
+                : null;
+
         EVerifyCase c = EVerifyCase.builder()
                 .i9Form(i9)
                 .status(EVerifyStatus.PENDING_SUBMISSION)
+                .dueBy(dueBy)
                 .photoMatchRequired(false)
                 .additionalVerificationRequired(false)
                 .createdBy(creator.getId())
@@ -114,6 +128,20 @@ public class EVerifyService {
         c = caseRepository.save(c);
         writeAudit(c.getId(), "CREATE", creator.getId(), null, snapshot(c));
         return toResponse(c);
+    }
+
+    /**
+     * Resolve the candidate's first-day-of-work. Prefers engagement state
+     * (actual over planned) as the source of truth; falls back to the I-9's
+     * own firstDayOfEmployment for legacy rows.
+     */
+    private LocalDate resolveStartDate(I9Form i9) {
+        Engagement engagement = i9.getEngagement();
+        if (engagement != null) {
+            if (engagement.getActualStartDate() != null) return engagement.getActualStartDate();
+            if (engagement.getPlannedStartDate() != null) return engagement.getPlannedStartDate();
+        }
+        return i9.getFirstDayOfEmployment();
     }
 
     @Transactional
@@ -273,6 +301,8 @@ public class EVerifyService {
         I9Form i9 = c.getI9Form();
         Candidate candidate = i9 != null ? i9.getCandidate() : null;
         User candidateUser = candidate != null ? candidate.getUser() : null;
+        String phase = derivePhase(c.getStatus());
+        boolean overdue = isOverdue(c.getDueBy(), phase);
         return EVerifyCaseResponse.builder()
                 .id(c.getId())
                 .i9FormId(i9 != null ? i9.getId() : null)
@@ -289,6 +319,10 @@ public class EVerifyService {
                 .additionalVerificationRequired(c.getAdditionalVerificationRequired())
                 .notes(c.getNotes())
                 .daysOpen(computeDaysOpen(c))
+                .dueBy(c.getDueBy())
+                .phase(phase)
+                .overdue(overdue)
+                .lastSyncedAt(c.getLastSyncedAt())
                 .createdAt(c.getCreatedAt())
                 .updatedAt(c.getUpdatedAt())
                 .createdByName(lookupUserName(c.getCreatedBy()))
@@ -299,6 +333,8 @@ public class EVerifyService {
         I9Form i9 = c.getI9Form();
         Candidate candidate = i9 != null ? i9.getCandidate() : null;
         User candidateUser = candidate != null ? candidate.getUser() : null;
+        String phase = derivePhase(c.getStatus());
+        boolean overdue = isOverdue(c.getDueBy(), phase);
         return EVerifyCaseSummaryResponse.builder()
                 .id(c.getId())
                 .i9FormId(i9 != null ? i9.getId() : null)
@@ -309,9 +345,34 @@ public class EVerifyService {
                 .openedAt(c.getOpenedAt())
                 .closedAt(c.getClosedAt())
                 .daysOpen(computeDaysOpen(c))
+                .dueBy(c.getDueBy())
+                .phase(phase)
+                .overdue(overdue)
                 .createdAt(c.getCreatedAt())
                 .updatedAt(c.getUpdatedAt())
                 .build();
+    }
+
+    /**
+     * Phase 3 step 7 — UI-friendly coarse phase. The rich EVerifyStatus enum
+     * stays the source of truth in audits + workflow; this is the shorthand
+     * the dashboard renders.
+     */
+    private static String derivePhase(EVerifyStatus status) {
+        if (status == null) return null;
+        return switch (status) {
+            case PENDING_SUBMISSION, OPEN -> "CREATED";
+            case EMPLOYMENT_AUTHORIZED -> "AUTHORIZED";
+            case TENTATIVE_NONCONFIRMATION -> "IN_REVIEW";
+            case FINAL_NONCONFIRMATION -> "NOT_AUTHORIZED";
+            case CLOSED -> "CLOSED";
+        };
+    }
+
+    private static boolean isOverdue(LocalDate dueBy, String phase) {
+        if (dueBy == null) return false;
+        if ("AUTHORIZED".equals(phase)) return false;
+        return dueBy.isBefore(LocalDate.now());
     }
 
     private Long computeDaysOpen(EVerifyCase c) {
@@ -349,6 +410,8 @@ public class EVerifyService {
         m.put("closureReason", c.getClosureReason());
         m.put("openedAt", c.getOpenedAt());
         m.put("closedAt", c.getClosedAt());
+        m.put("dueBy", c.getDueBy());
+        m.put("lastSyncedAt", c.getLastSyncedAt());
         m.put("photoMatchRequired", c.getPhotoMatchRequired());
         m.put("photoMatchResult", c.getPhotoMatchResult());
         m.put("additionalVerificationRequired", c.getAdditionalVerificationRequired());

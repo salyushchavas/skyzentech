@@ -9,6 +9,7 @@ import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
 
 import java.time.Instant;
+import java.time.LocalDate;
 import java.util.UUID;
 
 @Entity
@@ -50,6 +51,24 @@ public class EVerifyCase {
 
     @Column(name = "closed_at")
     private Instant closedAt;
+
+    /**
+     * Phase 3 step 7 — federal deadline: E-Verify case must be opened by the
+     * 3rd business day after the employee's first day. Computed at create time
+     * from the linked I-9's engagement (actualStartDate ?? plannedStartDate),
+     * with the I-9's firstDayOfEmployment as legacy fallback. Null when no
+     * start date is known yet.
+     */
+    @Column(name = "due_by")
+    private LocalDate dueBy;
+
+    /**
+     * Phase 3 step 7 — placeholder for future E-Verify API integration:
+     * timestamp of the last successful poll/webhook sync with the federal
+     * E-Verify service. Stays null until real integration ships (Sprint 4+).
+     */
+    @Column(name = "last_synced_at")
+    private Instant lastSyncedAt;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "closure_reason")

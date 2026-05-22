@@ -17,6 +17,7 @@ import ProtectedRoute from '@/components/ProtectedRoute';
 import StatCard from '@/components/preview/StatCard';
 import I9StatusBadge from '@/components/i9/I9StatusBadge';
 import EVerifyStatusBadge from '@/components/everify/EVerifyStatusBadge';
+import EVerifyPhaseBadge from '@/components/everify/EVerifyPhaseBadge';
 import { formatDateOnly, formatRelative } from '@/lib/format-date';
 import type {
   EVerifyCaseSummaryResponse,
@@ -637,7 +638,9 @@ function EVerifyTabContent({
               <tr>
                 <th className="px-4 py-3">Candidate</th>
                 <th className="px-4 py-3">Case Number</th>
+                <th className="px-4 py-3">Phase</th>
                 <th className="px-4 py-3">Status</th>
+                <th className="px-4 py-3">Due by</th>
                 <th className="px-4 py-3">Opened</th>
                 <th className="px-4 py-3">Days Open</th>
                 <th className="px-4 py-3">Last Activity</th>
@@ -675,7 +678,30 @@ function EVerifyTabContent({
                     )}
                   </td>
                   <td className="px-4 py-3">
+                    <EVerifyPhaseBadge phase={r.phase} />
+                  </td>
+                  <td className="px-4 py-3">
                     <EVerifyStatusBadge status={r.status} />
+                  </td>
+                  <td className="px-4 py-3 text-sm">
+                    {r.dueBy ? (
+                      <span
+                        className={
+                          r.overdue
+                            ? 'font-medium text-red-700'
+                            : 'text-gray-700'
+                        }
+                      >
+                        {formatDateOnly(r.dueBy)}
+                        {r.overdue && (
+                          <span className="ml-1 text-[10px] uppercase tracking-wide">
+                            Overdue
+                          </span>
+                        )}
+                      </span>
+                    ) : (
+                      <span className="text-gray-400">—</span>
+                    )}
                   </td>
                   <td className="px-4 py-3 text-sm text-gray-700">
                     {r.openedAt ? formatDateOnly(r.openedAt) : '—'}

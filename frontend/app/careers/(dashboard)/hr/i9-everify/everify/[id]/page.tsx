@@ -13,6 +13,7 @@ import FormField, { inputClass } from '@/components/ui/FormField';
 import I9StatusBadge from '@/components/i9/I9StatusBadge';
 import AuditHistoryList from '@/components/i9/AuditHistoryList';
 import EVerifyStatusBadge from '@/components/everify/EVerifyStatusBadge';
+import EVerifyPhaseBadge from '@/components/everify/EVerifyPhaseBadge';
 import CloseCaseDialog from '@/components/everify/CloseCaseDialog';
 import { formatDateOnly, formatRelative } from '@/lib/format-date';
 import type {
@@ -168,10 +169,13 @@ function Body() {
               </div>
             )}
           </div>
-          <EVerifyStatusBadge status={caseData.status} size="md" />
+          <div className="flex flex-wrap items-center gap-2">
+            <EVerifyPhaseBadge phase={caseData.phase} size="md" />
+            <EVerifyStatusBadge status={caseData.status} size="md" />
+          </div>
         </div>
 
-        <dl className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-3">
+        <dl className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-4">
           <Stat
             label="Case number"
             value={
@@ -191,6 +195,29 @@ function Body() {
             }
           />
           <Stat
+            label="Federal deadline"
+            value={
+              caseData.dueBy ? (
+                <span
+                  className={
+                    caseData.overdue
+                      ? 'font-medium text-red-700'
+                      : 'text-gray-900'
+                  }
+                >
+                  {formatDateOnly(caseData.dueBy)}
+                  {caseData.overdue && (
+                    <span className="ml-2 text-xs uppercase tracking-wide">
+                      Overdue
+                    </span>
+                  )}
+                </span>
+              ) : (
+                '—'
+              )
+            }
+          />
+          <Stat
             label="Days open"
             value={
               caseData.daysOpen != null
@@ -199,6 +226,16 @@ function Body() {
             }
           />
         </dl>
+
+        {caseData.overdue && (
+          <div className="mt-4 flex items-start gap-2 rounded-md border border-red-300 bg-red-50 p-3 text-sm text-red-800">
+            <AlertTriangle className="h-4 w-4 flex-shrink-0" strokeWidth={2} />
+            <span>
+              Federal deadline passed — this case should already be authorized.
+              Submit / chase status now.
+            </span>
+          </div>
+        )}
 
         {caseData.status === 'TENTATIVE_NONCONFIRMATION' && (
           <div className="mt-4 flex items-start gap-2 rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">

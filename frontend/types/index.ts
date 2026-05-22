@@ -668,6 +668,17 @@ export type EVerifyStatus =
   | 'FINAL_NONCONFIRMATION'
   | 'CLOSED';
 
+/**
+ * Phase 3 step 7 — coarse phase derived from {@link EVerifyStatus} for UI.
+ * The rich enum remains the source of truth in workflows + audits.
+ */
+export type EVerifyPhase =
+  | 'CREATED'
+  | 'AUTHORIZED'
+  | 'IN_REVIEW'
+  | 'NOT_AUTHORIZED'
+  | 'CLOSED';
+
 export type EVerifyClosureReason =
   | 'SUCCESSFUL'
   | 'EMPLOYEE_TERMINATED'
@@ -692,6 +703,13 @@ export interface EVerifyCaseResponse {
   additionalVerificationRequired?: boolean;
   notes?: string;
   daysOpen?: number;
+  // Phase 3 step 7 — federal deadline + UI-friendly coarse phase.
+  /** LocalDate ISO ("yyyy-mm-dd"); null when no start date is known. */
+  dueBy?: string;
+  phase?: EVerifyPhase;
+  /** True when dueBy is in the past AND phase !== AUTHORIZED. */
+  overdue?: boolean;
+  lastSyncedAt?: IsoDateTime;
   createdAt: IsoDateTime;
   updatedAt: IsoDateTime;
   createdByName?: string;
@@ -707,6 +725,10 @@ export interface EVerifyCaseSummaryResponse {
   openedAt?: IsoDateTime;
   closedAt?: IsoDateTime;
   daysOpen?: number;
+  // Phase 3 step 7 — federal deadline + UI-friendly coarse phase.
+  dueBy?: string;
+  phase?: EVerifyPhase;
+  overdue?: boolean;
   createdAt: IsoDateTime;
   updatedAt: IsoDateTime;
 }
