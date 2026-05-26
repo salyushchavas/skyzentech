@@ -168,7 +168,7 @@ public class SeedDemoDataExecutor {
                     .email(dc.email())
                     .passwordHash(passwordEncoder.encode(DEMO_PASSWORD))
                     .fullName(dc.fullName())
-                    .roles(EnumSet.of(UserRole.CANDIDATE))
+                    .roles(EnumSet.of(UserRole.APPLICANT))
                     .build();
             u = userRepository.save(u);
 

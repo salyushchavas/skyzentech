@@ -25,7 +25,7 @@ interface Props {
  */
 export default function OpeningsSplit({ initialPostings }: Props) {
   const { user, isLoading } = useAuth();
-  const isCandidate = !!user?.roles?.includes('CANDIDATE');
+  const isCandidate = !!(user?.roles?.includes('APPLICANT') || user?.roles?.includes('INTERN'));
 
   const [postings, setPostings] = useState<JobPostingResponse[]>(initialPostings);
   const [refetching, setRefetching] = useState(false);

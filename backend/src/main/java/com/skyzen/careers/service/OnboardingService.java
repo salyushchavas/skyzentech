@@ -575,8 +575,8 @@ public class OnboardingService {
             throw new AccessDeniedException("Authentication required");
         }
         var roles = actor.getRoles();
-        boolean staff = roles != null && (roles.contains(UserRole.ADMIN)
-                || roles.contains(UserRole.ERM)
+        boolean staff = roles != null && (roles.contains(UserRole.OPERATIONS)
+                || roles.contains(UserRole.OPERATIONS)
                 || roles.contains(UserRole.HR_COMPLIANCE));
         if (staff) return;
 

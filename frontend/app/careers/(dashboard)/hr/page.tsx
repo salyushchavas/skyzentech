@@ -94,7 +94,7 @@ interface ComplianceOverviewResponse {
 
 export default function HrDashboardPage() {
   return (
-    <ProtectedRoute requiredRoles={['HR_COMPLIANCE', 'ADMIN']}>
+    <ProtectedRoute requiredRoles={['OPERATIONS', 'HR_COMPLIANCE']}>
       <DashboardLayout title="HR Dashboard">
         <HrBody />
       </DashboardLayout>

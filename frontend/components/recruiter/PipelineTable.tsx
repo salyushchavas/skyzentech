@@ -49,7 +49,7 @@ const SORTABLE_HEADERS: { key: SortField; label: string }[] = [
 
 // Bulk action endpoint is RECRUITER/ERM/ADMIN per Part-1 @PreAuthorize; hide
 // the buttons for HR even though they can view the table.
-const BULK_ROLES: ReadonlyArray<UserRole> = ['RECRUITER', 'ERM', 'ADMIN'];
+const BULK_ROLES: ReadonlyArray<UserRole> = ['OPERATIONS'];
 
 function hasBulkAccess(roles: UserRole[] | undefined): boolean {
   if (!roles) return false;

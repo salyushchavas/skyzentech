@@ -88,7 +88,7 @@ const STAGE_PILL_LABEL: Record<string, string> = {
 
 export default function CandidateDashboardPage() {
   return (
-    <ProtectedRoute requiredRoles={['CANDIDATE']}>
+    <ProtectedRoute requiredRoles={['APPLICANT', 'INTERN']}>
       <DashboardLayout title="Dashboard">
         <CandidateDashboardBody />
       </DashboardLayout>

@@ -80,7 +80,7 @@ public class AuthService {
                 .passwordHash(passwordEncoder.encode(req.password()))
                 .fullName(req.fullName())
                 .phoneNumber(req.phoneNumber())
-                .roles(EnumSet.of(UserRole.CANDIDATE))
+                .roles(EnumSet.of(UserRole.APPLICANT))
                 .emailVerified(false)
                 .emailVerificationCode(code)
                 .emailVerificationSentAt(now)
@@ -159,7 +159,11 @@ public class AuthService {
         // under concurrent verifications.
         String applicantId = user.getApplicantId();
         if (applicantId == null && user.getRoles() != null
-                && user.getRoles().contains(UserRole.CANDIDATE)) {
+                && user.getRoles().contains(UserRole.APPLICANT)) {
+            // Applicant IDs are issued only on the first email verification of
+            // a freshly-registered APPLICANT. Once they're hired they become
+            // INTERN — by then they already carry an applicantId from this
+            // initial pass, so we don't include INTERN in the gate.
             applicantId = applicantIdGenerator.nextApplicantId();
             user.setApplicantId(applicantId);
             user.setApplicantIdCreatedAt(Instant.now());

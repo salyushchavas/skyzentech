@@ -76,7 +76,12 @@ public class VerificationBackfillRunner implements CommandLineRunner {
         int issued = 0;
         for (User u : all) {
             if (u.getApplicantId() != null) continue;
-            if (u.getRoles() == null || !u.getRoles().contains(UserRole.CANDIDATE)) continue;
+            // Candidate-side is APPLICANT (pre-hire) or INTERN (post-hire). The
+            // backfill applies to either — even hired interns who pre-date the
+            // applicantId rollout should have one stamped.
+            if (u.getRoles() == null
+                    || !(u.getRoles().contains(UserRole.APPLICANT)
+                            || u.getRoles().contains(UserRole.INTERN))) continue;
             String id = applicantIdGenerator.nextApplicantId();
             u.setApplicantId(id);
             u.setApplicantIdCreatedAt(Instant.now());
@@ -85,7 +90,7 @@ public class VerificationBackfillRunner implements CommandLineRunner {
             log.info("Backfilled Applicant ID {} for {}", id, u.getEmail());
         }
         if (issued == 0) {
-            log.info("applicant_id backfill: every CANDIDATE already has an ID.");
+            log.info("applicant_id backfill: every applicant/intern already has an ID.");
         }
     }
 }

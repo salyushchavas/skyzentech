@@ -30,7 +30,7 @@ public class ResumeController {
     private final ApplicationRepository applicationRepository;
 
     @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    @PreAuthorize("hasRole('CANDIDATE')")
+    @PreAuthorize("hasAnyRole('APPLICANT', 'INTERN')")
     public ResponseEntity<ResumeResponse> upload(@RequestParam("file") MultipartFile file,
                                                  @AuthenticationPrincipal User user) {
         ResumeResponse created = resumeService.upload(user, file);
@@ -39,7 +39,7 @@ public class ResumeController {
     }
 
     @GetMapping("/me")
-    @PreAuthorize("hasRole('CANDIDATE')")
+    @PreAuthorize("hasAnyRole('APPLICANT', 'INTERN')")
     public List<ResumeResponse> listMine(@AuthenticationPrincipal User user) {
         return resumeService.listForUser(user.getId());
     }
@@ -52,7 +52,7 @@ public class ResumeController {
      * enforces ownership / scope.
      */
     @GetMapping("/{id}/download")
-    @PreAuthorize("hasAnyRole('CANDIDATE', 'RECRUITER', 'ERM', 'ADMIN')")
+    @PreAuthorize("hasAnyRole('APPLICANT', 'INTERN', 'OPERATIONS')")
     public ResponseEntity<FileSystemResource> download(@PathVariable UUID id,
                                                        @AuthenticationPrincipal User user) {
         Resume resume = resumeService.loadEntity(id);
@@ -74,14 +74,14 @@ public class ResumeController {
     }
 
     @PatchMapping("/{id}/default")
-    @PreAuthorize("hasRole('CANDIDATE')")
+    @PreAuthorize("hasAnyRole('APPLICANT', 'INTERN')")
     public ResumeResponse setDefault(@PathVariable UUID id,
                                      @AuthenticationPrincipal User user) {
         return resumeService.setDefault(user.getId(), id);
     }
 
     @DeleteMapping("/{id}")
-    @PreAuthorize("hasRole('CANDIDATE')")
+    @PreAuthorize("hasAnyRole('APPLICANT', 'INTERN')")
     public ResponseEntity<Void> delete(@PathVariable UUID id,
                                        @AuthenticationPrincipal User user) {
         resumeService.delete(user.getId(), id, true);
@@ -89,9 +89,9 @@ public class ResumeController {
     }
 
     private void ensureCanDownload(Resume resume, User caller) {
-        boolean privileged = caller.getRoles().contains(UserRole.ADMIN)
-                || caller.getRoles().contains(UserRole.RECRUITER)
-                || caller.getRoles().contains(UserRole.ERM);
+        boolean privileged = caller.getRoles().contains(UserRole.OPERATIONS)
+                || caller.getRoles().contains(UserRole.OPERATIONS)
+                || caller.getRoles().contains(UserRole.OPERATIONS);
 
         boolean isOwner = resume.getCandidate() != null
                 && resume.getCandidate().getUser() != null

@@ -14,7 +14,7 @@ import type {
 
 export default function NewI983PlanPage() {
   return (
-    <ProtectedRoute requiredRoles={['ERM', 'HR_COMPLIANCE', 'ADMIN']}>
+    <ProtectedRoute requiredRoles={['OPERATIONS', 'HR_COMPLIANCE']}>
       <DashboardLayout title="New Training Plan">
         <Form />
       </DashboardLayout>

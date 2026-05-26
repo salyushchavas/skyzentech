@@ -59,7 +59,7 @@ public class JobPostingService {
     public Page<JobPostingResponse> listOpenForCandidate(User caller, Pageable pageable) {
         if (caller == null
                 || caller.getRoles() == null
-                || !caller.getRoles().contains(UserRole.CANDIDATE)) {
+                || !(caller.getRoles().contains(UserRole.APPLICANT) || caller.getRoles().contains(UserRole.INTERN))) {
             // Anonymous + staff callers see the public openings list — they
             // don't need an Applicant ID and aren't subject to the gate.
             return listOpen(pageable);
@@ -162,8 +162,8 @@ public class JobPostingService {
                                                    com.skyzen.careers.entity.User viewer) {
         JobPosting posting = lookupByIdOrSlug(idOrSlug);
         boolean privileged = viewer != null
-                && (viewer.getRoles().contains(UserRole.ADMIN)
-                || viewer.getRoles().contains(UserRole.ERM));
+                && (viewer.getRoles().contains(UserRole.OPERATIONS)
+                || viewer.getRoles().contains(UserRole.OPERATIONS));
         if (!privileged && posting.getStatus() != JobPostingStatus.OPEN) {
             throw new ResourceNotFoundException("Job posting not found");
         }

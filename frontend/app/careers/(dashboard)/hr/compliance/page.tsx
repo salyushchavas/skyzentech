@@ -31,7 +31,7 @@ import type {
 
 export default function HrCompliancePage() {
   return (
-    <ProtectedRoute requiredRoles={['HR_COMPLIANCE', 'ADMIN']}>
+    <ProtectedRoute requiredRoles={['OPERATIONS', 'HR_COMPLIANCE']}>
       <DashboardLayout title="Compliance Overview">
         <Body />
       </DashboardLayout>

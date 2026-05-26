@@ -18,13 +18,13 @@ import type {
 } from '@/types';
 
 const READ_ROLES: UserRole[] = [
-  'ERM',
-  'ADMIN',
-  'RECRUITER',
+  'OPERATIONS',
+  'OPERATIONS',
+  'OPERATIONS',
   'HR_COMPLIANCE',
-  'TECHNICAL_EVALUATOR',
+  'TECHNICAL_SUPERVISOR',
 ];
-const WRITE_ROLES: UserRole[] = ['ERM', 'ADMIN'];
+const WRITE_ROLES: UserRole[] = ['OPERATIONS'];
 
 type Tab = 'upcoming' | 'past' | 'all';
 

@@ -23,7 +23,7 @@ public class CandidateDashboardController {
     private final CandidateDashboardService candidateDashboardService;
 
     @GetMapping("/dashboard")
-    @PreAuthorize("hasRole('CANDIDATE')")
+    @PreAuthorize("hasAnyRole('APPLICANT', 'INTERN')")
     public CandidateDashboardResponse dashboard(@AuthenticationPrincipal User caller) {
         return candidateDashboardService.build(caller);
     }

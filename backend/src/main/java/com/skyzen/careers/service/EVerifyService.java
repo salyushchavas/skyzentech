@@ -66,20 +66,11 @@ public class EVerifyService {
 
     private static Map<EVerifyStatus, Set<EVerifyStatus>> buildTransitions() {
         Map<EVerifyStatus, Set<EVerifyStatus>> m = new EnumMap<>(EVerifyStatus.class);
-        m.put(EVerifyStatus.PENDING_SUBMISSION, EnumSet.of(
-                EVerifyStatus.OPEN, EVerifyStatus.CLOSED));
-        m.put(EVerifyStatus.OPEN, EnumSet.of(
-                EVerifyStatus.EMPLOYMENT_AUTHORIZED,
-                EVerifyStatus.TENTATIVE_NONCONFIRMATION,
-                EVerifyStatus.CLOSED));
-        m.put(EVerifyStatus.TENTATIVE_NONCONFIRMATION, EnumSet.of(
-                EVerifyStatus.EMPLOYMENT_AUTHORIZED,
-                EVerifyStatus.FINAL_NONCONFIRMATION,
-                EVerifyStatus.CLOSED));
-        m.put(EVerifyStatus.EMPLOYMENT_AUTHORIZED, EnumSet.of(
-                EVerifyStatus.CLOSED));
-        m.put(EVerifyStatus.FINAL_NONCONFIRMATION, EnumSet.of(
-                EVerifyStatus.CLOSED));
+        m.put(EVerifyStatus.PENDING_SUBMISSION, EnumSet.of(EVerifyStatus.OPEN, EVerifyStatus.CLOSED));
+        m.put(EVerifyStatus.OPEN, EnumSet.of(EVerifyStatus.EMPLOYMENT_AUTHORIZED, EVerifyStatus.TENTATIVE_NONCONFIRMATION, EVerifyStatus.CLOSED));
+        m.put(EVerifyStatus.TENTATIVE_NONCONFIRMATION, EnumSet.of(EVerifyStatus.EMPLOYMENT_AUTHORIZED, EVerifyStatus.FINAL_NONCONFIRMATION, EVerifyStatus.CLOSED));
+        m.put(EVerifyStatus.EMPLOYMENT_AUTHORIZED, EnumSet.of(EVerifyStatus.CLOSED));
+        m.put(EVerifyStatus.FINAL_NONCONFIRMATION, EnumSet.of(EVerifyStatus.CLOSED));
         m.put(EVerifyStatus.CLOSED, EnumSet.noneOf(EVerifyStatus.class));
         return m;
     }

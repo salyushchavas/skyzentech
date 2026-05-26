@@ -33,7 +33,7 @@ const FILTER_OPTIONS: { key: Filter; label: string }[] = [
 
 export default function ErmTrainingPlansPage() {
   return (
-    <ProtectedRoute requiredRoles={['ERM', 'HR_COMPLIANCE', 'ADMIN']}>
+    <ProtectedRoute requiredRoles={['OPERATIONS', 'HR_COMPLIANCE']}>
       <DashboardLayout title="I-983 Training Plans">
         <Body />
       </DashboardLayout>

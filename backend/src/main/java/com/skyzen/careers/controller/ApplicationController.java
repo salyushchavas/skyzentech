@@ -35,7 +35,7 @@ public class ApplicationController {
     private final CandidateApplicationsService candidateApplicationsService;
 
     @PostMapping
-    @PreAuthorize("hasRole('CANDIDATE')")
+    @PreAuthorize("hasAnyRole('APPLICANT', 'INTERN')")
     public ResponseEntity<ApplicationResponse> apply(
             @Valid @RequestBody ApplicationCreateRequest req,
             @AuthenticationPrincipal User user) {
@@ -45,7 +45,7 @@ public class ApplicationController {
     }
 
     @GetMapping("/me")
-    @PreAuthorize("hasRole('CANDIDATE')")
+    @PreAuthorize("hasAnyRole('APPLICANT', 'INTERN')")
     public List<ApplicationResponse> listMine(@AuthenticationPrincipal User user) {
         return applicationService.listForCandidate(user);
     }
@@ -56,7 +56,7 @@ public class ApplicationController {
      * stage dates and an action-needed CTA when something is pending.
      */
     @GetMapping("/me/journey")
-    @PreAuthorize("hasRole('CANDIDATE')")
+    @PreAuthorize("hasAnyRole('APPLICANT', 'INTERN')")
     public List<ApplicationJourneyResponse> listMyJourney(@AuthenticationPrincipal User user) {
         return candidateApplicationsService.listJourneyForCandidate(user);
     }
@@ -70,7 +70,7 @@ public class ApplicationController {
      *   - page / size (size capped at 100)
      */
     @GetMapping
-    @PreAuthorize("hasAnyRole('RECRUITER', 'ERM', 'HR_COMPLIANCE', 'ADMIN')")
+    @PreAuthorize("hasAnyRole('OPERATIONS', 'HR_COMPLIANCE')")
     public PagedResponse<ApplicationResponse> list(
             @RequestParam(required = false) String search,
             @RequestParam(required = false) List<ApplicationStatus> status,
@@ -114,7 +114,7 @@ public class ApplicationController {
     }
 
     @GetMapping("/{id}")
-    @PreAuthorize("hasAnyRole('CANDIDATE', 'RECRUITER', 'ERM', 'HR_COMPLIANCE', 'TECHNICAL_EVALUATOR', 'ADMIN')")
+    @PreAuthorize("hasAnyRole('APPLICANT', 'INTERN', 'OPERATIONS', 'HR_COMPLIANCE', 'TECHNICAL_SUPERVISOR')")
     public ApplicationResponse getOne(@PathVariable UUID id,
                                       @AuthenticationPrincipal User user) {
         // CANDIDATE is gated to their own application in ApplicationService.findById;
@@ -124,7 +124,7 @@ public class ApplicationController {
     }
 
     @PatchMapping("/{id}/status")
-    @PreAuthorize("hasAnyRole('ADMIN', 'RECRUITER', 'ERM')")
+    @PreAuthorize("hasRole('OPERATIONS')")
     public ApplicationResponse updateStatus(@PathVariable UUID id,
                                             @Valid @RequestBody ApplicationStatusUpdateRequest req,
                                             @AuthenticationPrincipal User user) {
@@ -138,7 +138,7 @@ public class ApplicationController {
      * SHORTLIST audit entry. Idempotent — returns 200 even if already SHORTLISTED.
      */
     @PostMapping("/{id}/shortlist")
-    @PreAuthorize("hasAnyRole('RECRUITER', 'ERM', 'ADMIN')")
+    @PreAuthorize("hasRole('OPERATIONS')")
     public ApplicationResponse shortlist(
             @PathVariable UUID id,
             @Valid @RequestBody(required = false) RecruiterDecisionRequest req,
@@ -148,7 +148,7 @@ public class ApplicationController {
 
     /** Mirror of {@link #shortlist} for one-click rejection. Adds a REJECT audit entry. */
     @PostMapping("/{id}/reject")
-    @PreAuthorize("hasAnyRole('RECRUITER', 'ERM', 'ADMIN')")
+    @PreAuthorize("hasRole('OPERATIONS')")
     public ApplicationResponse reject(
             @PathVariable UUID id,
             @Valid @RequestBody(required = false) RecruiterDecisionRequest req,
@@ -163,7 +163,7 @@ public class ApplicationController {
      * no-op (no duplicate audit, no duplicate stub email).
      */
     @PostMapping("/{id}/conditional-select")
-    @PreAuthorize("hasAnyRole('RECRUITER', 'ERM', 'ADMIN')")
+    @PreAuthorize("hasRole('OPERATIONS')")
     public ApplicationResponse conditionalSelect(
             @PathVariable UUID id,
             @AuthenticationPrincipal User user) {
@@ -176,7 +176,7 @@ public class ApplicationController {
      * Returns {@code { updated, skipped }} so the UI can render an honest toast.
      */
     @PostMapping("/bulk")
-    @PreAuthorize("hasAnyRole('RECRUITER', 'ERM', 'ADMIN')")
+    @PreAuthorize("hasRole('OPERATIONS')")
     public BulkApplicationActionResponse bulkAction(
             @Valid @RequestBody BulkApplicationActionRequest req,
             @AuthenticationPrincipal User user) {

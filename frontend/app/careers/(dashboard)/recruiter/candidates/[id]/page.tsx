@@ -36,7 +36,7 @@ function initialsOf(name: string | null | undefined): string {
 
 export default function RecruiterCandidateDetailPage() {
   return (
-    <ProtectedRoute requiredRoles={['RECRUITER', 'ERM', 'HR_COMPLIANCE', 'ADMIN']}>
+    <ProtectedRoute requiredRoles={['OPERATIONS', 'HR_COMPLIANCE']}>
       <DashboardLayout title="Candidate">
         <CandidateDetail />
       </DashboardLayout>

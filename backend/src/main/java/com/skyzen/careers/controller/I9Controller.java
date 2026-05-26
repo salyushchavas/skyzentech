@@ -31,13 +31,13 @@ public class I9Controller {
     private final I9FormService service;
 
     @GetMapping("/me")
-    @PreAuthorize("hasRole('CANDIDATE')")
+    @PreAuthorize("hasAnyRole('APPLICANT', 'INTERN')")
     public I9FormResponse getMyForm(@AuthenticationPrincipal User user) {
         return service.toResponse(service.getMyForm(user));
     }
 
     @GetMapping("/candidate/{candidateId}")
-    @PreAuthorize("hasAnyRole('HR_COMPLIANCE', 'ERM', 'ADMIN')")
+    @PreAuthorize("hasAnyRole('OPERATIONS', 'HR_COMPLIANCE')")
     public I9FormResponse getForCandidate(@PathVariable UUID candidateId,
                                           @AuthenticationPrincipal User user) {
         I9Form form = service.getOrCreateForCandidate(candidateId, user);
@@ -45,7 +45,7 @@ public class I9Controller {
     }
 
     @GetMapping("/{id}")
-    @PreAuthorize("hasAnyRole('CANDIDATE', 'RECRUITER', 'ERM', 'HR_COMPLIANCE', 'TECHNICAL_EVALUATOR', 'ADMIN')")
+    @PreAuthorize("hasAnyRole('APPLICANT', 'INTERN', 'OPERATIONS', 'HR_COMPLIANCE', 'TECHNICAL_SUPERVISOR')")
     public I9FormResponse getOne(@PathVariable UUID id,
                                  @AuthenticationPrincipal User user) {
         // Service-side requireReadAccess enforces candidate ownership; the
@@ -54,7 +54,7 @@ public class I9Controller {
     }
 
     @GetMapping
-    @PreAuthorize("hasAnyRole('HR_COMPLIANCE', 'ADMIN')")
+    @PreAuthorize("hasAnyRole('OPERATIONS', 'HR_COMPLIANCE')")
     public PagedResponse<I9SummaryResponse> list(
             @RequestParam(required = false) I9Status status,
             @RequestParam(defaultValue = "false") boolean overdueOnly,
@@ -68,7 +68,7 @@ public class I9Controller {
     }
 
     @PostMapping("/{id}/section1")
-    @PreAuthorize("hasAnyRole('CANDIDATE', 'ADMIN')")
+    @PreAuthorize("hasAnyRole('APPLICANT', 'INTERN', 'OPERATIONS')")
     public I9FormResponse saveSection1(@PathVariable UUID id,
                                        @Valid @RequestBody Section1Request req,
                                        @AuthenticationPrincipal User user) {
@@ -76,7 +76,7 @@ public class I9Controller {
     }
 
     @PostMapping("/{id}/section2")
-    @PreAuthorize("hasAnyRole('HR_COMPLIANCE', 'ADMIN')")
+    @PreAuthorize("hasAnyRole('OPERATIONS', 'HR_COMPLIANCE')")
     public I9FormResponse saveSection2(@PathVariable UUID id,
                                        @Valid @RequestBody Section2Request req,
                                        @AuthenticationPrincipal User user) {
@@ -84,7 +84,7 @@ public class I9Controller {
     }
 
     @PostMapping("/{id}/reopen")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasRole('OPERATIONS')")
     public I9FormResponse reopen(@PathVariable UUID id,
                                  @Valid @RequestBody ReopenRequest req,
                                  @AuthenticationPrincipal User user) {
@@ -92,7 +92,7 @@ public class I9Controller {
     }
 
     @GetMapping("/{id}/history")
-    @PreAuthorize("hasAnyRole('CANDIDATE', 'RECRUITER', 'ERM', 'HR_COMPLIANCE', 'TECHNICAL_EVALUATOR', 'ADMIN')")
+    @PreAuthorize("hasAnyRole('APPLICANT', 'INTERN', 'OPERATIONS', 'HR_COMPLIANCE', 'TECHNICAL_SUPERVISOR')")
     public List<I9HistoryEntryResponse> getHistory(@PathVariable UUID id,
                                                    @AuthenticationPrincipal User user) {
         return service.getHistory(id, user);

@@ -36,7 +36,7 @@ public class EvaluationSessionService {
 
     @Transactional(readOnly = true)
     public List<EvaluatorOption> listEvaluators() {
-        return userRepository.findByRole(UserRole.TECHNICAL_EVALUATOR).stream()
+        return userRepository.findByRole(UserRole.TECHNICAL_SUPERVISOR).stream()
                 .map(u -> EvaluatorOption.builder()
                         .id(u.getId())
                         .name(u.getFullName())
@@ -56,7 +56,7 @@ public class EvaluationSessionService {
         User evaluator = userRepository.findById(req.getEvaluatorId())
                 .orElseThrow(() -> new ResourceNotFoundException(
                         "Evaluator user not found: " + req.getEvaluatorId()));
-        if (!evaluator.getRoles().contains(UserRole.TECHNICAL_EVALUATOR)) {
+        if (!evaluator.getRoles().contains(UserRole.TECHNICAL_SUPERVISOR)) {
             throw new BadRequestException("Selected user is not a Technical Evaluator");
         }
         intern.setAssignedEvaluator(evaluator);
@@ -83,7 +83,7 @@ public class EvaluationSessionService {
             evaluator = userRepository.findById(req.getEvaluatorId())
                     .orElseThrow(() -> new ResourceNotFoundException(
                             "Evaluator user not found: " + req.getEvaluatorId()));
-            if (!evaluator.getRoles().contains(UserRole.TECHNICAL_EVALUATOR)) {
+            if (!evaluator.getRoles().contains(UserRole.TECHNICAL_SUPERVISOR)) {
                 throw new BadRequestException("Selected user is not a Technical Evaluator");
             }
         } else if (intern.getAssignedEvaluator() != null) {

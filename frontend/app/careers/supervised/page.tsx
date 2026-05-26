@@ -29,7 +29,7 @@ function initialsOf(name: string | null): string {
 
 export default function SupervisedInternsPage() {
   return (
-    <ProtectedRoute requiredRoles={['ERM', 'TECHNICAL_EVALUATOR', 'HR_COMPLIANCE', 'ADMIN']}>
+    <ProtectedRoute requiredRoles={['OPERATIONS', 'HR_COMPLIANCE', 'TECHNICAL_SUPERVISOR']}>
       <DashboardLayout title="Supervised Interns">
         <SupervisedInternsRoster />
       </DashboardLayout>

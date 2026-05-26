@@ -15,7 +15,7 @@ import type { I9FormResponse } from '@/types';
 
 export default function CandidateI9Page() {
   return (
-    <ProtectedRoute requiredRoles={['CANDIDATE']}>
+    <ProtectedRoute requiredRoles={['APPLICANT', 'INTERN']}>
       <DashboardLayout title="Form I-9">
         <Body />
       </DashboardLayout>

@@ -17,37 +17,43 @@ interface AdminUserResponse {
   createdAt: string;
 }
 
+// PED §7 — STAFF_ROLES are the four roles an Operations admin can assign via
+// this UI. APPLICANT and INTERN are NOT in the picker — those are set by
+// candidate registration and the engagement-activation role flip, not by
+// admin-side assignment.
 const STAFF_ROLES: UserRole[] = [
-  'RECRUITER',
-  'ERM',
+  'OPERATIONS',
   'HR_COMPLIANCE',
-  'TECHNICAL_EVALUATOR',
-  'ADMIN',
+  'TECHNICAL_SUPERVISOR',
+  'EXECUTIVE',
 ];
 
 const ROLE_LABEL: Record<UserRole, string> = {
-  CANDIDATE: 'Candidate',
-  RECRUITER: 'Recruiter',
-  ERM: 'ERM',
-  HR_COMPLIANCE: 'HR Compliance',
-  TECHNICAL_EVALUATOR: 'Evaluator',
-  ADMIN: 'Admin',
+  APPLICANT: 'Applicant',
+  INTERN: 'Intern',
+  OPERATIONS: 'Operations',
+  HR_COMPLIANCE: 'HR / Compliance',
+  TECHNICAL_SUPERVISOR: 'Technical Supervisor',
+  EXECUTIVE: 'Executive',
 };
 
 const ROLE_COLOR: Record<UserRole, string> = {
-  CANDIDATE: 'bg-gray-100 text-gray-700',
-  RECRUITER: 'bg-blue-100 text-blue-800',
-  ERM: 'bg-purple-100 text-purple-800',
+  APPLICANT: 'bg-gray-100 text-gray-700',
+  INTERN: 'bg-sky-100 text-sky-800',
+  OPERATIONS: 'bg-rose-100 text-rose-800',
   HR_COMPLIANCE: 'bg-emerald-100 text-emerald-800',
-  TECHNICAL_EVALUATOR: 'bg-amber-100 text-amber-800',
-  ADMIN: 'bg-rose-100 text-rose-800',
+  TECHNICAL_SUPERVISOR: 'bg-amber-100 text-amber-800',
+  EXECUTIVE: 'bg-violet-100 text-violet-800',
 };
 
+// Show OPERATIONS first if present (they hold the elevated permissions);
+// otherwise the first non-candidate-side role; otherwise just the first.
+const CANDIDATE_SIDE: UserRole[] = ['APPLICANT', 'INTERN'];
+
 function primaryRole(roles: UserRole[] | null | undefined): UserRole {
-  if (!roles || roles.length === 0) return 'CANDIDATE';
-  // Show ADMIN first if present; otherwise the first non-CANDIDATE role.
-  if (roles.includes('ADMIN')) return 'ADMIN';
-  const staff = roles.find((r) => r !== 'CANDIDATE');
+  if (!roles || roles.length === 0) return 'APPLICANT';
+  if (roles.includes('OPERATIONS')) return 'OPERATIONS';
+  const staff = roles.find((r) => !CANDIDATE_SIDE.includes(r));
   return staff ?? roles[0];
 }
 
@@ -66,7 +72,7 @@ function RoleBadge({ role }: { role: UserRole }) {
 
 export default function AdminUsersPage() {
   return (
-    <ProtectedRoute requiredRoles={['ADMIN']}>
+    <ProtectedRoute requiredRoles={['OPERATIONS']}>
       <DashboardLayout title="Users">
         <UsersTable />
       </DashboardLayout>
@@ -318,7 +324,7 @@ function NewUserModal({
 }) {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
-  const [role, setRole] = useState<UserRole>('RECRUITER');
+  const [role, setRole] = useState<UserRole>('OPERATIONS');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -452,7 +458,7 @@ function ChangeRoleModal({
   onSaved: () => void;
 }) {
   const current = primaryRole(target.roles);
-  const [role, setRole] = useState<UserRole>(STAFF_ROLES.includes(current) ? current : 'RECRUITER');
+  const [role, setRole] = useState<UserRole>(STAFF_ROLES.includes(current) ? current : 'OPERATIONS');
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 

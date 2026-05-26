@@ -27,7 +27,7 @@ import type { CandidateOfferResponse } from '@/types';
 
 export default function CandidateOfferDetailPage() {
   return (
-    <ProtectedRoute requiredRoles={['CANDIDATE']}>
+    <ProtectedRoute requiredRoles={['APPLICANT', 'INTERN']}>
       <DashboardLayout title="Offer Details">
         <Body />
       </DashboardLayout>

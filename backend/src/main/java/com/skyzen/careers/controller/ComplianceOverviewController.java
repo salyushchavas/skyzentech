@@ -16,7 +16,7 @@ public class ComplianceOverviewController {
     private final ComplianceOverviewService service;
 
     @GetMapping("/overview")
-    @PreAuthorize("hasAnyRole('HR_COMPLIANCE', 'ADMIN')")
+    @PreAuthorize("hasAnyRole('OPERATIONS', 'HR_COMPLIANCE', 'EXECUTIVE')")
     public ComplianceOverviewResponse getOverview() {
         return service.getOverview();
     }

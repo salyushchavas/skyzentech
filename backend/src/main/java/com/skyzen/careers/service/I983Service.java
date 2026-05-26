@@ -75,14 +75,10 @@ import java.util.UUID;
 public class I983Service {
 
     /** Privileged roles for I-983 access. */
-    private static final Set<UserRole> STAFF_ROLES = EnumSet.of(
-            UserRole.ADMIN, UserRole.ERM, UserRole.HR_COMPLIANCE
-    );
+    private static final Set<UserRole> STAFF_ROLES = EnumSet.of(UserRole.OPERATIONS, UserRole.HR_COMPLIANCE);
 
     /** Statuses where field edits are allowed. */
-    private static final Set<I983Status> EDITABLE_STATUSES = EnumSet.of(
-            I983Status.DRAFT, I983Status.AMENDMENT_REQUESTED
-    );
+    private static final Set<I983Status> EDITABLE_STATUSES = EnumSet.of(I983Status.DRAFT, I983Status.AMENDMENT_REQUESTED);
 
     /** Federal STEM OPT rule: training must be at least 20 hours/week. */
     private static final int MIN_HOURS_PER_WEEK = 20;
@@ -467,12 +463,7 @@ public class I983Service {
                 .orElseThrow(() -> new ResourceNotFoundException(
                         "I-983 plan not found: " + planId));
 
-        Set<I983Status> respondableStatuses = EnumSet.of(
-                I983Status.SUBMITTED_TO_DSO,
-                I983Status.DSO_APPROVED,
-                I983Status.DSO_REJECTED,
-                I983Status.AMENDMENT_REQUESTED
-        );
+        Set<I983Status> respondableStatuses = EnumSet.of(I983Status.SUBMITTED_TO_DSO, I983Status.DSO_APPROVED, I983Status.DSO_REJECTED, I983Status.AMENDMENT_REQUESTED);
         if (!respondableStatuses.contains(plan.getStatus())) {
             throw new BadRequestException(
                     "Cannot record DSO response in status " + plan.getStatus());

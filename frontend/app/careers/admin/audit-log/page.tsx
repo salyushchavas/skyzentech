@@ -31,7 +31,7 @@ const PAGE_SIZE = 25;
 
 export default function AuditLogPage() {
   return (
-    <ProtectedRoute requiredRoles={['ADMIN']}>
+    <ProtectedRoute requiredRoles={['OPERATIONS']}>
       <DashboardLayout title="Audit Log">
         <AuditLogViewer />
       </DashboardLayout>

@@ -420,12 +420,12 @@ public class ApplicationService {
         if (caller == null) {
             throw new ForbiddenException("Authentication required");
         }
-        boolean privileged = caller.getRoles().contains(UserRole.ADMIN)
-                || caller.getRoles().contains(UserRole.RECRUITER)
-                || caller.getRoles().contains(UserRole.ERM);
+        boolean privileged = caller.getRoles().contains(UserRole.OPERATIONS)
+                || caller.getRoles().contains(UserRole.OPERATIONS)
+                || caller.getRoles().contains(UserRole.OPERATIONS);
         if (privileged) return;
 
-        if (caller.getRoles().contains(UserRole.CANDIDATE)
+        if ((caller.getRoles().contains(UserRole.APPLICANT) || caller.getRoles().contains(UserRole.INTERN))
                 && application.getCandidate() != null
                 && application.getCandidate().getUser() != null
                 && application.getCandidate().getUser().getId().equals(caller.getId())) {

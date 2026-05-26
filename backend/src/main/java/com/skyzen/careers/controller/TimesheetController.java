@@ -31,7 +31,7 @@ public class TimesheetController {
     private final TimesheetService timesheetService;
 
     @PostMapping("/my/timesheets")
-    @PreAuthorize("hasRole('CANDIDATE')")
+    @PreAuthorize("hasAnyRole('APPLICANT', 'INTERN')")
     public ResponseEntity<TimesheetResponse> logHours(
             @Valid @RequestBody LogTimesheetRequest req,
             @AuthenticationPrincipal User caller) {
@@ -41,13 +41,13 @@ public class TimesheetController {
     }
 
     @GetMapping("/my/timesheets")
-    @PreAuthorize("hasRole('CANDIDATE')")
+    @PreAuthorize("hasAnyRole('APPLICANT', 'INTERN')")
     public TimesheetListResponse listMine(@AuthenticationPrincipal User caller) {
         return timesheetService.listMine(caller);
     }
 
     @PutMapping("/timesheets/{id}")
-    @PreAuthorize("hasRole('CANDIDATE')")
+    @PreAuthorize("hasAnyRole('APPLICANT', 'INTERN')")
     public TimesheetResponse update(@PathVariable UUID id,
                                     @Valid @RequestBody UpdateTimesheetRequest req,
                                     @AuthenticationPrincipal User caller) {
@@ -55,27 +55,27 @@ public class TimesheetController {
     }
 
     @PostMapping("/timesheets/{id}/submit")
-    @PreAuthorize("hasRole('CANDIDATE')")
+    @PreAuthorize("hasAnyRole('APPLICANT', 'INTERN')")
     public TimesheetResponse submit(@PathVariable UUID id,
                                     @AuthenticationPrincipal User caller) {
         return timesheetService.submit(id, caller);
     }
 
     @GetMapping("/interns/{candidateId}/timesheets")
-    @PreAuthorize("hasAnyRole('ERM', 'TECHNICAL_EVALUATOR', 'HR_COMPLIANCE', 'ADMIN')")
+    @PreAuthorize("hasAnyRole('OPERATIONS', 'HR_COMPLIANCE', 'TECHNICAL_SUPERVISOR')")
     public TimesheetListResponse listForIntern(@PathVariable UUID candidateId) {
         return timesheetService.listForIntern(candidateId);
     }
 
     @PostMapping("/timesheets/{id}/approve")
-    @PreAuthorize("hasAnyRole('ERM', 'TECHNICAL_EVALUATOR', 'ADMIN')")
+    @PreAuthorize("hasAnyRole('OPERATIONS', 'TECHNICAL_SUPERVISOR')")
     public TimesheetResponse approve(@PathVariable UUID id,
                                      @AuthenticationPrincipal User caller) {
         return timesheetService.approve(id, caller);
     }
 
     @PostMapping("/timesheets/{id}/reject")
-    @PreAuthorize("hasAnyRole('ERM', 'TECHNICAL_EVALUATOR', 'ADMIN')")
+    @PreAuthorize("hasAnyRole('OPERATIONS', 'TECHNICAL_SUPERVISOR')")
     public TimesheetResponse reject(@PathVariable UUID id,
                                     @Valid @RequestBody RejectTimesheetRequest req,
                                     @AuthenticationPrincipal User caller) {

@@ -47,11 +47,7 @@ import java.util.UUID;
 @Slf4j
 public class InterviewService {
 
-    private static final Set<ApplicationStatus> SCHEDULABLE_FROM = EnumSet.of(
-            ApplicationStatus.SHORTLISTED,
-            ApplicationStatus.INTERVIEW_SCHEDULED,
-            ApplicationStatus.INTERVIEWED
-    );
+    private static final Set<ApplicationStatus> SCHEDULABLE_FROM = EnumSet.of(ApplicationStatus.SHORTLISTED, ApplicationStatus.INTERVIEW_SCHEDULED, ApplicationStatus.INTERVIEWED);
 
     private final InterviewRepository interviewRepository;
     private final ApplicationRepository applicationRepository;
@@ -77,7 +73,7 @@ public class InterviewService {
                 .orElseThrow(() -> new ResourceNotFoundException(
                         "Interviewer not found: " + req.getInterviewerId()));
 
-        if (interviewer.getRoles().contains(UserRole.CANDIDATE)
+        if ((interviewer.getRoles().contains(UserRole.APPLICANT) || interviewer.getRoles().contains(UserRole.INTERN))
                 && interviewer.getRoles().size() == 1) {
             throw new BadRequestException("Interviewer must be an internal user, not a candidate");
         }
@@ -129,7 +125,7 @@ public class InterviewService {
             User newInterviewer = userRepository.findById(req.getInterviewerId())
                     .orElseThrow(() -> new ResourceNotFoundException(
                             "Interviewer not found: " + req.getInterviewerId()));
-            if (newInterviewer.getRoles().contains(UserRole.CANDIDATE)
+            if ((newInterviewer.getRoles().contains(UserRole.APPLICANT) || newInterviewer.getRoles().contains(UserRole.INTERN))
                     && newInterviewer.getRoles().size() == 1) {
                 throw new BadRequestException("Interviewer must be an internal user, not a candidate");
             }
@@ -314,11 +310,11 @@ public class InterviewService {
         }
 
         Set<UserRole> roles = caller.getRoles();
-        boolean privileged = roles.contains(UserRole.ADMIN)
-                || roles.contains(UserRole.ERM)
-                || roles.contains(UserRole.RECRUITER)
+        boolean privileged = roles.contains(UserRole.OPERATIONS)
+                || roles.contains(UserRole.OPERATIONS)
+                || roles.contains(UserRole.OPERATIONS)
                 || roles.contains(UserRole.HR_COMPLIANCE)
-                || roles.contains(UserRole.TECHNICAL_EVALUATOR);
+                || roles.contains(UserRole.TECHNICAL_SUPERVISOR);
         boolean isInterviewer = interview.getInterviewer() != null
                 && caller.getId().equals(interview.getInterviewer().getId());
 
@@ -326,7 +322,7 @@ public class InterviewService {
             return toResponse(interview);
         }
 
-        if (roles.contains(UserRole.CANDIDATE) && belongsToCandidate(interview, caller)) {
+        if ((roles.contains(UserRole.APPLICANT) || roles.contains(UserRole.INTERN)) && belongsToCandidate(interview, caller)) {
             // Candidates technically use /me, but if they hit this directly we hide
             // feedback by 404-ing rather than 200 with sanitized payload, to be safe.
             throw new ResourceNotFoundException("Interview not found: " + interviewId);
@@ -384,11 +380,11 @@ public class InterviewService {
         if (caller == null || caller.getRoles() == null) {
             throw new ForbiddenException("Authentication required");
         }
-        boolean allowed = caller.getRoles().contains(UserRole.ADMIN)
-                || caller.getRoles().contains(UserRole.RECRUITER)
-                || caller.getRoles().contains(UserRole.ERM)
+        boolean allowed = caller.getRoles().contains(UserRole.OPERATIONS)
+                || caller.getRoles().contains(UserRole.OPERATIONS)
+                || caller.getRoles().contains(UserRole.OPERATIONS)
                 || caller.getRoles().contains(UserRole.HR_COMPLIANCE)
-                || caller.getRoles().contains(UserRole.TECHNICAL_EVALUATOR);
+                || caller.getRoles().contains(UserRole.TECHNICAL_SUPERVISOR);
         if (!allowed) {
             throw new ForbiddenException("Not allowed to view interview scorecards");
         }
@@ -409,11 +405,11 @@ public class InterviewService {
             throw new ForbiddenException("Authentication required");
         }
         Set<UserRole> roles = submitter.getRoles();
-        boolean privileged = roles.contains(UserRole.ADMIN) || roles.contains(UserRole.ERM);
+        boolean privileged = roles.contains(UserRole.OPERATIONS);
         boolean isInterviewer = interview.getInterviewer() != null
                 && submitter.getId().equals(interview.getInterviewer().getId());
         if (!privileged && !isInterviewer) {
-            throw new ForbiddenException("Only the assigned interviewer, ERM, or ADMIN can submit feedback");
+            throw new ForbiddenException("Only the assigned interviewer or OPERATIONS can submit feedback");
         }
     }
 

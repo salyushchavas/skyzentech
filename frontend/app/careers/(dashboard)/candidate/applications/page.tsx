@@ -57,7 +57,7 @@ interface ApplicationJourneyResponse {
 
 export default function CandidateApplicationsPage() {
   return (
-    <ProtectedRoute requiredRoles={['CANDIDATE']}>
+    <ProtectedRoute requiredRoles={['APPLICANT', 'INTERN']}>
       <DashboardLayout title="My Applications">
         <Suspense fallback={<Spinner />}>
           <ApplicationsJourneyList />

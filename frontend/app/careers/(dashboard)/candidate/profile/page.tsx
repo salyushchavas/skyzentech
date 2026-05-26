@@ -30,7 +30,7 @@ interface UserProfileResponse {
 
 export default function CandidateProfilePage() {
   return (
-    <ProtectedRoute requiredRoles={['CANDIDATE']}>
+    <ProtectedRoute requiredRoles={['APPLICANT', 'INTERN']}>
       <DashboardLayout title="Profile">
         <ProfileBody />
       </DashboardLayout>

@@ -32,25 +32,25 @@ public class EvaluatorController {
     private final EvaluatorListsService evaluatorListsService;
 
     @GetMapping("/dashboard")
-    @PreAuthorize("hasAnyRole('TECHNICAL_EVALUATOR', 'ADMIN')")
+    @PreAuthorize("hasAnyRole('OPERATIONS', 'TECHNICAL_SUPERVISOR')")
     public EvaluatorDashboardResponse dashboard(@AuthenticationPrincipal User caller) {
         return evaluatorListsService.dashboard(caller);
     }
 
     @GetMapping("/interns")
-    @PreAuthorize("hasAnyRole('TECHNICAL_EVALUATOR', 'ADMIN')")
+    @PreAuthorize("hasAnyRole('OPERATIONS', 'TECHNICAL_SUPERVISOR')")
     public List<EvaluatorInternResponse> interns(@AuthenticationPrincipal User caller) {
         return evaluatorListsService.listInterns(caller);
     }
 
     @GetMapping("/sessions")
-    @PreAuthorize("hasAnyRole('TECHNICAL_EVALUATOR', 'ADMIN')")
+    @PreAuthorize("hasAnyRole('OPERATIONS', 'TECHNICAL_SUPERVISOR')")
     public List<EvaluatorSessionResponse> sessions(@AuthenticationPrincipal User caller) {
         return evaluatorListsService.listSessions(caller);
     }
 
     @GetMapping("/assignments")
-    @PreAuthorize("hasAnyRole('TECHNICAL_EVALUATOR', 'ADMIN')")
+    @PreAuthorize("hasAnyRole('OPERATIONS', 'TECHNICAL_SUPERVISOR')")
     public List<EvaluatorAssignmentResponse> assignments(
             @AuthenticationPrincipal User caller,
             @RequestParam(required = false) WorkAssignmentStatus status) {

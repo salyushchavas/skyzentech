@@ -33,7 +33,7 @@ export default function AdaptiveCareersLayout({ title, children }: Props) {
     );
   }
 
-  const isCandidate = !!user && user.roles?.includes('CANDIDATE');
+  const isCandidate = !!user && (user.roles?.includes('APPLICANT') || user.roles?.includes('INTERN'));
 
   if (isCandidate) {
     return <DashboardLayout title={title}>{children}</DashboardLayout>;

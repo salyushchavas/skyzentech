@@ -52,7 +52,7 @@ interface EvaluatorDashboardResponse {
 
 export default function EvaluatorDashboardPage() {
   return (
-    <ProtectedRoute requiredRoles={['TECHNICAL_EVALUATOR', 'ADMIN']}>
+    <ProtectedRoute requiredRoles={['OPERATIONS', 'TECHNICAL_SUPERVISOR']}>
       <DashboardLayout title="Evaluator Dashboard">
         <EvaluatorBody />
       </DashboardLayout>

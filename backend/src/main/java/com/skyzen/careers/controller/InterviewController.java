@@ -35,7 +35,7 @@ public class InterviewController {
     private final InterviewService interviewService;
 
     @PostMapping
-    @PreAuthorize("hasAnyRole('ERM', 'ADMIN')")
+    @PreAuthorize("hasRole('OPERATIONS')")
     public ResponseEntity<InterviewResponse> schedule(
             @Valid @RequestBody ScheduleInterviewRequest req,
             @AuthenticationPrincipal User user) {
@@ -45,7 +45,7 @@ public class InterviewController {
     }
 
     @GetMapping
-    @PreAuthorize("hasAnyRole('RECRUITER', 'ERM', 'HR_COMPLIANCE', 'ADMIN', 'TECHNICAL_EVALUATOR')")
+    @PreAuthorize("hasAnyRole('OPERATIONS', 'HR_COMPLIANCE', 'TECHNICAL_SUPERVISOR')")
     public PagedResponse<InterviewSummaryResponse> list(
             @RequestParam(required = false) UUID applicationId,
             @RequestParam(required = false) InterviewStatus status,
@@ -65,13 +65,13 @@ public class InterviewController {
     }
 
     @GetMapping("/me")
-    @PreAuthorize("hasRole('CANDIDATE')")
+    @PreAuthorize("hasAnyRole('APPLICANT', 'INTERN')")
     public List<CandidateInterviewResponse> listMine(@AuthenticationPrincipal User user) {
         return interviewService.listForCandidate(user);
     }
 
     @GetMapping("/{id}")
-    @PreAuthorize("hasAnyRole('CANDIDATE', 'RECRUITER', 'ERM', 'HR_COMPLIANCE', 'TECHNICAL_EVALUATOR', 'ADMIN')")
+    @PreAuthorize("hasAnyRole('APPLICANT', 'INTERN', 'OPERATIONS', 'HR_COMPLIANCE', 'TECHNICAL_SUPERVISOR')")
     public InterviewResponse getOne(@PathVariable UUID id,
                                     @AuthenticationPrincipal User user) {
         // Service-side check enforces candidate ownership / interviewer / staff
@@ -80,7 +80,7 @@ public class InterviewController {
     }
 
     @PatchMapping("/{id}")
-    @PreAuthorize("hasAnyRole('ERM', 'ADMIN')")
+    @PreAuthorize("hasRole('OPERATIONS')")
     public InterviewResponse update(@PathVariable UUID id,
                                     @Valid @RequestBody UpdateInterviewRequest req,
                                     @AuthenticationPrincipal User user) {
@@ -88,7 +88,7 @@ public class InterviewController {
     }
 
     @PostMapping("/{id}/feedback")
-    @PreAuthorize("hasAnyRole('TECHNICAL_EVALUATOR', 'ERM', 'ADMIN')")
+    @PreAuthorize("hasAnyRole('OPERATIONS', 'TECHNICAL_SUPERVISOR')")
     public InterviewResponse submitFeedback(@PathVariable UUID id,
                                             @Valid @RequestBody SubmitFeedbackRequest req,
                                             @AuthenticationPrincipal User user) {
@@ -103,7 +103,7 @@ public class InterviewController {
      * bounds (1-5) on each dimension. Idempotent: same interviewer can resubmit.
      */
     @PostMapping("/{id}/scorecard")
-    @PreAuthorize("hasAnyRole('TECHNICAL_EVALUATOR', 'ERM', 'ADMIN')")
+    @PreAuthorize("hasAnyRole('OPERATIONS', 'TECHNICAL_SUPERVISOR')")
     public InterviewResponse submitScorecard(@PathVariable UUID id,
                                              @Valid @RequestBody SubmitScorecardRequest req,
                                              @AuthenticationPrincipal User user) {
@@ -111,7 +111,7 @@ public class InterviewController {
     }
 
     @PatchMapping("/{id}/status")
-    @PreAuthorize("hasAnyRole('ERM', 'ADMIN')")
+    @PreAuthorize("hasRole('OPERATIONS')")
     public InterviewResponse updateStatus(@PathVariable UUID id,
                                           @Valid @RequestBody UpdateStatusRequest req,
                                           @AuthenticationPrincipal User user) {
@@ -119,7 +119,7 @@ public class InterviewController {
     }
 
     @DeleteMapping("/{id}")
-    @PreAuthorize("hasAnyRole('ERM', 'ADMIN')")
+    @PreAuthorize("hasRole('OPERATIONS')")
     public ResponseEntity<Void> delete(@PathVariable UUID id,
                                        @AuthenticationPrincipal User user) {
         interviewService.delete(id, user);

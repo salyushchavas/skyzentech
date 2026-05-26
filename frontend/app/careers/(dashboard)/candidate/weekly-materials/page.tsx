@@ -16,7 +16,7 @@ import type { WeeklyMaterialResponse } from '@/types';
  */
 export default function CandidateWeeklyMaterialsPage() {
   return (
-    <ProtectedRoute requiredRoles={['CANDIDATE']}>
+    <ProtectedRoute requiredRoles={['APPLICANT', 'INTERN']}>
       <DashboardLayout title="Weekly Materials">
         <Body />
       </DashboardLayout>

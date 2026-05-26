@@ -19,7 +19,7 @@ const TYPE_LABEL: Record<string, string> = {
 
 export default function CandidateInterviewsPage() {
   return (
-    <ProtectedRoute requiredRoles={['CANDIDATE']}>
+    <ProtectedRoute requiredRoles={['APPLICANT', 'INTERN']}>
       <DashboardLayout title="My Interviews">
         <Body />
       </DashboardLayout>

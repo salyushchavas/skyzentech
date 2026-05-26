@@ -24,13 +24,13 @@ public class OnboardingController {
     private final CandidateRepository candidateRepository;
 
     @GetMapping("/me")
-    @PreAuthorize("hasRole('CANDIDATE')")
+    @PreAuthorize("hasAnyRole('APPLICANT', 'INTERN')")
     public List<OnboardingTaskResponse> myTasks(@AuthenticationPrincipal User user) {
         return onboardingService.getMyTasks(user);
     }
 
     @GetMapping("/me/summary")
-    @PreAuthorize("hasRole('CANDIDATE')")
+    @PreAuthorize("hasAnyRole('APPLICANT', 'INTERN')")
     public OnboardingSummaryResponse mySummary(@AuthenticationPrincipal User user) {
         return candidateRepository.findByUserId(user.getId())
                 .map(c -> onboardingService.getSummaryForCandidate(c.getId()))
@@ -45,7 +45,7 @@ public class OnboardingController {
     }
 
     @GetMapping("/candidate/{candidateId}")
-    @PreAuthorize("hasAnyRole('HR_COMPLIANCE', 'ERM', 'ADMIN')")
+    @PreAuthorize("hasAnyRole('OPERATIONS', 'HR_COMPLIANCE')")
     public List<OnboardingTaskResponse> tasksForCandidate(
             @PathVariable UUID candidateId,
             @AuthenticationPrincipal User user) {
@@ -53,13 +53,13 @@ public class OnboardingController {
     }
 
     @GetMapping("/candidate/{candidateId}/summary")
-    @PreAuthorize("hasAnyRole('HR_COMPLIANCE', 'ERM', 'ADMIN')")
+    @PreAuthorize("hasAnyRole('OPERATIONS', 'HR_COMPLIANCE')")
     public OnboardingSummaryResponse summaryForCandidate(@PathVariable UUID candidateId) {
         return onboardingService.getSummaryForCandidate(candidateId);
     }
 
     @PatchMapping("/tasks/{taskId}")
-    @PreAuthorize("hasAnyRole('CANDIDATE', 'HR_COMPLIANCE', 'ERM', 'ADMIN')")
+    @PreAuthorize("hasAnyRole('APPLICANT', 'INTERN', 'OPERATIONS', 'HR_COMPLIANCE')")
     public OnboardingTaskResponse updateStatus(
             @PathVariable UUID taskId,
             @Valid @RequestBody UpdateTaskStatusRequest req,
@@ -70,7 +70,7 @@ public class OnboardingController {
     }
 
     @PostMapping("/candidate/{candidateId}/seed")
-    @PreAuthorize("hasAnyRole('HR_COMPLIANCE', 'ADMIN')")
+    @PreAuthorize("hasAnyRole('OPERATIONS', 'HR_COMPLIANCE')")
     public List<OnboardingTaskResponse> seedManual(
             @PathVariable UUID candidateId,
             @AuthenticationPrincipal User user) {

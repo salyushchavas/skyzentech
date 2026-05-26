@@ -35,7 +35,7 @@ const DURATION_OPTIONS = [30, 45, 60, 90, 120];
 
 export default function NewInterviewPage() {
   return (
-    <ProtectedRoute requiredRoles={['ERM', 'ADMIN']}>
+    <ProtectedRoute requiredRoles={['OPERATIONS']}>
       <DashboardLayout title="Schedule Interview">
         <Form />
       </DashboardLayout>

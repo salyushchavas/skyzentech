@@ -24,7 +24,7 @@ const CATEGORY_ORDER: OnboardingCategory[] = [
 
 export default function CandidateOnboardingPage() {
   return (
-    <ProtectedRoute requiredRoles={['CANDIDATE']}>
+    <ProtectedRoute requiredRoles={['APPLICANT', 'INTERN']}>
       <DashboardLayout title="Onboarding">
         <Body />
       </DashboardLayout>

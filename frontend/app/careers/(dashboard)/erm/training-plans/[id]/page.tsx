@@ -27,7 +27,7 @@ const VALID_TABS: Tab[] = ['details', 'signatures', 'dso', 'history'];
 
 export default function ErmI983DetailPage() {
   return (
-    <ProtectedRoute requiredRoles={['ERM', 'HR_COMPLIANCE', 'ADMIN']}>
+    <ProtectedRoute requiredRoles={['OPERATIONS', 'HR_COMPLIANCE']}>
       <DashboardLayout title="I-983 Training Plan">
         <Body />
       </DashboardLayout>

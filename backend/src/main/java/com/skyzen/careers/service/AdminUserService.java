@@ -24,14 +24,19 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class AdminUserService {
 
-    /** Roles an admin may assign through the admin UI. CANDIDATE is excluded by design. */
+    /**
+     * Roles an OPERATIONS admin may assign through the admin UI. APPLICANT and
+     * INTERN are excluded by design — those are candidate-side roles set by
+     * registration and the engagement-activation flip, not by the admin.
+     */
     private static final Set<UserRole> STAFF_ROLES = EnumSet.of(
-            UserRole.RECRUITER,
-            UserRole.ERM,
+            UserRole.OPERATIONS,
             UserRole.HR_COMPLIANCE,
-            UserRole.TECHNICAL_EVALUATOR,
-            UserRole.ADMIN
-    );
+            UserRole.TECHNICAL_SUPERVISOR,
+            UserRole.EXECUTIVE);
+
+    private static final String STAFF_ROLE_MSG =
+            "role must be a STAFF role (OPERATIONS / HR_COMPLIANCE / TECHNICAL_SUPERVISOR / EXECUTIVE)";
 
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
@@ -52,8 +57,7 @@ public class AdminUserService {
     public AdminUserResponse create(CreateUserRequest req) {
         UserRole role = req.getRole();
         if (!STAFF_ROLES.contains(role)) {
-            throw new BadRequestException(
-                    "role must be a STAFF role (RECRUITER/ERM/HR_COMPLIANCE/TECHNICAL_EVALUATOR/ADMIN)");
+            throw new BadRequestException(STAFF_ROLE_MSG);
         }
         String email = req.getEmail().trim().toLowerCase();
         if (userRepository.existsByEmail(email)) {
@@ -73,18 +77,18 @@ public class AdminUserService {
     @Transactional
     public AdminUserResponse updateRole(UUID id, UpdateUserRoleRequest req, User caller) {
         if (!STAFF_ROLES.contains(req.getRole())) {
-            throw new BadRequestException(
-                    "role must be a STAFF role (RECRUITER/ERM/HR_COMPLIANCE/TECHNICAL_EVALUATOR/ADMIN)");
+            throw new BadRequestException(STAFF_ROLE_MSG);
         }
         User target = userRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("User not found: " + id));
 
-        // Self-lockout guard: the acting admin can't demote themselves out of the
-        // ADMIN role. Without this, the last admin could lock the org out by accident.
+        // Self-lockout guard: the acting OPERATIONS user can't demote themselves
+        // out of the OPERATIONS role. Without this, the last operator could lock
+        // the org out of admin actions by accident.
         if (caller != null && caller.getId().equals(target.getId())
-                && target.getRoles().contains(UserRole.ADMIN)
-                && req.getRole() != UserRole.ADMIN) {
-            throw new ConflictException("You cannot remove your own ADMIN role");
+                && target.getRoles().contains(UserRole.OPERATIONS)
+                && req.getRole() != UserRole.OPERATIONS) {
+            throw new ConflictException("You cannot remove your own OPERATIONS role");
         }
 
         target.setRoles(EnumSet.of(req.getRole()));

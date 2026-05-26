@@ -43,7 +43,7 @@ public class EngagementController {
     private final UserRepository userRepository;
 
     @GetMapping("/{id}")
-    @PreAuthorize("hasAnyRole('HR_COMPLIANCE', 'ERM', 'ADMIN', 'RECRUITER')")
+    @PreAuthorize("hasAnyRole('OPERATIONS', 'HR_COMPLIANCE')")
     @Transactional(readOnly = true)
     public EngagementResponse getOne(@PathVariable UUID id) {
         Engagement engagement = engagementRepository.findByIdWithGraph(id)
@@ -52,7 +52,7 @@ public class EngagementController {
     }
 
     @PostMapping("/{id}/mark-ready")
-    @PreAuthorize("hasAnyRole('HR_COMPLIANCE', 'ERM', 'ADMIN')")
+    @PreAuthorize("hasAnyRole('OPERATIONS', 'HR_COMPLIANCE')")
     @Transactional
     public ResponseEntity<EngagementResponse> markReady(
             @PathVariable UUID id,
@@ -64,7 +64,7 @@ public class EngagementController {
     }
 
     @PostMapping("/{id}/start")
-    @PreAuthorize("hasAnyRole('HR_COMPLIANCE', 'ERM', 'ADMIN')")
+    @PreAuthorize("hasAnyRole('OPERATIONS', 'HR_COMPLIANCE')")
     @Transactional
     public ResponseEntity<EngagementResponse> start(
             @PathVariable UUID id,

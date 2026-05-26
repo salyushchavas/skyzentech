@@ -66,8 +66,7 @@ import java.util.stream.Collectors;
 @Slf4j
 public class WeeklyMaterialService {
 
-    private static final Set<UserRole> ELEVATED_PUBLISHER_ROLES = EnumSet.of(
-            UserRole.ADMIN, UserRole.ERM);
+    private static final Set<UserRole> ELEVATED_PUBLISHER_ROLES = EnumSet.of(UserRole.OPERATIONS);
 
     private static final TypeReference<List<String>> URL_LIST_TYPE = new TypeReference<>() {};
 

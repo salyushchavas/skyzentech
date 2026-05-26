@@ -32,31 +32,26 @@ interface NavLink {
   href: string;
 }
 
+// PED §7 — six role-aware sidebars. APPLICANT + INTERN share the same nav;
+// pages adapt by engagement state. OPERATIONS is the collapsed union of the
+// old RECRUITER + ERM + ADMIN sidebars. EXECUTIVE is read-only leadership
+// (overview + audit log only).
+const CANDIDATE_LINKS: NavLink[] = [
+  { icon: LayoutDashboard, label: 'Dashboard', href: '/careers/candidate' },
+  { icon: Briefcase, label: 'Open Internships', href: '/careers/openings' },
+  { icon: FileCheck, label: 'My Applications', href: '/careers/candidate/applications' },
+  { icon: Video, label: 'Interviews', href: '/careers/candidate/interviews' },
+  { icon: FileSignature, label: 'Offers', href: '/careers/candidate/offers' },
+  { icon: ListChecks, label: 'Onboarding', href: '/careers/candidate/onboarding' },
+  { icon: ShieldCheck, label: 'I-9 Form', href: '/careers/candidate/i9' },
+  { icon: FileBadge, label: 'Training Plan', href: '/careers/candidate/training-plans' },
+  { icon: Hammer, label: 'My Work', href: '/careers/intern/work' },
+  { icon: UserCircle, label: 'Profile', href: '/careers/candidate/profile' },
+];
+
 const ROLE_LINKS: Record<UserRole, NavLink[]> = {
-  CANDIDATE: [
-    { icon: LayoutDashboard, label: 'Dashboard', href: '/careers/candidate' },
-    { icon: Briefcase, label: 'Open Internships', href: '/careers/openings' },
-    { icon: FileCheck, label: 'My Applications', href: '/careers/candidate/applications' },
-    { icon: Video, label: 'Interviews', href: '/careers/candidate/interviews' },
-    { icon: FileSignature, label: 'Offers', href: '/careers/candidate/offers' },
-    { icon: ListChecks, label: 'Onboarding', href: '/careers/candidate/onboarding' },
-    { icon: ShieldCheck, label: 'I-9 Form', href: '/careers/candidate/i9' },
-    { icon: FileBadge, label: 'Training Plan', href: '/careers/candidate/training-plans' },
-    { icon: Hammer, label: 'My Work', href: '/careers/intern/work' },
-    { icon: UserCircle, label: 'Profile', href: '/careers/candidate/profile' },
-  ],
-  RECRUITER: [
-    { icon: KanbanSquare, label: 'Pipeline', href: '/careers/recruiter' },
-    { icon: Users, label: 'Candidates', href: '/careers/recruiter/candidates' },
-  ],
-  ERM: [
-    { icon: LayoutDashboard, label: 'Dashboard', href: '/careers/erm' },
-    { icon: KanbanSquare, label: 'Pipeline', href: '/careers/recruiter' },
-    { icon: Video, label: 'Interviews', href: '/careers/erm/interviews' },
-    { icon: FileSignature, label: 'Offer Letters', href: '/careers/hr/offers' },
-    { icon: FileBadge, label: 'I-983 Plans', href: '/careers/erm/training-plans' },
-    { icon: Users, label: 'Supervised', href: '/careers/supervised' },
-  ],
+  APPLICANT: CANDIDATE_LINKS,
+  INTERN: CANDIDATE_LINKS,
   HR_COMPLIANCE: [
     { icon: LayoutDashboard, label: 'Dashboard', href: '/careers/hr' },
     { icon: ShieldCheck, label: 'Compliance', href: '/careers/hr/compliance' },
@@ -65,22 +60,30 @@ const ROLE_LINKS: Record<UserRole, NavLink[]> = {
     { icon: FolderArchive, label: 'Document Vault', href: '/careers/hr/documents' },
     { icon: Users, label: 'Supervised', href: '/careers/supervised' },
   ],
-  TECHNICAL_EVALUATOR: [
+  OPERATIONS: [
+    { icon: LayoutDashboard, label: 'Overview', href: '/careers/admin' },
+    { icon: KanbanSquare, label: 'Pipeline', href: '/careers/recruiter' },
+    { icon: Users, label: 'Candidates', href: '/careers/recruiter/candidates' },
+    { icon: Video, label: 'Interviews', href: '/careers/erm/interviews' },
+    { icon: FileSignature, label: 'Offer Letters', href: '/careers/hr/offers' },
+    { icon: FileBadge, label: 'I-983 Plans', href: '/careers/erm/training-plans' },
+    { icon: Briefcase, label: 'Postings', href: '/careers/admin/postings' },
+    { icon: Users, label: 'Supervised', href: '/careers/supervised' },
+    { icon: Users, label: 'Users', href: '/careers/admin/users' },
+    { icon: Building2, label: 'Entities', href: '/careers/admin/entities' },
+    { icon: ScrollText, label: 'Audit Log', href: '/careers/admin/audit-log' },
+  ],
+  TECHNICAL_SUPERVISOR: [
     { icon: LayoutDashboard, label: 'Dashboard', href: '/careers/evaluator' },
     { icon: Users, label: 'My Interns', href: '/careers/evaluator/interns' },
     { icon: CalendarClock, label: 'Sessions', href: '/careers/evaluator/sessions' },
     { icon: ClipboardList, label: 'Assignments', href: '/careers/evaluator/assignments' },
     { icon: Users, label: 'Supervised', href: '/careers/supervised' },
   ],
-  ADMIN: [
+  EXECUTIVE: [
     { icon: LayoutDashboard, label: 'Overview', href: '/careers/admin' },
-    { icon: Briefcase, label: 'Postings', href: '/careers/admin/postings' },
-    { icon: KanbanSquare, label: 'Pipeline', href: '/careers/recruiter' },
-    { icon: FileSignature, label: 'Offer Letters', href: '/careers/hr/offers' },
-    { icon: Users, label: 'Supervised', href: '/careers/supervised' },
-    { icon: Users, label: 'Users', href: '/careers/admin/users' },
-    { icon: Building2, label: 'Entities', href: '/careers/admin/entities' },
     { icon: ScrollText, label: 'Audit Log', href: '/careers/admin/audit-log' },
+    { icon: ShieldCheck, label: 'Compliance', href: '/careers/hr/compliance' },
   ],
 };
 
@@ -99,17 +102,19 @@ export default function DashboardSidebar({ onNavigate }: Props) {
   const pathname = usePathname() ?? '';
   const { user } = useAuth();
 
-  // Pick the first role we have nav for. CANDIDATE is the fallback so the
-  // sidebar still renders something while auth hydrates.
-  const role: UserRole = user?.roles?.find((r) => r in ROLE_LINKS) ?? 'CANDIDATE';
+  // Pick the first role we have nav for. APPLICANT is the fallback so the
+  // sidebar still renders something while auth hydrates (most logged-in users
+  // pre-hire fall into APPLICANT).
+  const role: UserRole = user?.roles?.find((r) => r in ROLE_LINKS) ?? 'APPLICANT';
   const baseLinks = ROLE_LINKS[role];
 
   // Phase 3 step 6 — hide the Training Plan tile for non-STEM-OPT candidates.
   // STEM_OPT is the source of truth (snapshot on the engagement, mirrored by
   // candidate.expectedTrack on the user payload). Candidates with no track
   // yet also have the tile hidden — they haven't asked for STEM_OPT routing.
+  const isCandidate = role === 'APPLICANT' || role === 'INTERN';
   const links = baseLinks.filter((l) => {
-    if (role !== 'CANDIDATE') return true;
+    if (!isCandidate) return true;
     if (l.href !== '/careers/candidate/training-plans') return true;
     return user?.expectedTrack === 'STEM_OPT';
   });

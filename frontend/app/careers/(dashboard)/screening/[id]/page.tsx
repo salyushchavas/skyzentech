@@ -17,7 +17,7 @@ import type {
 
 export default function CandidateScreeningPage() {
   return (
-    <ProtectedRoute requiredRoles={['CANDIDATE']}>
+    <ProtectedRoute requiredRoles={['APPLICANT', 'INTERN']}>
       <DashboardLayout title="Complete screening">
         <ScreeningForm />
       </DashboardLayout>

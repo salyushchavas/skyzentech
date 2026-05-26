@@ -41,7 +41,7 @@ function StatusBadge({ status }: { status: JobPostingStatus }) {
 
 export default function AdminPostingsPage() {
   return (
-    <ProtectedRoute requiredRoles={['ADMIN']}>
+    <ProtectedRoute requiredRoles={['OPERATIONS']}>
       <DashboardLayout title="Job Postings">
         <PostingsTable />
       </DashboardLayout>

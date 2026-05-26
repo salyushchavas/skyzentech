@@ -19,7 +19,7 @@ import type {
 
 export default function CandidateTrainingPlanDetailPage() {
   return (
-    <ProtectedRoute requiredRoles={['CANDIDATE']}>
+    <ProtectedRoute requiredRoles={['APPLICANT', 'INTERN']}>
       <DashboardLayout title="Training Plan">
         <Body />
       </DashboardLayout>

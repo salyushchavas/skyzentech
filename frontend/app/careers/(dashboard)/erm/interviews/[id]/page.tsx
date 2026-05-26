@@ -20,13 +20,13 @@ import type {
 } from '@/types';
 
 const READ_ROLES: UserRole[] = [
-  'ERM',
-  'ADMIN',
-  'RECRUITER',
+  'OPERATIONS',
+  'OPERATIONS',
+  'OPERATIONS',
   'HR_COMPLIANCE',
-  'TECHNICAL_EVALUATOR',
+  'TECHNICAL_SUPERVISOR',
 ];
-const ADMIN_ERM: UserRole[] = ['ERM', 'ADMIN'];
+const ADMIN_ERM: UserRole[] = ['OPERATIONS'];
 
 const TYPE_LABEL: Record<string, string> = {
   INITIAL_SCREEN: 'Initial Screen',

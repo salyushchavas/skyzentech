@@ -63,7 +63,7 @@ function StarRow({ value }: { value: number }) {
 
 export default function EvaluatorSessionsPage() {
   return (
-    <ProtectedRoute requiredRoles={['TECHNICAL_EVALUATOR', 'ADMIN']}>
+    <ProtectedRoute requiredRoles={['OPERATIONS', 'TECHNICAL_SUPERVISOR']}>
       <DashboardLayout title="Sessions">
         <SessionsList />
       </DashboardLayout>

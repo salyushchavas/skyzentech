@@ -63,7 +63,7 @@ const STATUS_ORDER = [
 
 export default function AdminOverviewPage() {
   return (
-    <ProtectedRoute requiredRoles={['ADMIN']}>
+    <ProtectedRoute requiredRoles={['OPERATIONS']}>
       <DashboardLayout title="Admin Overview">
         <Overview />
       </DashboardLayout>

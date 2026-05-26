@@ -10,13 +10,18 @@ export type ApiError = {
   details?: unknown;
 };
 
+// PED §7 — six dashboards, six roles. APPLICANT is the pre-hire state;
+// INTERN is the post-hire state. Backend flips APPLICANT → INTERN inside
+// EngagementService.applyTransition when an engagement goes ACTIVE.
+// OPERATIONS holds the former ADMIN/RECRUITER/ERM powers (collapsed).
+// EXECUTIVE is read-only leadership.
 export type UserRole =
-  | 'CANDIDATE'
-  | 'RECRUITER'
-  | 'ERM'
+  | 'APPLICANT'
+  | 'INTERN'
   | 'HR_COMPLIANCE'
-  | 'TECHNICAL_EVALUATOR'
-  | 'ADMIN';
+  | 'OPERATIONS'
+  | 'TECHNICAL_SUPERVISOR'
+  | 'EXECUTIVE';
 
 // Phase 1.4 — candidate's neutral self-attestation on expected work-auth
 // track. NO documents are collected at this stage; this is candidate self-

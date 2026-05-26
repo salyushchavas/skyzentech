@@ -34,11 +34,15 @@ public class RoleTestUsersSeeder implements CommandLineRunner {
 
     private record TestUser(String email, String password, String fullName, UserRole role) {}
 
+    // Email aliases retained for muscle memory — recruiter@ / erm@ still
+    // exist but both now seed OPERATIONS (PED §7 collapse). evaluator@ is now
+    // TECHNICAL_SUPERVISOR. executive@ is new (read-only leadership).
     private static final List<TestUser> TEST_USERS = List.of(
-            new TestUser("recruiter@skyzen.test", "recruiter12345", "Demo Recruiter", UserRole.RECRUITER),
-            new TestUser("erm@skyzen.test", "erm12345", "Demo ERM", UserRole.ERM),
-            new TestUser("hr@skyzen.test", "hr12345", "Demo HR Compliance", UserRole.HR_COMPLIANCE),
-            new TestUser("evaluator@skyzen.test", "evaluator12345", "Demo Technical Evaluator", UserRole.TECHNICAL_EVALUATOR)
+            new TestUser("recruiter@skyzen.test", "recruiter12345", "Demo Operations (ex-Recruiter)", UserRole.OPERATIONS),
+            new TestUser("erm@skyzen.test",       "erm12345",       "Demo Operations (ex-ERM)",       UserRole.OPERATIONS),
+            new TestUser("hr@skyzen.test",        "hr12345",        "Demo HR / Compliance",            UserRole.HR_COMPLIANCE),
+            new TestUser("evaluator@skyzen.test", "evaluator12345", "Demo Technical Supervisor",       UserRole.TECHNICAL_SUPERVISOR),
+            new TestUser("executive@skyzen.test", "executive12345", "Demo Executive",                  UserRole.EXECUTIVE)
     );
 
     @Override

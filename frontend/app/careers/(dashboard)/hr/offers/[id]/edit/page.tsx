@@ -23,7 +23,7 @@ const FREQ_OPTIONS: { value: CompensationFrequency; label: string }[] = [
 
 export default function EditOfferPage() {
   return (
-    <ProtectedRoute requiredRoles={['HR_COMPLIANCE', 'ERM', 'ADMIN']}>
+    <ProtectedRoute requiredRoles={['OPERATIONS', 'HR_COMPLIANCE']}>
       <DashboardLayout title="Edit Offer">
         <Body />
       </DashboardLayout>

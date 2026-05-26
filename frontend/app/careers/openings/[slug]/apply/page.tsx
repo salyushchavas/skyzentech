@@ -12,7 +12,7 @@ import type { JobPostingResponse, ResumeResponse } from '@/types';
 
 export default function ApplyPage() {
   return (
-    <ProtectedRoute requiredRoles={['CANDIDATE']}>
+    <ProtectedRoute requiredRoles={['APPLICANT', 'INTERN']}>
       <AdaptiveCareersLayout title="Apply">
         <ApplyFlow />
       </AdaptiveCareersLayout>

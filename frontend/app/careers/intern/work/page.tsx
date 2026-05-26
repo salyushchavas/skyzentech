@@ -174,7 +174,7 @@ function formatHours(h: number | string | null | undefined): string {
 
 export default function MyWorkPage() {
   return (
-    <ProtectedRoute requiredRoles={['CANDIDATE']}>
+    <ProtectedRoute requiredRoles={['APPLICANT', 'INTERN']}>
       <DashboardLayout title="My Work">
         <MyWorkList />
       </DashboardLayout>

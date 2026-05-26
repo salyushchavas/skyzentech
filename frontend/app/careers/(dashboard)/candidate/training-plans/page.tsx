@@ -15,7 +15,7 @@ import type { I983PlanResponse } from '@/types';
 
 export default function CandidateTrainingPlansPage() {
   return (
-    <ProtectedRoute requiredRoles={['CANDIDATE']}>
+    <ProtectedRoute requiredRoles={['APPLICANT', 'INTERN']}>
       <DashboardLayout title="Training Plan">
         <Body />
       </DashboardLayout>

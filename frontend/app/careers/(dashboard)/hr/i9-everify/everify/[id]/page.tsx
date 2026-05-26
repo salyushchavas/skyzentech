@@ -52,7 +52,7 @@ const STATUS_LABEL: Record<EVerifyStatus, string> = {
 
 export default function EVerifyDetailPage() {
   return (
-    <ProtectedRoute requiredRoles={['HR_COMPLIANCE', 'ERM', 'ADMIN']}>
+    <ProtectedRoute requiredRoles={['OPERATIONS', 'HR_COMPLIANCE']}>
       <DashboardLayout title="E-Verify Case">
         <Body />
       </DashboardLayout>
@@ -71,7 +71,7 @@ function Body() {
 
   const { user } = useAuth();
   const canWrite =
-    user?.roles?.some((r) => r === 'HR_COMPLIANCE' || r === 'ADMIN') ?? false;
+    user?.roles?.some((r) => r === 'HR_COMPLIANCE' || r === 'OPERATIONS') ?? false;
 
   const [caseData, setCaseData] = useState<EVerifyCaseResponse | null>(null);
   const [i9, setI9] = useState<I9FormResponse | null>(null);

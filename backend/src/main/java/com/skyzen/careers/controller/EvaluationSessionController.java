@@ -32,13 +32,13 @@ public class EvaluationSessionController {
     private final EvaluationSessionService evaluationSessionService;
 
     @GetMapping("/evaluators")
-    @PreAuthorize("hasAnyRole('ERM', 'TECHNICAL_EVALUATOR', 'HR_COMPLIANCE', 'ADMIN')")
+    @PreAuthorize("hasAnyRole('OPERATIONS', 'HR_COMPLIANCE', 'TECHNICAL_SUPERVISOR')")
     public List<EvaluatorOption> listEvaluators() {
         return evaluationSessionService.listEvaluators();
     }
 
     @PostMapping("/interns/{candidateId}/assign-evaluator")
-    @PreAuthorize("hasAnyRole('ERM', 'ADMIN')")
+    @PreAuthorize("hasRole('OPERATIONS')")
     public InternSummaryResponse assignEvaluator(
             @PathVariable UUID candidateId,
             @Valid @RequestBody AssignEvaluatorRequest req) {
@@ -46,7 +46,7 @@ public class EvaluationSessionController {
     }
 
     @PostMapping("/interns/{candidateId}/evaluations")
-    @PreAuthorize("hasAnyRole('ERM', 'TECHNICAL_EVALUATOR', 'ADMIN')")
+    @PreAuthorize("hasAnyRole('OPERATIONS', 'TECHNICAL_SUPERVISOR')")
     public ResponseEntity<EvaluationSessionResponse> schedule(
             @PathVariable UUID candidateId,
             @Valid @RequestBody ScheduleEvaluationRequest req) {
@@ -56,26 +56,26 @@ public class EvaluationSessionController {
     }
 
     @GetMapping("/interns/{candidateId}/evaluations")
-    @PreAuthorize("hasAnyRole('ERM', 'TECHNICAL_EVALUATOR', 'HR_COMPLIANCE', 'ADMIN')")
+    @PreAuthorize("hasAnyRole('OPERATIONS', 'HR_COMPLIANCE', 'TECHNICAL_SUPERVISOR')")
     public List<EvaluationSessionResponse> listForIntern(@PathVariable UUID candidateId) {
         return evaluationSessionService.listForIntern(candidateId);
     }
 
     @PostMapping("/evaluations/{id}/complete")
-    @PreAuthorize("hasAnyRole('TECHNICAL_EVALUATOR', 'ERM', 'ADMIN')")
+    @PreAuthorize("hasAnyRole('OPERATIONS', 'TECHNICAL_SUPERVISOR')")
     public EvaluationSessionResponse complete(@PathVariable UUID id,
                                               @Valid @RequestBody CompleteEvaluationRequest req) {
         return evaluationSessionService.complete(id, req);
     }
 
     @PostMapping("/evaluations/{id}/miss")
-    @PreAuthorize("hasAnyRole('ERM', 'TECHNICAL_EVALUATOR', 'ADMIN')")
+    @PreAuthorize("hasAnyRole('OPERATIONS', 'TECHNICAL_SUPERVISOR')")
     public EvaluationSessionResponse miss(@PathVariable UUID id) {
         return evaluationSessionService.miss(id);
     }
 
     @GetMapping("/my/evaluations")
-    @PreAuthorize("hasRole('CANDIDATE')")
+    @PreAuthorize("hasAnyRole('APPLICANT', 'INTERN')")
     public List<EvaluationSessionResponse> listMine(@AuthenticationPrincipal User caller) {
         return evaluationSessionService.listForCandidateUser(caller);
     }

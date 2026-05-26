@@ -54,7 +54,7 @@ const SHORTLIST_LOCKED: ReadonlyArray<ApplicationStatus> = [
 
 export default function RecruiterReviewPage() {
   return (
-    <ProtectedRoute requiredRoles={['RECRUITER', 'ERM', 'ADMIN']}>
+    <ProtectedRoute requiredRoles={['OPERATIONS']}>
       <DashboardLayout title="Review applicant">
         <Body />
       </DashboardLayout>

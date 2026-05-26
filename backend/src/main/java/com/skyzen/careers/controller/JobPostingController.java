@@ -47,7 +47,7 @@ public class JobPostingController {
      * surface counts without an extra round-trip.
      */
     @GetMapping("/admin/all")
-    @PreAuthorize("hasAnyRole('ADMIN', 'ERM')")
+    @PreAuthorize("hasRole('OPERATIONS')")
     public PagedResponse<JobPostingResponse> listAll(
             @RequestParam(required = false) String search,
             @RequestParam(required = false) com.skyzen.careers.enums.JobPostingStatus status,
@@ -67,7 +67,7 @@ public class JobPostingController {
     }
 
     @PostMapping
-    @PreAuthorize("hasAnyRole('ADMIN', 'ERM')")
+    @PreAuthorize("hasRole('OPERATIONS')")
     public ResponseEntity<JobPostingResponse> create(
             @Valid @RequestBody JobPostingCreateRequest req,
             @AuthenticationPrincipal User user) {
@@ -77,14 +77,14 @@ public class JobPostingController {
     }
 
     @PutMapping("/{id}")
-    @PreAuthorize("hasAnyRole('ADMIN', 'ERM')")
+    @PreAuthorize("hasRole('OPERATIONS')")
     public JobPostingResponse update(@PathVariable UUID id,
                                      @Valid @RequestBody JobPostingUpdateRequest req) {
         return jobPostingService.update(id, req);
     }
 
     @PatchMapping("/{id}/status")
-    @PreAuthorize("hasAnyRole('ADMIN', 'ERM')")
+    @PreAuthorize("hasRole('OPERATIONS')")
     public JobPostingResponse updateStatus(@PathVariable UUID id,
                                            @Valid @RequestBody JobPostingStatusUpdateRequest req) {
         return jobPostingService.updateStatus(id, req.getStatus());

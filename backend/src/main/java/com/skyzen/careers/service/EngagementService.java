@@ -14,8 +14,10 @@ import com.skyzen.careers.entity.User;
 import com.skyzen.careers.enums.EngagementStatus;
 import com.skyzen.careers.enums.WorkAuthTrack;
 import com.skyzen.careers.exception.BadRequestException;
+import com.skyzen.careers.enums.UserRole;
 import com.skyzen.careers.repository.AuditLogRepository;
 import com.skyzen.careers.repository.EngagementRepository;
+import com.skyzen.careers.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -53,6 +55,7 @@ public class EngagementService {
 
     private final EngagementRepository engagementRepository;
     private final AuditLogRepository auditLogRepository;
+    private final UserRepository userRepository;
     private final ObjectMapper objectMapper;
 
     /**
@@ -260,7 +263,57 @@ public class EngagementService {
         }
         Engagement saved = engagementRepository.save(engagement);
         writeStatusAudit(saved.getId(), auditAction, actorId, from, target);
+
+        // Role flip on hire — the canonical "engagement goes ACTIVE" moment.
+        // APPLICANT becomes INTERN. We don't unwind on COMPLETED/TERMINATED:
+        // once someone has been an intern, they keep INTERN until an admin
+        // explicitly changes the role (audit / forensic posture).
+        if (target == EngagementStatus.ACTIVE) {
+            promoteApplicantToIntern(saved, actorId);
+        }
         return saved;
+    }
+
+    /**
+     * Promote the engaged candidate's user from APPLICANT → INTERN. Idempotent:
+     * if the user is already INTERN, no-op. Wrapped in a defensive try so a
+     * stray missing user / null candidate cannot derail the ACTIVE transition.
+     * Writes a USER_ROLE_FLIP audit row so the change is forensically visible.
+     */
+    private void promoteApplicantToIntern(Engagement engagement, UUID actorId) {
+        try {
+            if (engagement.getCandidate() == null
+                    || engagement.getCandidate().getUser() == null) {
+                return;
+            }
+            UUID userId = engagement.getCandidate().getUser().getId();
+            User user = userRepository.findById(userId).orElse(null);
+            if (user == null || user.getRoles() == null) return;
+            Set<UserRole> roles = user.getRoles();
+            boolean wasApplicant = roles.remove(UserRole.APPLICANT);
+            boolean alreadyIntern = roles.contains(UserRole.INTERN);
+            if (alreadyIntern && !wasApplicant) {
+                return; // already promoted on a previous boot / activation
+            }
+            roles.add(UserRole.INTERN);
+            user.setRoles(roles);
+            userRepository.save(user);
+            AuditLog entry = AuditLog.builder()
+                    .entityType("User")
+                    .entityId(user.getId())
+                    .action("USER_ROLE_FLIP")
+                    .userId(actorId)
+                    .afterJson("{\"from\":\"APPLICANT\",\"to\":\"INTERN\","
+                            + "\"engagementId\":\"" + engagement.getId() + "\"}")
+                    .build();
+            auditLogRepository.save(entry);
+            log.info("Role flip APPLICANT→INTERN on engagement ACTIVE: user {}",
+                    user.getEmail());
+        } catch (Exception e) {
+            // Non-fatal — the engagement transition still committed. Log + move on.
+            log.warn("Role flip APPLICANT→INTERN failed for engagement {}: {}",
+                    engagement.getId(), e.getMessage(), e);
+        }
     }
 
     private void writeStatusAudit(UUID engagementId,

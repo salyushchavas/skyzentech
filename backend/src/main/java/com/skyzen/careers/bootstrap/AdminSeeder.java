@@ -14,13 +14,19 @@ import org.springframework.stereotype.Component;
 import java.util.EnumSet;
 
 /**
- * Bootstraps the initial admin user from {@code admin.email}/{@code admin.password}
- * properties. Idempotent — skips when any user with the ADMIN role already exists.
+ * Bootstraps the initial OPERATIONS user from {@code admin.email} /
+ * {@code admin.password} properties. Idempotent — skips when any user with
+ * the OPERATIONS role already exists.
  *
- * Body is wrapped in try/catch so a seeding failure logs a WARN and never crashes
- * startup. No class-level {@code @Transactional}: the single save runs in its own
- * short auto-transaction, avoiding the commit-time {@code UnexpectedRollbackException}
- * trap where Spring rolls back after we've caught the underlying JPA exception.
+ * Per PED §7, OPERATIONS holds the former ADMIN superuser powers; there is
+ * no separate ADMIN role. Env vars remain {@code ADMIN_EMAIL} /
+ * {@code ADMIN_PASSWORD} for backwards-compat with existing Railway config.
+ *
+ * Body is wrapped in try/catch so a seeding failure logs a WARN and never
+ * crashes startup. No class-level {@code @Transactional}: the single save
+ * runs in its own short auto-transaction, avoiding the commit-time
+ * {@code UnexpectedRollbackException} trap where Spring rolls back after we've
+ * caught the underlying JPA exception.
  */
 @Component
 @Order(1)
@@ -41,7 +47,7 @@ public class AdminSeeder implements CommandLineRunner {
     public void run(String... args) {
         try {
             boolean adminExists = userRepository.findAll().stream()
-                    .anyMatch(u -> u.getRoles().contains(UserRole.ADMIN));
+                    .anyMatch(u -> u.getRoles().contains(UserRole.OPERATIONS));
             if (adminExists) {
                 return;
             }
@@ -49,12 +55,13 @@ public class AdminSeeder implements CommandLineRunner {
             User admin = User.builder()
                     .email(adminEmail)
                     .passwordHash(passwordEncoder.encode(adminPassword))
-                    .fullName("Bootstrap Admin")
-                    .roles(EnumSet.of(UserRole.ADMIN))
+                    .fullName("Bootstrap Operator")
+                    .roles(EnumSet.of(UserRole.OPERATIONS))
                     .build();
             userRepository.save(admin);
 
-            log.warn("Bootstrap admin created — CHANGE PASSWORD IMMEDIATELY in any non-dev environment");
+            log.warn("Bootstrap OPERATIONS user created — CHANGE PASSWORD IMMEDIATELY "
+                    + "in any non-dev environment");
         } catch (Exception e) {
             log.warn("Admin seeder failed (non-fatal): {}", e.getMessage(), e);
         }

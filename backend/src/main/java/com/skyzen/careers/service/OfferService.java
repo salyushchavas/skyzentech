@@ -77,16 +77,11 @@ public class OfferService {
     private static final Set<ApplicationStatus> OFFER_ALLOWED_FROM = EnumSet.of(
             ApplicationStatus.INTERVIEWED,
             ApplicationStatus.SELECTED_CONDITIONAL,
-            ApplicationStatus.OFFERED // existing offer being revised / re-sent
-    );
+            // existing offer being revised / re-sent
+            ApplicationStatus.OFFERED);
 
     /** Privileged staff roles that get the full OfferResponse view. */
-    private static final Set<UserRole> STAFF_ROLES = EnumSet.of(
-            UserRole.ADMIN,
-            UserRole.ERM,
-            UserRole.HR_COMPLIANCE,
-            UserRole.RECRUITER
-    );
+    private static final Set<UserRole> STAFF_ROLES = EnumSet.of(UserRole.OPERATIONS, UserRole.HR_COMPLIANCE);
 
     private final OfferRepository offerRepository;
     private final ApplicationRepository applicationRepository;
@@ -541,7 +536,7 @@ public class OfferService {
         if (user == null) return false;
         Set<UserRole> roles = user.getRoles();
         if (roles == null) return false;
-        boolean isCandidate = roles.contains(UserRole.CANDIDATE);
+        boolean isCandidate = (roles.contains(UserRole.APPLICANT) || roles.contains(UserRole.INTERN));
         boolean isStaff = roles.stream().anyMatch(STAFF_ROLES::contains);
         return isCandidate && !isStaff;
     }

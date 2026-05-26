@@ -33,7 +33,7 @@ public class I983Controller {
     private final I983Service service;
 
     @PostMapping
-    @PreAuthorize("hasAnyRole('ERM', 'HR_COMPLIANCE', 'ADMIN')")
+    @PreAuthorize("hasAnyRole('OPERATIONS', 'HR_COMPLIANCE')")
     public ResponseEntity<I983PlanResponse> create(
             @Valid @RequestBody CreateI983Request req,
             @AuthenticationPrincipal User user) {
@@ -43,7 +43,7 @@ public class I983Controller {
     }
 
     @GetMapping
-    @PreAuthorize("hasAnyRole('HR_COMPLIANCE', 'ERM', 'ADMIN')")
+    @PreAuthorize("hasAnyRole('OPERATIONS', 'HR_COMPLIANCE')")
     public PagedResponse<I983SummaryResponse> list(
             @RequestParam(required = false) I983Status status,
             @RequestParam(required = false) UUID candidateId,
@@ -58,19 +58,19 @@ public class I983Controller {
     }
 
     @GetMapping("/me")
-    @PreAuthorize("hasRole('CANDIDATE')")
+    @PreAuthorize("hasAnyRole('APPLICANT', 'INTERN')")
     public List<I983PlanResponse> getMyPlans(@AuthenticationPrincipal User user) {
         return service.getMyPlans(user);
     }
 
     @GetMapping("/candidate/{candidateId}")
-    @PreAuthorize("hasAnyRole('HR_COMPLIANCE', 'ERM', 'ADMIN')")
+    @PreAuthorize("hasAnyRole('OPERATIONS', 'HR_COMPLIANCE')")
     public List<I983PlanResponse> getForCandidate(@PathVariable UUID candidateId) {
         return service.getForCandidate(candidateId);
     }
 
     @GetMapping("/{id}")
-    @PreAuthorize("hasAnyRole('CANDIDATE', 'ERM', 'HR_COMPLIANCE', 'ADMIN')")
+    @PreAuthorize("hasAnyRole('APPLICANT', 'INTERN', 'OPERATIONS', 'HR_COMPLIANCE')")
     public I983PlanResponse getOne(@PathVariable UUID id,
                                    @AuthenticationPrincipal User user) {
         // Service-side ownership check still gates candidate access.
@@ -78,7 +78,7 @@ public class I983Controller {
     }
 
     @PatchMapping("/{id}")
-    @PreAuthorize("hasAnyRole('ERM', 'HR_COMPLIANCE', 'ADMIN')")
+    @PreAuthorize("hasAnyRole('OPERATIONS', 'HR_COMPLIANCE')")
     public I983PlanResponse update(@PathVariable UUID id,
                                    @Valid @RequestBody UpdateI983Request req,
                                    @AuthenticationPrincipal User user) {
@@ -86,21 +86,21 @@ public class I983Controller {
     }
 
     @PostMapping("/{id}/sign-employer")
-    @PreAuthorize("hasAnyRole('ERM', 'HR_COMPLIANCE', 'ADMIN')")
+    @PreAuthorize("hasAnyRole('OPERATIONS', 'HR_COMPLIANCE')")
     public I983PlanResponse signEmployer(@PathVariable UUID id,
                                          @AuthenticationPrincipal User user) {
         return service.toResponse(service.signEmployer(id, user));
     }
 
     @PostMapping("/{id}/sign-student")
-    @PreAuthorize("hasRole('CANDIDATE')")
+    @PreAuthorize("hasAnyRole('APPLICANT', 'INTERN')")
     public I983PlanResponse signStudent(@PathVariable UUID id,
                                         @AuthenticationPrincipal User user) {
         return service.toResponse(service.signStudent(id, user));
     }
 
     @PostMapping("/{id}/submit-to-dso")
-    @PreAuthorize("hasAnyRole('ERM', 'HR_COMPLIANCE', 'ADMIN')")
+    @PreAuthorize("hasAnyRole('OPERATIONS', 'HR_COMPLIANCE')")
     public I983PlanResponse submitToDso(
             @PathVariable UUID id,
             @Valid @RequestBody(required = false) SubmitToDsoRequest req,
@@ -109,7 +109,7 @@ public class I983Controller {
     }
 
     @PostMapping("/{id}/dso-response")
-    @PreAuthorize("hasAnyRole('ERM', 'HR_COMPLIANCE', 'ADMIN')")
+    @PreAuthorize("hasAnyRole('OPERATIONS', 'HR_COMPLIANCE')")
     public I983PlanResponse recordDsoResponse(
             @PathVariable UUID id,
             @Valid @RequestBody DsoResponseRequest req,
@@ -118,7 +118,7 @@ public class I983Controller {
     }
 
     @GetMapping("/{id}/history")
-    @PreAuthorize("hasAnyRole('CANDIDATE', 'ERM', 'HR_COMPLIANCE', 'ADMIN')")
+    @PreAuthorize("hasAnyRole('APPLICANT', 'INTERN', 'OPERATIONS', 'HR_COMPLIANCE')")
     public List<I983HistoryEntryResponse> getHistory(@PathVariable UUID id,
                                                      @AuthenticationPrincipal User user) {
         return service.getHistory(id, user);

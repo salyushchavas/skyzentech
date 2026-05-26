@@ -35,7 +35,7 @@ const VALID_TABS: Tab[] = ['section1', 'section2', 'history'];
 
 export default function HrI9DetailPage() {
   return (
-    <ProtectedRoute requiredRoles={['HR_COMPLIANCE', 'ADMIN', 'ERM']}>
+    <ProtectedRoute requiredRoles={['OPERATIONS', 'HR_COMPLIANCE']}>
       <DashboardLayout title="I-9 Form">
         <Body />
       </DashboardLayout>
@@ -54,9 +54,9 @@ function Body() {
 
   const router = useRouter();
   const { user } = useAuth();
-  const isAdmin = user?.roles?.includes('ADMIN') ?? false;
+  const isAdmin = user?.roles?.includes('OPERATIONS') ?? false;
   const canCreateEVerify =
-    user?.roles?.some((r) => r === 'HR_COMPLIANCE' || r === 'ADMIN') ?? false;
+    user?.roles?.some((r) => r === 'HR_COMPLIANCE' || r === 'OPERATIONS') ?? false;
 
   const [form, setForm] = useState<I9FormResponse | null>(null);
   const [history, setHistory] = useState<I9HistoryEntryResponse[] | null>(null);

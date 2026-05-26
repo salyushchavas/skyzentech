@@ -36,7 +36,7 @@ public class ScreeningController {
     private final ScreeningService screeningService;
 
     @PostMapping("/applications/{applicationId}/screening/send")
-    @PreAuthorize("hasAnyRole('RECRUITER', 'ERM', 'ADMIN')")
+    @PreAuthorize("hasRole('OPERATIONS')")
     public ResponseEntity<ScreeningSummaryResponse> send(
             @PathVariable UUID applicationId,
             @AuthenticationPrincipal User caller) {
@@ -44,7 +44,7 @@ public class ScreeningController {
     }
 
     @GetMapping("/screening/{id}")
-    @PreAuthorize("hasRole('CANDIDATE')")
+    @PreAuthorize("hasAnyRole('APPLICANT', 'INTERN')")
     public ScreeningCandidateResponse getForCandidate(
             @PathVariable UUID id,
             @AuthenticationPrincipal User caller) {
@@ -52,7 +52,7 @@ public class ScreeningController {
     }
 
     @PostMapping("/screening/{id}/submit")
-    @PreAuthorize("hasRole('CANDIDATE')")
+    @PreAuthorize("hasAnyRole('APPLICANT', 'INTERN')")
     public ScreeningSummaryResponse submit(
             @PathVariable UUID id,
             @Valid @RequestBody ScreeningSubmitRequest req,
@@ -61,7 +61,7 @@ public class ScreeningController {
     }
 
     @GetMapping("/applications/{applicationId}/screening")
-    @PreAuthorize("hasAnyRole('RECRUITER', 'ERM', 'ADMIN', 'HR_COMPLIANCE')")
+    @PreAuthorize("hasAnyRole('OPERATIONS', 'HR_COMPLIANCE')")
     public ScreeningStaffResponse getForStaff(
             @PathVariable UUID applicationId,
             @AuthenticationPrincipal User caller) {

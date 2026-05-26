@@ -43,7 +43,7 @@ const MS_30_DAYS = 30 * 86_400_000;
 
 export default function HrOffersPage() {
   return (
-    <ProtectedRoute requiredRoles={['HR_COMPLIANCE', 'ERM', 'ADMIN']}>
+    <ProtectedRoute requiredRoles={['OPERATIONS', 'HR_COMPLIANCE']}>
       <DashboardLayout title="Offer Letters">
         <Suspense fallback={<Spinner />}>
           <OffersBody />

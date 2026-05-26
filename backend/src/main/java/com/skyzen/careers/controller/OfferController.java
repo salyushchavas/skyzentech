@@ -37,14 +37,12 @@ import java.util.UUID;
 public class OfferController {
 
     /** Staff roles that get the full OfferResponse view. */
-    private static final Set<UserRole> STAFF_ROLES = EnumSet.of(
-            UserRole.ADMIN, UserRole.ERM, UserRole.HR_COMPLIANCE, UserRole.RECRUITER
-    );
+    private static final Set<UserRole> STAFF_ROLES = EnumSet.of(UserRole.OPERATIONS, UserRole.HR_COMPLIANCE);
 
     private final OfferService offerService;
 
     @PostMapping
-    @PreAuthorize("hasAnyRole('ERM', 'HR_COMPLIANCE', 'ADMIN')")
+    @PreAuthorize("hasAnyRole('OPERATIONS', 'HR_COMPLIANCE')")
     public ResponseEntity<OfferResponse> create(
             @Valid @RequestBody CreateOfferRequest req,
             @AuthenticationPrincipal User user) {
@@ -54,7 +52,7 @@ public class OfferController {
     }
 
     @GetMapping
-    @PreAuthorize("hasAnyRole('RECRUITER', 'ERM', 'HR_COMPLIANCE', 'ADMIN')")
+    @PreAuthorize("hasAnyRole('OPERATIONS', 'HR_COMPLIANCE')")
     public PagedResponse<OfferSummaryResponse> list(
             @RequestParam(required = false) OfferStatus status,
             @RequestParam(required = false) UUID applicationId,
@@ -68,13 +66,13 @@ public class OfferController {
     }
 
     @GetMapping("/me")
-    @PreAuthorize("hasRole('CANDIDATE')")
+    @PreAuthorize("hasAnyRole('APPLICANT', 'INTERN')")
     public List<CandidateOfferResponse> listMine(@AuthenticationPrincipal User user) {
         return offerService.listForCandidate(user);
     }
 
     @GetMapping("/{id}")
-    @PreAuthorize("hasAnyRole('CANDIDATE', 'RECRUITER', 'ERM', 'HR_COMPLIANCE', 'ADMIN')")
+    @PreAuthorize("hasAnyRole('APPLICANT', 'INTERN', 'OPERATIONS', 'HR_COMPLIANCE')")
     public Object getOne(@PathVariable UUID id,
                          @AuthenticationPrincipal User user) {
         // Candidate path returns the redacted view + enforces ownership in the
@@ -87,7 +85,7 @@ public class OfferController {
     }
 
     @PutMapping("/{id}")
-    @PreAuthorize("hasAnyRole('ERM', 'HR_COMPLIANCE', 'ADMIN')")
+    @PreAuthorize("hasAnyRole('OPERATIONS', 'HR_COMPLIANCE')")
     public OfferResponse update(@PathVariable UUID id,
                                 @Valid @RequestBody UpdateOfferRequest req,
                                 @AuthenticationPrincipal User user) {
@@ -95,14 +93,14 @@ public class OfferController {
     }
 
     @PostMapping("/{id}/send")
-    @PreAuthorize("hasAnyRole('ERM', 'HR_COMPLIANCE', 'ADMIN')")
+    @PreAuthorize("hasAnyRole('OPERATIONS', 'HR_COMPLIANCE')")
     public OfferResponse send(@PathVariable UUID id,
                               @AuthenticationPrincipal User user) {
         return offerService.send(id, user);
     }
 
     @PostMapping("/{id}/accept")
-    @PreAuthorize("hasRole('CANDIDATE')")
+    @PreAuthorize("hasAnyRole('APPLICANT', 'INTERN')")
     public CandidateOfferResponse accept(@PathVariable UUID id,
                                          @AuthenticationPrincipal User user) {
         Offer accepted = offerService.acceptInternal(id, user);
@@ -110,7 +108,7 @@ public class OfferController {
     }
 
     @PostMapping("/{id}/decline")
-    @PreAuthorize("hasRole('CANDIDATE')")
+    @PreAuthorize("hasAnyRole('APPLICANT', 'INTERN')")
     public CandidateOfferResponse decline(@PathVariable UUID id,
                                           @Valid @RequestBody(required = false) DeclineOfferRequest req,
                                           @AuthenticationPrincipal User user) {
@@ -119,14 +117,14 @@ public class OfferController {
     }
 
     @PostMapping("/{id}/revoke")
-    @PreAuthorize("hasAnyRole('ERM', 'HR_COMPLIANCE', 'ADMIN')")
+    @PreAuthorize("hasAnyRole('OPERATIONS', 'HR_COMPLIANCE')")
     public OfferResponse revoke(@PathVariable UUID id,
                                 @AuthenticationPrincipal User user) {
         return offerService.revoke(id, user);
     }
 
     @DeleteMapping("/{id}")
-    @PreAuthorize("hasAnyRole('ERM', 'HR_COMPLIANCE', 'ADMIN')")
+    @PreAuthorize("hasAnyRole('OPERATIONS', 'HR_COMPLIANCE')")
     public ResponseEntity<Void> delete(@PathVariable UUID id,
                                        @AuthenticationPrincipal User user) {
         offerService.delete(id, user);
@@ -141,7 +139,7 @@ public class OfferController {
      * @PreAuthorize roles mirror the getOne endpoint above.
      */
     @GetMapping("/{id}/download")
-    @PreAuthorize("hasAnyRole('CANDIDATE', 'RECRUITER', 'ERM', 'HR_COMPLIANCE', 'ADMIN')")
+    @PreAuthorize("hasAnyRole('APPLICANT', 'INTERN', 'OPERATIONS', 'HR_COMPLIANCE')")
     public ResponseEntity<byte[]> download(@PathVariable UUID id,
                                            @AuthenticationPrincipal User user) {
         OfferService.LetterDownload payload = offerService.buildDownload(id, user);
@@ -156,7 +154,7 @@ public class OfferController {
 
     private boolean isCandidateOnly(User user) {
         if (user == null || user.getRoles() == null) return false;
-        boolean isCandidate = user.getRoles().contains(UserRole.CANDIDATE);
+        boolean isCandidate = (user.getRoles().contains(UserRole.APPLICANT) || user.getRoles().contains(UserRole.INTERN));
         boolean isStaff = user.getRoles().stream().anyMatch(STAFF_ROLES::contains);
         return isCandidate && !isStaff;
     }

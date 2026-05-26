@@ -327,9 +327,9 @@ public class ScreeningService {
         if (caller == null || caller.getRoles() == null) {
             throw new ForbiddenException("Authentication required");
         }
-        boolean allowed = caller.getRoles().contains(UserRole.ADMIN)
-                || caller.getRoles().contains(UserRole.RECRUITER)
-                || caller.getRoles().contains(UserRole.ERM)
+        boolean allowed = caller.getRoles().contains(UserRole.OPERATIONS)
+                || caller.getRoles().contains(UserRole.OPERATIONS)
+                || caller.getRoles().contains(UserRole.OPERATIONS)
                 || caller.getRoles().contains(UserRole.HR_COMPLIANCE);
         if (!allowed) {
             throw new ForbiddenException("Not allowed to view this screening");

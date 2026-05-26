@@ -30,7 +30,7 @@ public class WorkAssignmentController {
     private final WorkAssignmentService workAssignmentService;
 
     @PostMapping("/interns/{candidateId}/assignments")
-    @PreAuthorize("hasAnyRole('ERM', 'TECHNICAL_EVALUATOR', 'ADMIN')")
+    @PreAuthorize("hasAnyRole('OPERATIONS', 'TECHNICAL_SUPERVISOR')")
     public ResponseEntity<AssignmentResponse> create(
             @PathVariable UUID candidateId,
             @Valid @RequestBody CreateAssignmentRequest req,
@@ -41,26 +41,26 @@ public class WorkAssignmentController {
     }
 
     @GetMapping("/interns/{candidateId}/assignments")
-    @PreAuthorize("hasAnyRole('ERM', 'TECHNICAL_EVALUATOR', 'HR_COMPLIANCE', 'ADMIN')")
+    @PreAuthorize("hasAnyRole('OPERATIONS', 'HR_COMPLIANCE', 'TECHNICAL_SUPERVISOR')")
     public List<AssignmentResponse> listForIntern(@PathVariable UUID candidateId) {
         return workAssignmentService.listForIntern(candidateId);
     }
 
     @GetMapping("/my/assignments")
-    @PreAuthorize("hasRole('CANDIDATE')")
+    @PreAuthorize("hasAnyRole('APPLICANT', 'INTERN')")
     public List<AssignmentResponse> listMine(@AuthenticationPrincipal User caller) {
         return workAssignmentService.listForCandidateUser(caller);
     }
 
     @PostMapping("/assignments/{id}/start")
-    @PreAuthorize("hasRole('CANDIDATE')")
+    @PreAuthorize("hasAnyRole('APPLICANT', 'INTERN')")
     public AssignmentResponse start(@PathVariable UUID id,
                                     @AuthenticationPrincipal User caller) {
         return workAssignmentService.start(id, caller);
     }
 
     @PostMapping("/assignments/{id}/submit")
-    @PreAuthorize("hasRole('CANDIDATE')")
+    @PreAuthorize("hasAnyRole('APPLICANT', 'INTERN')")
     public AssignmentResponse submit(@PathVariable UUID id,
                                      @Valid @RequestBody SubmitAssignmentRequest req,
                                      @AuthenticationPrincipal User caller) {
@@ -68,7 +68,7 @@ public class WorkAssignmentController {
     }
 
     @PostMapping("/assignments/{id}/review")
-    @PreAuthorize("hasAnyRole('ERM', 'TECHNICAL_EVALUATOR', 'ADMIN')")
+    @PreAuthorize("hasAnyRole('OPERATIONS', 'TECHNICAL_SUPERVISOR')")
     public AssignmentResponse review(@PathVariable UUID id,
                                      @Valid @RequestBody ReviewAssignmentRequest req,
                                      @AuthenticationPrincipal User caller) {

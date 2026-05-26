@@ -15,7 +15,7 @@ import type {
 
 export default function ErmDashboardPage() {
   return (
-    <ProtectedRoute requiredRoles={['ERM', 'ADMIN']}>
+    <ProtectedRoute requiredRoles={['OPERATIONS']}>
       <DashboardLayout title="ERM Dashboard">
         <ErmBody />
       </DashboardLayout>

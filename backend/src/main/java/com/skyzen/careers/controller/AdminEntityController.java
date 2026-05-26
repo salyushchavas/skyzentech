@@ -28,13 +28,13 @@ public class AdminEntityController {
     private final AdminEntityService adminEntityService;
 
     @GetMapping
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasRole('OPERATIONS')")
     public List<AdminEntityResponse> list() {
         return adminEntityService.list();
     }
 
     @PostMapping
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasRole('OPERATIONS')")
     public ResponseEntity<AdminEntityResponse> create(@Valid @RequestBody CreateEntityRequest req) {
         AdminEntityResponse created = adminEntityService.create(req);
         return ResponseEntity.created(URI.create("/api/v1/admin/entities/" + created.getId()))
@@ -42,7 +42,7 @@ public class AdminEntityController {
     }
 
     @PutMapping("/{id}")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasRole('OPERATIONS')")
     public AdminEntityResponse update(@PathVariable UUID id,
                                       @Valid @RequestBody UpdateEntityRequest req) {
         return adminEntityService.update(id, req);

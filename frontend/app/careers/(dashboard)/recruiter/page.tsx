@@ -32,7 +32,7 @@ type ViewMode = 'board' | 'table';
 export default function RecruiterPipelinePage() {
   return (
     <ProtectedRoute
-      requiredRoles={['RECRUITER', 'ERM', 'HR_COMPLIANCE', 'ADMIN']}
+      requiredRoles={['OPERATIONS', 'HR_COMPLIANCE']}
     >
       <DashboardLayout title="Application Pipeline">
         <PipelineShell />
