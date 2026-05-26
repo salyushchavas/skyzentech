@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import Link from 'next/link';
 import { AlertCircle, MoreHorizontal, Plus, Search, ShieldAlert } from 'lucide-react';
 import api from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
@@ -274,7 +275,12 @@ function UsersTable() {
                 return (
                   <tr key={u.id} className="border-b border-gray-100 last:border-0">
                     <td className="px-4 py-3 font-medium text-gray-900">
-                      {u.name ?? '—'}
+                      <Link
+                        href={`/careers/admin/users/${u.id}/supervision`}
+                        className="hover:text-accent-dark hover:underline"
+                      >
+                        {u.name ?? '—'}
+                      </Link>
                       {isSelf && (
                         <span className="ml-2 text-xs font-normal text-gray-500">(you)</span>
                       )}

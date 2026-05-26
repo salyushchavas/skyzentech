@@ -86,6 +86,42 @@ public class AdminAuditLogService {
     private final UserRepository userRepository;
     private final ObjectMapper objectMapper;
 
+    /**
+     * Per-user audit feed (SUPER_ADMIN L3) — paginated, filterable by action +
+     * date range. The user-scope OR is built by the caller-supplied entity
+     * buckets ({@link com.skyzen.careers.service.UserAuditEntityResolver}).
+     */
+    @Transactional(readOnly = true)
+    public PagedAuditLogResponse userAudit(int page, int size, java.util.UUID userId,
+                                           java.util.Map<String, java.util.Set<UUID>> entityIdsByType,
+                                           String action, Instant from, Instant to) {
+        int safePage = Math.max(0, page);
+        int safeSize = Math.min(100, Math.max(1, size));
+        Pageable pageable = PageRequest.of(safePage, safeSize,
+                Sort.by(Sort.Direction.DESC, "timestamp"));
+
+        String normalizedAction = (action != null && !action.isBlank()) ? action.trim() : null;
+
+        Page<AuditLog> resultPage = auditLogRepository.findAll(
+                AuditLogSpecifications.forUserAuditFeed(
+                        userId, entityIdsByType, normalizedAction, from, to),
+                pageable);
+
+        Map<UUID, String> actorNameById = lookupActorNames(resultPage.getContent());
+
+        List<AuditLogEntryResponse> content = resultPage.getContent().stream()
+                .map(a -> toResponse(a, actorNameById.get(a.getUserId())))
+                .toList();
+
+        return PagedAuditLogResponse.builder()
+                .content(content)
+                .page(resultPage.getNumber())
+                .size(resultPage.getSize())
+                .totalElements(resultPage.getTotalElements())
+                .totalPages(resultPage.getTotalPages())
+                .build();
+    }
+
     @Transactional(readOnly = true)
     public PagedAuditLogResponse search(int page, int size, String action,
                                         String actorSearch, UserRole actorRole,
