@@ -88,7 +88,8 @@ const ROLE_LINKS: Record<UserRole, NavLink[]> = {
   ],
   EXECUTIVE: [
     { icon: LayoutDashboard, label: 'Dashboard', href: '/careers/executive' },
-    { icon: ScrollText, label: 'Audit Log', href: '/careers/admin/audit-log' },
+    // Audit Log removed — SUPER_ADMIN-only since the L2 super-admin build.
+    // Executive keeps oversight via Compliance + the Executive dashboard.
     { icon: ShieldCheck, label: 'Compliance', href: '/careers/hr/compliance' },
   ],
   SUPER_ADMIN: [

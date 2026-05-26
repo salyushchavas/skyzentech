@@ -36,6 +36,16 @@ public interface AuditLogRepository extends JpaRepository<AuditLog, UUID>,
     List<String> findDistinctActions();
 
     /**
+     * Distinct {@code entityType} values present in the log — feeds the
+     * super-admin audit viewer's target-entity filter dropdown. Null /
+     * empty values are filtered out at the JPQL level.
+     */
+    @Query("SELECT DISTINCT a.entityType FROM AuditLog a " +
+            "WHERE a.entityType IS NOT NULL AND a.entityType <> '' " +
+            "ORDER BY a.entityType ASC")
+    List<String> findDistinctEntityTypes();
+
+    /**
      * Recent audit entries restricted to a set of entity ids — used by the
      * candidate dashboard to assemble "recent activity" across the caller's
      * own applications/offers/interviews without leaking other users' rows.

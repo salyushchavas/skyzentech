@@ -29,6 +29,7 @@ public final class AuditLogSpecifications {
     public static Specification<AuditLog> withFilters(
             String action,
             Collection<UUID> userIds,
+            String entityType,
             Instant from,
             Instant to) {
         return (root, query, cb) -> {
@@ -38,6 +39,9 @@ public final class AuditLogSpecifications {
             }
             if (userIds != null && !userIds.isEmpty()) {
                 preds.add(root.get("userId").in(userIds));
+            }
+            if (entityType != null && !entityType.isBlank()) {
+                preds.add(cb.equal(root.get("entityType"), entityType));
             }
             if (from != null) {
                 preds.add(cb.greaterThanOrEqualTo(root.get("timestamp"), from));
