@@ -288,6 +288,25 @@ public class CandidateDashboardResponse {
         private TimesheetCard timesheet;
         /** Earliest known work-auth expiry from the I-9 / I-983 chain. Null if neither set. */
         private AuthorizationInfo authorization;
+        /** Active project the intern should focus on this week. Null when none. */
+        private ProjectCard project;
+    }
+
+    @Getter
+    @Setter
+    @NoArgsConstructor
+    @AllArgsConstructor
+    @Builder
+    public static class ProjectCard {
+        private UUID id;
+        private String title;
+        /** NOT_STARTED / IN_PROGRESS / SUBMITTED / RETURNED / COMPLETED. */
+        private String status;
+        private LocalDate dueDate;
+        private Integer progressPct;
+        /** Surfaced when status == RETURNED so the intern sees what to fix next. */
+        private String reviewNotes;
+        private String href;
     }
 
     @Getter

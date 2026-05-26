@@ -1,0 +1,14 @@
+package com.skyzen.careers.repository;
+
+import com.skyzen.careers.entity.ProjectSubmission;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.stereotype.Repository;
+
+import java.util.List;
+import java.util.UUID;
+
+@Repository
+public interface ProjectSubmissionRepository extends JpaRepository<ProjectSubmission, UUID> {
+
+    List<ProjectSubmission> findByProjectIdOrderBySubmittedAtDesc(UUID projectId);
+}

@@ -124,12 +124,23 @@ interface AuthorizationInfo {
   authType: string;
 }
 
+interface ProjectCard {
+  id: Uuid;
+  title: string;
+  status: string;
+  dueDate: string | null;
+  progressPct: number | null;
+  reviewNotes: string | null;
+  href: string;
+}
+
 interface WeeklyCockpit {
   weekStart: string;
   material: MaterialCard | null;
   report: ReportCard | null;
   timesheet: TimesheetCard | null;
   authorization: AuthorizationInfo | null;
+  project: ProjectCard | null;
 }
 
 interface CandidateDashboardResponse {
@@ -253,6 +264,11 @@ function CandidateDashboardBody() {
             <ThisWeekReportCard report={data.weeklyCockpit!.report} />
             <ThisWeekTimesheetCard timesheet={data.weeklyCockpit!.timesheet} />
           </div>
+
+          {/* Active project — most-actionable allocated work. */}
+          {data.weeklyCockpit!.project && (
+            <ActiveProjectCard project={data.weeklyCockpit!.project} />
+          )}
 
           {/* Compliance & Authorization strip — only when we have anything to show */}
           {(((data.compliance ?? []).length > 0) ||
@@ -824,6 +840,70 @@ function ThisWeekTimesheetCard({ timesheet }: { timesheet: TimesheetCard | null 
         className="mt-3 inline-block text-xs font-medium text-accent hover:underline"
       >
         {status === 'APPROVED' ? 'View timesheet →' : 'Open timesheet →'}
+      </Link>
+    </article>
+  );
+}
+
+// ── Active project (intern cockpit) ─────────────────────────────────────────
+
+const PROJECT_PILL: Record<string, string> = {
+  NOT_STARTED: 'bg-gray-100 text-gray-700',
+  IN_PROGRESS: 'bg-sky-100 text-sky-800',
+  SUBMITTED: 'bg-amber-100 text-amber-800',
+  RETURNED: 'bg-orange-100 text-orange-800',
+};
+
+function ActiveProjectCard({ project }: { project: ProjectCard }) {
+  const status = project.status;
+  const pct = Math.max(0, Math.min(100, project.progressPct ?? 0));
+  const isReturned = status === 'RETURNED';
+  return (
+    <article
+      className={
+        'rounded-lg border bg-white p-5 ' +
+        (isReturned ? 'border-orange-200' : 'border-gray-200')
+      }
+    >
+      <div className="mb-2 flex items-start justify-between gap-3">
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2">
+            <ClipboardList className="h-4 w-4 text-accent" strokeWidth={2} />
+            <h2 className="text-sm font-semibold text-gray-900">Active project</h2>
+            <span
+              className={
+                'rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ' +
+                (PROJECT_PILL[status] ?? 'bg-gray-100 text-gray-700')
+              }
+            >
+              {status.replaceAll('_', ' ')}
+            </span>
+          </div>
+          <p className="mt-1 truncate text-sm font-medium text-gray-900">
+            {project.title}
+          </p>
+          {project.dueDate && (
+            <p className="text-xs text-gray-500">Due {project.dueDate}</p>
+          )}
+        </div>
+        <div className="text-right text-xs font-semibold text-gray-700">
+          {pct}%
+        </div>
+      </div>
+      <div className="h-1.5 w-full overflow-hidden rounded-full bg-gray-100">
+        <div className="h-full bg-accent" style={{ width: `${pct}%` }} />
+      </div>
+      {isReturned && project.reviewNotes && (
+        <div className="mt-3 rounded-md border border-orange-200 bg-orange-50 p-2 text-xs text-orange-900">
+          <span className="font-semibold">Supervisor returned this: </span>
+          {project.reviewNotes}
+        </div>
+      )}
+      <Link
+        href={project.href}
+        className="mt-3 inline-block text-xs font-medium text-accent hover:underline"
+      >
+        {isReturned ? 'Open and resubmit →' : 'Open project →'}
       </Link>
     </article>
   );

@@ -1,0 +1,140 @@
+package com.skyzen.careers.controller;
+
+import com.skyzen.careers.dto.project.CreateProjectRequest;
+import com.skyzen.careers.dto.project.ProjectResponse;
+import com.skyzen.careers.dto.project.ReviewProjectRequest;
+import com.skyzen.careers.dto.project.SubmitProjectRequest;
+import com.skyzen.careers.dto.project.UpdateProgressRequest;
+import com.skyzen.careers.dto.project.UpdateProjectRequest;
+import com.skyzen.careers.entity.User;
+import com.skyzen.careers.service.ProjectService;
+import jakarta.validation.Valid;
+import lombok.RequiredArgsConstructor;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.web.bind.annotation.*;
+
+import java.net.URI;
+import java.util.List;
+import java.util.UUID;
+
+/**
+ * Project workspace endpoints. Two lanes:
+ *
+ * <h2>Supervisor (TECHNICAL_SUPERVISOR or SUPER_ADMIN)</h2>
+ * <ul>
+ *   <li>POST   /projects                          — allocate</li>
+ *   <li>PUT    /projects/{id}                     — edit</li>
+ *   <li>GET    /projects/intern/{candidateId}     — that intern's projects</li>
+ *   <li>GET    /projects/published                — my own allocations (board)</li>
+ *   <li>POST   /projects/{id}/return              — return with notes</li>
+ *   <li>POST   /projects/{id}/complete            — terminal lock</li>
+ * </ul>
+ *
+ * <h2>Intern</h2>
+ * <ul>
+ *   <li>GET  /projects/me                         — my projects</li>
+ *   <li>POST /projects/{id}/start                 — mark IN_PROGRESS</li>
+ *   <li>PUT  /projects/{id}/progress              — progress + task checks</li>
+ *   <li>POST /projects/{id}/submit                — submit deliverables</li>
+ * </ul>
+ *
+ * Service-layer scoping: a TECHNICAL_SUPERVISOR can only touch projects on
+ * an engagement they own; SUPER_ADMIN bypasses. Intern endpoints are gated
+ * to {@code hasRole('INTERN')} and the service enforces the project belongs
+ * to the caller's Candidate row.
+ */
+@RestController
+@RequestMapping("/api/v1/projects")
+@RequiredArgsConstructor
+public class ProjectController {
+
+    private final ProjectService service;
+
+    // ── Supervisor commands ─────────────────────────────────────────────────
+
+    @PostMapping
+    @PreAuthorize("hasAnyRole('TECHNICAL_SUPERVISOR', 'SUPER_ADMIN')")
+    public ResponseEntity<ProjectResponse> create(
+            @Valid @RequestBody CreateProjectRequest req,
+            @AuthenticationPrincipal User user) {
+        ProjectResponse created = service.create(req, user);
+        return ResponseEntity.created(URI.create("/api/v1/projects/" + created.getId()))
+                .body(created);
+    }
+
+    @PutMapping("/{id}")
+    @PreAuthorize("hasAnyRole('TECHNICAL_SUPERVISOR', 'SUPER_ADMIN')")
+    public ProjectResponse update(
+            @PathVariable UUID id,
+            @Valid @RequestBody UpdateProjectRequest req,
+            @AuthenticationPrincipal User user) {
+        return service.update(id, req, user);
+    }
+
+    @GetMapping("/intern/{candidateId}")
+    @PreAuthorize("hasAnyRole('TECHNICAL_SUPERVISOR', 'SUPER_ADMIN')")
+    public List<ProjectResponse> listForIntern(
+            @PathVariable UUID candidateId,
+            @AuthenticationPrincipal User user) {
+        return service.listForIntern(candidateId, user);
+    }
+
+    /** Supervisor's full board — all projects they've allocated. */
+    @GetMapping("/published")
+    @PreAuthorize("hasAnyRole('TECHNICAL_SUPERVISOR', 'SUPER_ADMIN')")
+    public List<ProjectResponse> listMine(@AuthenticationPrincipal User user) {
+        return service.listMine(user);
+    }
+
+    @PostMapping("/{id}/return")
+    @PreAuthorize("hasAnyRole('TECHNICAL_SUPERVISOR', 'SUPER_ADMIN')")
+    public ProjectResponse returnForChanges(
+            @PathVariable UUID id,
+            @Valid @RequestBody ReviewProjectRequest req,
+            @AuthenticationPrincipal User user) {
+        return service.returnForChanges(id, req, user);
+    }
+
+    @PostMapping("/{id}/complete")
+    @PreAuthorize("hasAnyRole('TECHNICAL_SUPERVISOR', 'SUPER_ADMIN')")
+    public ProjectResponse complete(
+            @PathVariable UUID id,
+            @RequestBody(required = false) ReviewProjectRequest req,
+            @AuthenticationPrincipal User user) {
+        return service.complete(id, req, user);
+    }
+
+    // ── Intern commands ─────────────────────────────────────────────────────
+
+    @GetMapping("/me")
+    @PreAuthorize("hasRole('INTERN')")
+    public List<ProjectResponse> listForMe(@AuthenticationPrincipal User user) {
+        return service.listForMe(user);
+    }
+
+    @PostMapping("/{id}/start")
+    @PreAuthorize("hasRole('INTERN')")
+    public ProjectResponse start(@PathVariable UUID id, @AuthenticationPrincipal User user) {
+        return service.start(id, user);
+    }
+
+    @PutMapping("/{id}/progress")
+    @PreAuthorize("hasRole('INTERN')")
+    public ProjectResponse updateProgress(
+            @PathVariable UUID id,
+            @Valid @RequestBody UpdateProgressRequest req,
+            @AuthenticationPrincipal User user) {
+        return service.updateProgress(id, req, user);
+    }
+
+    @PostMapping("/{id}/submit")
+    @PreAuthorize("hasRole('INTERN')")
+    public ProjectResponse submit(
+            @PathVariable UUID id,
+            @RequestBody(required = false) SubmitProjectRequest req,
+            @AuthenticationPrincipal User user) {
+        return service.submit(id, req, user);
+    }
+}

@@ -36,6 +36,9 @@ import com.skyzen.careers.repository.InterviewRepository;
 import com.skyzen.careers.repository.OfferRepository;
 import com.skyzen.careers.repository.MaterialAcknowledgementRepository;
 import com.skyzen.careers.repository.OnboardingTaskRepository;
+import com.skyzen.careers.repository.ProjectRepository;
+import com.skyzen.careers.entity.Project;
+import com.skyzen.careers.enums.ProjectStatus;
 import com.skyzen.careers.repository.ResumeRepository;
 import com.skyzen.careers.repository.ScreeningRepository;
 import com.skyzen.careers.repository.TimesheetRepository;
@@ -110,6 +113,7 @@ public class CandidateDashboardService {
     private final MaterialAcknowledgementRepository materialAcknowledgementRepository;
     private final WeeklyReportRepository weeklyReportRepository;
     private final TimesheetRepository timesheetRepository;
+    private final ProjectRepository projectRepository;
 
     @Transactional(readOnly = true)
     public CandidateDashboardResponse build(User caller) {
@@ -1451,12 +1455,55 @@ public class CandidateDashboardService {
         // Authorization snapshot — earliest of workAuthExpirationDate / optEndDate.
         CandidateDashboardResponse.AuthorizationInfo auth = buildAuthorizationInfo(candidateId);
 
+        // Active project — picks the most-actionable row for the intern: RETURNED
+        // first (their turn to fix), then IN_PROGRESS, then NOT_STARTED. SUBMITTED
+        // surfaces too (so they know it's awaiting review). COMPLETED falls off.
+        CandidateDashboardResponse.ProjectCard projectCard = buildProjectCard(candidateId);
+
         return CandidateDashboardResponse.WeeklyCockpit.builder()
                 .weekStart(weekStart)
                 .material(materialCard)
                 .report(reportCard)
                 .timesheet(timesheetCard)
                 .authorization(auth)
+                .project(projectCard)
+                .build();
+    }
+
+    private static final java.util.List<ProjectStatus> PROJECT_PRIORITY = java.util.List.of(
+            ProjectStatus.RETURNED,
+            ProjectStatus.IN_PROGRESS,
+            ProjectStatus.NOT_STARTED,
+            ProjectStatus.SUBMITTED);
+
+    private CandidateDashboardResponse.ProjectCard buildProjectCard(UUID candidateId) {
+        java.util.List<Project> projects = projectRepository.findByInternIdWithGraph(candidateId);
+        if (projects.isEmpty()) return null;
+        // Pick the highest-priority active row; ties broken by newest createdAt.
+        Project chosen = null;
+        int chosenRank = Integer.MAX_VALUE;
+        for (Project p : projects) {
+            int rank = PROJECT_PRIORITY.indexOf(p.getStatus());
+            if (rank < 0) continue; // COMPLETED — skip
+            if (rank < chosenRank
+                    || (rank == chosenRank && chosen != null
+                            && p.getCreatedAt() != null
+                            && (chosen.getCreatedAt() == null
+                                    || p.getCreatedAt().isAfter(chosen.getCreatedAt())))) {
+                chosen = p;
+                chosenRank = rank;
+            }
+        }
+        if (chosen == null) return null;
+        return CandidateDashboardResponse.ProjectCard.builder()
+                .id(chosen.getId())
+                .title(chosen.getTitle())
+                .status(chosen.getStatus() != null ? chosen.getStatus().name() : null)
+                .dueDate(chosen.getDueDate())
+                .progressPct(chosen.getProgressPct())
+                .reviewNotes(chosen.getStatus() == ProjectStatus.RETURNED
+                        ? chosen.getReviewNotes() : null)
+                .href("/careers/candidate/projects")
                 .build();
     }
 

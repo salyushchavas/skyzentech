@@ -1,0 +1,65 @@
+package com.skyzen.careers.repository;
+
+import com.skyzen.careers.entity.Project;
+import com.skyzen.careers.enums.ProjectStatus;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
+import org.springframework.stereotype.Repository;
+
+import java.util.List;
+import java.util.Optional;
+import java.util.UUID;
+
+@Repository
+public interface ProjectRepository extends JpaRepository<Project, UUID> {
+
+    /**
+     * Single project with engagement + supervisor + intern's user fetched
+     * eagerly so the service / DTO mapper doesn't lazy-load after the
+     * transaction closes.
+     */
+    @Query("SELECT p FROM Project p " +
+            "JOIN FETCH p.engagement e " +
+            "LEFT JOIN FETCH e.supervisor sv " +
+            "JOIN FETCH p.intern i " +
+            "JOIN FETCH i.user iu " +
+            "JOIN FETCH p.assignedBy ab " +
+            "LEFT JOIN FETCH p.reviewedBy rb " +
+            "WHERE p.id = :id")
+    Optional<Project> findByIdWithGraph(@Param("id") UUID id);
+
+    /** All projects assigned to a specific intern. Newest first. */
+    @Query("SELECT p FROM Project p " +
+            "JOIN FETCH p.engagement e " +
+            "LEFT JOIN FETCH e.supervisor sv " +
+            "JOIN FETCH p.intern i " +
+            "JOIN FETCH i.user iu " +
+            "JOIN FETCH p.assignedBy ab " +
+            "LEFT JOIN FETCH p.reviewedBy rb " +
+            "WHERE i.id = :internId " +
+            "ORDER BY p.createdAt DESC")
+    List<Project> findByInternIdWithGraph(@Param("internId") UUID internId);
+
+    /**
+     * All projects assigned by a given supervisor user. Used for the
+     * supervisor's allocation board (and the supervisor-dashboard "projects
+     * awaiting review" rollup).
+     */
+    @Query("SELECT p FROM Project p " +
+            "JOIN FETCH p.engagement e " +
+            "LEFT JOIN FETCH e.supervisor sv " +
+            "JOIN FETCH p.intern i " +
+            "JOIN FETCH i.user iu " +
+            "JOIN FETCH p.assignedBy ab " +
+            "LEFT JOIN FETCH p.reviewedBy rb " +
+            "WHERE ab.id = :supervisorUserId " +
+            "ORDER BY p.createdAt DESC")
+    List<Project> findByAssignedByIdWithGraph(@Param("supervisorUserId") UUID supervisorUserId);
+
+    /** Count by status — used by the supervisor dashboard action queue. */
+    @Query("SELECT COUNT(p) FROM Project p " +
+            "WHERE p.assignedBy.id = :supervisorUserId AND p.status = :status")
+    long countByAssignedByIdAndStatus(@Param("supervisorUserId") UUID supervisorUserId,
+                                      @Param("status") ProjectStatus status);
+}

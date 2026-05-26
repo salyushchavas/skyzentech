@@ -53,6 +53,7 @@ const CANDIDATE_LINKS: NavLink[] = [
   { icon: Hammer, label: 'My Work', href: '/careers/intern/work' },
   { icon: BookOpen, label: 'Weekly Materials', href: '/careers/candidate/weekly-materials' },
   { icon: FileText, label: 'Weekly Reports', href: '/careers/candidate/weekly-reports' },
+  { icon: ClipboardList, label: 'Projects', href: '/careers/candidate/projects' },
   { icon: UserCircle, label: 'Profile', href: '/careers/candidate/profile' },
 ];
 
@@ -84,6 +85,7 @@ const ROLE_LINKS: Record<UserRole, NavLink[]> = {
     { icon: ClipboardList, label: 'Assignments', href: '/careers/evaluator/assignments' },
     { icon: BookOpen, label: 'Weekly Materials', href: '/careers/evaluator/weekly-materials' },
     { icon: FileText, label: 'Weekly Reports', href: '/careers/evaluator/weekly-reports' },
+    { icon: ClipboardList, label: 'Projects', href: '/careers/evaluator/projects' },
     { icon: Users, label: 'Supervised', href: '/careers/supervised' },
   ],
   EXECUTIVE: [
@@ -138,7 +140,8 @@ export default function DashboardSidebar({ onNavigate }: Props) {
     }
     if (
       l.href === '/careers/candidate/weekly-materials' ||
-      l.href === '/careers/candidate/weekly-reports'
+      l.href === '/careers/candidate/weekly-reports' ||
+      l.href === '/careers/candidate/projects'
     ) {
       return role === 'INTERN';
     }

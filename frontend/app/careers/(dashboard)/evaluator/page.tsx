@@ -283,6 +283,8 @@ function ActionIcon({ keyName }: { keyName: string }) {
       return <FileText className={cn} strokeWidth={2} />;
     case 'TIMESHEETS_TO_APPROVE':
       return <Clock className={cn} strokeWidth={2} />;
+    case 'PROJECTS_TO_REVIEW':
+      return <ClipboardList className={cn} strokeWidth={2} />;
     case 'EVALUATIONS_DUE':
       return <CalendarClock className={cn} strokeWidth={2} />;
     case 'MATERIALS_TO_PUBLISH':

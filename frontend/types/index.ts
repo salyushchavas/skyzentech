@@ -1188,6 +1188,97 @@ export interface ReviewWeeklyReportRequest {
   reviewNotes?: string;
 }
 
+// === Project workspace ======================================================
+
+export type ProjectStatus =
+  | 'NOT_STARTED'
+  | 'IN_PROGRESS'
+  | 'SUBMITTED'
+  | 'RETURNED'
+  | 'COMPLETED';
+
+export interface ProjectTaskResponse {
+  id: Uuid;
+  title: string;
+  done: boolean;
+  sortOrder: number;
+}
+
+export interface ProjectSubmissionResponse {
+  id: Uuid;
+  description?: string | null;
+  links: string[];
+  submittedAt: IsoDateTime;
+}
+
+export interface ProjectResponse {
+  id: Uuid;
+  title: string;
+  description?: string | null;
+  deliverables?: string | null;
+  resourceLinks: string[];
+
+  internCandidateId: Uuid;
+  internName?: string | null;
+  engagementId: Uuid;
+  assignedById: Uuid;
+  assignedByName?: string | null;
+
+  startDate?: string | null; // LocalDate
+  dueDate?: string | null;
+  status: ProjectStatus;
+  progressPct: number;
+
+  reviewNotes?: string | null;
+  reviewedById?: Uuid | null;
+  reviewedByName?: string | null;
+  reviewedAt?: IsoDateTime | null;
+
+  createdAt: IsoDateTime;
+  startedAt?: IsoDateTime | null;
+  submittedAt?: IsoDateTime | null;
+  completedAt?: IsoDateTime | null;
+  updatedAt: IsoDateTime;
+
+  tasks: ProjectTaskResponse[];
+  submissions: ProjectSubmissionResponse[];
+}
+
+export interface CreateProjectRequest {
+  title: string;
+  candidateId: Uuid;
+  description?: string;
+  deliverables?: string;
+  resourceLinks?: string[];
+  startDate?: string;
+  dueDate?: string;
+  taskTitles?: string[];
+}
+
+export interface UpdateProjectRequest {
+  title?: string;
+  description?: string;
+  deliverables?: string;
+  resourceLinks?: string[];
+  startDate?: string;
+  dueDate?: string;
+  taskTitles?: string[];
+}
+
+export interface UpdateProgressRequest {
+  progressPct?: number;
+  taskUpdates?: { taskId: Uuid; done: boolean }[];
+}
+
+export interface SubmitProjectRequest {
+  description?: string;
+  links?: string[];
+}
+
+export interface ReviewProjectRequest {
+  reviewNotes?: string;
+}
+
 // === Candidate dashboard journey (SPEC §3 §4 §5 §6) ==========================
 
 export type StageState = 'done' | 'current' | 'upcoming' | 'blocked';

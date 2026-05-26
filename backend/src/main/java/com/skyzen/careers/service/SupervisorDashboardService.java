@@ -20,10 +20,12 @@ import com.skyzen.careers.enums.TimesheetStatus;
 import com.skyzen.careers.enums.UserRole;
 import com.skyzen.careers.enums.WeeklyMaterialStatus;
 import com.skyzen.careers.enums.WeeklyReportStatus;
+import com.skyzen.careers.enums.ProjectStatus;
 import com.skyzen.careers.repository.AuditLogRepository;
 import com.skyzen.careers.repository.EngagementRepository;
 import com.skyzen.careers.repository.EvaluationSessionRepository;
 import com.skyzen.careers.repository.MaterialAcknowledgementRepository;
+import com.skyzen.careers.repository.ProjectRepository;
 import com.skyzen.careers.repository.TimesheetRepository;
 import com.skyzen.careers.repository.WeeklyMaterialRepository;
 import com.skyzen.careers.repository.WeeklyReportRepository;
@@ -88,6 +90,7 @@ public class SupervisorDashboardService {
     private final MaterialAcknowledgementRepository materialAcknowledgementRepository;
     private final EvaluationSessionRepository evaluationSessionRepository;
     private final AuditLogRepository auditLogRepository;
+    private final ProjectRepository projectRepository;
 
     @Transactional(readOnly = true)
     public SupervisorDashboardResponse build(User caller) {
@@ -233,8 +236,10 @@ public class SupervisorDashboardService {
             roster = roster.subList(0, ROSTER_LIMIT);
         }
 
-        // Action queue (always 4 rows, even when zeroed — same grammar as
-        // the operations / HR dashboards).
+        long projectsToReview = projectRepository.countByAssignedByIdAndStatus(
+                caller.getId(), ProjectStatus.SUBMITTED);
+
+        // Action queue — same grammar as the operations / HR dashboards.
         List<SupervisorActionItemResponse> needsAttention = List.of(
                 SupervisorActionItemResponse.builder()
                         .key("REPORTS_TO_REVIEW")
@@ -247,6 +252,12 @@ public class SupervisorDashboardService {
                         .label("Timesheets pending approval")
                         .count(timesheetsPending)
                         .href("/careers/evaluator/interns")
+                        .build(),
+                SupervisorActionItemResponse.builder()
+                        .key("PROJECTS_TO_REVIEW")
+                        .label("Projects awaiting review")
+                        .count(projectsToReview)
+                        .href("/careers/evaluator/projects")
                         .build(),
                 SupervisorActionItemResponse.builder()
                         .key("EVALUATIONS_DUE")
@@ -436,6 +447,12 @@ public class SupervisorDashboardService {
                                 .label("Timesheets pending approval")
                                 .count(0L)
                                 .href("/careers/evaluator/interns")
+                                .build(),
+                        SupervisorActionItemResponse.builder()
+                                .key("PROJECTS_TO_REVIEW")
+                                .label("Projects awaiting review")
+                                .count(0L)
+                                .href("/careers/evaluator/projects")
                                 .build(),
                         SupervisorActionItemResponse.builder()
                                 .key("EVALUATIONS_DUE")
