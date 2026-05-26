@@ -25,18 +25,19 @@ import java.util.UUID;
 public class AdminUserService {
 
     /**
-     * Roles an OPERATIONS admin may assign through the admin UI. APPLICANT and
-     * INTERN are excluded by design — those are candidate-side roles set by
-     * registration and the engagement-activation flip, not by the admin.
+     * Roles a SUPER_ADMIN may assign through the admin UI. APPLICANT and INTERN
+     * are excluded by design — those are candidate-side roles set by registration
+     * and the engagement-activation flip, not by the admin.
      */
     private static final Set<UserRole> STAFF_ROLES = EnumSet.of(
+            UserRole.SUPER_ADMIN,
             UserRole.OPERATIONS,
             UserRole.HR_COMPLIANCE,
             UserRole.TECHNICAL_SUPERVISOR,
             UserRole.EXECUTIVE);
 
     private static final String STAFF_ROLE_MSG =
-            "role must be a STAFF role (OPERATIONS / HR_COMPLIANCE / TECHNICAL_SUPERVISOR / EXECUTIVE)";
+            "role must be a STAFF role (SUPER_ADMIN / OPERATIONS / HR_COMPLIANCE / TECHNICAL_SUPERVISOR / EXECUTIVE)";
 
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
@@ -82,13 +83,14 @@ public class AdminUserService {
         User target = userRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("User not found: " + id));
 
-        // Self-lockout guard: the acting OPERATIONS user can't demote themselves
-        // out of the OPERATIONS role. Without this, the last operator could lock
-        // the org out of admin actions by accident.
+        // Self-lockout guard: the acting SUPER_ADMIN can't demote themselves out
+        // of the SUPER_ADMIN role. Without this, the last owner could lock the
+        // org out of admin actions by accident. (Was OPERATIONS before the
+        // SUPER_ADMIN split — god-mode now lives on SUPER_ADMIN only.)
         if (caller != null && caller.getId().equals(target.getId())
-                && target.getRoles().contains(UserRole.OPERATIONS)
-                && req.getRole() != UserRole.OPERATIONS) {
-            throw new ConflictException("You cannot remove your own OPERATIONS role");
+                && target.getRoles().contains(UserRole.SUPER_ADMIN)
+                && req.getRole() != UserRole.SUPER_ADMIN) {
+            throw new ConflictException("You cannot remove your own SUPER_ADMIN role");
         }
 
         target.setRoles(EnumSet.of(req.getRole()));

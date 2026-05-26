@@ -27,13 +27,13 @@ public class AdminInsightsController {
     private final AdminAuditLogService adminAuditLogService;
 
     @GetMapping("/overview")
-    @PreAuthorize("hasAnyRole('OPERATIONS', 'EXECUTIVE')")
+    @PreAuthorize("hasAnyRole('SUPER_ADMIN', 'EXECUTIVE')")
     public AdminOverviewResponse overview() {
         return adminOverviewService.build();
     }
 
     @GetMapping("/audit-log")
-    @PreAuthorize("hasAnyRole('OPERATIONS', 'EXECUTIVE')")
+    @PreAuthorize("hasAnyRole('SUPER_ADMIN', 'EXECUTIVE')")
     public PagedAuditLogResponse auditLog(
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "25") int size,
@@ -45,7 +45,7 @@ public class AdminInsightsController {
     }
 
     @GetMapping("/audit-log/actions")
-    @PreAuthorize("hasAnyRole('OPERATIONS', 'EXECUTIVE')")
+    @PreAuthorize("hasAnyRole('SUPER_ADMIN', 'EXECUTIVE')")
     public List<String> auditLogActions() {
         return adminAuditLogService.distinctActions();
     }

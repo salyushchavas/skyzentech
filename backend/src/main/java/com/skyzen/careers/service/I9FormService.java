@@ -493,7 +493,8 @@ public class I9FormService {
         if (caller == null) {
             throw new AccessDeniedException("Authentication required");
         }
-        if (caller.getRoles() != null && caller.getRoles().contains(UserRole.OPERATIONS)) {
+        // SUPER_ADMIN corrective bypass — see I9Controller.saveSection1.
+        if (caller.getRoles() != null && caller.getRoles().contains(UserRole.SUPER_ADMIN)) {
             return;
         }
         // Candidates can only edit their own form's Section 1.
@@ -554,9 +555,13 @@ public class I9FormService {
     }
 
     private boolean isAdmin(User actor) {
+        // A1-gate bypass: was the old ADMIN-only corrective path. After the §7
+        // fold ADMIN→OPERATIONS this checked OPERATIONS; with SUPER_ADMIN split
+        // back out, god-mode lives on SUPER_ADMIN only — OPERATIONS must run
+        // the gate like everyone else.
         return actor != null
                 && actor.getRoles() != null
-                && actor.getRoles().contains(UserRole.OPERATIONS);
+                && actor.getRoles().contains(UserRole.SUPER_ADMIN);
     }
 
     private void writeGateAudit(UUID candidateId, String action, UUID actorId, String reason) {

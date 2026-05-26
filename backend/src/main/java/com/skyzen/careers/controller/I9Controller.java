@@ -67,8 +67,12 @@ public class I9Controller {
         return PagedResponse.of(service.list(status, overdueOnly, pageable));
     }
 
+    // Candidate self-edit (APPLICANT / INTERN) + SUPER_ADMIN corrective bypass.
+    // The OPERATIONS slot here was the post-§7-fold remnant of the original
+    // hasAnyRole('CANDIDATE', 'ADMIN') gate — ADMIN→SUPER_ADMIN keeps the
+    // bypass on the owner role only, off OPERATIONS.
     @PostMapping("/{id}/section1")
-    @PreAuthorize("hasAnyRole('APPLICANT', 'INTERN', 'OPERATIONS')")
+    @PreAuthorize("hasAnyRole('APPLICANT', 'INTERN', 'SUPER_ADMIN')")
     public I9FormResponse saveSection1(@PathVariable UUID id,
                                        @Valid @RequestBody Section1Request req,
                                        @AuthenticationPrincipal User user) {
@@ -83,8 +87,10 @@ public class I9Controller {
         return service.toResponse(service.saveSection2(id, req, user));
     }
 
+    // Reopening a COMPLETED I-9 breaks lifecycle immutability — owner-only,
+    // not operational. Was hasRole('ADMIN') before the §7 fold.
     @PostMapping("/{id}/reopen")
-    @PreAuthorize("hasRole('OPERATIONS')")
+    @PreAuthorize("hasRole('SUPER_ADMIN')")
     public I9FormResponse reopen(@PathVariable UUID id,
                                  @Valid @RequestBody ReopenRequest req,
                                  @AuthenticationPrincipal User user) {

@@ -33,7 +33,7 @@ public class AdminUserController {
     private final AdminUserService adminUserService;
 
     @GetMapping
-    @PreAuthorize("hasRole('OPERATIONS')")
+    @PreAuthorize("hasRole('SUPER_ADMIN')")
     public List<AdminUserResponse> list(
             @RequestParam(required = false) UserRole role,
             @RequestParam(required = false) String search) {
@@ -41,7 +41,7 @@ public class AdminUserController {
     }
 
     @PostMapping
-    @PreAuthorize("hasRole('OPERATIONS')")
+    @PreAuthorize("hasRole('SUPER_ADMIN')")
     public ResponseEntity<AdminUserResponse> create(@Valid @RequestBody CreateUserRequest req) {
         AdminUserResponse created = adminUserService.create(req);
         return ResponseEntity.created(URI.create("/api/v1/admin/users/" + created.getId()))
@@ -49,7 +49,7 @@ public class AdminUserController {
     }
 
     @PutMapping("/{id}/role")
-    @PreAuthorize("hasRole('OPERATIONS')")
+    @PreAuthorize("hasRole('SUPER_ADMIN')")
     public AdminUserResponse updateRole(@PathVariable UUID id,
                                         @Valid @RequestBody UpdateUserRoleRequest req,
                                         @AuthenticationPrincipal User caller) {
@@ -57,7 +57,7 @@ public class AdminUserController {
     }
 
     @PutMapping("/{id}/status")
-    @PreAuthorize("hasRole('OPERATIONS')")
+    @PreAuthorize("hasRole('SUPER_ADMIN')")
     public AdminUserResponse updateStatus(@PathVariable UUID id,
                                           @Valid @RequestBody UpdateUserStatusRequest req,
                                           @AuthenticationPrincipal User caller) {

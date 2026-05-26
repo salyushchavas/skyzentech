@@ -32,10 +32,13 @@ interface NavLink {
   href: string;
 }
 
-// PED §7 — six role-aware sidebars. APPLICANT + INTERN share the same nav;
-// pages adapt by engagement state. OPERATIONS is the collapsed union of the
-// old RECRUITER + ERM + ADMIN sidebars. EXECUTIVE is read-only leadership
-// (overview + audit log only).
+// PED §7 + SUPER_ADMIN split — seven role-aware sidebars. APPLICANT + INTERN
+// share the same nav; pages adapt by engagement state. OPERATIONS is the
+// collapsed union of the old RECRUITER + ERM sidebars (postings, interviews,
+// onboarding, applications pipeline). SUPER_ADMIN holds the god-mode tiles
+// (Users / Entities / Audit Log / Overview / Compliance) that were on
+// OPERATIONS pre-split. EXECUTIVE is read-only leadership (overview + audit
+// log + compliance).
 const CANDIDATE_LINKS: NavLink[] = [
   { icon: LayoutDashboard, label: 'Dashboard', href: '/careers/candidate' },
   { icon: Briefcase, label: 'Open Internships', href: '/careers/openings' },
@@ -61,7 +64,6 @@ const ROLE_LINKS: Record<UserRole, NavLink[]> = {
     { icon: Users, label: 'Supervised', href: '/careers/supervised' },
   ],
   OPERATIONS: [
-    { icon: LayoutDashboard, label: 'Overview', href: '/careers/admin' },
     { icon: KanbanSquare, label: 'Pipeline', href: '/careers/recruiter' },
     { icon: Users, label: 'Candidates', href: '/careers/recruiter/candidates' },
     { icon: Video, label: 'Interviews', href: '/careers/erm/interviews' },
@@ -69,9 +71,6 @@ const ROLE_LINKS: Record<UserRole, NavLink[]> = {
     { icon: FileBadge, label: 'I-983 Plans', href: '/careers/erm/training-plans' },
     { icon: Briefcase, label: 'Postings', href: '/careers/admin/postings' },
     { icon: Users, label: 'Supervised', href: '/careers/supervised' },
-    { icon: Users, label: 'Users', href: '/careers/admin/users' },
-    { icon: Building2, label: 'Entities', href: '/careers/admin/entities' },
-    { icon: ScrollText, label: 'Audit Log', href: '/careers/admin/audit-log' },
   ],
   TECHNICAL_SUPERVISOR: [
     { icon: LayoutDashboard, label: 'Dashboard', href: '/careers/evaluator' },
@@ -82,6 +81,13 @@ const ROLE_LINKS: Record<UserRole, NavLink[]> = {
   ],
   EXECUTIVE: [
     { icon: LayoutDashboard, label: 'Overview', href: '/careers/admin' },
+    { icon: ScrollText, label: 'Audit Log', href: '/careers/admin/audit-log' },
+    { icon: ShieldCheck, label: 'Compliance', href: '/careers/hr/compliance' },
+  ],
+  SUPER_ADMIN: [
+    { icon: LayoutDashboard, label: 'Overview', href: '/careers/admin' },
+    { icon: Users, label: 'Users', href: '/careers/admin/users' },
+    { icon: Building2, label: 'Entities', href: '/careers/admin/entities' },
     { icon: ScrollText, label: 'Audit Log', href: '/careers/admin/audit-log' },
     { icon: ShieldCheck, label: 'Compliance', href: '/careers/hr/compliance' },
   ],

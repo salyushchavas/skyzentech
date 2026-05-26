@@ -18,7 +18,7 @@ interface AdminEntityResponse {
 
 export default function AdminEntitiesPage() {
   return (
-    <ProtectedRoute requiredRoles={['OPERATIONS']}>
+    <ProtectedRoute requiredRoles={['SUPER_ADMIN']}>
       <DashboardLayout title="Entities">
         <EntitiesList />
       </DashboardLayout>

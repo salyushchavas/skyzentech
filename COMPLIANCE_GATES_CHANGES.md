@@ -264,3 +264,142 @@ Should return ONLY hits inside `UserRoleMigrationRunner.java` (SQL strings + jav
 - Backend modified: 41 (1 enum + 25 controllers + 14 services + 1 dto/admin) + 4 bootstrap (Admin, RoleTestUsers, SeedDemoData, Verification)
 - Frontend modified: 1 type alias + 1 role-routing + 1 sidebar + 45 page files + 7 misc components = 55
 - Total: ~100 files
+
+---
+
+# SUPER_ADMIN split — owner role separated from OPERATIONS
+
+**Scope:** add SUPER_ADMIN as a 7th role above the PED §7 six; move god-mode (user mgmt, role mgmt, audit-log read, I-9 admin overrides) OFF OPERATIONS, ONTO SUPER_ADMIN. OPERATIONS stays as the recruiter/ERM operational role (postings, interviews, onboarding, applications pipeline).
+**Status:** uncommitted; awaiting verification before push.
+
+## Why the split
+After PED §7, the old ADMIN role was folded into OPERATIONS. That made the bootstrap admin indistinguishable from every recruiter/ERM (also OPERATIONS). The SUPER_ADMIN split restores the owner-vs-operational distinction without re-creating the full ADMIN-named ladder.
+
+SUPER_ADMIN does **not** inherit OPERATIONS scope — a single account that needs both must be assigned both roles. This keeps the privilege surface predictable: god-mode endpoints check exactly one role.
+
+## Inventory — endpoints that moved (god-mode → SUPER_ADMIN)
+
+| Controller / endpoint | Old SpEL | New SpEL | Reason |
+|---|---|---|---|
+| `AdminUserController` — list / create / updateRole / updateStatus | `hasRole('OPERATIONS')` | `hasRole('SUPER_ADMIN')` | user management |
+| `AdminEntityController` — list / create / update | `hasRole('OPERATIONS')` | `hasRole('SUPER_ADMIN')` | entity management |
+| `AdminInsightsController.overview` | `hasAnyRole('OPERATIONS','EXECUTIVE')` | `hasAnyRole('SUPER_ADMIN','EXECUTIVE')` | platform overview — EXECUTIVE read-only retained per PED §7 |
+| `AdminInsightsController.auditLog` + `auditLogActions` | `hasAnyRole('OPERATIONS','EXECUTIVE')` | `hasAnyRole('SUPER_ADMIN','EXECUTIVE')` | audit-log read — EXECUTIVE retained |
+| `I9Controller.saveSection1` | `hasAnyRole('APPLICANT','INTERN','OPERATIONS')` | `hasAnyRole('APPLICANT','INTERN','SUPER_ADMIN')` | A1-gate bypass corrective path — was `ADMIN` originally |
+| `I9Controller.reopen` | `hasRole('OPERATIONS')` | `hasRole('SUPER_ADMIN')` | reopen breaks lifecycle immutability — owner-only, not operational. Was `ADMIN` originally |
+
+### Endpoints I considered but kept on OPERATIONS
+- `JobPostingController.create / update / delete / archive` — postings are operational, not god-mode. **Stays OPERATIONS.**
+- `InterviewController.*` — interview scheduling is recruiter day-to-day. **Stays OPERATIONS.**
+- `OnboardingController.*`, `OfferController.*`, `EngagementController.*`, `ApplicationController.*` — applications pipeline. **All stay OPERATIONS.**
+- `AdminInsightsController` audit-log endpoints — EXECUTIVE retained alongside SUPER_ADMIN per PED §7 (Executive Dashboard widget).
+- `ComplianceOverviewController.getOverview` — operational compliance read; EXECUTIVE + HR_COMPLIANCE + OPERATIONS all read it. **Unchanged.**
+
+No audit-log export/download endpoint exists yet — only the paged read covered by `AdminInsightsController`. If one is added, gate it `hasRole('SUPER_ADMIN')` only (EXECUTIVE may read but not export — per the brief).
+
+## Services updated
+
+| File | Change |
+|---|---|
+| `AdminUserService.STAFF_ROLES` | added `SUPER_ADMIN`; STAFF_ROLE_MSG updated. SUPER_ADMIN can now assign itself to other staff accounts. |
+| `AdminUserService.updateRole` self-lockout guard | flipped from "can't remove own OPERATIONS" → "can't remove own SUPER_ADMIN". The last SUPER_ADMIN can't accidentally demote themselves out of god-mode. |
+| `I9FormService.isAdmin()` | now checks `SUPER_ADMIN` (was `OPERATIONS`). This is the A1-gate corrective-write bypass; godmode lives on SUPER_ADMIN only. |
+| `I9FormService.requireSection1WriteAccess` | bypass branch now SUPER_ADMIN-only (was OPERATIONS). Aligns with the new controller gate. |
+
+## Bootstrap — promotion + seeder
+
+**New runner** — [`SuperAdminPromotionRunner`](backend/src/main/java/com/skyzen/careers/bootstrap/SuperAdminPromotionRunner.java)
+- `@Order(Ordered.HIGHEST_PRECEDENCE + 2)` — between `UserRoleMigrationRunner` (PRECEDENCE+1) and `AdminSeeder` (@Order 1).
+- Resolves the user at `admin.email`. If they have OPERATIONS, swaps that row for SUPER_ADMIN (UPDATE, not DELETE+INSERT, so any audit trigger sees one change). If no OPERATIONS row, INSERTs SUPER_ADMIN alongside whatever exists. Idempotent — no-op if already SUPER_ADMIN or if no user at that email.
+- Writes a `USER_ROLE_FLIP` audit row (action, entityType=User, entityId+userId=promoted user, afterJson with from/to/reason). Audit insert is wrapped in try/catch so a schema mismatch can't block the promotion.
+- **Promotion is by IDENTITY (email match), not by role.** OPERATIONS users in general are NOT promoted — exactly one account, the one matching `ADMIN_EMAIL`, becomes SUPER_ADMIN.
+- All in native SQL via `JdbcTemplate` — same reason as `UserRoleMigrationRunner`, bypassing the JPA enum converter so a transitional value never has to round-trip through the enum.
+
+**Modified seeder** — [`AdminSeeder`](backend/src/main/java/com/skyzen/careers/bootstrap/AdminSeeder.java)
+- Idempotency now checks "is there a user at `admin.email`?" instead of "is there any user with OPERATIONS?" — necessary because OPERATIONS is no longer the unique god-mode role.
+- Creates the bootstrap user with `EnumSet.of(SUPER_ADMIN)` (was OPERATIONS). `fullName` changed to "Bootstrap Super Admin".
+- Runs AFTER `SuperAdminPromotionRunner`, so an existing OPERATIONS account at `admin.email` is already promoted by the time the seeder looks.
+
+## Frontend
+
+- `frontend/types/index.ts` — UserRole union now includes `SUPER_ADMIN`; comment updated to explain the split.
+- `frontend/lib/role-routing.ts` — `ROLE_DASHBOARDS.SUPER_ADMIN = '/careers/admin'`. New `ROLE_LANDING_PRIORITY` array picks the highest-privilege role when a user carries multiple (SUPER_ADMIN > EXECUTIVE > OPERATIONS > ...).
+- `frontend/components/dashboard/DashboardSidebar.tsx`:
+  - **NEW** `SUPER_ADMIN` sidebar: Overview / Users / Entities / Audit Log / Compliance.
+  - **OPERATIONS sidebar PRUNED**: removed the Users / Entities / Audit Log / Overview tiles (they were god-mode remnants from the §7 fold). OPERATIONS now sees: Pipeline / Candidates / Interviews / Offer Letters / I-983 Plans / Postings / Supervised. Recruiter/ERM day-to-day, no admin screens.
+- ProtectedRoute updates:
+  - `/careers/admin` (overview) — `['OPERATIONS']` → `['SUPER_ADMIN', 'EXECUTIVE']`
+  - `/careers/admin/users` — `['OPERATIONS']` → `['SUPER_ADMIN']`
+  - `/careers/admin/entities` — `['OPERATIONS']` → `['SUPER_ADMIN']`
+  - `/careers/admin/audit-log` — `['OPERATIONS']` → `['SUPER_ADMIN', 'EXECUTIVE']`
+  - `/careers/admin/postings` — **unchanged** (`['OPERATIONS']`)
+- `frontend/app/careers/admin/users/page.tsx`:
+  - `STAFF_ROLES` picker now starts with `SUPER_ADMIN` (so SUPER_ADMIN can grant SUPER_ADMIN to a second account, e.g., when handing off).
+  - `ROLE_LABEL.SUPER_ADMIN = 'Super admin'`; `ROLE_COLOR.SUPER_ADMIN = 'bg-indigo-100 text-indigo-800'`.
+  - `primaryRole()` ordering: SUPER_ADMIN > OPERATIONS > other staff > first.
+
+## Data — exactly one account is promoted
+
+The promotion is keyed on `admin.email` (the `ADMIN_EMAIL` env var). I'll confirm the actual value at deploy-time, but on the local dev DB the bootstrap admin email is `admin@skyzen.test` — only that account becomes SUPER_ADMIN. **No bulk promotion of OPERATIONS** — recruiters/ERMs stay on OPERATIONS.
+
+## Re-login is required
+
+A user promoted from OPERATIONS to SUPER_ADMIN still carries an OPERATIONS-only `roles` claim in their existing JWT. SUPER_ADMIN-gated endpoints return 403 until next login (same mechanic as the PED §7 deploy). Document and tell the affected user: "log out, log back in." Same applies to anyone whose role set changes through the admin UI — JWTs aren't rotated server-side.
+
+## Manual test plan
+
+### T9 — Bootstrap promotion at first boot
+1. Fresh DB (or one where the `admin.email` user already exists on OPERATIONS).
+2. Start backend. Watch logs.
+3. Expect:
+   - `UserRoleMigrationRunner: ...` lines (no-op on a post-§7 DB; harmless).
+   - `SuperAdminPromotionRunner: promoted <email> (OPERATIONS → SUPER_ADMIN), 1 row(s) rewritten. User must RE-LOGIN ...` — OR — `SuperAdminPromotionRunner: user <email> already SUPER_ADMIN, no-op`.
+   - `Admin seeder` returns silently (user exists).
+4. Re-run: should log idempotent no-op.
+
+### T10 — Login as SUPER_ADMIN
+1. Log out the currently-logged-in admin (or open a private window).
+2. Log in with `ADMIN_EMAIL` / `ADMIN_PASSWORD`.
+3. JWT decoded should show `roles: ["SUPER_ADMIN"]`.
+4. Land on `/careers/admin`. Sidebar shows Overview / Users / Entities / Audit Log / Compliance (no Pipeline, no Candidates).
+
+### T11 — OPERATIONS user blocked from admin screens
+1. Log in as `recruiter@skyzen.test` (or any OPERATIONS-only seeded user).
+2. Sidebar should NOT show Users / Entities / Audit Log / Overview.
+3. Direct-navigate to `/careers/admin/users` — ProtectedRoute redirects (or shows 403 toast).
+4. Direct-navigate to `/careers/admin/postings` — **allowed** (operational, kept on OPERATIONS).
+
+### T12 — EXECUTIVE retains read-only admin
+1. Log in as the EXECUTIVE seeded user.
+2. `/careers/admin` (Overview) — allowed.
+3. `/careers/admin/audit-log` — allowed.
+4. `/careers/admin/users` — denied (SUPER_ADMIN only).
+5. `/careers/admin/entities` — denied (SUPER_ADMIN only).
+
+### T13 — Self-lockout guard flipped
+1. As SUPER_ADMIN, open `/careers/admin/users`, find your own row, click Change role, pick OPERATIONS.
+2. Expect 409: "You cannot remove your own SUPER_ADMIN role."
+3. Pick any role other than your current one for any **other** user, confirm 200.
+
+### T14 — I-9 corrective bypass moved
+1. As SUPER_ADMIN, `POST /api/v1/i9/{id}/section1` with a body that would otherwise be A1-gate-blocked (e.g., candidate has no accepted offer yet). Expect 200 — bypass path active.
+2. As OPERATIONS (not SUPER_ADMIN), same call. Expect 403 (controller gate; OPERATIONS is no longer in `hasAnyRole` for `saveSection1`).
+
+### T15 — Old JWT still in browser → forced re-login
+1. Before the deploy, log in as the bootstrap admin; copy the JWT.
+2. After this change is deployed, paste that JWT into a new tab and hit `/api/v1/admin/users` — expect 403 (claim says OPERATIONS, gate now requires SUPER_ADMIN). Frontend interceptor redirects to `/careers/login`.
+3. Re-login → new JWT carries SUPER_ADMIN → admin screens render.
+
+## What I deliberately did NOT change
+- **`/careers/admin/postings`** — postings stay on OPERATIONS (recruiter day-to-day, not god-mode).
+- **No new env vars.** `ADMIN_EMAIL` / `ADMIN_PASSWORD` are reused as-is. The promotion uses these existing values.
+- **No bulk promotion.** Every other OPERATIONS user stays exactly where they are. The CONSCIOUSLY surgical choice: identity-based promotion, not role-based.
+- **No new dashboards.** SUPER_ADMIN reuses the existing `/careers/admin/*` screens; only ProtectedRoute gates changed.
+- **No JWT rotation on role change.** SUPER_ADMIN must log out / back in (already standard practice for role changes in this codebase).
+- **No engagement-side role flip.** SUPER_ADMIN does not change the APPLICANT → INTERN flip behavior.
+
+## Files touched (count)
+- Backend new: 1 (`SuperAdminPromotionRunner`)
+- Backend modified: 7 (UserRole.java + AdminUserController + AdminEntityController + AdminInsightsController + I9Controller + AdminUserService + I9FormService + AdminSeeder = 8 — `SuperAdminPromotionRunner` is new not modified)
+- Frontend modified: 1 type alias + 1 role-routing + 1 sidebar + 4 admin page guards (overview, users, entities, audit-log) + users-page maps = 8
+- Total: ~17 files

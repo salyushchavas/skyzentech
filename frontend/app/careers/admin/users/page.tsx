@@ -17,11 +17,12 @@ interface AdminUserResponse {
   createdAt: string;
 }
 
-// PED §7 — STAFF_ROLES are the four roles an Operations admin can assign via
-// this UI. APPLICANT and INTERN are NOT in the picker — those are set by
-// candidate registration and the engagement-activation role flip, not by
-// admin-side assignment.
+// PED §7 + SUPER_ADMIN split — STAFF_ROLES are the five roles a SUPER_ADMIN
+// can assign via this UI. APPLICANT and INTERN are NOT in the picker — those
+// are set by candidate registration and the engagement-activation role flip,
+// not by admin-side assignment.
 const STAFF_ROLES: UserRole[] = [
+  'SUPER_ADMIN',
   'OPERATIONS',
   'HR_COMPLIANCE',
   'TECHNICAL_SUPERVISOR',
@@ -35,6 +36,7 @@ const ROLE_LABEL: Record<UserRole, string> = {
   HR_COMPLIANCE: 'HR / Compliance',
   TECHNICAL_SUPERVISOR: 'Technical Supervisor',
   EXECUTIVE: 'Executive',
+  SUPER_ADMIN: 'Super admin',
 };
 
 const ROLE_COLOR: Record<UserRole, string> = {
@@ -44,14 +46,16 @@ const ROLE_COLOR: Record<UserRole, string> = {
   HR_COMPLIANCE: 'bg-emerald-100 text-emerald-800',
   TECHNICAL_SUPERVISOR: 'bg-amber-100 text-amber-800',
   EXECUTIVE: 'bg-violet-100 text-violet-800',
+  SUPER_ADMIN: 'bg-indigo-100 text-indigo-800',
 };
 
-// Show OPERATIONS first if present (they hold the elevated permissions);
-// otherwise the first non-candidate-side role; otherwise just the first.
+// Show SUPER_ADMIN first if present (god-mode); then OPERATIONS; then any
+// other non-candidate-side role; otherwise just the first.
 const CANDIDATE_SIDE: UserRole[] = ['APPLICANT', 'INTERN'];
 
 function primaryRole(roles: UserRole[] | null | undefined): UserRole {
   if (!roles || roles.length === 0) return 'APPLICANT';
+  if (roles.includes('SUPER_ADMIN')) return 'SUPER_ADMIN';
   if (roles.includes('OPERATIONS')) return 'OPERATIONS';
   const staff = roles.find((r) => !CANDIDATE_SIDE.includes(r));
   return staff ?? roles[0];
@@ -72,7 +76,7 @@ function RoleBadge({ role }: { role: UserRole }) {
 
 export default function AdminUsersPage() {
   return (
-    <ProtectedRoute requiredRoles={['OPERATIONS']}>
+    <ProtectedRoute requiredRoles={['SUPER_ADMIN']}>
       <DashboardLayout title="Users">
         <UsersTable />
       </DashboardLayout>
