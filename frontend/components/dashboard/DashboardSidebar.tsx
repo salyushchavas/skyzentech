@@ -87,7 +87,7 @@ const ROLE_LINKS: Record<UserRole, NavLink[]> = {
     { icon: Users, label: 'Supervised', href: '/careers/supervised' },
   ],
   EXECUTIVE: [
-    { icon: LayoutDashboard, label: 'Overview', href: '/careers/admin' },
+    { icon: LayoutDashboard, label: 'Dashboard', href: '/careers/executive' },
     { icon: ScrollText, label: 'Audit Log', href: '/careers/admin/audit-log' },
     { icon: ShieldCheck, label: 'Compliance', href: '/careers/hr/compliance' },
   ],

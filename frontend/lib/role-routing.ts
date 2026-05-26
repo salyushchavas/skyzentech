@@ -12,7 +12,7 @@ export const ROLE_DASHBOARDS: Record<UserRole, string> = {
   HR_COMPLIANCE: '/careers/hr',
   OPERATIONS: '/careers/operations',
   TECHNICAL_SUPERVISOR: '/careers/evaluator',
-  EXECUTIVE: '/careers/admin',
+  EXECUTIVE: '/careers/executive',
   SUPER_ADMIN: '/careers/admin',
 };
 

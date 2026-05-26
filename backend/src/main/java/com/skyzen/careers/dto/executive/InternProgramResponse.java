@@ -1,0 +1,28 @@
+package com.skyzen.careers.dto.executive;
+
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
+
+/**
+ * Intern-program rollup. Active / completed / terminated / blocked counts
+ * + completion rate + at-risk count (active interns currently behind on
+ * their weekly cycle — see WeeklyCycleHealth for the granular numbers).
+ */
+@Getter
+@Setter
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
+public class InternProgramResponse {
+    private long activeInterns;
+    private long completedInterns;
+    private long terminatedInterns;
+    private long blockedInterns;
+    /** completed / (completed + terminated). Nullable when both are zero. */
+    private Double completionRate;
+    /** Active interns missing this week's report OR with a RETURNED-but-not-resubmitted report. */
+    private long atRiskCount;
+}
