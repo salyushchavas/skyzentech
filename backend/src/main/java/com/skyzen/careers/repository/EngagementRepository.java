@@ -93,4 +93,28 @@ public interface EngagementRepository extends JpaRepository<Engagement, UUID> {
     List<Engagement> findRosterByStatusIn(@Param("statuses") Collection<EngagementStatus> statuses,
                                           @Param("entityId") UUID entityId,
                                           @Param("searchPattern") String searchPattern);
+
+    /**
+     * All engagements assigned to a given supervisor (User id), filtered by
+     * status. Same fetch graph as {@link #findRosterByStatusIn}: candidate +
+     * user + entity + application + job-posting all eagerly loaded so the
+     * supervisor-dashboard mapper never trips a lazy proxy.
+     *
+     * <p>The supervisor-dashboard endpoint passes ACTIVE here; SUPER_ADMIN's
+     * "see everything" path uses {@link #findRosterByStatusIn} with no supervisor
+     * filter (we don't need a separate query for the bypass).
+     */
+    @Query("SELECT e FROM Engagement e " +
+            "JOIN FETCH e.candidate c " +
+            "JOIN FETCH c.user u " +
+            "JOIN FETCH e.entity en " +
+            "LEFT JOIN FETCH e.application a " +
+            "LEFT JOIN FETCH a.jobPosting jp " +
+            "LEFT JOIN FETCH e.supervisor s " +
+            "WHERE e.supervisor.id = :supervisorUserId " +
+            "AND e.status IN :statuses " +
+            "ORDER BY e.actualStartDate DESC NULLS LAST, e.createdAt DESC")
+    List<Engagement> findBySupervisorIdAndStatusIn(
+            @Param("supervisorUserId") UUID supervisorUserId,
+            @Param("statuses") Collection<EngagementStatus> statuses);
 }
