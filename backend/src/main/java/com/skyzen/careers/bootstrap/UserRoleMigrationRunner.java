@@ -61,6 +61,22 @@ public class UserRoleMigrationRunner implements CommandLineRunner {
         try {
             int total = 0;
 
+            // 0. Drop the stale Hibernate CHECK constraint BEFORE any UPDATEs run.
+            //    Originally placed at step 5 (cleanup), but the constraint is
+            //    keyed on the OLD enum values — so any UPDATE that writes a NEW
+            //    enum string (APPLICANT, INTERN, SUPER_ADMIN, …) explodes with
+            //    a check_constraint violation before we ever reach step 5. The
+            //    drop MUST happen first. IF EXISTS keeps it idempotent on DBs
+            //    where the constraint was never auto-added. Hibernate may
+            //    re-add it on next boot against the CURRENT enum values, which
+            //    is fine — the new values are what we want.
+            try {
+                jdbcTemplate.execute(
+                        "ALTER TABLE user_roles DROP CONSTRAINT IF EXISTS user_roles_role_check");
+            } catch (Exception ce) {
+                log.warn("user_roles_role_check drop failed (non-fatal): {}", ce.getMessage());
+            }
+
             // 1. CANDIDATE → INTERN where the user has an ACTIVE engagement.
             //    Must run BEFORE the catch-all CANDIDATE → APPLICANT, otherwise
             //    every candidate becomes APPLICANT and INTERN promotion is lost.
@@ -115,15 +131,8 @@ public class UserRoleMigrationRunner implements CommandLineRunner {
             total += sup;
             log.info("Role migration: TECHNICAL_EVALUATOR→TECHNICAL_SUPERVISOR: {} rows", sup);
 
-            // 5. Stale CHECK constraint, if Hibernate ever auto-added one against
-            //    the old enum values. SchemaFixupRunner has the same pattern for
-            //    applications_status_check / i9_forms_status_check. Idempotent.
-            try {
-                jdbcTemplate.execute(
-                        "ALTER TABLE user_roles DROP CONSTRAINT IF EXISTS user_roles_role_check");
-            } catch (Exception ce) {
-                log.warn("user_roles_role_check drop failed (non-fatal): {}", ce.getMessage());
-            }
+            // (The stale CHECK-constraint drop that used to live here was moved
+            // to step 0 — see the comment there.)
 
             log.info("Role migration complete: {} total row(s) rewritten. "
                     + "Existing JWTs will fail authorization — users must re-login.", total);
