@@ -21,9 +21,11 @@ import com.skyzen.careers.enums.I9Status;
 import com.skyzen.careers.enums.TimesheetStatus;
 import com.skyzen.careers.enums.UserRole;
 import com.skyzen.careers.enums.WeeklyReportStatus;
+import com.skyzen.careers.enums.EvaluationStatus;
 import com.skyzen.careers.repository.ApplicationRepository;
 import com.skyzen.careers.repository.EVerifyCaseRepository;
 import com.skyzen.careers.repository.EngagementRepository;
+import com.skyzen.careers.repository.EvaluationRepository;
 import com.skyzen.careers.repository.I983PlanRepository;
 import com.skyzen.careers.repository.I9FormRepository;
 import com.skyzen.careers.repository.TimesheetRepository;
@@ -100,6 +102,7 @@ public class ExecutiveDashboardService {
     private final EVerifyCaseRepository everifyCaseRepository;
     private final WeeklyReportRepository weeklyReportRepository;
     private final TimesheetRepository timesheetRepository;
+    private final EvaluationRepository evaluationRepository;
 
     @Transactional(readOnly = true)
     public ExecutiveDashboardResponse build(User caller) {
@@ -170,6 +173,10 @@ public class ExecutiveDashboardService {
                 EngagementStatus.BLOCKED_NO_AUTHORIZATION);
         long atRisk = computeAtRiskCount();
 
+        long evaluationsFinalized = evaluationRepository.countByStatus(EvaluationStatus.FINALIZED);
+        long evaluationsInDraft = evaluationRepository.countByStatus(EvaluationStatus.DRAFT);
+        Double avgRating = evaluationRepository.averageFinalizedOverallRating();
+
         return InternProgramResponse.builder()
                 .activeInterns(active)
                 .completedInterns(completed)
@@ -177,6 +184,9 @@ public class ExecutiveDashboardService {
                 .blockedInterns(blocked)
                 .completionRate(rate(completed, completed + terminated))
                 .atRiskCount(atRisk)
+                .evaluationsFinalizedCount(evaluationsFinalized)
+                .evaluationsInDraftCount(evaluationsInDraft)
+                .averageEvaluationRating(avgRating)
                 .build();
     }
 

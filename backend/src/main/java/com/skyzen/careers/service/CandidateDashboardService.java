@@ -114,6 +114,7 @@ public class CandidateDashboardService {
     private final WeeklyReportRepository weeklyReportRepository;
     private final TimesheetRepository timesheetRepository;
     private final ProjectRepository projectRepository;
+    private final com.skyzen.careers.repository.EvaluationRepository evaluationRepository;
 
     @Transactional(readOnly = true)
     public CandidateDashboardResponse build(User caller) {
@@ -1460,6 +1461,11 @@ public class CandidateDashboardService {
         // surfaces too (so they know it's awaiting review). COMPLETED falls off.
         CandidateDashboardResponse.ProjectCard projectCard = buildProjectCard(candidateId);
 
+        // Evaluation card — prefer a pending I-983 self-review (action!), else
+        // fall back to the most-recent FINALIZED evaluation (celebrate / read).
+        CandidateDashboardResponse.EvaluationCard evaluationCard =
+                buildEvaluationCard(candidate);
+
         return CandidateDashboardResponse.WeeklyCockpit.builder()
                 .weekStart(weekStart)
                 .material(materialCard)
@@ -1467,6 +1473,40 @@ public class CandidateDashboardService {
                 .timesheet(timesheetCard)
                 .authorization(auth)
                 .project(projectCard)
+                .latestEvaluation(evaluationCard)
+                .build();
+    }
+
+    private CandidateDashboardResponse.EvaluationCard buildEvaluationCard(Candidate candidate) {
+        if (candidate == null || candidate.getUser() == null) return null;
+        UUID userId = candidate.getUser().getId();
+        // 1. Action-first: pending I-983 self-review on a DRAFT.
+        java.util.List<com.skyzen.careers.entity.Evaluation> drafts = evaluationRepository
+                .findSelfReviewableDraftsByCandidateUserIdWithGraph(userId);
+        if (!drafts.isEmpty()) {
+            com.skyzen.careers.entity.Evaluation d = drafts.get(0);
+            return CandidateDashboardResponse.EvaluationCard.builder()
+                    .id(d.getId())
+                    .type(d.getType() != null ? d.getType().name() : null)
+                    .status(d.getStatus() != null ? d.getStatus().name() : null)
+                    .selfReviewPending(true)
+                    .href("/careers/candidate/evaluations")
+                    .build();
+        }
+        // 2. Read: most-recent FINALIZED (the repo orders by createdAt desc).
+        java.util.List<com.skyzen.careers.entity.Evaluation> finalized = evaluationRepository
+                .findFinalizedByCandidateUserIdWithGraph(userId,
+                        com.skyzen.careers.enums.EvaluationStatus.FINALIZED);
+        if (finalized.isEmpty()) return null;
+        com.skyzen.careers.entity.Evaluation top = finalized.get(0);
+        return CandidateDashboardResponse.EvaluationCard.builder()
+                .id(top.getId())
+                .type(top.getType() != null ? top.getType().name() : null)
+                .status(top.getStatus() != null ? top.getStatus().name() : null)
+                .overallRating(top.getOverallRating())
+                .finalizedAt(top.getFinalizedAt())
+                .selfReviewPending(false)
+                .href("/careers/candidate/evaluations")
                 .build();
     }
 

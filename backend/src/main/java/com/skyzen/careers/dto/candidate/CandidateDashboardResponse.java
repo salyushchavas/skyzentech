@@ -290,6 +290,34 @@ public class CandidateDashboardResponse {
         private AuthorizationInfo authorization;
         /** Active project the intern should focus on this week. Null when none. */
         private ProjectCard project;
+        /** Latest FINALIZED evaluation (read-only) or DRAFT I-983 self-review prompt. Null when none. */
+        private EvaluationCard latestEvaluation;
+    }
+
+    /**
+     * Periodic evaluation surfaced on the intern cockpit. Drives one of:
+     *   - read-only celebration card when the supervisor finalized one
+     *     (selfReviewPending == false)
+     *   - amber action prompt when the supervisor created a DRAFT I-983 that
+     *     wants the intern's reflection (selfReviewPending == true)
+     */
+    @Getter
+    @Setter
+    @NoArgsConstructor
+    @AllArgsConstructor
+    @Builder
+    public static class EvaluationCard {
+        private UUID id;
+        /** MIDPOINT / FINAL / I983_12MO / I983_FINAL / CHECKPOINT. */
+        private String type;
+        /** DRAFT / FINALIZED. */
+        private String status;
+        /** 1–5; only populated when FINALIZED. */
+        private Integer overallRating;
+        private Instant finalizedAt;
+        /** True when this is an I-983 DRAFT the intern still owes a self-review for. */
+        private boolean selfReviewPending;
+        private String href;
     }
 
     @Getter

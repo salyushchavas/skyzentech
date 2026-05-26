@@ -1279,6 +1279,112 @@ export interface ReviewProjectRequest {
   reviewNotes?: string;
 }
 
+// === Periodic evaluations ===================================================
+
+export type EvaluationType =
+  | 'MIDPOINT'
+  | 'FINAL'
+  | 'I983_12MO'
+  | 'I983_FINAL'
+  | 'CHECKPOINT';
+
+export type EvaluationStatus = 'DRAFT' | 'FINALIZED';
+
+export type EvaluationRecommendation =
+  | 'HIGHLY_RECOMMENDED'
+  | 'RECOMMENDED'
+  | 'NEEDS_IMPROVEMENT'
+  | 'NOT_RECOMMENDED';
+
+export type RubricCriterion =
+  | 'TECHNICAL_SKILLS'
+  | 'CODE_QUALITY'
+  | 'COMMUNICATION'
+  | 'INITIATIVE'
+  | 'PROFESSIONALISM'
+  | 'LEARNING';
+
+export interface EvaluationRubricScoreResponse {
+  id: Uuid;
+  criterion: RubricCriterion;
+  score: number;
+  note?: string | null;
+}
+
+export interface EvaluationSelfReviewResponse {
+  id: Uuid;
+  reflection?: string | null;
+  selfOverallRating?: number | null;
+  selfTechnicalRating?: number | null;
+  selfGrowthRating?: number | null;
+  submittedAt?: IsoDateTime | null;
+}
+
+export interface EvaluationContextResponse {
+  completedProjects: { id: Uuid; title: string; completedDate: string | null }[];
+  reportStats: {
+    totalCount: number;
+    approvedCount: number;
+    returnedCount: number;
+    pendingCount: number;
+  };
+  timesheetStats: {
+    totalCount: number;
+    approvedCount: number;
+    approvedHours: string;
+  };
+}
+
+export interface EvaluationResponse {
+  id: Uuid;
+  internCandidateId: Uuid;
+  internName?: string | null;
+  engagementId: Uuid;
+  evaluatorId: Uuid;
+  evaluatorName?: string | null;
+  type: EvaluationType;
+  periodStart?: string | null;
+  periodEnd?: string | null;
+  overallRating?: number | null;
+  strengths?: string | null;
+  areasForImprovement?: string | null;
+  comments?: string | null;
+  recommendation?: EvaluationRecommendation | null;
+  status: EvaluationStatus;
+  createdAt: IsoDateTime;
+  finalizedAt?: IsoDateTime | null;
+  updatedAt: IsoDateTime;
+  rubric: EvaluationRubricScoreResponse[];
+  selfReview?: EvaluationSelfReviewResponse | null;
+  context?: EvaluationContextResponse | null;
+}
+
+export interface CreateEvaluationRequest {
+  candidateId: Uuid;
+  type: EvaluationType;
+  periodStart?: string;
+  periodEnd?: string;
+  rubric?: { criterion: RubricCriterion; score: number; note?: string }[];
+}
+
+export interface UpdateEvaluationRequest {
+  periodStart?: string;
+  periodEnd?: string;
+  overallRating?: number;
+  strengths?: string;
+  areasForImprovement?: string;
+  comments?: string;
+  recommendation?: EvaluationRecommendation;
+  rubric?: { criterion: RubricCriterion; score: number; note?: string }[];
+}
+
+export interface SubmitSelfReviewRequest {
+  reflection?: string;
+  selfOverallRating?: number;
+  selfTechnicalRating?: number;
+  selfGrowthRating?: number;
+}
+
 // === Candidate dashboard journey (SPEC §3 §4 §5 §6) ==========================
 
 export type StageState = 'done' | 'current' | 'upcoming' | 'blocked';

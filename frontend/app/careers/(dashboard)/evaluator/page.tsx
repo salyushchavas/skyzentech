@@ -11,6 +11,7 @@ import {
   ClipboardList,
   Clock,
   FileText,
+  Star,
   TrendingUp,
   Users,
 } from 'lucide-react';
@@ -285,6 +286,8 @@ function ActionIcon({ keyName }: { keyName: string }) {
       return <Clock className={cn} strokeWidth={2} />;
     case 'PROJECTS_TO_REVIEW':
       return <ClipboardList className={cn} strokeWidth={2} />;
+    case 'EVALUATIONS_TO_FINALIZE':
+      return <Star className={cn} strokeWidth={2} />;
     case 'EVALUATIONS_DUE':
       return <CalendarClock className={cn} strokeWidth={2} />;
     case 'MATERIALS_TO_PUBLISH':

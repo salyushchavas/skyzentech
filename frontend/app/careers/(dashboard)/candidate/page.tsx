@@ -16,6 +16,7 @@ import {
   FileText,
   ShieldCheck,
   Sparkles,
+  Star,
   UserCircle,
 } from 'lucide-react';
 import api from '@/lib/api';
@@ -134,6 +135,16 @@ interface ProjectCard {
   href: string;
 }
 
+interface EvaluationCard {
+  id: Uuid;
+  type: string | null;
+  status: string | null;
+  overallRating: number | null;
+  finalizedAt: string | null;
+  selfReviewPending: boolean;
+  href: string;
+}
+
 interface WeeklyCockpit {
   weekStart: string;
   material: MaterialCard | null;
@@ -141,6 +152,7 @@ interface WeeklyCockpit {
   timesheet: TimesheetCard | null;
   authorization: AuthorizationInfo | null;
   project: ProjectCard | null;
+  latestEvaluation: EvaluationCard | null;
 }
 
 interface CandidateDashboardResponse {
@@ -268,6 +280,13 @@ function CandidateDashboardBody() {
           {/* Active project — most-actionable allocated work. */}
           {data.weeklyCockpit!.project && (
             <ActiveProjectCard project={data.weeklyCockpit!.project} />
+          )}
+
+          {/* Latest evaluation — pending I-983 self-review OR most-recent finalized */}
+          {data.weeklyCockpit!.latestEvaluation && (
+            <LatestEvaluationCard
+              evaluation={data.weeklyCockpit!.latestEvaluation}
+            />
           )}
 
           {/* Compliance & Authorization strip — only when we have anything to show */}
@@ -904,6 +923,80 @@ function ActiveProjectCard({ project }: { project: ProjectCard }) {
         className="mt-3 inline-block text-xs font-medium text-accent hover:underline"
       >
         {isReturned ? 'Open and resubmit →' : 'Open project →'}
+      </Link>
+    </article>
+  );
+}
+
+// ── Latest evaluation (intern cockpit) ──────────────────────────────────────
+
+const EVAL_TYPE_LABEL: Record<string, string> = {
+  MIDPOINT: 'Midpoint',
+  FINAL: 'Final',
+  I983_12MO: 'I-983 12-month',
+  I983_FINAL: 'I-983 final',
+  CHECKPOINT: 'Checkpoint',
+};
+
+function LatestEvaluationCard({ evaluation }: { evaluation: EvaluationCard }) {
+  const typeLabel = evaluation.type
+    ? EVAL_TYPE_LABEL[evaluation.type] ?? evaluation.type
+    : 'Evaluation';
+  if (evaluation.selfReviewPending) {
+    return (
+      <article className="rounded-lg border border-amber-300 bg-amber-50 p-5">
+        <div className="mb-2 flex items-center gap-2">
+          <Star className="h-4 w-4 text-amber-700" strokeWidth={2} />
+          <h2 className="text-sm font-semibold text-amber-900">
+            {typeLabel} — your reflection is requested
+          </h2>
+        </div>
+        <p className="text-sm text-amber-900/90">
+          Your supervisor started an I-983 evaluation. Add a short self-review
+          before it&apos;s finalized.
+        </p>
+        <Link
+          href={evaluation.href}
+          className="mt-3 inline-block text-xs font-medium text-amber-900 underline hover:no-underline"
+        >
+          Add self-review →
+        </Link>
+      </article>
+    );
+  }
+  return (
+    <article className="rounded-lg border border-emerald-200 bg-white p-5">
+      <div className="mb-2 flex items-center gap-2">
+        <Star className="h-4 w-4 text-emerald-700" strokeWidth={2} />
+        <h2 className="text-sm font-semibold text-gray-900">
+          Latest evaluation
+        </h2>
+        <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-emerald-800">
+          Finalized
+        </span>
+      </div>
+      <p className="text-sm font-medium text-gray-900">{typeLabel}</p>
+      {typeof evaluation.overallRating === 'number' && (
+        <div className="mt-1 flex items-center gap-1" aria-label={`${evaluation.overallRating} of 5`}>
+          {[1, 2, 3, 4, 5].map((i) => (
+            <Star
+              key={i}
+              className={
+                'h-3.5 w-3.5 ' +
+                (i <= (evaluation.overallRating ?? 0)
+                  ? 'fill-amber-400 text-amber-400'
+                  : 'text-gray-300')
+              }
+              strokeWidth={2}
+            />
+          ))}
+        </div>
+      )}
+      <Link
+        href={evaluation.href}
+        className="mt-3 inline-block text-xs font-medium text-accent hover:underline"
+      >
+        View evaluation →
       </Link>
     </article>
   );

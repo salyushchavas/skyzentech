@@ -191,7 +191,17 @@ function Body() {
               <div className="text-sm text-gray-500">{form.candidateEmail}</div>
             )}
           </div>
-          <I9StatusBadge status={form.status} size="md" />
+          <div className="flex items-center gap-2">
+            {form.candidateId && (
+              <Link
+                href={`/careers/hr/evaluations/${form.candidateId}`}
+                className="inline-flex items-center gap-1 rounded-md border border-gray-300 bg-white px-2.5 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50"
+              >
+                View evaluations
+              </Link>
+            )}
+            <I9StatusBadge status={form.status} size="md" />
+          </div>
         </div>
 
         <dl className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-3">

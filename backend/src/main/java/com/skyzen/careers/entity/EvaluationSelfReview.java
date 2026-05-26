@@ -1,0 +1,56 @@
+package com.skyzen.careers.entity;
+
+import jakarta.persistence.*;
+import lombok.*;
+
+import java.time.Instant;
+import java.util.UUID;
+
+/**
+ * Optional intern self-review attached to an {@link Evaluation}. Surfaced
+ * for I-983 types (USCIS requires the student's own assessment alongside
+ * the employer's). One-per-evaluation by unique constraint.
+ *
+ * <p>The intern submits via {@code PUT /api/v1/evaluations/{id}/self} when
+ * the evaluation's type permits self-review. Once submitted, the supervisor
+ * can read it as context before finalizing.
+ */
+@Entity
+@Table(
+        name = "evaluation_self_reviews",
+        uniqueConstraints = @UniqueConstraint(
+                name = "uk_evaluation_self_review_evaluation",
+                columnNames = "evaluation_id"
+        )
+)
+@Getter
+@Setter
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
+public class EvaluationSelfReview {
+
+    @Id
+    @GeneratedValue
+    private UUID id;
+
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(name = "evaluation_id", nullable = false, unique = true)
+    private Evaluation evaluation;
+
+    @Column(columnDefinition = "TEXT")
+    private String reflection;
+
+    /** 1–5 intern self-rating. Optional. */
+    @Column(name = "self_overall_rating")
+    private Integer selfOverallRating;
+
+    @Column(name = "self_technical_rating")
+    private Integer selfTechnicalRating;
+
+    @Column(name = "self_growth_rating")
+    private Integer selfGrowthRating;
+
+    @Column(name = "submitted_at")
+    private Instant submittedAt;
+}

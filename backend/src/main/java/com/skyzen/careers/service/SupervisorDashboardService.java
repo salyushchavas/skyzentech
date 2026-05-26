@@ -16,6 +16,7 @@ import com.skyzen.careers.entity.WeeklyMaterial;
 import com.skyzen.careers.entity.WeeklyReport;
 import com.skyzen.careers.enums.EngagementStatus;
 import com.skyzen.careers.enums.EvaluationSessionStatus;
+import com.skyzen.careers.enums.EvaluationStatus;
 import com.skyzen.careers.enums.TimesheetStatus;
 import com.skyzen.careers.enums.UserRole;
 import com.skyzen.careers.enums.WeeklyMaterialStatus;
@@ -23,6 +24,7 @@ import com.skyzen.careers.enums.WeeklyReportStatus;
 import com.skyzen.careers.enums.ProjectStatus;
 import com.skyzen.careers.repository.AuditLogRepository;
 import com.skyzen.careers.repository.EngagementRepository;
+import com.skyzen.careers.repository.EvaluationRepository;
 import com.skyzen.careers.repository.EvaluationSessionRepository;
 import com.skyzen.careers.repository.MaterialAcknowledgementRepository;
 import com.skyzen.careers.repository.ProjectRepository;
@@ -89,6 +91,7 @@ public class SupervisorDashboardService {
     private final WeeklyMaterialRepository weeklyMaterialRepository;
     private final MaterialAcknowledgementRepository materialAcknowledgementRepository;
     private final EvaluationSessionRepository evaluationSessionRepository;
+    private final EvaluationRepository evaluationRepository;
     private final AuditLogRepository auditLogRepository;
     private final ProjectRepository projectRepository;
 
@@ -239,6 +242,12 @@ public class SupervisorDashboardService {
         long projectsToReview = projectRepository.countByAssignedByIdAndStatus(
                 caller.getId(), ProjectStatus.SUBMITTED);
 
+        // DRAFT evaluations authored by this supervisor — periodic eval form
+        // started but not finalized yet. SUPER_ADMIN sees their own drafts only
+        // here; cross-supervisor visibility lives on the executive surface.
+        long evaluationsToFinalize = evaluationRepository
+                .countByEvaluatorIdAndStatus(caller.getId(), EvaluationStatus.DRAFT);
+
         // Action queue — same grammar as the operations / HR dashboards.
         List<SupervisorActionItemResponse> needsAttention = List.of(
                 SupervisorActionItemResponse.builder()
@@ -258,6 +267,12 @@ public class SupervisorDashboardService {
                         .label("Projects awaiting review")
                         .count(projectsToReview)
                         .href("/careers/evaluator/projects")
+                        .build(),
+                SupervisorActionItemResponse.builder()
+                        .key("EVALUATIONS_TO_FINALIZE")
+                        .label("Evaluations to finalize")
+                        .count(evaluationsToFinalize)
+                        .href("/careers/evaluator/evaluations")
                         .build(),
                 SupervisorActionItemResponse.builder()
                         .key("EVALUATIONS_DUE")
@@ -453,6 +468,12 @@ public class SupervisorDashboardService {
                                 .label("Projects awaiting review")
                                 .count(0L)
                                 .href("/careers/evaluator/projects")
+                                .build(),
+                        SupervisorActionItemResponse.builder()
+                                .key("EVALUATIONS_TO_FINALIZE")
+                                .label("Evaluations to finalize")
+                                .count(0L)
+                                .href("/careers/evaluator/evaluations")
                                 .build(),
                         SupervisorActionItemResponse.builder()
                                 .key("EVALUATIONS_DUE")

@@ -9,6 +9,7 @@ import {
   ClipboardList,
   FileText,
   ShieldCheck,
+  Star,
   TrendingUp,
   Users,
 } from 'lucide-react';
@@ -59,6 +60,9 @@ interface InternProgram {
   blockedInterns: number;
   completionRate: number | null;
   atRiskCount: number;
+  evaluationsFinalizedCount: number;
+  evaluationsInDraftCount: number;
+  averageEvaluationRating: number | null;
 }
 
 interface ComplianceHealth {
@@ -211,8 +215,16 @@ function KpiRow({
   program: InternProgram;
   compliance: ComplianceHealth;
 }) {
+  const ratingValue =
+    program.averageEvaluationRating != null
+      ? program.averageEvaluationRating.toFixed(1)
+      : '—';
+  const ratingSubtitle =
+    program.evaluationsFinalizedCount > 0
+      ? `${program.evaluationsFinalizedCount.toLocaleString()} finalized · ${program.evaluationsInDraftCount.toLocaleString()} in draft`
+      : 'No evaluations finalized yet';
   return (
-    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
       <Kpi
         icon={<TrendingUp className="h-4 w-4" strokeWidth={2} />}
         label="Funnel conversion"
@@ -237,6 +249,13 @@ function KpiRow({
         value={pct(program.completionRate)}
         subtitle={`${program.completedInterns.toLocaleString()} completed · ${program.terminatedInterns.toLocaleString()} terminated`}
         tone="good"
+      />
+      <Kpi
+        icon={<Star className="h-4 w-4" strokeWidth={2} />}
+        label="Avg. evaluation"
+        value={ratingValue + (program.averageEvaluationRating != null ? ' / 5' : '')}
+        subtitle={ratingSubtitle}
+        tone="accent"
       />
       <Kpi
         icon={<ShieldCheck className="h-4 w-4" strokeWidth={2} />}

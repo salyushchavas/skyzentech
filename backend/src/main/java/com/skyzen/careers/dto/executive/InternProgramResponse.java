@@ -25,4 +25,10 @@ public class InternProgramResponse {
     private Double completionRate;
     /** Active interns missing this week's report OR with a RETURNED-but-not-resubmitted report. */
     private long atRiskCount;
+    /** Total FINALIZED periodic evaluations across the program. */
+    private long evaluationsFinalizedCount;
+    /** Average overall rating across FINALIZED evaluations (1-5 scale). Null when none. */
+    private Double averageEvaluationRating;
+    /** DRAFT evaluations across all supervisors — the program's "in flight" surface. */
+    private long evaluationsInDraftCount;
 }
