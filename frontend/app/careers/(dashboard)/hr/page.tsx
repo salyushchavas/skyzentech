@@ -5,116 +5,116 @@ import Link from 'next/link';
 import {
   AlertCircle,
   AlertTriangle,
+  ArrowRight,
   BadgeCheck,
-  Briefcase,
+  Bell,
   CalendarClock,
+  CheckCircle,
+  ClipboardList,
   FileSignature,
-  FolderArchive,
-  Info,
   ShieldCheck,
+  TrendingUp,
 } from 'lucide-react';
 import api from '@/lib/api';
-import { formatRelative } from '@/lib/format-date';
-import DashboardLayout from '@/components/dashboard/DashboardLayout';
+import { useAuth } from '@/lib/auth-context';
+import { formatRelative, formatDueDate } from '@/lib/format-date';
 import ProtectedRoute from '@/components/ProtectedRoute';
+import DashboardLayout from '@/components/dashboard/DashboardLayout';
+import type { Uuid } from '@/types';
 
-interface I9Stats {
-  total: number;
-  pending: number;
-  completed: number;
-  overdue: number;
-}
+/**
+ * HR / Compliance command center. Phase-1 dashboard reusing the candidate +
+ * operations dashboards' card grammar (rounded-lg cards on white, accent
+ * accents, formatRelative for times). The deeper compliance view continues
+ * to live at /careers/hr/compliance — this is the landing summary.
+ *
+ * Backed by GET /api/v1/hr/dashboard. The payload deliberately carries no
+ * raw PII (no SSN, A-Number, document numbers, DOB) and exposes no audit-
+ * log download — full audit export stays on the SUPER_ADMIN admin pages.
+ */
 
-interface I983Stats {
-  total: number;
-  draft: number;
-  complete: number;
-  submittedToDso: number;
-  approved: number;
-  rejected: number;
-  amendment: number;
-}
-
-interface EverifyStats {
-  total: number;
-  pendingSubmission: number;
-  open: number;
-  tnc: number;
-  authorized: number;
-  closed: number;
-}
-
-interface OfferStats {
-  totalActive: number;
-  pending: number;
-  accepted: number;
-  declined: number;
-}
-
-interface ComplianceStats {
-  i9: I9Stats | null;
-  i983: I983Stats | null;
-  everify: EverifyStats | null;
-  offers: OfferStats | null;
-}
-
-type AlertSeverity = 'CRITICAL' | 'WARNING' | 'INFO';
-
-interface ComplianceAlert {
-  severity: AlertSeverity;
-  title: string;
-  description: string | null;
-  linkUrl: string | null;
-  count?: number | null;
-}
-
-interface UpcomingDeadline {
+interface HrActionItem {
+  key: string;
   label: string;
-  dueDate: string | null;
-  daysUntilDue: number | null;
+  count: number;
+  href: string;
+}
+
+interface ComplianceStatusBoard {
+  offerAccepted: number;
+  i983InProgress: number;
+  i9Section1Pending: number;
+  i9Section2Pending: number;
+  everifyOpen: number;
+  cleared: number;
+}
+
+interface AuthExpiryItem {
+  candidateId: Uuid;
   candidateName: string | null;
+  authType: string;
+  expirationDate: string | null;
+  daysUntilExpiry: number | null;
   linkUrl: string | null;
 }
 
-interface RecentAction {
+interface OfferStatusSummary {
+  sent: number;
+  accepted: number;
+  pending: number;
+}
+
+interface AuditFeedItem {
   timestamp: string | null;
   summary: string | null;
-  performedByName: string | null;
-  performedByRole: string | null;
   entityType: string | null;
-  entityLinkUrl: string | null;
+  linkUrl: string | null;
 }
 
-interface ComplianceOverviewResponse {
-  stats: ComplianceStats | null;
-  alerts: ComplianceAlert[] | null;
-  upcomingDeadlines: UpcomingDeadline[] | null;
-  recentActions: RecentAction[] | null;
+interface HrDashboardResponse {
+  operatorName: string | null;
+  needsAttention: HrActionItem[];
+  statusBoard: ComplianceStatusBoard;
+  authExpiry: AuthExpiryItem[];
+  offerStatus: OfferStatusSummary;
+  auditFeed: AuditFeedItem[];
 }
+
+const STATUS_STAGES: ReadonlyArray<{
+  key: keyof ComplianceStatusBoard;
+  label: string;
+  icon: typeof CheckCircle;
+}> = [
+  { key: 'offerAccepted', label: 'Offer accepted', icon: FileSignature },
+  { key: 'i983InProgress', label: 'I-983 in progress', icon: ClipboardList },
+  { key: 'i9Section1Pending', label: 'I-9 §1 pending', icon: AlertTriangle },
+  { key: 'i9Section2Pending', label: 'I-9 §2 pending', icon: ShieldCheck },
+  { key: 'everifyOpen', label: 'E-Verify open', icon: BadgeCheck },
+  { key: 'cleared', label: 'Cleared', icon: CheckCircle },
+];
 
 export default function HrDashboardPage() {
   return (
-    <ProtectedRoute requiredRoles={['OPERATIONS', 'HR_COMPLIANCE']}>
-      <DashboardLayout title="HR Dashboard">
-        <HrBody />
+    <ProtectedRoute requiredRoles={['HR_COMPLIANCE', 'SUPER_ADMIN']}>
+      <DashboardLayout title="HR Compliance Dashboard">
+        <HrDashboardBody />
       </DashboardLayout>
     </ProtectedRoute>
   );
 }
 
-function HrBody() {
-  const [data, setData] = useState<ComplianceOverviewResponse | null>(null);
+function HrDashboardBody() {
+  const { user } = useAuth();
+  const [data, setData] = useState<HrDashboardResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setError(null);
     try {
-      const res = await api.get<ComplianceOverviewResponse>(
-        '/api/v1/compliance/overview',
-      );
+      const res = await api.get<HrDashboardResponse>('/api/v1/hr/dashboard');
       setData(res.data ?? null);
     } catch (err: any) {
-      setError(err?.response?.data?.error ?? "Couldn't load the HR overview.");
+      setError(err?.response?.data?.error ?? "Couldn't load the dashboard.");
       setData(null);
     }
   }, []);
@@ -137,416 +137,426 @@ function HrBody() {
       </div>
     );
   }
+  if (data === null) return <DashboardSkeleton />;
 
-  if (data === null) {
-    return <SkeletonView />;
-  }
-
-  const stats = data.stats ?? null;
-  const alerts = data.alerts ?? [];
-  const deadlines = data.upcomingDeadlines ?? [];
-  const actions = data.recentActions ?? [];
-
-  const allEmpty =
-    alerts.length === 0 &&
-    deadlines.length === 0 &&
-    (!stats?.i9 || stats.i9.pending === 0) &&
-    (!stats?.i983 || stats.i983.total === 0);
+  const operatorName = data.operatorName ?? user?.fullName ?? null;
+  const totalActions = data.needsAttention.reduce((s, a) => s + a.count, 0);
+  const urgentExpiry = data.authExpiry.filter(
+    (e) => e.daysUntilExpiry !== null && e.daysUntilExpiry !== undefined && e.daysUntilExpiry <= 30,
+  ).length;
 
   return (
     <section className="space-y-6">
-      <header>
-        <h1 className="text-2xl font-semibold text-gray-900">HR Compliance</h1>
-        <p className="mt-1 text-sm text-gray-600">
-          I-9 verifications, I-983 training plans, and E-Verify cases at a glance.
-        </p>
-      </header>
+      <Header
+        operatorName={operatorName}
+        totalActions={totalActions}
+        urgentExpiry={urgentExpiry}
+      />
 
-      {/* Compliance-health cards */}
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-        <I9Card stats={stats?.i9 ?? null} />
-        <I983Card stats={stats?.i983 ?? null} />
-        <EverifyCard stats={stats?.everify ?? null} />
-      </div>
+      <NeedsAttention items={data.needsAttention} />
 
-      {/* Two-column lower section */}
+      <ComplianceStatusBoardCard board={data.statusBoard} />
+
       <div className="grid gap-6 lg:grid-cols-3">
-        {/* Needs your attention */}
-        <div className="space-y-3 lg:col-span-2">
-          <h2 className="text-lg font-semibold text-gray-900">Needs your attention</h2>
-          {alerts.length === 0 ? (
-            <div className="rounded-lg border border-dashed border-gray-300 bg-white p-8 text-center">
-              <BadgeCheck
-                className="mx-auto mb-2 h-8 w-8 text-emerald-500"
-                strokeWidth={1.5}
-              />
-              <p className="text-sm font-medium text-gray-700">All caught up.</p>
-              <p className="text-xs text-gray-500">
-                Nothing currently flagged for HR review.
-              </p>
-            </div>
-          ) : (
-            <ul className="space-y-2">
-              {alerts.map((a, i) => (
-                <li key={i}>
-                  <AlertRow alert={a} />
-                </li>
-              ))}
-            </ul>
-          )}
-
-          {deadlines.length > 0 && (
-            <>
-              <h2 className="pt-3 text-lg font-semibold text-gray-900">
-                Upcoming deadlines
-              </h2>
-              <ul className="space-y-2">
-                {deadlines.map((d, i) => (
-                  <li
-                    key={i}
-                    className="flex items-start justify-between gap-3 rounded-lg border border-gray-200 bg-white p-4"
-                  >
-                    <div className="flex min-w-0 items-start gap-3">
-                      <CalendarClock
-                        className="mt-0.5 h-4 w-4 shrink-0 text-blue-600"
-                        strokeWidth={2}
-                      />
-                      <div className="min-w-0">
-                        <div className="truncate text-sm font-medium text-gray-900">
-                          {d.label}
-                        </div>
-                        <div className="text-xs text-gray-500">
-                          {d.dueDate ?? '—'}
-                          {d.daysUntilDue != null ? (
-                            <>
-                              {' '}
-                              ·{' '}
-                              {d.daysUntilDue >= 0
-                                ? `in ${d.daysUntilDue} day${d.daysUntilDue === 1 ? '' : 's'}`
-                                : `${Math.abs(d.daysUntilDue)} day${Math.abs(d.daysUntilDue) === 1 ? '' : 's'} overdue`}
-                            </>
-                          ) : null}
-                        </div>
-                      </div>
-                    </div>
-                    {d.linkUrl && (
-                      <Link
-                        href={d.linkUrl}
-                        className="shrink-0 text-xs font-medium text-accent hover:underline"
-                      >
-                        Open
-                      </Link>
-                    )}
-                  </li>
-                ))}
-              </ul>
-            </>
-          )}
+        <div className="lg:col-span-2">
+          <AuthExpiryCard items={data.authExpiry} />
         </div>
-
-        {/* Right column: vault links + recent activity */}
-        <div className="space-y-6">
-          <section className="rounded-lg border border-gray-200 bg-white p-5">
-            <h2 className="mb-3 text-sm font-semibold text-gray-900">Compliance vault</h2>
-            <ul className="space-y-1.5 text-sm">
-              <VaultLink
-                href="/careers/hr/i9-everify"
-                icon={<ShieldCheck className="h-4 w-4" strokeWidth={2} />}
-                label="I-9 & E-Verify"
-              />
-              <VaultLink
-                href="/careers/hr/compliance"
-                icon={<Briefcase className="h-4 w-4" strokeWidth={2} />}
-                label="Compliance overview"
-              />
-              <VaultLink
-                href="/careers/hr/offers"
-                icon={<FileSignature className="h-4 w-4" strokeWidth={2} />}
-                label="Offer letters"
-              />
-              <VaultLink
-                href="/careers/hr/documents"
-                icon={<FolderArchive className="h-4 w-4" strokeWidth={2} />}
-                label="Document vault"
-              />
-            </ul>
-          </section>
-
-          <section className="rounded-lg border border-gray-200 bg-white p-5">
-            <h2 className="mb-3 text-sm font-semibold text-gray-900">Recent activity</h2>
-            {actions.length === 0 ? (
-              <p className="text-sm text-gray-500">No recent activity.</p>
-            ) : (
-              <ul className="space-y-3">
-                {actions.slice(0, 8).map((a, i) => (
-                  <li key={i} className="flex items-start gap-3">
-                    <span
-                      aria-hidden="true"
-                      className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-accent"
-                    />
-                    <div className="min-w-0">
-                      <div className="text-sm text-gray-900">
-                        {a.entityLinkUrl ? (
-                          <Link href={a.entityLinkUrl} className="hover:underline">
-                            {a.summary ?? '—'}
-                          </Link>
-                        ) : (
-                          a.summary ?? '—'
-                        )}
-                      </div>
-                      <div className="text-xs text-gray-500">
-                        {a.timestamp ? formatRelative(a.timestamp) : '—'}
-                      </div>
-                    </div>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </section>
-        </div>
+        <OfferStatusCard summary={data.offerStatus} />
       </div>
 
-      {allEmpty && (
-        <p className="text-center text-xs text-gray-400">
+      <AuditFeedCard items={data.auditFeed} />
+    </section>
+  );
+}
+
+// ── Header ──────────────────────────────────────────────────────────────────
+
+function Header({
+  operatorName,
+  totalActions,
+  urgentExpiry,
+}: {
+  operatorName: string | null;
+  totalActions: number;
+  urgentExpiry: number;
+}) {
+  return (
+    <header className="flex flex-wrap items-start justify-between gap-3">
+      <div>
+        <h1 className="text-2xl font-semibold text-gray-900">
+          Welcome back{operatorName ? `, ${operatorName}` : ''}.
+        </h1>
+        <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
+          <span
+            className="rounded-full bg-emerald-100 px-2.5 py-1 font-medium text-emerald-800"
+            title="You're signed in as HR / Compliance"
+          >
+            HR / Compliance
+          </span>
+          {totalActions > 0 && (
+            <span className="rounded-full bg-amber-100 px-2.5 py-1 font-medium text-amber-800">
+              {totalActions} action{totalActions === 1 ? '' : 's'} pending
+            </span>
+          )}
+          {urgentExpiry > 0 && (
+            <span className="rounded-full bg-red-100 px-2.5 py-1 font-medium text-red-800">
+              {urgentExpiry} expiring ≤30d
+            </span>
+          )}
+        </div>
+      </div>
+      <button
+        type="button"
+        aria-label="Notifications (coming soon)"
+        title="Notifications — coming soon"
+        className="relative rounded-full border border-gray-200 bg-white p-2 text-gray-500 hover:bg-gray-50"
+      >
+        <Bell className="h-4 w-4" strokeWidth={2} />
+      </button>
+    </header>
+  );
+}
+
+// ── Needs your attention ────────────────────────────────────────────────────
+
+function NeedsAttention({ items }: { items: HrActionItem[] }) {
+  const hot = items.filter((i) => i.count > 0);
+  const allQuiet = hot.length === 0;
+
+  return (
+    <section className="rounded-xl border-2 border-accent/30 bg-accent/5 p-5">
+      <div className="mb-3 flex items-center justify-between">
+        <h2 className="text-sm font-semibold uppercase tracking-wide text-accent-dark">
+          Needs your attention
+        </h2>
+        {allQuiet && (
+          <span className="text-xs italic text-gray-500">
+            All caught up — nothing flagged for HR review.
+          </span>
+        )}
+      </div>
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
+        {items.map((item) => (
+          <Link
+            key={item.key}
+            href={item.href}
+            className={
+              'group flex items-start gap-3 rounded-lg border p-3 transition-colors ' +
+              (item.count > 0
+                ? 'border-amber-200 bg-white hover:border-amber-400 hover:bg-amber-50'
+                : 'border-gray-200 bg-white/70 hover:bg-gray-50')
+            }
+          >
+            <div
+              className={
+                'flex h-9 w-9 shrink-0 items-center justify-center rounded-full ' +
+                (item.count > 0
+                  ? 'bg-amber-100 text-amber-700'
+                  : 'bg-gray-100 text-gray-500')
+              }
+            >
+              <ActionIcon keyName={item.key} />
+            </div>
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-2">
+                <span
+                  className={
+                    'text-lg font-semibold ' +
+                    (item.count > 0 ? 'text-gray-900' : 'text-gray-400')
+                  }
+                >
+                  {item.count}
+                </span>
+                <ArrowRight className="ml-auto h-3.5 w-3.5 text-gray-400 transition-transform group-hover:translate-x-0.5" />
+              </div>
+              <p className="mt-0.5 text-xs font-medium text-gray-700">{item.label}</p>
+            </div>
+          </Link>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function ActionIcon({ keyName }: { keyName: string }) {
+  const cn = 'h-4 w-4';
+  switch (keyName) {
+    case 'I9_SECTION_2_PENDING':
+      return <ShieldCheck className={cn} strokeWidth={2} />;
+    case 'EVERIFY_TO_ACTION':
+      return <BadgeCheck className={cn} strokeWidth={2} />;
+    case 'I983_AWAITING_EMPLOYER':
+      return <FileSignature className={cn} strokeWidth={2} />;
+    case 'TNC_TO_ACTION':
+      return <AlertCircle className={cn} strokeWidth={2} />;
+    case 'WORK_AUTH_EXPIRING':
+      return <CalendarClock className={cn} strokeWidth={2} />;
+    default:
+      return <TrendingUp className={cn} strokeWidth={2} />;
+  }
+}
+
+// ── Compliance status board ─────────────────────────────────────────────────
+
+function ComplianceStatusBoardCard({ board }: { board: ComplianceStatusBoard }) {
+  const total =
+    board.offerAccepted +
+    board.i983InProgress +
+    board.i9Section1Pending +
+    board.i9Section2Pending +
+    board.everifyOpen +
+    board.cleared;
+  return (
+    <section className="rounded-lg border border-gray-200 bg-white p-5">
+      <div className="mb-4 flex items-baseline justify-between">
+        <div className="flex items-center gap-2">
+          <ShieldCheck className="h-4 w-4 text-accent" strokeWidth={2} />
+          <h2 className="text-sm font-semibold text-gray-900">Compliance status board</h2>
+        </div>
+        <Link
+          href="/careers/hr/compliance"
+          className="text-xs font-medium text-accent hover:underline"
+        >
+          Open compliance view →
+        </Link>
+      </div>
+      {total === 0 ? (
+        <p className="py-6 text-center text-sm text-gray-500">
           No active compliance workload right now.
         </p>
+      ) : (
+        <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-6">
+          {STATUS_STAGES.map((stage) => {
+            const value = board[stage.key];
+            const Icon = stage.icon;
+            const isCleared = stage.key === 'cleared';
+            return (
+              <div
+                key={stage.key}
+                className="flex flex-col rounded-lg border border-gray-200 bg-gray-50 p-3"
+              >
+                <div
+                  className={
+                    'mb-2 flex h-7 w-7 items-center justify-center rounded-full ' +
+                    (isCleared
+                      ? 'bg-emerald-100 text-emerald-700'
+                      : 'bg-accent/15 text-accent-dark')
+                  }
+                >
+                  <Icon className="h-3.5 w-3.5" strokeWidth={2} />
+                </div>
+                <div className="text-xl font-semibold text-gray-900">{value}</div>
+                <div className="mt-0.5 text-[11px] uppercase tracking-wide text-gray-500">
+                  {stage.label}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+      <p className="mt-3 text-[11px] italic text-gray-500">
+        Counts are independent — a single candidate may appear in more than one stage.
+      </p>
+    </section>
+  );
+}
+
+// ── Authorization expiry reminders ──────────────────────────────────────────
+
+function AuthExpiryCard({ items }: { items: AuthExpiryItem[] }) {
+  return (
+    <section className="rounded-lg border border-gray-200 bg-white p-5">
+      <div className="mb-3 flex items-baseline justify-between">
+        <div className="flex items-center gap-2">
+          <CalendarClock className="h-4 w-4 text-accent" strokeWidth={2} />
+          <h2 className="text-sm font-semibold text-gray-900">
+            Authorization expiry reminders
+          </h2>
+        </div>
+        <span className="text-[11px] text-gray-500">Next 180 days</span>
+      </div>
+      {items.length === 0 ? (
+        <p className="text-sm text-gray-500">No upcoming work-authorization expirations.</p>
+      ) : (
+        <ul className="space-y-2">
+          {items.map((item) => {
+            const urgency = expiryUrgency(item.daysUntilExpiry);
+            const wrap =
+              urgency === 'critical'
+                ? 'border-red-200 bg-red-50'
+                : urgency === 'warning'
+                  ? 'border-amber-200 bg-amber-50'
+                  : 'border-gray-200 bg-white';
+            const iconWrap =
+              urgency === 'critical'
+                ? 'bg-red-200 text-red-800'
+                : urgency === 'warning'
+                  ? 'bg-amber-200 text-amber-800'
+                  : 'bg-sky-100 text-sky-700';
+            return (
+              <li
+                key={`${item.candidateId}-${item.authType}-${item.expirationDate}`}
+                className={
+                  'flex items-start gap-3 rounded-lg border p-3 ' + wrap
+                }
+              >
+                <div
+                  className={
+                    'mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full ' +
+                    iconWrap
+                  }
+                >
+                  <CalendarClock className="h-3.5 w-3.5" strokeWidth={2} />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="truncate text-sm font-medium text-gray-900">
+                    {item.candidateName ?? '—'}{' '}
+                    <span className="font-normal text-gray-500">· {item.authType}</span>
+                  </div>
+                  <div className="text-xs text-gray-600">
+                    {item.expirationDate ?? '—'}
+                    {item.daysUntilExpiry !== null && item.daysUntilExpiry !== undefined && (
+                      <>
+                        {' · '}
+                        {item.daysUntilExpiry >= 0
+                          ? `${formatDueDate(item.expirationDate)}`
+                          : `${Math.abs(item.daysUntilExpiry)} days overdue`}
+                      </>
+                    )}
+                  </div>
+                </div>
+                {item.linkUrl && (
+                  <Link
+                    href={item.linkUrl}
+                    className="shrink-0 self-center rounded-md bg-white px-2.5 py-1 text-xs font-medium text-gray-700 shadow-sm hover:bg-gray-50"
+                  >
+                    Open
+                  </Link>
+                )}
+              </li>
+            );
+          })}
+        </ul>
       )}
     </section>
   );
 }
 
-// ── Health cards ─────────────────────────────────────────────────────────────
-
-function I9Card({ stats }: { stats: I9Stats | null }) {
-  return (
-    <HealthCard
-      title="I-9 Verifications"
-      icon={<ShieldCheck className="h-4 w-4" strokeWidth={2} />}
-      href="/careers/hr/i9-everify"
-      primaryLabel="Pending"
-      primaryValue={stats?.pending ?? 0}
-      tone={stats && stats.overdue > 0 ? 'urgent' : 'info'}
-      breakdown={
-        stats
-          ? [
-              { label: 'Completed', value: stats.completed },
-              { label: 'Overdue', value: stats.overdue, tone: 'urgent' },
-              { label: 'Total', value: stats.total },
-            ]
-          : []
-      }
-    />
-  );
+function expiryUrgency(days: number | null | undefined): 'critical' | 'warning' | 'info' {
+  if (days === null || days === undefined) return 'info';
+  if (days <= 30) return 'critical';
+  if (days <= 90) return 'warning';
+  return 'info';
 }
 
-function I983Card({ stats }: { stats: I983Stats | null }) {
-  const pending = stats
-    ? stats.draft + stats.complete + stats.submittedToDso + stats.amendment
-    : 0;
-  return (
-    <HealthCard
-      title="I-983 Training Plans"
-      icon={<FileSignature className="h-4 w-4" strokeWidth={2} />}
-      href="/careers/erm/training-plans"
-      primaryLabel="In progress"
-      primaryValue={pending}
-      tone={stats && stats.amendment > 0 ? 'warning' : 'info'}
-      breakdown={
-        stats
-          ? [
-              { label: 'Submitted', value: stats.submittedToDso },
-              { label: 'Approved', value: stats.approved },
-              { label: 'Amendments', value: stats.amendment, tone: 'warning' },
-            ]
-          : []
-      }
-    />
-  );
-}
+// ── Offer status summary ────────────────────────────────────────────────────
 
-function EverifyCard({ stats }: { stats: EverifyStats | null }) {
-  const pending = stats ? stats.pendingSubmission + stats.open : 0;
+function OfferStatusCard({ summary }: { summary: OfferStatusSummary }) {
+  const items: { label: string; value: number; tone: string }[] = [
+    { label: 'Out', value: summary.sent, tone: 'bg-sky-100 text-sky-800' },
+    { label: 'Accepted (30d)', value: summary.accepted, tone: 'bg-emerald-100 text-emerald-800' },
+    { label: 'In draft', value: summary.pending, tone: 'bg-gray-100 text-gray-700' },
+  ];
   return (
-    <HealthCard
-      title="E-Verify Cases"
-      icon={<BadgeCheck className="h-4 w-4" strokeWidth={2} />}
-      href="/careers/hr/i9-everify"
-      primaryLabel="Open"
-      primaryValue={pending}
-      tone={stats && stats.tnc > 0 ? 'urgent' : 'info'}
-      breakdown={
-        stats
-          ? [
-              { label: 'Authorized', value: stats.authorized },
-              { label: 'TNC', value: stats.tnc, tone: 'urgent' },
-              { label: 'Closed', value: stats.closed },
-            ]
-          : []
-      }
-    />
-  );
-}
-
-function HealthCard({
-  title,
-  icon,
-  href,
-  primaryLabel,
-  primaryValue,
-  tone,
-  breakdown,
-}: {
-  title: string;
-  icon: React.ReactNode;
-  href: string;
-  primaryLabel: string;
-  primaryValue: number;
-  tone: 'info' | 'warning' | 'urgent';
-  breakdown: { label: string; value: number; tone?: 'warning' | 'urgent' }[];
-}) {
-  const toneRing =
-    tone === 'urgent'
-      ? 'border-red-300'
-      : tone === 'warning'
-        ? 'border-amber-300'
-        : 'border-gray-200';
-  return (
-    <Link
-      href={href}
-      className={
-        'block rounded-lg border bg-white p-5 transition hover:border-accent/40 hover:shadow-sm ' +
-        toneRing
-      }
-    >
-      <div className="mb-3 flex items-center justify-between">
-        <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-wide text-gray-500">
-          {icon}
-          {title}
+    <section className="rounded-lg border border-gray-200 bg-white p-5">
+      <div className="mb-3 flex items-baseline justify-between">
+        <div className="flex items-center gap-2">
+          <FileSignature className="h-4 w-4 text-accent" strokeWidth={2} />
+          <h2 className="text-sm font-semibold text-gray-900">Offer status</h2>
         </div>
+        <Link
+          href="/careers/hr/offers"
+          className="text-xs font-medium text-accent hover:underline"
+        >
+          Manage offers →
+        </Link>
       </div>
-      <div className="flex items-baseline gap-2">
-        <span className="text-3xl font-semibold text-gray-900">{primaryValue}</span>
-        <span className="text-xs text-gray-500">{primaryLabel}</span>
+      <ul className="space-y-2">
+        {items.map((item) => (
+          <li
+            key={item.label}
+            className="flex items-center justify-between rounded-md border border-gray-100 bg-gray-50 px-3 py-2"
+          >
+            <span className="text-xs uppercase tracking-wide text-gray-600">
+              {item.label}
+            </span>
+            <span
+              className={
+                'rounded-full px-2 py-0.5 text-sm font-semibold ' + item.tone
+              }
+            >
+              {item.value}
+            </span>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
+// ── Audit feed (read-only) ──────────────────────────────────────────────────
+
+function AuditFeedCard({ items }: { items: AuditFeedItem[] }) {
+  return (
+    <section className="rounded-lg border border-gray-200 bg-white p-5">
+      <div className="mb-3 flex items-baseline justify-between">
+        <div className="flex items-center gap-2">
+          <ClipboardList className="h-4 w-4 text-accent" strokeWidth={2} />
+          <h2 className="text-sm font-semibold text-gray-900">Compliance audit feed</h2>
+        </div>
+        <span className="text-[11px] italic text-gray-500">Read-only</span>
       </div>
-      {breakdown.length > 0 && (
-        <ul className="mt-3 space-y-1 text-xs text-gray-600">
-          {breakdown.map((b) => (
-            <li key={b.label} className="flex items-center justify-between">
-              <span>{b.label}</span>
+      {items.length === 0 ? (
+        <p className="text-sm text-gray-500">No recent compliance activity.</p>
+      ) : (
+        <ul className="space-y-3">
+          {items.map((entry, i) => (
+            <li
+              key={`${entry.timestamp ?? ''}-${i}`}
+              className="flex items-start gap-3"
+            >
               <span
-                className={
-                  b.tone === 'urgent'
-                    ? 'font-medium text-red-700'
-                    : b.tone === 'warning'
-                      ? 'font-medium text-amber-700'
-                      : 'font-medium text-gray-900'
-                }
-              >
-                {b.value}
-              </span>
+                aria-hidden="true"
+                className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-accent"
+              />
+              <div className="min-w-0 flex-1">
+                <div className="text-sm text-gray-900">
+                  {entry.linkUrl ? (
+                    <Link href={entry.linkUrl} className="hover:underline">
+                      {entry.summary ?? '—'}
+                    </Link>
+                  ) : (
+                    entry.summary ?? '—'
+                  )}
+                </div>
+                <div className="text-xs text-gray-500">
+                  {entry.timestamp ? formatRelative(entry.timestamp) : '—'}
+                </div>
+              </div>
             </li>
           ))}
         </ul>
       )}
-    </Link>
+    </section>
   );
 }
 
-// ── Alert row ────────────────────────────────────────────────────────────────
+// ── Skeleton ────────────────────────────────────────────────────────────────
 
-function AlertRow({ alert }: { alert: ComplianceAlert }) {
-  const sev = alert.severity;
-  const wrap =
-    sev === 'CRITICAL'
-      ? 'border-red-200 bg-red-50'
-      : sev === 'WARNING'
-        ? 'border-amber-200 bg-amber-50'
-        : 'border-blue-200 bg-blue-50';
-  const icon =
-    sev === 'CRITICAL' ? (
-      <AlertCircle className="h-4 w-4 text-red-600" strokeWidth={2} />
-    ) : sev === 'WARNING' ? (
-      <AlertTriangle className="h-4 w-4 text-amber-600" strokeWidth={2} />
-    ) : (
-      <Info className="h-4 w-4 text-blue-600" strokeWidth={2} />
-    );
-
-  return (
-    <div className={'flex flex-wrap items-start gap-3 rounded-lg border p-4 ' + wrap}>
-      <span className="mt-0.5 shrink-0">{icon}</span>
-      <div className="min-w-0 flex-1">
-        <div className="truncate text-sm font-medium text-gray-900">{alert.title}</div>
-        {alert.description && (
-          <div className="text-xs text-gray-700">{alert.description}</div>
-        )}
-      </div>
-      {alert.linkUrl && (
-        <Link
-          href={alert.linkUrl}
-          className="shrink-0 rounded-md bg-white px-2.5 py-1 text-xs font-medium text-gray-700 shadow-sm hover:bg-gray-50"
-        >
-          Review
-        </Link>
-      )}
-    </div>
-  );
-}
-
-// ── Vault quick-links ────────────────────────────────────────────────────────
-
-function VaultLink({
-  href,
-  icon,
-  label,
-}: {
-  href: string;
-  icon: React.ReactNode;
-  label: string;
-}) {
-  return (
-    <li>
-      <Link
-        href={href}
-        className="-mx-2 flex items-center gap-2 rounded-md px-2 py-1.5 text-gray-700 hover:bg-gray-50"
-      >
-        <span className="text-gray-500">{icon}</span>
-        <span>{label}</span>
-      </Link>
-    </li>
-  );
-}
-
-// ── Skeleton ─────────────────────────────────────────────────────────────────
-
-function SkeletonView() {
+function DashboardSkeleton() {
   return (
     <div className="space-y-6">
       <div className="space-y-2">
-        <div className="h-7 w-48 animate-pulse rounded bg-gray-200" />
-        <div className="h-4 w-80 animate-pulse rounded bg-gray-100" />
+        <div className="h-7 w-64 animate-pulse rounded bg-gray-200" />
+        <div className="h-4 w-48 animate-pulse rounded bg-gray-100" />
       </div>
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-        {[0, 1, 2].map((i) => (
-          <div
-            key={i}
-            className="h-32 animate-pulse rounded-lg border border-gray-100 bg-gray-50"
-          />
-        ))}
-      </div>
+      <div className="h-28 animate-pulse rounded-xl border border-gray-100 bg-gray-50" />
+      <div className="h-32 animate-pulse rounded-lg border border-gray-100 bg-gray-50" />
       <div className="grid gap-6 lg:grid-cols-3">
-        <div className="space-y-3 lg:col-span-2">
-          {[0, 1, 2].map((i) => (
-            <div
-              key={i}
-              className="h-16 animate-pulse rounded-lg border border-gray-100 bg-gray-50"
-            />
-          ))}
-        </div>
-        <div className="space-y-6">
-          <div className="h-40 animate-pulse rounded-lg border border-gray-100 bg-gray-50" />
-          <div className="h-40 animate-pulse rounded-lg border border-gray-100 bg-gray-50" />
-        </div>
+        <div className="h-56 animate-pulse rounded-lg border border-gray-100 bg-gray-50 lg:col-span-2" />
+        <div className="h-56 animate-pulse rounded-lg border border-gray-100 bg-gray-50" />
       </div>
+      <div className="h-40 animate-pulse rounded-lg border border-gray-100 bg-gray-50" />
     </div>
   );
 }
