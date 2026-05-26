@@ -4,7 +4,6 @@ import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import {
   Bell,
-  BookOpen,
   Briefcase,
   CalendarClock,
   ClipboardList,
@@ -561,6 +560,3 @@ function DashboardSkeleton() {
   );
 }
 
-// `BookOpen` re-exported as a placeholder for future intern-face widgets.
-// Keeps the import list stable when we extend this file for Phase 2.
-export const _UnusedBookOpen = BookOpen;
