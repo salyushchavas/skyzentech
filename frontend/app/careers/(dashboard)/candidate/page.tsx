@@ -3,18 +3,23 @@
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import {
+  AlertCircle,
   Bell,
+  BookOpen,
   Briefcase,
   CalendarClock,
+  Check,
+  CheckCircle2,
   ClipboardList,
   Clock,
   FileSignature,
   FileText,
+  ShieldCheck,
   Sparkles,
   UserCircle,
 } from 'lucide-react';
 import api from '@/lib/api';
-import { formatRelative } from '@/lib/format-date';
+import { formatRelative, formatDueDate } from '@/lib/format-date';
 import { useAuth } from '@/lib/auth-context';
 import DashboardLayout from '@/components/dashboard/DashboardLayout';
 import ProtectedRoute from '@/components/ProtectedRoute';
@@ -65,6 +70,68 @@ interface ActivityItem {
   at: string | null;
 }
 
+interface EngagementSummary {
+  applicationId?: Uuid | null;
+  status?: string | null;
+  finalStageLabel?: string | null;
+  finalStageState?: string | null;
+  onboardingTotal?: number;
+  onboardingCompleted?: number;
+}
+
+interface ComplianceItem {
+  kind: string;
+  label: string;
+  state: string;
+  subtitle?: string | null;
+  href?: string | null;
+  completedAt?: string | null;
+}
+
+// ── Phase-2 intern cockpit ──────────────────────────────────────────────────
+
+interface MaterialCard {
+  id: Uuid;
+  weekNo: number | null;
+  title: string;
+  releaseDate: string | null;
+  acknowledged: boolean;
+  acknowledgedAt: string | null;
+  href: string;
+}
+
+interface ReportCard {
+  id: Uuid | null;
+  weekStart: string;
+  status: string | null;
+  submittedAt: string | null;
+  reviewedAt: string | null;
+  reviewNotes: string | null;
+  href: string;
+}
+
+interface TimesheetCard {
+  id: Uuid | null;
+  weekStart: string;
+  status: string | null;
+  hours: number | string | null;
+  href: string;
+}
+
+interface AuthorizationInfo {
+  expirationDate: string | null;
+  daysUntilExpiry: number | null;
+  authType: string;
+}
+
+interface WeeklyCockpit {
+  weekStart: string;
+  material: MaterialCard | null;
+  report: ReportCard | null;
+  timesheet: TimesheetCard | null;
+  authorization: AuthorizationInfo | null;
+}
+
 interface CandidateDashboardResponse {
   candidateName: string | null;
   profileComplete: number;
@@ -74,9 +141,13 @@ interface CandidateDashboardResponse {
   recentActivity: ActivityItem[] | null;
   journey: CandidateJourney | null;
   resume: CandidateResumeInfo | null;
+  engagement?: EngagementSummary | null;
+  compliance?: ComplianceItem[] | null;
+  weeklyCockpit?: WeeklyCockpit | null;
 }
 
 const STAGE_PILL_LABEL: Record<string, string> = {
+  // Applicant-face keys
   APPLIED: 'Applied',
   SCREENING: 'Screening',
   INTERVIEW: 'Interview',
@@ -84,6 +155,11 @@ const STAGE_PILL_LABEL: Record<string, string> = {
   ONBOARDING: 'Onboarding',
   HIRED: 'Hired',
   EXITED: 'Closed',
+  // Phase-2 intern-face keys
+  SETUP: 'Setup',
+  ACTIVE_WEEKS: 'Active weeks',
+  EVALUATION: 'Evaluation',
+  COMPLETED: 'Completed',
 };
 
 export default function CandidateDashboardPage() {
@@ -143,10 +219,16 @@ function CandidateDashboardBody() {
   const stagePill = journey
     ? STAGE_PILL_LABEL[journey.currentStageKey] ?? journey.currentStageKey
     : null;
+  // Phase-2 intern face — the backend sets engagement.status to ACTIVE only
+  // for the active-intern path, and weeklyCockpit is populated there too. We
+  // gate on both belt-and-braces so a partial response doesn't render a
+  // broken cockpit.
+  const isInternFace =
+    data.engagement?.status === 'ACTIVE' && data.weeklyCockpit != null;
 
   return (
     <section className="space-y-6">
-      {/* SPEC §2.1 — Header: greeting, applicant ID, stage pill, bell */}
+      {/* Header: greeting, applicant ID, stage pill, bell */}
       <Header
         candidateName={data.candidateName ?? user?.fullName ?? null}
         applicantId={user?.applicantId ?? null}
@@ -154,20 +236,45 @@ function CandidateDashboardBody() {
         stageIsExited={journey?.isExited ?? false}
       />
 
-      {/* SPEC §2.2 — Journey bar */}
+      {/* Journey bar — same component, Phase-2 stages on the intern face */}
       {journey && <JourneyBar journey={journey} />}
 
-      {/* SPEC §2.3 — Next-step hero (or waiting variant) */}
+      {/* Next-step hero (or waiting variant) */}
       {next && <NextStepHero step={next} />}
 
-      {/* SPEC §2.4 — 3-up status cards: application / profile / resume */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        <ApplicationStatusCard apps={apps} />
-        <ProfileCompletenessCard pct={profilePct} />
-        <ResumeCard resume={data.resume ?? null} />
-      </div>
+      {isInternFace ? (
+        <>
+          {/* Intern cockpit — this week's material / report / timesheet */}
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            <ThisWeekMaterialCard
+              material={data.weeklyCockpit!.material}
+              onChanged={() => void load()}
+            />
+            <ThisWeekReportCard report={data.weeklyCockpit!.report} />
+            <ThisWeekTimesheetCard timesheet={data.weeklyCockpit!.timesheet} />
+          </div>
 
-      {/* SPEC §2.5 — Upcoming + Recent activity */}
+          {/* Compliance & Authorization strip — only when we have anything to show */}
+          {(((data.compliance ?? []).length > 0) ||
+            data.weeklyCockpit!.authorization != null) && (
+            <ComplianceAuthStrip
+              items={data.compliance ?? []}
+              auth={data.weeklyCockpit!.authorization}
+            />
+          )}
+        </>
+      ) : (
+        <>
+          {/* Applicant face — 3-up status cards: application / profile / resume */}
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            <ApplicationStatusCard apps={apps} />
+            <ProfileCompletenessCard pct={profilePct} />
+            <ResumeCard resume={data.resume ?? null} />
+          </div>
+        </>
+      )}
+
+      {/* Upcoming + Recent activity (both faces) */}
       <div className="grid gap-6 lg:grid-cols-2">
         <UpcomingAgenda items={upcoming} profilePct={profilePct} />
         <RecentActivityFeed items={activity} />
@@ -530,6 +637,339 @@ function RecentActivityFeed({ items }: { items: ActivityItem[] }) {
         </ul>
       )}
     </section>
+  );
+}
+
+// ── Phase-2 intern cockpit cards ────────────────────────────────────────────
+
+const REPORT_PILL: Record<string, string> = {
+  DRAFT: 'bg-gray-100 text-gray-700',
+  SUBMITTED: 'bg-sky-100 text-sky-800',
+  RETURNED: 'bg-amber-100 text-amber-800',
+  APPROVED: 'bg-emerald-100 text-emerald-800',
+};
+
+const TIMESHEET_PILL: Record<string, string> = {
+  DRAFT: 'bg-gray-100 text-gray-700',
+  SUBMITTED: 'bg-sky-100 text-sky-800',
+  APPROVED: 'bg-emerald-100 text-emerald-800',
+  REJECTED: 'bg-amber-100 text-amber-800',
+};
+
+function ThisWeekMaterialCard({
+  material,
+  onChanged,
+}: {
+  material: MaterialCard | null;
+  onChanged: () => void;
+}) {
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  const ack = async () => {
+    if (!material || material.acknowledged) return;
+    setBusy(true);
+    setErr(null);
+    try {
+      await api.post(`/api/v1/weekly-materials/${material.id}/acknowledge`);
+      onChanged();
+    } catch (e: any) {
+      setErr(e?.response?.data?.error ?? "Couldn't mark as read.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <article className="rounded-lg border border-gray-200 bg-white p-5">
+      <div className="mb-2 flex items-center gap-2">
+        <BookOpen className="h-4 w-4 text-accent" strokeWidth={2} />
+        <h2 className="text-sm font-semibold text-gray-900">This week's material</h2>
+      </div>
+      {material == null ? (
+        <>
+          <p className="text-sm text-gray-600">No material released yet this week.</p>
+          <p className="mt-1 text-xs text-gray-500">
+            Your supervisor will post one shortly.
+          </p>
+        </>
+      ) : (
+        <>
+          <p className="truncate text-sm font-medium text-gray-900" title={material.title}>
+            {material.title}
+          </p>
+          {material.weekNo != null && (
+            <p className="text-xs text-gray-500">Week {material.weekNo}</p>
+          )}
+          {material.acknowledged ? (
+            <div className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-emerald-800">
+              <CheckCircle2 className="h-3 w-3" strokeWidth={2.5} />
+              Acknowledged
+              {material.acknowledgedAt && (
+                <span className="ml-1 normal-case text-emerald-700">
+                  · {formatRelative(material.acknowledgedAt)}
+                </span>
+              )}
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={() => void ack()}
+              disabled={busy}
+              className="mt-3 inline-flex items-center gap-1.5 rounded-md bg-accent px-3 py-1.5 text-xs font-medium text-white hover:bg-accent/90 disabled:opacity-60"
+            >
+              <Check className="h-3.5 w-3.5" strokeWidth={2.5} />
+              {busy ? 'Marking…' : 'Acknowledge'}
+            </button>
+          )}
+          {err && <p className="mt-2 text-xs text-red-700">{err}</p>}
+          <Link
+            href={material.href}
+            className="mt-3 ml-3 inline-block text-xs font-medium text-accent hover:underline"
+          >
+            Open materials →
+          </Link>
+        </>
+      )}
+    </article>
+  );
+}
+
+function ThisWeekReportCard({ report }: { report: ReportCard | null }) {
+  const status = report?.status ?? null;
+  return (
+    <article className="rounded-lg border border-gray-200 bg-white p-5">
+      <div className="mb-2 flex items-center gap-2">
+        <FileText className="h-4 w-4 text-accent" strokeWidth={2} />
+        <h2 className="text-sm font-semibold text-gray-900">Weekly report</h2>
+      </div>
+      {status == null ? (
+        <>
+          <p className="text-sm text-gray-600">Not started.</p>
+          <p className="mt-1 text-xs text-gray-500">
+            Log completed work, blockers, learnings, and next plan.
+          </p>
+        </>
+      ) : (
+        <>
+          <div className="flex items-center gap-2">
+            <span
+              className={
+                'rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ' +
+                (REPORT_PILL[status] ?? 'bg-gray-100 text-gray-700')
+              }
+            >
+              {status}
+            </span>
+          </div>
+          <p className="mt-2 text-xs text-gray-500">
+            {report?.submittedAt ? `Submitted ${formatRelative(report.submittedAt)}` : null}
+            {report?.reviewedAt
+              ? (report?.submittedAt ? ' · ' : '') +
+                `Reviewed ${formatRelative(report.reviewedAt)}`
+              : null}
+          </p>
+          {status === 'RETURNED' && report?.reviewNotes && (
+            <div className="mt-2 rounded-md border border-amber-200 bg-amber-50 p-2 text-xs text-amber-900">
+              <span className="font-semibold">Note: </span>
+              {report.reviewNotes}
+            </div>
+          )}
+        </>
+      )}
+      <Link
+        href={report?.href ?? '/careers/candidate/weekly-reports'}
+        className="mt-3 inline-block text-xs font-medium text-accent hover:underline"
+      >
+        {status === 'APPROVED' ? 'View report →' : 'Open report →'}
+      </Link>
+    </article>
+  );
+}
+
+function ThisWeekTimesheetCard({ timesheet }: { timesheet: TimesheetCard | null }) {
+  const status = timesheet?.status ?? null;
+  return (
+    <article className="rounded-lg border border-gray-200 bg-white p-5">
+      <div className="mb-2 flex items-center gap-2">
+        <Clock className="h-4 w-4 text-accent" strokeWidth={2} />
+        <h2 className="text-sm font-semibold text-gray-900">Timesheet</h2>
+      </div>
+      {status == null ? (
+        <>
+          <p className="text-sm text-gray-600">No hours logged yet.</p>
+          <p className="mt-1 text-xs text-gray-500">Track your time as you work.</p>
+        </>
+      ) : (
+        <>
+          <div className="flex items-center gap-2">
+            <span
+              className={
+                'rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ' +
+                (TIMESHEET_PILL[status] ?? 'bg-gray-100 text-gray-700')
+              }
+            >
+              {status}
+            </span>
+            {timesheet?.hours != null && (
+              <span className="text-sm font-semibold text-gray-900">
+                {String(timesheet.hours)} hrs
+              </span>
+            )}
+          </div>
+        </>
+      )}
+      <Link
+        href={timesheet?.href ?? '/careers/intern/work'}
+        className="mt-3 inline-block text-xs font-medium text-accent hover:underline"
+      >
+        {status === 'APPROVED' ? 'View timesheet →' : 'Open timesheet →'}
+      </Link>
+    </article>
+  );
+}
+
+// ── Compliance + authorization strip (intern face) ──────────────────────────
+
+function ComplianceAuthStrip({
+  items,
+  auth,
+}: {
+  items: ComplianceItem[];
+  auth: AuthorizationInfo | null;
+}) {
+  return (
+    <section className="rounded-lg border border-gray-200 bg-white p-5">
+      <div className="mb-3 flex items-center gap-2">
+        <ShieldCheck className="h-4 w-4 text-accent" strokeWidth={2} />
+        <h2 className="text-sm font-semibold text-gray-900">
+          Compliance & authorization
+        </h2>
+      </div>
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        {items.map((c) => (
+          <ComplianceRow key={c.kind} item={c} />
+        ))}
+        {auth && <AuthorizationRow auth={auth} />}
+      </div>
+    </section>
+  );
+}
+
+function ComplianceRow({ item }: { item: ComplianceItem }) {
+  const tone = complianceTone(item.state);
+  const inner = (
+    <div
+      className={
+        'flex items-start gap-3 rounded-md border p-3 transition-colors ' + tone.wrap
+      }
+    >
+      <div
+        className={
+          'flex h-7 w-7 shrink-0 items-center justify-center rounded-full ' + tone.iconWrap
+        }
+      >
+        {tone.icon}
+      </div>
+      <div className="min-w-0 flex-1">
+        <div className="truncate text-xs font-medium text-gray-900">{item.label}</div>
+        {item.subtitle && (
+          <div className="truncate text-[11px] text-gray-600">{item.subtitle}</div>
+        )}
+      </div>
+    </div>
+  );
+  if (item.href) {
+    return (
+      <Link href={item.href} className="block hover:opacity-90">
+        {inner}
+      </Link>
+    );
+  }
+  return <div>{inner}</div>;
+}
+
+function complianceTone(state: string): {
+  wrap: string;
+  iconWrap: string;
+  icon: React.ReactNode;
+} {
+  switch (state) {
+    case 'COMPLETED':
+      return {
+        wrap: 'border-emerald-200 bg-emerald-50',
+        iconWrap: 'bg-emerald-100 text-emerald-700',
+        icon: <CheckCircle2 className="h-3.5 w-3.5" strokeWidth={2.5} />,
+      };
+    case 'BLOCKED':
+      return {
+        wrap: 'border-red-200 bg-red-50',
+        iconWrap: 'bg-red-100 text-red-700',
+        icon: <AlertCircle className="h-3.5 w-3.5" strokeWidth={2.5} />,
+      };
+    case 'AWAITING_HR':
+    case 'IN_PROGRESS':
+      return {
+        wrap: 'border-amber-200 bg-amber-50',
+        iconWrap: 'bg-amber-100 text-amber-700',
+        icon: <Clock className="h-3.5 w-3.5" strokeWidth={2.5} />,
+      };
+    case 'NOT_STARTED':
+    default:
+      return {
+        wrap: 'border-gray-200 bg-white',
+        iconWrap: 'bg-gray-100 text-gray-500',
+        icon: <Clock className="h-3.5 w-3.5" strokeWidth={2.5} />,
+      };
+  }
+}
+
+function AuthorizationRow({ auth }: { auth: AuthorizationInfo }) {
+  const days = auth.daysUntilExpiry;
+  const tone =
+    days == null
+      ? 'border-gray-200 bg-white'
+      : days < 0
+        ? 'border-red-200 bg-red-50'
+        : days <= 30
+          ? 'border-red-200 bg-red-50'
+          : days <= 90
+            ? 'border-amber-200 bg-amber-50'
+            : 'border-emerald-200 bg-emerald-50';
+  const iconWrap =
+    days == null
+      ? 'bg-gray-100 text-gray-500'
+      : days < 0 || days <= 30
+        ? 'bg-red-100 text-red-700'
+        : days <= 90
+          ? 'bg-amber-100 text-amber-700'
+          : 'bg-emerald-100 text-emerald-700';
+  return (
+    <div className={'flex items-start gap-3 rounded-md border p-3 ' + tone}>
+      <div
+        className={
+          'flex h-7 w-7 shrink-0 items-center justify-center rounded-full ' + iconWrap
+        }
+      >
+        <CalendarClock className="h-3.5 w-3.5" strokeWidth={2.5} />
+      </div>
+      <div className="min-w-0 flex-1">
+        <div className="truncate text-xs font-medium text-gray-900">
+          Authorized through: {auth.authType}
+        </div>
+        <div className="truncate text-[11px] text-gray-600">
+          {auth.expirationDate ?? '—'}
+          {auth.daysUntilExpiry != null && (
+            <>
+              {' · '}
+              {auth.daysUntilExpiry >= 0
+                ? `${formatDueDate(auth.expirationDate)}`
+                : `${Math.abs(auth.daysUntilExpiry)} days overdue`}
+            </>
+          )}
+        </div>
+      </div>
+    </div>
   );
 }
 

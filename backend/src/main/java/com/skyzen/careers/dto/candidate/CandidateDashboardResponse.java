@@ -2,7 +2,9 @@ package com.skyzen.careers.dto.candidate;
 
 import lombok.*;
 
+import java.math.BigDecimal;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.UUID;
 
@@ -61,6 +63,14 @@ public class CandidateDashboardResponse {
      * resume). Null when the candidate hasn't uploaded one yet.
      */
     private ResumeInfo resume;
+
+    /**
+     * Phase-2 weekly cockpit — populated only when the engagement is ACTIVE.
+     * Carries this week's material (with ack status), this week's report
+     * status, this week's timesheet status, and the current authorization
+     * snapshot. Null on the applicant face / pre-ACTIVE / post-ACTIVE.
+     */
+    private WeeklyCockpit weeklyCockpit;
 
     @Getter
     @Setter
@@ -251,5 +261,93 @@ public class CandidateDashboardResponse {
         private String finalStageState;
         private long onboardingTotal;
         private long onboardingCompleted;
+    }
+
+    // ── Phase-2 intern face — weekly cockpit ────────────────────────────────
+
+    /**
+     * The active intern's weekly cockpit. Only populated when the engagement
+     * is in {@code ACTIVE}. Carries this week's material + report + timesheet
+     * snapshot so the dashboard can render three "this week" status cards
+     * without a per-card round-trip. Nullable sub-rows mean "not yet logged"
+     * (the row renders as an action prompt).
+     */
+    @Getter
+    @Setter
+    @NoArgsConstructor
+    @AllArgsConstructor
+    @Builder
+    public static class WeeklyCockpit {
+        /** The Monday this cockpit is keyed to (today's Monday, server clock). */
+        private LocalDate weekStart;
+        /** Most-recent RELEASED material visible to this intern. May be null. */
+        private MaterialCard material;
+        /** This week's report row keyed on (intern, weekStart). Null if not yet created. */
+        private ReportCard report;
+        /** This week's timesheet row keyed on (intern, weekStart). Null if not yet logged. */
+        private TimesheetCard timesheet;
+        /** Earliest known work-auth expiry from the I-9 / I-983 chain. Null if neither set. */
+        private AuthorizationInfo authorization;
+    }
+
+    @Getter
+    @Setter
+    @NoArgsConstructor
+    @AllArgsConstructor
+    @Builder
+    public static class MaterialCard {
+        private UUID id;
+        private Integer weekNo;
+        private String title;
+        private Instant releaseDate;
+        private boolean acknowledged;
+        private Instant acknowledgedAt;
+        private String href;
+    }
+
+    @Getter
+    @Setter
+    @NoArgsConstructor
+    @AllArgsConstructor
+    @Builder
+    public static class ReportCard {
+        /** Null when the intern hasn't started a report for this week yet. */
+        private UUID id;
+        private LocalDate weekStart;
+        /** DRAFT / SUBMITTED / RETURNED / APPROVED, or null when no row exists. */
+        private String status;
+        private Instant submittedAt;
+        private Instant reviewedAt;
+        private String reviewNotes;
+        private String href;
+    }
+
+    @Getter
+    @Setter
+    @NoArgsConstructor
+    @AllArgsConstructor
+    @Builder
+    public static class TimesheetCard {
+        /** Null when the intern hasn't logged hours for this week yet. */
+        private UUID id;
+        private LocalDate weekStart;
+        /** DRAFT / SUBMITTED / APPROVED / REJECTED, or null when no row exists. */
+        private String status;
+        private BigDecimal hours;
+        private String href;
+    }
+
+    @Getter
+    @Setter
+    @NoArgsConstructor
+    @AllArgsConstructor
+    @Builder
+    public static class AuthorizationInfo {
+        /** Earliest of I9.workAuthExpirationDate and I983.optEndDate. */
+        private LocalDate expirationDate;
+        /** Days from today; negative when already expired. */
+        private Integer daysUntilExpiry;
+        /** Human label — "Work authorization" or "STEM OPT". */
+        private String authType;
     }
 }

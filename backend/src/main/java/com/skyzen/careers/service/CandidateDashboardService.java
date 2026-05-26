@@ -34,16 +34,30 @@ import com.skyzen.careers.repository.I9FormRepository;
 import com.skyzen.careers.repository.I983PlanRepository;
 import com.skyzen.careers.repository.InterviewRepository;
 import com.skyzen.careers.repository.OfferRepository;
+import com.skyzen.careers.repository.MaterialAcknowledgementRepository;
 import com.skyzen.careers.repository.OnboardingTaskRepository;
 import com.skyzen.careers.repository.ResumeRepository;
 import com.skyzen.careers.repository.ScreeningRepository;
+import com.skyzen.careers.repository.TimesheetRepository;
 import com.skyzen.careers.repository.UserRepository;
+import com.skyzen.careers.repository.WeeklyMaterialRepository;
+import com.skyzen.careers.repository.WeeklyReportRepository;
+import com.skyzen.careers.entity.MaterialAcknowledgement;
+import com.skyzen.careers.entity.Timesheet;
+import com.skyzen.careers.entity.WeeklyMaterial;
+import com.skyzen.careers.entity.WeeklyReport;
+import com.skyzen.careers.enums.WeeklyMaterialStatus;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
+import java.time.DayOfWeek;
 import java.time.Instant;
+import java.time.LocalDate;
+import java.time.ZoneOffset;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -51,6 +65,7 @@ import java.util.Comparator;
 import java.util.EnumSet;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -90,6 +105,11 @@ public class CandidateDashboardService {
     private final I983PlanRepository i983PlanRepository;
     private final EVerifyCaseRepository everifyCaseRepository;
     private final UserRepository userRepository;
+    // Phase-2 weekly-cycle reads — only used on the ACTIVE-engagement face.
+    private final WeeklyMaterialRepository weeklyMaterialRepository;
+    private final MaterialAcknowledgementRepository materialAcknowledgementRepository;
+    private final WeeklyReportRepository weeklyReportRepository;
+    private final TimesheetRepository timesheetRepository;
 
     @Transactional(readOnly = true)
     public CandidateDashboardResponse build(User caller) {
@@ -203,6 +223,23 @@ public class CandidateDashboardService {
         // SPEC §6 — resume info for the 3-up status card row.
         CandidateDashboardResponse.ResumeInfo resumeInfo = buildResumeInfo(candidate);
 
+        // Phase-2 intern face — ONLY when the engagement is ACTIVE. Two effects:
+        //   1. We build a weeklyCockpit (this week's material + report +
+        //      timesheet + auth snapshot) the frontend uses to render the
+        //      intern cockpit instead of the applicant 3-up cards.
+        //   2. We swap the 6-stage applicant journey for the 4-stage Phase-2
+        //      journey (Setup → Active weeks → Evaluation → Completed). Same
+        //      JourneyBar component consumes it — no FE code change.
+        //   3. We replace nextStep with an intern-priority chain (acknowledge /
+        //      submit report / log timesheet / waiting on supervisor).
+        CandidateDashboardResponse.WeeklyCockpit weeklyCockpit = null;
+        if (engagement != null && engagement.getStatus() == EngagementStatus.ACTIVE) {
+            weeklyCockpit = buildWeeklyCockpit(candidate, engagement);
+            journey = buildInternJourney(weeklyCockpit, engagement);
+            CandidateDashboardResponse.NextStep internNext = pickInternNextStep(weeklyCockpit);
+            if (internNext != null) nextStep = internNext;
+        }
+
         return CandidateDashboardResponse.builder()
                 .candidateName(candidateName)
                 .profileComplete(profileComplete)
@@ -214,6 +251,7 @@ public class CandidateDashboardService {
                 .compliance(compliance)
                 .journey(journey)
                 .resume(resumeInfo)
+                .weeklyCockpit(weeklyCockpit)
                 .build();
     }
 
@@ -1327,6 +1365,421 @@ public class CandidateDashboardService {
                 .applications(Collections.emptyList())
                 .upcoming(Collections.emptyList())
                 .recentActivity(Collections.emptyList())
+                .build();
+    }
+
+    // ── Phase-2 intern face ─────────────────────────────────────────────────
+
+    /**
+     * "This week's Monday" using the server clock. Stays in UTC since
+     * Timesheet.weekStart + WeeklyReport.weekStart are LocalDate (no TZ).
+     */
+    private static LocalDate currentWeekStart() {
+        LocalDate today = LocalDate.now(ZoneOffset.UTC);
+        int back = today.getDayOfWeek().getValue() - DayOfWeek.MONDAY.getValue();
+        if (back < 0) back += 7;
+        return today.minusDays(back);
+    }
+
+    /**
+     * Build the active-intern's weekly cockpit. Reads the most-recent visible
+     * material + this week's report + this week's timesheet + the auth-expiry
+     * snapshot. Each sub-row is independently nullable — the frontend renders
+     * "log this" / "create that" prompts when fields are absent.
+     */
+    private CandidateDashboardResponse.WeeklyCockpit buildWeeklyCockpit(
+            Candidate candidate, Engagement engagement) {
+        if (candidate == null || engagement == null) return null;
+        UUID candidateId = candidate.getId();
+        LocalDate weekStart = currentWeekStart();
+
+        // Material — newest RELEASED visible to this engagement (broadcast +
+        // scoped). The existing repo query already sorts by releaseDate desc.
+        CandidateDashboardResponse.MaterialCard materialCard = null;
+        List<WeeklyMaterial> visible = weeklyMaterialRepository
+                .findVisibleForEngagement(WeeklyMaterialStatus.RELEASED, engagement.getId());
+        if (!visible.isEmpty()) {
+            WeeklyMaterial top = visible.get(0);
+            MaterialAcknowledgement ack = materialAcknowledgementRepository
+                    .findByMaterialIdAndInternId(top.getId(), candidateId)
+                    .orElse(null);
+            materialCard = CandidateDashboardResponse.MaterialCard.builder()
+                    .id(top.getId())
+                    .weekNo(top.getWeekNo())
+                    .title(top.getTitle())
+                    .releaseDate(top.getReleaseDate())
+                    .acknowledged(ack != null)
+                    .acknowledgedAt(ack != null ? ack.getAcknowledgedAt() : null)
+                    .href("/careers/candidate/weekly-materials")
+                    .build();
+        }
+
+        // Report — exact match on (intern_id, week_start). Null when the
+        // intern hasn't started a report for this week.
+        WeeklyReport report = weeklyReportRepository
+                .findByInternIdAndWeekStart(candidateId, weekStart)
+                .orElse(null);
+        CandidateDashboardResponse.ReportCard reportCard =
+                CandidateDashboardResponse.ReportCard.builder()
+                        .id(report != null ? report.getId() : null)
+                        .weekStart(weekStart)
+                        .status(report != null && report.getStatus() != null
+                                ? report.getStatus().name() : null)
+                        .submittedAt(report != null ? report.getSubmittedAt() : null)
+                        .reviewedAt(report != null ? report.getReviewedAt() : null)
+                        .reviewNotes(report != null ? report.getReviewNotes() : null)
+                        .href("/careers/candidate/weekly-reports")
+                        .build();
+
+        // Timesheet — newest first list; pick the one whose weekStart matches
+        // current Monday. Repo doesn't have an exact-week query and adding one
+        // would be scope creep — the lists are small.
+        Timesheet weekSheet = timesheetRepository.findForIntern(candidateId).stream()
+                .filter(t -> weekStart.equals(t.getWeekStart()))
+                .findFirst()
+                .orElse(null);
+        CandidateDashboardResponse.TimesheetCard timesheetCard =
+                CandidateDashboardResponse.TimesheetCard.builder()
+                        .id(weekSheet != null ? weekSheet.getId() : null)
+                        .weekStart(weekStart)
+                        .status(weekSheet != null && weekSheet.getStatus() != null
+                                ? weekSheet.getStatus().name() : null)
+                        .hours(weekSheet != null ? weekSheet.getHours() : null)
+                        .href("/careers/intern/work")
+                        .build();
+
+        // Authorization snapshot — earliest of workAuthExpirationDate / optEndDate.
+        CandidateDashboardResponse.AuthorizationInfo auth = buildAuthorizationInfo(candidateId);
+
+        return CandidateDashboardResponse.WeeklyCockpit.builder()
+                .weekStart(weekStart)
+                .material(materialCard)
+                .report(reportCard)
+                .timesheet(timesheetCard)
+                .authorization(auth)
+                .build();
+    }
+
+    /**
+     * Pull the soonest work-auth expiry the intern has on file. Compares I9's
+     * work_auth_expiration_date with I-983's opt_end_date and surfaces whichever
+     * fires first. Returns null when neither row exists or both dates are null.
+     */
+    private CandidateDashboardResponse.AuthorizationInfo buildAuthorizationInfo(UUID candidateId) {
+        if (candidateId == null) return null;
+        LocalDate today = LocalDate.now(ZoneOffset.UTC);
+
+        I9Form i9 = i9FormRepository.findByCandidateId(candidateId).orElse(null);
+        LocalDate i9Exp = i9 != null ? i9.getWorkAuthExpirationDate() : null;
+
+        LocalDate optEnd = i983PlanRepository
+                .findByCandidateIdOrderByCreatedAtDesc(candidateId)
+                .stream()
+                .findFirst()
+                .map(I983Plan::getOptEndDate)
+                .orElse(null);
+
+        LocalDate winner;
+        String authType;
+        if (i9Exp == null && optEnd == null) return null;
+        if (i9Exp == null) {
+            winner = optEnd;
+            authType = "STEM OPT";
+        } else if (optEnd == null) {
+            winner = i9Exp;
+            authType = "Work authorization";
+        } else if (optEnd.isBefore(i9Exp)) {
+            winner = optEnd;
+            authType = "STEM OPT";
+        } else {
+            winner = i9Exp;
+            authType = "Work authorization";
+        }
+
+        return CandidateDashboardResponse.AuthorizationInfo.builder()
+                .expirationDate(winner)
+                .daysUntilExpiry((int) ChronoUnit.DAYS.between(today, winner))
+                .authType(authType)
+                .build();
+    }
+
+    /** Stable keys + labels for the Phase-2 intern journey. */
+    private static final List<String> INTERN_STAGE_KEYS = List.of(
+            "SETUP", "ACTIVE_WEEKS", "EVALUATION", "COMPLETED");
+    private static final Map<String, String> INTERN_STAGE_LABELS = Map.of(
+            "SETUP", "Setup",
+            "ACTIVE_WEEKS", "Active weeks",
+            "EVALUATION", "Evaluation",
+            "COMPLETED", "Completed");
+
+    /**
+     * Phase-2 intern journey — 4 stages. When the engagement is ACTIVE we're
+     * always on the "Active weeks" stage; Setup is done, Evaluation + Completed
+     * are upcoming. The current stage's sub-steps reflect this week's cockpit
+     * (material ack / report status / timesheet status).
+     */
+    private CandidateDashboardResponse.Journey buildInternJourney(
+            CandidateDashboardResponse.WeeklyCockpit cockpit, Engagement engagement) {
+        if (engagement == null) return null;
+        EngagementStatus es = engagement.getStatus();
+
+        // Resolve current stage from engagement status. ACTIVE is the only
+        // state that triggers the intern face today; the other branches are
+        // belt-and-braces for future expansion.
+        String currentKey;
+        if (es == EngagementStatus.COMPLETED) currentKey = "COMPLETED";
+        else if (es == EngagementStatus.ACTIVE) currentKey = "ACTIVE_WEEKS";
+        else currentKey = "SETUP";
+
+        int currentIndex = INTERN_STAGE_KEYS.indexOf(currentKey);
+        if (currentIndex < 0) currentIndex = 1;
+
+        List<CandidateDashboardResponse.JourneyStage> stages = new ArrayList<>(INTERN_STAGE_KEYS.size());
+        for (int i = 0; i < INTERN_STAGE_KEYS.size(); i++) {
+            String key = INTERN_STAGE_KEYS.get(i);
+            String state;
+            if (i < currentIndex) state = "done";
+            else if (i == currentIndex) state = "current";
+            else state = "upcoming";
+
+            List<CandidateDashboardResponse.SubStep> subSteps =
+                    (i == currentIndex && key.equals("ACTIVE_WEEKS") && cockpit != null)
+                            ? buildActiveWeekSubSteps(cockpit)
+                            : Collections.emptyList();
+
+            stages.add(CandidateDashboardResponse.JourneyStage.builder()
+                    .key(key)
+                    .label(INTERN_STAGE_LABELS.get(key))
+                    .state(state)
+                    .subSteps(subSteps)
+                    .build());
+        }
+
+        return CandidateDashboardResponse.Journey.builder()
+                .currentStageKey(currentKey)
+                .isExited(false)
+                .stages(stages)
+                .build();
+    }
+
+    /**
+     * Sub-step rows under "Active weeks" — material ack, weekly report,
+     * timesheet. Each row maps a current-state field to a JourneyBar
+     * state + owner + href + subtitle. Read by the same JourneyBar component
+     * the applicant face uses.
+     */
+    private List<CandidateDashboardResponse.SubStep> buildActiveWeekSubSteps(
+            CandidateDashboardResponse.WeeklyCockpit cockpit) {
+        List<CandidateDashboardResponse.SubStep> out = new ArrayList<>(3);
+
+        CandidateDashboardResponse.MaterialCard mat = cockpit.getMaterial();
+        if (mat == null) {
+            out.add(subStep("WEEKLY_MATERIAL", "Weekly material",
+                    "upcoming", "supervisor", null,
+                    "Supervisor hasn't released a material yet"));
+        } else if (mat.isAcknowledged()) {
+            out.add(subStep("WEEKLY_MATERIAL",
+                    "Acknowledged: " + mat.getTitle(),
+                    "done", "you", mat.getHref(),
+                    mat.getAcknowledgedAt() != null
+                            ? "Acknowledged on " + formatDate(mat.getAcknowledgedAt())
+                            : "Acknowledged"));
+        } else {
+            out.add(subStep("WEEKLY_MATERIAL",
+                    "Acknowledge: " + mat.getTitle(),
+                    "current", "you", mat.getHref(),
+                    "Read and mark as reviewed"));
+        }
+
+        CandidateDashboardResponse.ReportCard rep = cockpit.getReport();
+        if (rep == null || rep.getStatus() == null) {
+            out.add(subStep("WEEKLY_REPORT", "Submit this week's report",
+                    "current", "you", "/careers/candidate/weekly-reports",
+                    "Completed work, blockers, learnings, next plan"));
+        } else {
+            switch (rep.getStatus()) {
+                case "DRAFT" -> out.add(subStep("WEEKLY_REPORT",
+                        "Finish & submit this week's report",
+                        "current", "you", "/careers/candidate/weekly-reports",
+                        "Draft saved — submit when ready"));
+                case "RETURNED" -> out.add(subStep("WEEKLY_REPORT",
+                        "Reviewer asked for changes",
+                        "current", "you", "/careers/candidate/weekly-reports",
+                        rep.getReviewNotes() != null && !rep.getReviewNotes().isBlank()
+                                ? rep.getReviewNotes()
+                                : "Update and resubmit"));
+                case "SUBMITTED" -> out.add(subStep("WEEKLY_REPORT",
+                        "Report submitted",
+                        "waiting", "supervisor", "/careers/candidate/weekly-reports",
+                        "Awaiting supervisor review"));
+                case "APPROVED" -> out.add(subStep("WEEKLY_REPORT",
+                        "Report approved",
+                        "done", "supervisor", "/careers/candidate/weekly-reports",
+                        rep.getReviewedAt() != null
+                                ? "Approved on " + formatDate(rep.getReviewedAt())
+                                : "Approved"));
+                default -> out.add(subStep("WEEKLY_REPORT",
+                        "Weekly report",
+                        "current", "you", "/careers/candidate/weekly-reports",
+                        rep.getStatus()));
+            }
+        }
+
+        CandidateDashboardResponse.TimesheetCard sheet = cockpit.getTimesheet();
+        if (sheet == null || sheet.getStatus() == null) {
+            out.add(subStep("WEEKLY_TIMESHEET", "Log this week's hours",
+                    "current", "you", "/careers/intern/work",
+                    "Track hours alongside your assignments"));
+        } else {
+            switch (sheet.getStatus()) {
+                case "DRAFT" -> out.add(subStep("WEEKLY_TIMESHEET",
+                        "Finish & submit timesheet",
+                        "current", "you", "/careers/intern/work",
+                        sheet.getHours() != null
+                                ? sheet.getHours() + " hrs logged so far"
+                                : "Draft saved"));
+                case "REJECTED" -> out.add(subStep("WEEKLY_TIMESHEET",
+                        "Timesheet returned",
+                        "current", "you", "/careers/intern/work",
+                        "Reviewer asked for changes — update and resubmit"));
+                case "SUBMITTED" -> out.add(subStep("WEEKLY_TIMESHEET",
+                        "Timesheet submitted",
+                        "waiting", "supervisor", "/careers/intern/work",
+                        sheet.getHours() != null
+                                ? sheet.getHours() + " hrs — awaiting approval"
+                                : "Awaiting approval"));
+                case "APPROVED" -> out.add(subStep("WEEKLY_TIMESHEET",
+                        "Timesheet approved",
+                        "done", "supervisor", "/careers/intern/work",
+                        sheet.getHours() != null
+                                ? sheet.getHours() + " hrs approved"
+                                : "Approved"));
+                default -> out.add(subStep("WEEKLY_TIMESHEET",
+                        "Timesheet",
+                        "current", "you", "/careers/intern/work",
+                        sheet.getStatus()));
+            }
+        }
+
+        return out;
+    }
+
+    /**
+     * Intern-priority next-step picker. Returns the single most-actionable
+     * thing for the active intern, or a waiting state when supervisor's turn,
+     * or "all set" when the week is complete. Mirrors the never-null contract
+     * the applicant face uses.
+     */
+    private CandidateDashboardResponse.NextStep pickInternNextStep(
+            CandidateDashboardResponse.WeeklyCockpit cockpit) {
+        if (cockpit == null) return null;
+        CandidateDashboardResponse.MaterialCard mat = cockpit.getMaterial();
+        CandidateDashboardResponse.ReportCard rep = cockpit.getReport();
+        CandidateDashboardResponse.TimesheetCard sheet = cockpit.getTimesheet();
+
+        // 1. RETURNED report — reviewer is blocking on the intern.
+        if (rep != null && "RETURNED".equals(rep.getStatus())) {
+            return CandidateDashboardResponse.NextStep.builder()
+                    .type("REPORT_RETURNED")
+                    .title("Your weekly report needs changes")
+                    .subtitle(rep.getReviewNotes() != null && !rep.getReviewNotes().isBlank()
+                            ? rep.getReviewNotes()
+                            : "Update and resubmit")
+                    .ctaLabel("Open report")
+                    .ctaHref("/careers/candidate/weekly-reports")
+                    .build();
+        }
+
+        // 2. REJECTED timesheet — same shape.
+        if (sheet != null && "REJECTED".equals(sheet.getStatus())) {
+            return CandidateDashboardResponse.NextStep.builder()
+                    .type("TIMESHEET_REJECTED")
+                    .title("Your timesheet was returned")
+                    .subtitle("Update and resubmit your hours")
+                    .ctaLabel("Open timesheet")
+                    .ctaHref("/careers/intern/work")
+                    .build();
+        }
+
+        // 3. Unacknowledged material released this week (or any unread).
+        if (mat != null && !mat.isAcknowledged()) {
+            return CandidateDashboardResponse.NextStep.builder()
+                    .type("MATERIAL_PENDING_ACK")
+                    .title("Read this week's material")
+                    .subtitle(mat.getTitle())
+                    .ctaLabel("Open material")
+                    .ctaHref("/careers/candidate/weekly-materials")
+                    .build();
+        }
+
+        // 4. Report not yet created OR still DRAFT.
+        if (rep == null || rep.getStatus() == null) {
+            return CandidateDashboardResponse.NextStep.builder()
+                    .type("REPORT_TODO")
+                    .title("Submit this week's report")
+                    .subtitle("Completed work, blockers, learnings, next plan")
+                    .ctaLabel("Open report")
+                    .ctaHref("/careers/candidate/weekly-reports")
+                    .build();
+        }
+        if ("DRAFT".equals(rep.getStatus())) {
+            return CandidateDashboardResponse.NextStep.builder()
+                    .type("REPORT_DRAFT")
+                    .title("Finish your weekly report")
+                    .subtitle("Draft saved — submit when ready")
+                    .ctaLabel("Open report")
+                    .ctaHref("/careers/candidate/weekly-reports")
+                    .build();
+        }
+
+        // 5. Timesheet not yet logged OR DRAFT.
+        if (sheet == null || sheet.getStatus() == null) {
+            return CandidateDashboardResponse.NextStep.builder()
+                    .type("TIMESHEET_TODO")
+                    .title("Log this week's hours")
+                    .subtitle("Track your time alongside your assignments")
+                    .ctaLabel("Open timesheet")
+                    .ctaHref("/careers/intern/work")
+                    .build();
+        }
+        if ("DRAFT".equals(sheet.getStatus())) {
+            return CandidateDashboardResponse.NextStep.builder()
+                    .type("TIMESHEET_DRAFT")
+                    .title("Submit this week's timesheet")
+                    .subtitle(sheet.getHours() != null
+                            ? sheet.getHours() + " hrs in draft"
+                            : "Draft saved")
+                    .ctaLabel("Open timesheet")
+                    .ctaHref("/careers/intern/work")
+                    .build();
+        }
+
+        // 6. Both submitted and awaiting review → waiting state.
+        boolean reportSubmitted = "SUBMITTED".equals(rep.getStatus());
+        boolean timesheetSubmitted = "SUBMITTED".equals(sheet.getStatus());
+        if (reportSubmitted || timesheetSubmitted) {
+            String waiting;
+            if (reportSubmitted && timesheetSubmitted) waiting = "Report + timesheet";
+            else if (reportSubmitted) waiting = "Weekly report";
+            else waiting = "Timesheet";
+            return CandidateDashboardResponse.NextStep.builder()
+                    .type("AWAITING_REVIEW")
+                    .title("Submitted — awaiting supervisor review")
+                    .subtitle(waiting + " with your supervisor")
+                    .ctaLabel(null)
+                    .ctaHref(null)
+                    .isWaiting(true)
+                    .waitingFor("Supervisor review of " + waiting.toLowerCase())
+                    .build();
+        }
+
+        // 7. Everything approved (or ack'd + no submission needed) → all set.
+        return CandidateDashboardResponse.NextStep.builder()
+                .type("WEEK_COMPLETE")
+                .title("All set for this week — great work")
+                .subtitle("Your supervisor will check in for next week's plan")
+                .ctaLabel(null)
+                .ctaHref(null)
                 .build();
     }
 }
