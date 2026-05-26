@@ -1,6 +1,8 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
+import Link from 'next/link';
+import { FileCheck2 } from 'lucide-react';
 import api from '@/lib/api';
 import DashboardLayout from '@/components/dashboard/DashboardLayout';
 import ProtectedRoute from '@/components/ProtectedRoute';
@@ -24,13 +26,29 @@ export default function CandidateI9Page() {
 function Body() {
   const [form, setForm] = useState<I9FormResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // Backend gate (GAP A1) — 403 with code OFFER_REQUIRED means the candidate
+  // doesn't have an accepted offer yet. Render the clean "available after"
+  // state, NOT a raw error. Frontend hiding is defense-in-depth; backend is
+  // the authority.
+  const [needsOffer, setNeedsOffer] = useState<boolean>(false);
+  const [gateMessage, setGateMessage] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setError(null);
+    setNeedsOffer(false);
+    setGateMessage(null);
     try {
       const res = await api.get<I9FormResponse>('/api/v1/i9/me');
       setForm(res.data);
     } catch (err: any) {
+      const status = err?.response?.status;
+      const code = err?.response?.data?.code;
+      if (status === 403 && code === 'OFFER_REQUIRED') {
+        setNeedsOffer(true);
+        setGateMessage(err?.response?.data?.error ?? null);
+        setForm(null);
+        return;
+      }
       setError(err?.response?.data?.error ?? "Couldn't load your I-9.");
       setForm(null);
     }
@@ -39,6 +57,8 @@ function Body() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  if (needsOffer) return <OfferRequiredPanel message={gateMessage} />;
 
   if (form === null && !error) return <LoadingSkeleton />;
 
@@ -83,6 +103,30 @@ function Body() {
         </>
       )}
     </>
+  );
+}
+
+function OfferRequiredPanel({ message }: { message: string | null }) {
+  return (
+    <div className="mx-auto max-w-md py-16 text-center">
+      <FileCheck2
+        className="mx-auto h-16 w-16 text-gray-300"
+        strokeWidth={1.5}
+      />
+      <h2 className="mt-4 text-xl font-semibold text-gray-900">
+        Available after your offer is accepted
+      </h2>
+      <p className="mt-2 text-sm text-gray-500">
+        {message ??
+          'Form I-9 is part of post-offer onboarding. Once you accept an offer, this section unlocks and you can complete Section 1.'}
+      </p>
+      <Link
+        href="/careers/candidate/offers"
+        className="mt-6 inline-flex items-center gap-1.5 rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+      >
+        View my offers
+      </Link>
+    </div>
   );
 }
 

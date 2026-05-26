@@ -1,6 +1,7 @@
 package com.skyzen.careers.service;
 
 import com.skyzen.careers.dto.ResumeResponse;
+import com.skyzen.careers.entity.AuditLog;
 import com.skyzen.careers.entity.Candidate;
 import com.skyzen.careers.entity.Resume;
 import com.skyzen.careers.entity.User;
@@ -9,6 +10,7 @@ import com.skyzen.careers.exception.ConflictException;
 import com.skyzen.careers.exception.ForbiddenException;
 import com.skyzen.careers.exception.ResourceNotFoundException;
 import com.skyzen.careers.repository.ApplicationRepository;
+import com.skyzen.careers.repository.AuditLogRepository;
 import com.skyzen.careers.repository.CandidateRepository;
 import com.skyzen.careers.repository.ResumeRepository;
 import jakarta.annotation.PostConstruct;
@@ -44,6 +46,7 @@ public class ResumeService {
     private final ResumeRepository resumeRepository;
     private final CandidateRepository candidateRepository;
     private final ApplicationRepository applicationRepository;
+    private final AuditLogRepository auditLogRepository;
 
     @Value("${app.resume.storage-path:./uploads/resumes}")
     private String storagePath;
@@ -128,6 +131,8 @@ public class ResumeService {
             candidate.setDefaultResumeId(resume.getId());
             candidateRepository.save(candidate);
         }
+        // GAP E6 — sensitive PII event (resume contains personal info).
+        writeAudit(resume.getId(), "RESUME_UPLOADED", user.getId());
         return toResponse(resume);
     }
 
@@ -179,7 +184,34 @@ public class ResumeService {
         } catch (IOException e) {
             log.warn("Failed to delete resume file {}: {}", resume.getFilePath(), e.getMessage());
         }
+        // GAP E6 — audit BEFORE the row vanishes; entityId still resolves.
+        writeAudit(resume.getId(), "RESUME_DELETED", userId);
         resumeRepository.delete(resume);
+    }
+
+    /**
+     * GAP E6 — write a RESUME_DOWNLOADED audit row. Public so the controller
+     * can call it after the row-level ensureCanDownload gate has passed.
+     * Separate @Transactional so this commit doesn't depend on the controller's
+     * file-serving lifecycle.
+     */
+    @Transactional
+    public void recordDownloadAudit(Resume resume, User caller) {
+        if (resume == null || resume.getId() == null) return;
+        writeAudit(resume.getId(), "RESUME_DOWNLOADED",
+                caller != null ? caller.getId() : null);
+    }
+
+    private void writeAudit(UUID resumeId, String action, UUID userId) {
+        // Lean event row — sensitive resume contents stay out of the audit JSON.
+        // Audit IS the access log for compliance review; the file is the artifact.
+        AuditLog entry = AuditLog.builder()
+                .entityType("Resume")
+                .entityId(resumeId)
+                .action(action)
+                .userId(userId)
+                .build();
+        auditLogRepository.save(entry);
     }
 
     @Transactional(readOnly = true)

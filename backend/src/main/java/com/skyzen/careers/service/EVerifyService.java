@@ -16,8 +16,10 @@ import com.skyzen.careers.entity.Engagement;
 import com.skyzen.careers.entity.I9Form;
 import com.skyzen.careers.entity.User;
 import com.skyzen.careers.enums.EVerifyStatus;
+import com.skyzen.careers.enums.EngagementStatus;
 import com.skyzen.careers.enums.I9Status;
 import com.skyzen.careers.exception.BadRequestException;
+import com.skyzen.careers.exception.I9NotCompleteException;
 import com.skyzen.careers.exception.ResourceNotFoundException;
 import com.skyzen.careers.repository.AuditLogRepository;
 import com.skyzen.careers.repository.EVerifyCaseRepository;
@@ -96,12 +98,29 @@ public class EVerifyService {
                 .orElseThrow(() -> new ResourceNotFoundException(
                         "I-9 form not found: " + req.getI9FormId()));
 
-        // Phase 3 step 7 — federal sequencing: E-Verify case follows I-9, not
-        // the other way around. The wording matches the spec literally so the
-        // HR-side error UI can be tested against it.
+        // Phase 3 step 7 / GAP A2 — federal sequencing: E-Verify case follows
+        // I-9, not the other way around. Hard 403 with code I9_NOT_COMPLETE so
+        // the HR UI can render a clean blocker and stay aligned with PED rule 4
+        // ("E-Verify is not a prescreening tool"). Audit the denied attempt
+        // before throwing so forensic review can see who tried what.
         if (i9.getStatus() != I9Status.COMPLETED) {
-            throw new BadRequestException(
+            writeGateAudit(i9.getId(), "EVERIFY_BLOCKED_I9_NOT_COMPLETE",
+                    creator != null ? creator.getId() : null,
+                    "i9.status=" + i9.getStatus());
+            throw new I9NotCompleteException(
                     "E-Verify can be created only after Form I-9 is completed.");
+        }
+        // Defensive: an engagement in BLOCKED_NO_AUTHORIZATION means the
+        // candidate is on hold pending HR/legal review. No E-Verify case should
+        // be opened in that state even if the I-9 row is somehow COMPLETED.
+        Engagement engagement = i9.getEngagement();
+        if (engagement != null
+                && engagement.getStatus() == EngagementStatus.BLOCKED_NO_AUTHORIZATION) {
+            writeGateAudit(i9.getId(), "EVERIFY_BLOCKED_ENGAGEMENT",
+                    creator != null ? creator.getId() : null,
+                    "engagement=BLOCKED_NO_AUTHORIZATION");
+            throw new I9NotCompleteException(
+                    "Engagement is on hold pending HR review. E-Verify isn't available.");
         }
         if (caseRepository.existsByI9FormId(i9.getId())) {
             throw new BadRequestException(
@@ -431,6 +450,24 @@ public class EVerifyService {
                 .action(action)
                 .userId(userId)
                 .beforeJson(serialize(before))
+                .afterJson(serialize(after))
+                .build();
+        auditLogRepository.save(entry);
+    }
+
+    /**
+     * GAP A2 — audit row for a denied E-Verify create attempt. Keyed on the
+     * I-9 form id (no EVerifyCase exists yet at block time). afterJson carries
+     * the structured reason so forensic review can see why.
+     */
+    private void writeGateAudit(UUID i9FormId, String action, UUID actorId, String reason) {
+        Map<String, Object> after = new LinkedHashMap<>();
+        after.put("reason", reason);
+        AuditLog entry = AuditLog.builder()
+                .entityType("I9Form")
+                .entityId(i9FormId)
+                .action(action)
+                .userId(actorId)
                 .afterJson(serialize(after))
                 .build();
         auditLogRepository.save(entry);

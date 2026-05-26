@@ -6,6 +6,7 @@ import com.skyzen.careers.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.CommandLineRunner;
+import org.springframework.context.annotation.Profile;
 import org.springframework.core.annotation.Order;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
@@ -22,6 +23,7 @@ import java.util.List;
  * Demo-only. Remove or guard with a profile flag before any non-dev deploy.
  */
 @Component
+@Profile("!prod") // GAP E4 — demo test users; never seeded in production.
 @Order(3)
 @RequiredArgsConstructor
 @Slf4j

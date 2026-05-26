@@ -48,18 +48,48 @@ public class CandidateDashboardResponse {
      */
     private List<ComplianceItem> compliance;
 
+    /**
+     * SPEC §3 — six-macro-step journey bar (Applied → Screening → Interview →
+     * Offer → Onboarding → Hired). Only the current stage carries a non-empty
+     * {@code subSteps} list; past stages collapse to "done", future stages to
+     * "upcoming". Drives the reusable JourneyBar component. Always present.
+     */
+    private Journey journey;
+
+    /**
+     * SPEC §6 — resume status card (filename + uploadedAt of the default
+     * resume). Null when the candidate hasn't uploaded one yet.
+     */
+    private ResumeInfo resume;
+
     @Getter
     @Setter
     @NoArgsConstructor
     @AllArgsConstructor
     @Builder
     public static class NextStep {
-        /** OFFER | INTERVIEW | ONBOARDING | WORK | SHORTLISTED | APPLIED | PROFILE | BROWSE */
+        /** OFFER | INTERVIEW | ONBOARDING | WORK | SHORTLISTED | APPLIED | PROFILE | BROWSE
+         *  | AWAITING_SCREENING | AWAITING_DECISION | AWAITING_HR_I9 | AWAITING_EVERIFY
+         *  | AWAITING_DSO | AWAITING_READY | WELCOME | EXITED */
         private String type;
         private String title;
         private String subtitle;
         private String ctaLabel;
         private String ctaHref;
+
+        /**
+         * SPEC §5 — true when the next move is someone else's (recruiter
+         * scheduling, employer doing I-9 §2, supervisor reviewing). The
+         * frontend renders these as a waiting-state hero (info border, no CTA)
+         * instead of a primary action button.
+         */
+        private boolean isWaiting;
+
+        /** Who/what we're waiting on. Free text, surfaced under the title. */
+        private String waitingFor;
+
+        /** Optional ETA — when the candidate should expect a response. */
+        private java.time.Instant expectedBy;
     }
 
     @Getter
@@ -127,6 +157,82 @@ public class CandidateDashboardResponse {
         /** Optional deep link to where the candidate can act or view detail. */
         private String href;
         private Instant completedAt;
+    }
+
+    /**
+     * SPEC §3 — the six-macro-step journey bar payload. Stages are ordered
+     * Applied → Screening → Interview → Offer → Onboarding → Hired. The
+     * {@code currentStageKey} matches one of the {@code key} values in
+     * {@code stages} (or is "EXITED" when every application has exited).
+     */
+    @Getter
+    @Setter
+    @NoArgsConstructor
+    @AllArgsConstructor
+    @Builder
+    public static class Journey {
+        /** Stable key of the current stage (one of stages[].key), or "EXITED". */
+        private String currentStageKey;
+        /** True when the journey has terminated (REJECTED/WITHDRAWN/LAPSED/NO_SHOW). */
+        private boolean isExited;
+        /** Always six entries for the applicant face. */
+        private List<JourneyStage> stages;
+    }
+
+    /**
+     * One macro step on the journey bar. Past stages have {@code state="done"}
+     * and an empty {@code subSteps} list. The current stage carries the
+     * expanded {@code subSteps} checklist. Future stages stay collapsed.
+     */
+    @Getter
+    @Setter
+    @NoArgsConstructor
+    @AllArgsConstructor
+    @Builder
+    public static class JourneyStage {
+        /** APPLIED | SCREENING | INTERVIEW | OFFER | ONBOARDING | HIRED */
+        private String key;
+        private String label;
+        /** done | current | upcoming | blocked */
+        private String state;
+        /** Empty unless this stage is the current one. */
+        private List<SubStep> subSteps;
+    }
+
+    /**
+     * SPEC §4 — a single sub-step inside the current macro stage. Conditional
+     * sub-steps (e.g. I-983 for STEM OPT) are filtered server-side based on
+     * the engagement's work-auth track.
+     */
+    @Getter
+    @Setter
+    @NoArgsConstructor
+    @AllArgsConstructor
+    @Builder
+    public static class SubStep {
+        /** Stable key — e.g. "PROFILE", "TAKE_SCREENING", "I9_SECTION_1". */
+        private String key;
+        private String label;
+        /** done | current | upcoming | waiting | blocked */
+        private String state;
+        /** "you" | "recruiter" | "employer" | "supervisor" | "dso" | "system" | null */
+        private String owner;
+        /** Optional deep link (null for waiting-state rows). */
+        private String href;
+        /** Short human descriptor — "Submitted on May 19" / "Awaiting HR". */
+        private String subtitle;
+    }
+
+    /** SPEC §6 — resume status card (3-up status cards row). */
+    @Getter
+    @Setter
+    @NoArgsConstructor
+    @AllArgsConstructor
+    @Builder
+    public static class ResumeInfo {
+        private UUID id;
+        private String fileName;
+        private java.time.Instant uploadedAt;
     }
 
     @Getter

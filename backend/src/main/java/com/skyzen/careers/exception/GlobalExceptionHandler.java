@@ -49,10 +49,50 @@ public class GlobalExceptionHandler {
      */
     @ExceptionHandler(EmailUnverifiedException.class)
     public ResponseEntity<Map<String, Object>> handleEmailUnverified(EmailUnverifiedException ex) {
-        Map<String, Object> body = new LinkedHashMap<>();
-        body.put("error", ex.getMessage());
-        body.put("code", "EMAIL_UNVERIFIED");
-        return ResponseEntity.status(HttpStatus.FORBIDDEN).body(body);
+        return codedForbidden(ex.getMessage(), "EMAIL_UNVERIFIED");
+    }
+
+    /**
+     * Post-offer gate (GAP_REPORT A1). A candidate is hitting I-9 create or
+     * Section-1 submit before they have an ACCEPTED offer (or while their
+     * engagement is BLOCKED_NO_AUTHORIZATION). Returns 403 + code
+     * {@code OFFER_REQUIRED} so the frontend can render a clean
+     * "available after your offer is accepted" state.
+     */
+    @ExceptionHandler(OfferRequiredException.class)
+    public ResponseEntity<Map<String, Object>> handleOfferRequired(OfferRequiredException ex) {
+        return codedForbidden(ex.getMessage(), "OFFER_REQUIRED");
+    }
+
+    /**
+     * E-Verify sequencing gate (GAP_REPORT A2). Federal rule: E-Verify case
+     * may only be created once Form I-9 is COMPLETED. Returns 403 + code
+     * {@code I9_NOT_COMPLETE}.
+     */
+    @ExceptionHandler(I9NotCompleteException.class)
+    public ResponseEntity<Map<String, Object>> handleI9NotComplete(I9NotCompleteException ex) {
+        return codedForbidden(ex.getMessage(), "I9_NOT_COMPLETE");
+    }
+
+    /**
+     * I-983 track gate (GAP_REPORT A5). A non-STEM_OPT candidate is hitting an
+     * I-983 endpoint. Returns 403 + code {@code STEM_OPT_REQUIRED} so the
+     * frontend can render the "training plan not required" panel.
+     */
+    @ExceptionHandler(StemOptRequiredException.class)
+    public ResponseEntity<Map<String, Object>> handleStemOptRequired(StemOptRequiredException ex) {
+        return codedForbidden(ex.getMessage(), "STEM_OPT_REQUIRED");
+    }
+
+    /**
+     * Interview-before-offer gate (GAP_REPORT A3). Offer create or
+     * conditional-select against an application that hasn't reached INTERVIEWED
+     * / SELECTED_CONDITIONAL. Returns 403 + code {@code INTERVIEW_REQUIRED}.
+     * Hard gate — no admin / HR override path.
+     */
+    @ExceptionHandler(InterviewRequiredException.class)
+    public ResponseEntity<Map<String, Object>> handleInterviewRequired(InterviewRequiredException ex) {
+        return codedForbidden(ex.getMessage(), "INTERVIEW_REQUIRED");
     }
 
     @ExceptionHandler(AccessDeniedException.class)
@@ -116,5 +156,18 @@ public class GlobalExceptionHandler {
             body.put("details", details);
         }
         return ResponseEntity.status(status).body(body);
+    }
+
+    /**
+     * Shared shape for 403 responses that carry a stable {@code code} the
+     * frontend keys off (EMAIL_UNVERIFIED, OFFER_REQUIRED, I9_NOT_COMPLETE,
+     * STEM_OPT_REQUIRED). Keeping the body shape uniform across these gated
+     * forbids lets the API client share one error handler.
+     */
+    private ResponseEntity<Map<String, Object>> codedForbidden(String message, String code) {
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("error", message);
+        body.put("code", code);
+        return ResponseEntity.status(HttpStatus.FORBIDDEN).body(body);
     }
 }

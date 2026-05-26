@@ -2,6 +2,8 @@ package com.skyzen.careers.entity;
 
 import com.skyzen.careers.enums.CitizenshipStatus;
 import com.skyzen.careers.enums.I9Status;
+import com.skyzen.careers.security.AesGcmCryptoConverter;
+import com.skyzen.careers.security.EncryptedLocalDateConverter;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
@@ -102,14 +104,20 @@ public class I9Form {
     @Column(length = 10)
     private String addressZipCode;
 
-    @Column(name = "date_of_birth")
+    // GAP C7 — dateOfBirth is PII; encrypted at rest via the converter below.
+    // SchemaFixupRunner widens the DB column from DATE to TEXT to hold the
+    // base64(IV||ciphertext+tag) envelope.
+    @Column(name = "date_of_birth", columnDefinition = "TEXT")
+    @Convert(converter = EncryptedLocalDateConverter.class)
     private LocalDate dateOfBirth;
 
     /**
-     * SSN in XXX-XX-XXXX format. Stored as plain string for v1; encryption is
-     * a Sprint 4 follow-up. Never log this field.
+     * SSN in XXX-XX-XXXX format. GAP C7: encrypted at rest (AES-256-GCM).
+     * Column widened to TEXT to hold the base64(IV||ciphertext+tag) envelope.
+     * Never log this field.
      */
-    @Column(length = 11)
+    @Column(columnDefinition = "TEXT")
+    @Convert(converter = AesGcmCryptoConverter.class)
     private String ssn;
 
     @Column(length = 120)
@@ -122,10 +130,15 @@ public class I9Form {
     @Column(name = "citizenship_status")
     private CitizenshipStatus citizenshipStatus;
 
-    @Column(length = 20)
+    // GAP C7 — A-Number is PII. Encrypted at rest; column widened to TEXT.
+    @Column(columnDefinition = "TEXT")
+    @Convert(converter = AesGcmCryptoConverter.class)
     private String alienRegistrationNumber;
 
-    @Column(length = 30)
+    // GAP C7 — foreign passport number is a sensitive document number.
+    // Encrypted at rest; column widened to TEXT.
+    @Column(columnDefinition = "TEXT")
+    @Convert(converter = AesGcmCryptoConverter.class)
     private String foreignPassportNumber;
 
     @Column(length = 80)
@@ -155,7 +168,9 @@ public class I9Form {
     @Column(name = "list_a_issuing_authority", length = 120)
     private String listAIssuingAuthority;
 
-    @Column(name = "list_a_document_number", length = 60)
+    // GAP C7 — List A document number is PII. Encrypted at rest.
+    @Column(name = "list_a_document_number", columnDefinition = "TEXT")
+    @Convert(converter = AesGcmCryptoConverter.class)
     private String listADocumentNumber;
 
     @Column(name = "list_a_expiration_date")
@@ -167,7 +182,9 @@ public class I9Form {
     @Column(name = "list_b_issuing_authority", length = 120)
     private String listBIssuingAuthority;
 
-    @Column(name = "list_b_document_number", length = 60)
+    // GAP C7 — List B document number is PII. Encrypted at rest.
+    @Column(name = "list_b_document_number", columnDefinition = "TEXT")
+    @Convert(converter = AesGcmCryptoConverter.class)
     private String listBDocumentNumber;
 
     @Column(name = "list_b_expiration_date")
@@ -179,7 +196,9 @@ public class I9Form {
     @Column(name = "list_c_issuing_authority", length = 120)
     private String listCIssuingAuthority;
 
-    @Column(name = "list_c_document_number", length = 60)
+    // GAP C7 — List C document number is PII. Encrypted at rest.
+    @Column(name = "list_c_document_number", columnDefinition = "TEXT")
+    @Convert(converter = AesGcmCryptoConverter.class)
     private String listCDocumentNumber;
 
     @Column(name = "additional_information", columnDefinition = "TEXT")

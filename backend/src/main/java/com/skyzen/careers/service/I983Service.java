@@ -27,6 +27,7 @@ import com.skyzen.careers.enums.UserRole;
 import com.skyzen.careers.enums.WorkAuthTrack;
 import com.skyzen.careers.exception.BadRequestException;
 import com.skyzen.careers.exception.ResourceNotFoundException;
+import com.skyzen.careers.exception.StemOptRequiredException;
 import com.skyzen.careers.repository.ApplicationRepository;
 import com.skyzen.careers.repository.AuditLogRepository;
 import com.skyzen.careers.repository.CandidateRepository;
@@ -382,6 +383,11 @@ public class I983Service {
                 || !plan.getCandidate().getUser().getId().equals(student.getId())) {
             throw new AccessDeniedException("This I-983 plan does not belong to you");
         }
+        // GAP A5 — STEM_OPT gate also on the candidate-initiated student sign.
+        // The plan create gate (line ~174) already blocks creation for non-STEM
+        // tracks, but a track flip post-create + a stale frontend could route
+        // here. Block deterministically and audit.
+        requireCandidateStemOptEligibility(plan.getCandidate(), student);
         if (!EDITABLE_STATUSES.contains(plan.getStatus())) {
             throw new BadRequestException(
                     "Cannot sign in status " + plan.getStatus()
@@ -510,11 +516,16 @@ public class I983Service {
 
     // ── Queries ─────────────────────────────────────────────────────────────
 
-    @Transactional(readOnly = true)
+    @Transactional
     public List<I983PlanResponse> getMyPlans(User candidateUser) {
         Candidate candidate = candidateRepository.findByUserId(candidateUser.getId())
                 .orElse(null);
         if (candidate == null) return List.of();
+        // GAP A5 — server-side STEM_OPT gate (defense in depth on top of the
+        // frontend `user.expectedTrack` hide). Audits the denied attempt.
+        // Note: read-only annotation widened to read-write because the audit
+        // write happens inside the same transaction on the deny path.
+        requireCandidateStemOptEligibility(candidate, candidateUser);
         return planRepository.findByCandidateIdOrderByCreatedAtDesc(candidate.getId())
                 .stream().map(this::toResponse).toList();
     }
@@ -525,7 +536,10 @@ public class I983Service {
                 .stream().map(this::toResponse).toList();
     }
 
-    @Transactional(readOnly = true)
+    // Not readOnly: requireReadAccess may now write an audit row on the
+    // candidate deny path (GAP A5 STEM gate). Staff reads still pay a trivial
+    // r/w-transaction overhead but no writes happen on the success path.
+    @Transactional
     public I983Plan getById(UUID planId, User caller) {
         I983Plan plan = planRepository.findByIdWithGraph(planId)
                 .orElseThrow(() -> new ResourceNotFoundException(
@@ -564,7 +578,9 @@ public class I983Service {
                 .map(this::toSummary);
     }
 
-    @Transactional(readOnly = true)
+    // Not readOnly: requireReadAccess may now write a gate-audit row on the
+    // candidate deny path (GAP A5).
+    @Transactional
     public List<I983HistoryEntryResponse> getHistory(UUID planId, User caller) {
         I983Plan plan = planRepository.findByIdWithGraph(planId)
                 .orElseThrow(() -> new ResourceNotFoundException(
@@ -619,6 +635,10 @@ public class I983Service {
         if (plan.getCandidate() != null
                 && plan.getCandidate().getUser() != null
                 && plan.getCandidate().getUser().getId().equals(caller.getId())) {
+            // GAP A5 — candidate read of their own plan still requires the
+            // STEM_OPT track. Blocks the "track was flipped after plan create"
+            // edge case from leaking I-983 data to a non-STEM candidate.
+            requireCandidateStemOptEligibility(plan.getCandidate(), caller);
             return;
         }
         // Don't leak existence of plans the candidate doesn't own.
@@ -833,6 +853,56 @@ public class I983Service {
                 .max(Comparator.comparing(Engagement::getCreatedAt,
                         Comparator.nullsLast(Comparator.naturalOrder())))
                 .orElse(null);
+    }
+
+    // ── STEM_OPT gate (GAP A5) ──────────────────────────────────────────────
+
+    /**
+     * Hard 403 gate for candidate-initiated I-983 paths. Resolves the track of
+     * record from {@link Engagement#getTrack()} (the snapshot taken at offer
+     * acceptance — source of truth) and falls back to
+     * {@link Candidate#getExpectedTrack()} for legacy candidates that
+     * pre-date Engagement. Throws {@link StemOptRequiredException} (mapped to
+     * 403 + code {@code STEM_OPT_REQUIRED}) when neither resolves to STEM_OPT.
+     *
+     * Staff paths (ERM/HR_COMPLIANCE/ADMIN) never call this — they go through
+     * the plain repository reads.
+     */
+    private void requireCandidateStemOptEligibility(Candidate candidate, User actor) {
+        UUID actorId = actor != null ? actor.getId() : null;
+        UUID candidateId = candidate != null ? candidate.getId() : null;
+        WorkAuthTrack track = null;
+        if (candidate != null) {
+            Engagement engagement = resolveCandidateEngagement(candidate.getId());
+            track = engagement != null && engagement.getTrack() != null
+                    ? engagement.getTrack()
+                    : candidate.getExpectedTrack();
+        }
+        if (track == WorkAuthTrack.STEM_OPT) {
+            return;
+        }
+        writeGateAudit(candidateId, "I983_BLOCKED_NON_STEM", actorId,
+                "track=" + (track != null ? track.name() : "null"));
+        throw new StemOptRequiredException(
+                "Form I-983 is only required for STEM OPT engagements.");
+    }
+
+    /**
+     * Audit row for a denied candidate-initiated I-983 attempt. Keyed on
+     * Candidate (not I983Plan) — the deny might happen before any plan exists,
+     * and the candidate is the durable subject either way.
+     */
+    private void writeGateAudit(UUID candidateId, String action, UUID actorId, String reason) {
+        Map<String, Object> after = new LinkedHashMap<>();
+        after.put("reason", reason);
+        AuditLog entry = AuditLog.builder()
+                .entityType("Candidate")
+                .entityId(candidateId)
+                .action(action)
+                .userId(actorId)
+                .afterJson(serialize(after))
+                .build();
+        auditLogRepository.save(entry);
     }
 
     /** Splits a fullName into [firstName, lastName]. If a single word, [word, ""]. */

@@ -9,6 +9,7 @@ import com.skyzen.careers.repository.StaffingEntityRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.CommandLineRunner;
+import org.springframework.context.annotation.Profile;
 import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
 
@@ -24,6 +25,7 @@ import java.util.List;
  * model avoids the commit-time {@code UnexpectedRollbackException} trap.
  */
 @Component
+@Profile("!prod") // GAP E4 — demo content; never seeded in production.
 @Order(2)
 @RequiredArgsConstructor
 @Slf4j

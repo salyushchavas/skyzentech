@@ -22,6 +22,7 @@ import com.skyzen.careers.exception.BadRequestException;
 import com.skyzen.careers.exception.ConflictException;
 import com.skyzen.careers.exception.EmailUnverifiedException;
 import com.skyzen.careers.exception.ForbiddenException;
+import com.skyzen.careers.exception.InterviewRequiredException;
 import com.skyzen.careers.exception.ResourceNotFoundException;
 import com.skyzen.careers.notification.NotificationStub;
 import com.skyzen.careers.repository.ApplicationRepository;
@@ -257,6 +258,17 @@ public class ApplicationService {
         // current state without re-firing the email or re-auditing.
         if (application.getStatus() == ApplicationStatus.SELECTED_CONDITIONAL) {
             return toResponse(application);
+        }
+
+        // GAP A3 — explicit 403 INTERVIEW_REQUIRED before the lifecycle guard
+        // throws the generic 400. SELECTED_CONDITIONAL is only legal from
+        // INTERVIEWED in LEGAL_TRANSITIONS; the explicit check here lets the
+        // recruiter UI render a clean blocker keyed off the same error code
+        // OfferService.create uses.
+        if (application.getStatus() != ApplicationStatus.INTERVIEWED) {
+            throw new InterviewRequiredException(
+                    "Conditional selection requires INTERVIEWED status (application status: "
+                            + application.getStatus() + ").");
         }
 
         // transitionTo enforces LEGAL_TRANSITIONS and writes the

@@ -13,6 +13,7 @@ import com.skyzen.careers.entity.Interview;
 import com.skyzen.careers.entity.JobPosting;
 import com.skyzen.careers.entity.Offer;
 import com.skyzen.careers.entity.OnboardingTask;
+import com.skyzen.careers.entity.Resume;
 import com.skyzen.careers.entity.StaffingEntity;
 import com.skyzen.careers.entity.User;
 import com.skyzen.careers.enums.ApplicationStatus;
@@ -192,6 +193,16 @@ public class CandidateDashboardService {
         List<CandidateDashboardResponse.ComplianceItem> compliance =
                 buildComplianceItems(candidate.getId(), stepperEngagement, offers);
 
+        // SPEC §3 — six-macro-step journey bar payload. Computed AFTER all
+        // upstream state has been resolved so the current-stage sub-step list
+        // can pull from offers/interviews/tasks without re-fetching.
+        CandidateDashboardResponse.Journey journey = buildJourney(
+                candidate, apps, offers, upcomingInterviews, tasks,
+                stepperEngagement, profileComplete);
+
+        // SPEC §6 — resume info for the 3-up status card row.
+        CandidateDashboardResponse.ResumeInfo resumeInfo = buildResumeInfo(candidate);
+
         return CandidateDashboardResponse.builder()
                 .candidateName(candidateName)
                 .profileComplete(profileComplete)
@@ -201,6 +212,465 @@ public class CandidateDashboardService {
                 .recentActivity(recentActivity)
                 .engagement(engagementSummary)
                 .compliance(compliance)
+                .journey(journey)
+                .resume(resumeInfo)
+                .build();
+    }
+
+    // ── SPEC §6 — resume status card ─────────────────────────────────────────
+
+    private CandidateDashboardResponse.ResumeInfo buildResumeInfo(Candidate candidate) {
+        if (candidate == null) return null;
+        // Prefer the candidate's explicitly-set default resume; fall back to
+        // most-recent if defaultResumeId is missing (legacy candidates).
+        List<Resume> resumes = resumeRepository.findByCandidateId(candidate.getId());
+        if (resumes.isEmpty()) return null;
+        Resume r = null;
+        if (candidate.getDefaultResumeId() != null) {
+            for (Resume x : resumes) {
+                if (candidate.getDefaultResumeId().equals(x.getId())) { r = x; break; }
+            }
+        }
+        if (r == null) {
+            r = resumes.stream()
+                    .max(Comparator.comparing(Resume::getCreatedAt,
+                            Comparator.nullsLast(Comparator.naturalOrder())))
+                    .orElse(resumes.get(0));
+        }
+        return CandidateDashboardResponse.ResumeInfo.builder()
+                .id(r.getId())
+                .fileName(r.getFileName())
+                .uploadedAt(r.getCreatedAt())
+                .build();
+    }
+
+    // ── SPEC §3 + §4 — six-macro-step journey bar ────────────────────────────
+
+    /** Stable keys for the applicant-face macro stages. Order matters. */
+    private static final List<String> APPLICANT_STAGE_KEYS = List.of(
+            "APPLIED", "SCREENING", "INTERVIEW", "OFFER", "ONBOARDING", "HIRED");
+    private static final java.util.Map<String, String> APPLICANT_STAGE_LABELS = java.util.Map.of(
+            "APPLIED", "Applied",
+            "SCREENING", "Screening",
+            "INTERVIEW", "Interview",
+            "OFFER", "Offer",
+            "ONBOARDING", "Onboarding",
+            "HIRED", "Hired");
+
+    /**
+     * Walks the candidate's furthest non-exited application + engagement to
+     * decide which macro stage is "current". Past stages collapse to done;
+     * the current stage carries an expanded sub-step list; future stages stay
+     * upcoming. Exit statuses flip {@code isExited=true}.
+     */
+    private CandidateDashboardResponse.Journey buildJourney(
+            Candidate candidate,
+            List<Application> apps,
+            List<Offer> offers,
+            List<Interview> upcomingInterviews,
+            List<OnboardingTask> tasks,
+            Engagement engagement,
+            int profileComplete) {
+
+        // Furthest non-exited application is the anchor; if every app has
+        // exited (or none exist), we fall back to "APPLIED" + isExited flag.
+        Application anchor = apps.stream()
+                .filter(a -> !ApplicationLifecycle.isExited(a.getStatus()))
+                .max(Comparator.comparingInt(a -> ApplicationLifecycle.stageIndexOf(a.getStatus())))
+                .orElse(null);
+
+        boolean allExited = !apps.isEmpty() && anchor == null;
+        String currentKey = resolveCurrentStageKey(anchor, engagement, apps);
+
+        // Build the six stages with state derived from currentKey + engagement.
+        int currentIndex = APPLICANT_STAGE_KEYS.indexOf(currentKey);
+        if (currentIndex < 0) currentIndex = 0;
+
+        boolean engagementBlocked = engagement != null
+                && engagement.getStatus() == EngagementStatus.BLOCKED_NO_AUTHORIZATION;
+
+        List<CandidateDashboardResponse.JourneyStage> stages = new ArrayList<>(6);
+        for (int i = 0; i < APPLICANT_STAGE_KEYS.size(); i++) {
+            String key = APPLICANT_STAGE_KEYS.get(i);
+            String state;
+            if (allExited) {
+                state = i == 0 ? "blocked" : "upcoming";
+            } else if (engagementBlocked && key.equals("ONBOARDING")) {
+                state = "blocked";
+            } else if (i < currentIndex) {
+                state = "done";
+            } else if (i == currentIndex) {
+                state = "current";
+            } else {
+                state = "upcoming";
+            }
+            List<CandidateDashboardResponse.SubStep> subSteps = (i == currentIndex && !allExited)
+                    ? buildSubStepsFor(key, candidate, anchor, offers,
+                            upcomingInterviews, tasks, engagement, profileComplete)
+                    : Collections.emptyList();
+            stages.add(CandidateDashboardResponse.JourneyStage.builder()
+                    .key(key)
+                    .label(APPLICANT_STAGE_LABELS.get(key))
+                    .state(state)
+                    .subSteps(subSteps)
+                    .build());
+        }
+
+        return CandidateDashboardResponse.Journey.builder()
+                .currentStageKey(allExited ? "EXITED" : currentKey)
+                .isExited(allExited)
+                .stages(stages)
+                .build();
+    }
+
+    /**
+     * Picks the six-step macro key from the anchor application's status +
+     * engagement state. Engagement takes precedence post-offer because the
+     * Application status doesn't keep moving past ACCEPTED in the new world
+     * (Phase 3 step 10 — Engagement is source of truth for post-offer state).
+     */
+    private String resolveCurrentStageKey(Application anchor,
+                                          Engagement engagement,
+                                          List<Application> allApps) {
+        if (engagement != null) {
+            EngagementStatus es = engagement.getStatus();
+            if (es == EngagementStatus.ACTIVE
+                    || es == EngagementStatus.COMPLETED
+                    || es == EngagementStatus.READY_TO_START) {
+                return "HIRED";
+            }
+            // PENDING_COMPLIANCE / BLOCKED_NO_AUTHORIZATION → still "ONBOARDING"
+            // on the applicant-face bar. BLOCKED gets a separate visual via
+            // the stage's "blocked" state above.
+            return "ONBOARDING";
+        }
+        if (anchor == null) {
+            // No active app at all — treat as pre-Applied.
+            return allApps.isEmpty() ? "APPLIED" : "APPLIED";
+        }
+        ApplicationStatus s = anchor.getStatus();
+        return switch (s) {
+            case APPLIED -> "APPLIED";
+            case SCREENING_SENT, SCREENING_COMPLETED, SHORTLISTED -> "SCREENING";
+            case INTERVIEW_SCHEDULED, INTERVIEWED, SELECTED_CONDITIONAL -> "INTERVIEW";
+            case OFFERED, ACCEPTED -> "OFFER";
+            case ONBOARDING -> "ONBOARDING";
+            case HIRED, ACTIVE, COMPLETED -> "HIRED";
+            default -> "APPLIED";
+        };
+    }
+
+    /**
+     * Sub-step list for the CURRENT macro stage only. The Onboarding stage
+     * delegates per-track compliance items to {@link ComplianceRoutingService}
+     * — we don't re-derive what's required, we just translate its missing list
+     * + the I-9/I-983/E-Verify rows we already loaded into UI rows.
+     */
+    private List<CandidateDashboardResponse.SubStep> buildSubStepsFor(
+            String key,
+            Candidate candidate,
+            Application anchor,
+            List<Offer> offers,
+            List<Interview> upcomingInterviews,
+            List<OnboardingTask> tasks,
+            Engagement engagement,
+            int profileComplete) {
+
+        List<CandidateDashboardResponse.SubStep> out = new ArrayList<>();
+        switch (key) {
+            case "APPLIED" -> {
+                out.add(subStep("PROFILE", "Complete your profile",
+                        profileComplete >= 100 ? "done" : "current", "you",
+                        "/careers/candidate/profile",
+                        profileComplete + "% complete"));
+                boolean hasResume = candidate != null
+                        && (candidate.getDefaultResumeId() != null
+                                || !resumeRepository.findByCandidateId(candidate.getId()).isEmpty());
+                out.add(subStep("RESUME", "Upload a resume",
+                        hasResume ? "done" : "current", "you",
+                        "/careers/openings",
+                        hasResume ? "On file" : "Required to apply"));
+                if (anchor != null) {
+                    out.add(subStep("APPLY_SUBMITTED", "Application submitted",
+                            "done", "system",
+                            "/careers/candidate/applications",
+                            "Awaiting recruiter review"));
+                } else {
+                    out.add(subStep("APPLY_SUBMIT", "Apply to an internship",
+                            "current", "you",
+                            "/careers/openings",
+                            "Pick a posting that fits"));
+                }
+            }
+            case "SCREENING" -> {
+                ApplicationStatus s = anchor != null ? anchor.getStatus() : null;
+                if (s == ApplicationStatus.SCREENING_SENT) {
+                    UUID screeningId = anchor != null
+                            ? screeningRepository.findByApplicationIdWithGraph(anchor.getId())
+                                    .map(x -> x.getId()).orElse(null)
+                            : null;
+                    out.add(subStep("TAKE_SCREENING", "Take the screening questionnaire",
+                            "current", "you",
+                            screeningId != null ? "/careers/screening/" + screeningId : null,
+                            "Sent by the recruiter"));
+                } else if (s == ApplicationStatus.SCREENING_COMPLETED) {
+                    out.add(subStep("TAKE_SCREENING", "Screening completed",
+                            "done", "you", null, "Submitted"));
+                    out.add(subStep("AWAIT_SHORTLIST", "Awaiting recruiter review",
+                            "waiting", "recruiter", null,
+                            "We're reviewing your submission"));
+                } else if (s == ApplicationStatus.SHORTLISTED) {
+                    out.add(subStep("SHORTLISTED", "You've been shortlisted",
+                            "done", "recruiter", null, "Recruiter will reach out"));
+                    out.add(subStep("AWAIT_INTERVIEW", "Interview scheduling",
+                            "waiting", "recruiter", null, "Expect a calendar invite"));
+                }
+            }
+            case "INTERVIEW" -> {
+                ApplicationStatus s = anchor != null ? anchor.getStatus() : null;
+                Interview next = upcomingInterviews.stream().findFirst().orElse(null);
+                if (next != null) {
+                    out.add(subStep("INTERVIEW_SCHEDULED", "Interview scheduled",
+                            "current", "you",
+                            "/careers/candidate/interviews",
+                            next.getScheduledAt() != null
+                                    ? "On " + formatDate(next.getScheduledAt())
+                                    : "Date TBD"));
+                } else if (s == ApplicationStatus.INTERVIEW_SCHEDULED) {
+                    out.add(subStep("INTERVIEW_SCHEDULED", "Interview scheduled",
+                            "current", "you",
+                            "/careers/candidate/interviews",
+                            "Check your calendar invite"));
+                }
+                if (s == ApplicationStatus.INTERVIEWED) {
+                    out.add(subStep("INTERVIEW_COMPLETED", "Interview completed",
+                            "done", "you", null, "Awaiting hiring-team decision"));
+                    out.add(subStep("AWAIT_DECISION", "Hiring decision",
+                            "waiting", "recruiter", null,
+                            "Team is reviewing your scorecard"));
+                }
+                if (s == ApplicationStatus.SELECTED_CONDITIONAL) {
+                    out.add(subStep("INTERVIEW_COMPLETED", "Interview completed",
+                            "done", "you", null, null));
+                    out.add(subStep("CONDITIONAL_SELECT", "Conditionally selected",
+                            "done", "recruiter", null,
+                            "Formal offer next from HR"));
+                    out.add(subStep("AWAIT_OFFER", "Formal offer",
+                            "waiting", "employer", null,
+                            "HR is drafting your offer"));
+                }
+            }
+            case "OFFER" -> {
+                Offer live = offers.stream()
+                        .filter(o -> o.getStatus() == OfferStatus.SENT)
+                        .findFirst().orElse(null);
+                Offer accepted = offers.stream()
+                        .filter(o -> o.getStatus() == OfferStatus.ACCEPTED)
+                        .findFirst().orElse(null);
+                if (live != null) {
+                    out.add(subStep("OFFER_REVIEW", "Review & respond to offer",
+                            "current", "you",
+                            "/careers/candidate/offers/" + live.getId(),
+                            live.getExpiresAt() != null
+                                    ? "Respond by " + formatDate(live.getExpiresAt())
+                                    : "Open the offer"));
+                } else if (accepted != null) {
+                    out.add(subStep("OFFER_ACCEPTED", "Offer accepted",
+                            "done", "you", "/careers/candidate/offers/" + accepted.getId(),
+                            "Onboarding will start shortly"));
+                    out.add(subStep("AWAIT_ONBOARDING_SEED", "Onboarding setup",
+                            "waiting", "system", null,
+                            "Preparing your checklist"));
+                } else {
+                    // OFFER macro stage with neither SENT nor ACCEPTED → very
+                    // brief transitional moment between recruiter-create and
+                    // recruiter-send. Show a single waiting row.
+                    out.add(subStep("AWAIT_OFFER_SEND", "Offer in preparation",
+                            "waiting", "employer", null,
+                            "HR is finalizing the offer letter"));
+                }
+            }
+            case "ONBOARDING" -> {
+                // Per-track compliance sub-list from ComplianceRoutingService —
+                // we DON'T re-derive what's required, we just translate the
+                // I-9 / I-983 / E-Verify / CPT rows we already loaded into
+                // sub-step UI rows. Each row keeps the same "who owns this"
+                // semantics the compliance panel uses.
+                out.addAll(buildOnboardingSubSteps(candidate, engagement, tasks));
+            }
+            case "HIRED" -> {
+                if (engagement != null && engagement.getStatus() == EngagementStatus.ACTIVE) {
+                    out.add(subStep("WELCOME", "Welcome aboard",
+                            "done", "system", null,
+                            "Your internship is active"));
+                    // Intern face sub-steps are not enumerated here — the
+                    // intern face is a separate build (Phase 2 per spec).
+                } else if (engagement != null
+                        && engagement.getStatus() == EngagementStatus.COMPLETED) {
+                    out.add(subStep("COMPLETED", "Internship completed",
+                            "done", "you", null, "Congratulations!"));
+                } else {
+                    out.add(subStep("AWAIT_START", "Awaiting start date",
+                            "waiting", "system", null,
+                            "Your supervisor will activate you on day 1"));
+                }
+            }
+            default -> { /* no-op */ }
+        }
+        return out;
+    }
+
+    /**
+     * Per-track Onboarding sub-list. Universal items always shown (I-9 §1,
+     * §2). Track-specific items added when applicable. Mirrors the gating
+     * in {@link ComplianceRoutingService#missingRequirements} so the bar and
+     * the gate agree on what's required.
+     */
+    private List<CandidateDashboardResponse.SubStep> buildOnboardingSubSteps(
+            Candidate candidate, Engagement engagement, List<OnboardingTask> tasks) {
+
+        List<CandidateDashboardResponse.SubStep> out = new ArrayList<>();
+        UUID candidateId = candidate != null ? candidate.getId() : null;
+
+        // BLOCKED_NO_AUTHORIZATION short-circuit — show a single row, not the
+        // full per-track checklist.
+        if (engagement != null
+                && engagement.getStatus() == EngagementStatus.BLOCKED_NO_AUTHORIZATION) {
+            out.add(subStep("HR_AUTH_REVIEW", "Pending work-authorization review",
+                    "blocked", "employer", null,
+                    "HR/legal is reviewing — no productive-work steps yet"));
+            return out;
+        }
+
+        WorkAuthTrack track = engagement != null ? engagement.getTrack() : null;
+        I9Form i9 = candidateId != null
+                ? i9FormRepository.findByCandidateId(candidateId).orElse(null) : null;
+
+        // CPT-specific I-20 verify — surfaced first because it's a precondition
+        // for productive work on the CPT track.
+        if (track == WorkAuthTrack.CPT) {
+            OnboardingTask cptTask = candidateId != null && engagement != null
+                    && engagement.getOffer() != null
+                    ? onboardingTaskRepository.findByCandidateIdAndTaskKeyAndOfferId(
+                            candidateId, "CPT_I20_VERIFY", engagement.getOffer().getId())
+                            .orElse(null)
+                    : null;
+            boolean done = cptTask != null
+                    && cptTask.getStatus() == OnboardingTaskStatus.COMPLETED;
+            out.add(subStep("CPT_I20_VERIFY", "DSO-authorized CPT on Form I-20",
+                    done ? "done" : "current", "employer",
+                    null,
+                    done ? "Verified by HR" : "HR verifies before start"));
+        }
+
+        // I-983 — STEM OPT only.
+        if (track == WorkAuthTrack.STEM_OPT) {
+            I983Plan latest = candidateId != null
+                    ? i983PlanRepository.findByCandidateIdOrderByCreatedAtDesc(candidateId)
+                            .stream().findFirst().orElse(null)
+                    : null;
+            String state;
+            String owner;
+            String sub;
+            if (latest == null) {
+                state = "current"; owner = "employer";
+                sub = "ERM will draft your training plan";
+            } else if (latest.getStatus() == I983Status.DSO_APPROVED) {
+                state = "done"; owner = "dso";
+                sub = "DSO-approved";
+            } else if (latest.getStatus() == I983Status.SUBMITTED_TO_DSO) {
+                state = "waiting"; owner = "dso";
+                sub = "Submitted — awaiting DSO";
+            } else {
+                state = "current"; owner = "you";
+                sub = "Sign & complete: " + latest.getStatus().name();
+            }
+            out.add(subStep("I983_PLAN", "Form I-983 Training Plan",
+                    state, owner, "/careers/candidate/training-plans", sub));
+        }
+
+        // I-9 §1 — universal, candidate-owned.
+        String s1State;
+        String s1Sub;
+        if (i9 != null && i9.getSection1SignedAt() != null) {
+            s1State = "done"; s1Sub = "Signed " + formatDate(i9.getSection1SignedAt());
+        } else if (i9 != null && i9.getStatus() != I9Status.NOT_STARTED) {
+            s1State = "current"; s1Sub = "Draft in progress";
+        } else {
+            s1State = "current"; s1Sub = "Sign by your first day";
+        }
+        out.add(subStep("I9_SECTION_1", "Form I-9 — Section 1",
+                s1State, "you", "/careers/candidate/i9", s1Sub));
+
+        // I-9 §2 — universal, employer-owned.
+        String s2State;
+        String s2Sub;
+        if (i9 != null && i9.getStatus() == I9Status.COMPLETED) {
+            s2State = "done"; s2Sub = "Verified by HR";
+        } else if (i9 != null
+                && (i9.getStatus() == I9Status.SECTION_2_PENDING
+                        || i9.getStatus() == I9Status.SECTION_1_COMPLETE
+                        || i9.getStatus() == I9Status.REOPENED)) {
+            s2State = "waiting"; s2Sub = "Awaiting HR verification";
+        } else {
+            s2State = "upcoming"; s2Sub = "Within 3 business days of your start";
+        }
+        out.add(subStep("I9_SECTION_2", "Form I-9 — Section 2 (HR)",
+                s2State, "employer", null, s2Sub));
+
+        // E-Verify — STEM_OPT by default; non-STEM via operator opt-in (we
+        // surface the row whenever a case actually exists for the candidate's
+        // I-9 to stay aligned with ComplianceRoutingService).
+        EVerifyCase everify = i9 != null
+                ? everifyCaseRepository.findByI9FormId(i9.getId()).orElse(null)
+                : null;
+        boolean everifyShown = track == WorkAuthTrack.STEM_OPT || everify != null;
+        if (everifyShown) {
+            String state;
+            String sub;
+            if (everify == null) {
+                state = "upcoming";
+                sub = "HR opens the case after Form I-9 is complete";
+            } else if (everify.getStatus() == EVerifyStatus.EMPLOYMENT_AUTHORIZED) {
+                state = "done"; sub = "Employment authorized";
+            } else if (everify.getStatus() == EVerifyStatus.PENDING_SUBMISSION) {
+                state = "waiting"; sub = "Case created — HR will submit shortly";
+            } else {
+                state = "waiting"; sub = "Status: " + everify.getStatus().name();
+            }
+            out.add(subStep("EVERIFY", "E-Verify",
+                    state, "employer", null, sub));
+        }
+
+        // Onboarding task bundle — collapse all not-yet-COMPLETED tasks into
+        // one row so the bar doesn't explode for candidates with 9 tasks.
+        long total = tasks.size();
+        long done = tasks.stream()
+                .filter(t -> t.getStatus() == OnboardingTaskStatus.COMPLETED)
+                .count();
+        if (total > 0) {
+            out.add(subStep("ONBOARDING_TASKS",
+                    "Onboarding tasks (" + done + " of " + total + ")",
+                    done >= total ? "done" : "current", "you",
+                    "/careers/candidate/onboarding",
+                    done >= total
+                            ? "All tasks complete"
+                            : "Policy acks, GitHub access, supervisor intro"));
+        }
+
+        return out;
+    }
+
+    private CandidateDashboardResponse.SubStep subStep(
+            String key, String label, String state, String owner,
+            String href, String subtitle) {
+        return CandidateDashboardResponse.SubStep.builder()
+                .key(key)
+                .label(label)
+                .state(state)
+                .owner(owner)
+                .href(href)
+                .subtitle(subtitle)
                 .build();
     }
 
@@ -555,6 +1025,60 @@ public class CandidateDashboardService {
                     .build();
         }
 
+        // SPEC §5 — engagement-driven waiting / transition branches.
+        if (engagement != null) {
+            EngagementStatus es = engagement.getStatus();
+            if (es == EngagementStatus.BLOCKED_NO_AUTHORIZATION) {
+                return CandidateDashboardResponse.NextStep.builder()
+                        .type("EXITED")
+                        .title("Pending work-authorization review")
+                        .subtitle("HR/legal is reviewing — no productive-work steps yet.")
+                        .ctaLabel(null)
+                        .ctaHref(null)
+                        .isWaiting(true)
+                        .waitingFor("HR/legal review of your work authorization")
+                        .build();
+            }
+            if (es == EngagementStatus.COMPLETED) {
+                return CandidateDashboardResponse.NextStep.builder()
+                        .type("WELCOME")
+                        .title("Internship complete — congratulations!")
+                        .subtitle("Your final record is stored. Check your evaluations for feedback.")
+                        .ctaLabel("View evaluations")
+                        .ctaHref("/careers/intern/work")
+                        .isWaiting(false)
+                        .build();
+            }
+            if (es == EngagementStatus.READY_TO_START) {
+                return CandidateDashboardResponse.NextStep.builder()
+                        .type("AWAITING_READY")
+                        .title("All set — awaiting your start date")
+                        .subtitle(engagement.getPlannedStartDate() != null
+                                ? "Planned start: " + engagement.getPlannedStartDate()
+                                : "Your supervisor will activate you on day 1")
+                        .ctaLabel(null)
+                        .ctaHref(null)
+                        .isWaiting(true)
+                        .waitingFor("Your start date / supervisor activation")
+                        .build();
+            }
+            if (es == EngagementStatus.PENDING_COMPLIANCE) {
+                // Compliance items pending after candidate has done their part.
+                // The Onboarding sub-step list above already shows what — here
+                // we just frame the hero as "waiting on HR" so the candidate
+                // knows there's nothing for them to click.
+                return CandidateDashboardResponse.NextStep.builder()
+                        .type("AWAITING_HR_I9")
+                        .title("Onboarding compliance in progress")
+                        .subtitle("HR is finalizing your I-9 / E-Verify steps.")
+                        .ctaLabel("View onboarding")
+                        .ctaHref("/careers/candidate/onboarding")
+                        .isWaiting(true)
+                        .waitingFor("HR completing post-offer compliance")
+                        .build();
+            }
+        }
+
         // 5. Furthest non-exited application below the offer/interview tier.
         Application furthest = activeApps.stream()
                 .max(Comparator.comparingInt(a -> ApplicationLifecycle.stageIndexOf(a.getStatus())))
@@ -564,9 +1088,10 @@ public class CandidateDashboardService {
                     ? furthest.getJobPosting().getTitle()
                     : null;
             ApplicationStatus status = furthest.getStatus();
-            // Phase 2.3 — conditional selection. Informational state on the
-            // candidate side: they're picked but the formal offer hasn't been
-            // sent yet, so there's no CTA — just reassurance.
+            // SPEC §5 — waiting states. Each branch below is "someone else's
+            // turn" — we set isWaiting=true so the hero renders the calm
+            // waiting variant (info border, no primary CTA), and name the
+            // party we're waiting on so the candidate never feels stuck.
             if (status == ApplicationStatus.SELECTED_CONDITIONAL) {
                 return CandidateDashboardResponse.NextStep.builder()
                         .type("SELECTED_CONDITIONAL")
@@ -576,6 +1101,21 @@ public class CandidateDashboardService {
                         .subtitle("Offer pending. HR will send the formal offer next.")
                         .ctaLabel("View application")
                         .ctaHref("/careers/candidate/applications")
+                        .isWaiting(true)
+                        .waitingFor("HR drafting your formal offer")
+                        .build();
+            }
+            if (status == ApplicationStatus.INTERVIEWED) {
+                return CandidateDashboardResponse.NextStep.builder()
+                        .type("AWAITING_DECISION")
+                        .title(position != null
+                                ? "Interview complete — " + position
+                                : "Interview complete")
+                        .subtitle("We're reviewing your interview — expect to hear back soon.")
+                        .ctaLabel("View application")
+                        .ctaHref("/careers/candidate/applications")
+                        .isWaiting(true)
+                        .waitingFor("Hiring team reviewing your scorecard")
                         .build();
             }
             if (status == ApplicationStatus.SHORTLISTED) {
@@ -587,6 +1127,21 @@ public class CandidateDashboardService {
                         .subtitle("A recruiter will reach out with next steps")
                         .ctaLabel("View application")
                         .ctaHref("/careers/candidate/applications")
+                        .isWaiting(true)
+                        .waitingFor("Recruiter scheduling your interview")
+                        .build();
+            }
+            if (status == ApplicationStatus.SCREENING_COMPLETED) {
+                return CandidateDashboardResponse.NextStep.builder()
+                        .type("AWAITING_SCREENING")
+                        .title(position != null
+                                ? "Screening submitted — " + position
+                                : "Screening submitted")
+                        .subtitle("Recruiter is reviewing your answers.")
+                        .ctaLabel("View application")
+                        .ctaHref("/careers/candidate/applications")
+                        .isWaiting(true)
+                        .waitingFor("Recruiter reviewing your screening")
                         .build();
             }
             if (status == ApplicationStatus.APPLIED) {
@@ -596,6 +1151,8 @@ public class CandidateDashboardService {
                         .subtitle(position)
                         .ctaLabel(null)
                         .ctaHref(null)
+                        .isWaiting(true)
+                        .waitingFor("Recruiter reviewing your application")
                         .build();
             }
         }
@@ -620,8 +1177,15 @@ public class CandidateDashboardService {
                     .build();
         }
 
-        // Fallback — all apps exited.
-        return null;
+        // SPEC §5 — never null. All apps exited → encourage re-application.
+        return CandidateDashboardResponse.NextStep.builder()
+                .type("EXITED")
+                .title("Find your next opportunity")
+                .subtitle("Your previous applications have closed. Browse open internships.")
+                .ctaLabel("Browse openings")
+                .ctaHref("/careers/openings")
+                .isWaiting(false)
+                .build();
     }
 
     // ── Upcoming items ──────────────────────────────────────────────────────

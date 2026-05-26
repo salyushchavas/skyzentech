@@ -133,7 +133,15 @@ public class OfferController {
         return ResponseEntity.noContent().build();
     }
 
+    /**
+     * GAP A6 — declarative coarse role gate. Row-level ownership and
+     * visibility are still enforced inside OfferService.buildDownload (it
+     * delegates to getDetailCandidate for candidate-only callers, which 404s
+     * a non-owned or DRAFT offer; staff callers go through loadAndLazyExpire).
+     * @PreAuthorize roles mirror the getOne endpoint above.
+     */
     @GetMapping("/{id}/download")
+    @PreAuthorize("hasAnyRole('CANDIDATE', 'RECRUITER', 'ERM', 'HR_COMPLIANCE', 'ADMIN')")
     public ResponseEntity<byte[]> download(@PathVariable UUID id,
                                            @AuthenticationPrincipal User user) {
         OfferService.LetterDownload payload = offerService.buildDownload(id, user);

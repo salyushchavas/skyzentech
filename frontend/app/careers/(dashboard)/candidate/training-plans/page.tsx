@@ -35,12 +35,26 @@ function Body() {
   // refreshes from /auth/me; the backend gate at create() is the authority.
   const isStemOpt = user?.expectedTrack === 'STEM_OPT';
 
+  // GAP A5 — backend may return 403 STEM_OPT_REQUIRED if the candidate isn't
+  // on the STEM_OPT track (resolved server-side from Engagement.track with
+  // Candidate.expectedTrack fallback). Treat it identically to the
+  // frontend-hide path and render NotApplicablePanel.
+  const [serverSaysNotStem, setServerSaysNotStem] = useState<boolean>(false);
+
   const load = useCallback(async () => {
     setError(null);
+    setServerSaysNotStem(false);
     try {
       const res = await api.get<I983PlanResponse[]>('/api/v1/i983/me');
       setPlans(res.data ?? []);
     } catch (err: any) {
+      const status = err?.response?.status;
+      const code = err?.response?.data?.code;
+      if (status === 403 && code === 'STEM_OPT_REQUIRED') {
+        setServerSaysNotStem(true);
+        setPlans(null);
+        return;
+      }
       setError(
         err?.response?.data?.error ?? "Couldn't load your training plan."
       );
@@ -54,7 +68,7 @@ function Body() {
   }, [load, isStemOpt]);
 
   if (authLoading) return <LoadingSkeleton />;
-  if (!isStemOpt) return <NotApplicablePanel />;
+  if (!isStemOpt || serverSaysNotStem) return <NotApplicablePanel />;
   if (plans === null && !error) return <LoadingSkeleton />;
 
   if (error) {

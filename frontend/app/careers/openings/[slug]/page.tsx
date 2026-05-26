@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { fetchJobPosting } from '@/lib/server-api';
 import AdaptiveCareersLayout from '@/components/careers/AdaptiveCareersLayout';
+import ApplyCtaCard from '@/components/careers/ApplyCtaCard';
 
 export const dynamic = 'force-dynamic';
 
@@ -152,17 +153,8 @@ export default async function JobPostingDetailPage({ params }: Props) {
         </div>
 
         <aside className="lg:col-span-1">
-          <div className="sticky top-6 rounded-lg border border-slate-200 bg-white p-6">
-            <p className="mb-4 text-sm text-slate-600">
-              Ready to apply? You&apos;ll need a resume (PDF or Word).
-            </p>
-            <Link
-              href={`/careers/openings/${posting.slug}/apply`}
-              className="block w-full rounded-full bg-gradient-to-r from-accent to-accent-dark px-4 py-3 text-center text-sm font-semibold text-white shadow-glow-accent transition hover:shadow-glow-accent-lg"
-            >
-              Apply Now
-            </Link>
-          </div>
+          {/* GAP A4 — auth-aware client CTA. Page itself stays public/SSR. */}
+          <ApplyCtaCard slug={posting.slug} />
         </aside>
       </div>
     </article>

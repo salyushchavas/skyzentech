@@ -106,5 +106,38 @@ public class SchemaFixupRunner implements CommandLineRunner {
         } catch (Exception e) {
             log.warn("interviews scorecard columns ensure failed (non-fatal): {}", e.getMessage(), e);
         }
+
+        // GAP C7 — widen I-9 PII columns to TEXT so the AES-256-GCM ciphertext
+        // envelope (base64(IV||ct+tag), ~50-90 bytes per short string) fits.
+        // Each ALTER is idempotent under Postgres: TYPE TEXT on an already-TEXT
+        // column is a no-op. date_of_birth requires a USING clause because
+        // it's a real DATE column being switched to TEXT — Postgres won't
+        // implicitly cast DATE -> TEXT.
+        //
+        // KEY-LOSS WARNING: encrypted columns are unrecoverable without the
+        // I9_ENCRYPTION_KEY. Existing plaintext rows will FAIL to decrypt
+        // post-rollout — run the I9PlaintextEncryptionMigrator (profile
+        // i9-migrate) on environments with data worth keeping, or truncate
+        // i9_forms + everify_cases on environments without real data.
+        try {
+            jdbcTemplate.execute(
+                    "ALTER TABLE i9_forms ALTER COLUMN ssn TYPE TEXT");
+            jdbcTemplate.execute(
+                    "ALTER TABLE i9_forms ALTER COLUMN alien_registration_number TYPE TEXT");
+            jdbcTemplate.execute(
+                    "ALTER TABLE i9_forms ALTER COLUMN foreign_passport_number TYPE TEXT");
+            jdbcTemplate.execute(
+                    "ALTER TABLE i9_forms ALTER COLUMN list_a_document_number TYPE TEXT");
+            jdbcTemplate.execute(
+                    "ALTER TABLE i9_forms ALTER COLUMN list_b_document_number TYPE TEXT");
+            jdbcTemplate.execute(
+                    "ALTER TABLE i9_forms ALTER COLUMN list_c_document_number TYPE TEXT");
+            jdbcTemplate.execute(
+                    "ALTER TABLE i9_forms ALTER COLUMN date_of_birth TYPE TEXT "
+                            + "USING date_of_birth::text");
+            log.info("Ensured i9_forms PII columns are TEXT for AES-256-GCM ciphertext.");
+        } catch (Exception e) {
+            log.warn("i9_forms PII column widening failed (non-fatal): {}", e.getMessage(), e);
+        }
     }
 }

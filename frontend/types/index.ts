@@ -1068,3 +1068,108 @@ export interface ComplianceOverviewResponse {
   upcomingDeadlines: UpcomingDeadline[];
   recentActions: RecentAction[];
 }
+
+// === Weekly training materials (GAP C1 + D4) ================================
+
+export type WeeklyMaterialStatus = 'DRAFT' | 'RELEASED';
+
+export interface WeeklyMaterialResponse {
+  id: Uuid;
+  weekNo: number;
+  title: string;
+  description?: string;
+  resourceUrls: string[];
+  dueDate?: string; // ISO yyyy-MM-dd
+  releaseDate?: IsoDateTime;
+
+  publishedById?: Uuid;
+  publishedByName?: string;
+
+  /** Null for broadcasts (all ACTIVE interns); set for scoped to one engagement. */
+  engagementId?: Uuid | null;
+  scopedToCandidateName?: string | null;
+
+  status: WeeklyMaterialStatus;
+  createdAt: IsoDateTime;
+
+  // Intern-side fields (null on supervisor views)
+  acknowledged?: boolean;
+  acknowledgedAt?: IsoDateTime;
+
+  // Supervisor-side fields (null on intern views)
+  acknowledgementCount?: number;
+}
+
+export interface MaterialAcknowledgementResponse {
+  id: Uuid;
+  materialId: Uuid;
+  internCandidateId: Uuid;
+  internName?: string;
+  internEmail?: string;
+  acknowledgedAt: IsoDateTime;
+}
+
+export interface CreateWeeklyMaterialRequest {
+  weekNo: number;
+  title: string;
+  description?: string;
+  resourceUrls?: string[];
+  dueDate?: string;
+  /** Null/omit = broadcast; set = scoped to a single engagement. */
+  engagementId?: Uuid;
+}
+
+export interface UpdateWeeklyMaterialRequest {
+  weekNo?: number;
+  title?: string;
+  description?: string;
+  resourceUrls?: string[];
+  dueDate?: string;
+  engagementId?: Uuid;
+  clearEngagement?: boolean;
+}
+
+// === Candidate dashboard journey (SPEC §3 §4 §5 §6) ==========================
+
+export type StageState = 'done' | 'current' | 'upcoming' | 'blocked';
+export type SubStepState =
+  | 'done'
+  | 'current'
+  | 'upcoming'
+  | 'waiting'
+  | 'blocked';
+export type SubStepOwner =
+  | 'you'
+  | 'recruiter'
+  | 'employer'
+  | 'supervisor'
+  | 'dso'
+  | 'system';
+
+export interface CandidateSubStep {
+  key: string;
+  label: string;
+  state: SubStepState;
+  owner?: SubStepOwner | null;
+  href?: string | null;
+  subtitle?: string | null;
+}
+
+export interface CandidateJourneyStage {
+  key: string;
+  label: string;
+  state: StageState;
+  subSteps: CandidateSubStep[];
+}
+
+export interface CandidateJourney {
+  currentStageKey: string;
+  isExited: boolean;
+  stages: CandidateJourneyStage[];
+}
+
+export interface CandidateResumeInfo {
+  id: Uuid;
+  fileName: string;
+  uploadedAt?: IsoDateTime;
+}

@@ -78,9 +78,13 @@ public final class ApplicationLifecycle {
      * nothing legal moves out of them.
      *
      * REJECTED and WITHDRAWN are reachable from EVERY non-terminal state
-     * (you can reject/withdraw at any active stage). OFFERED is reachable
-     * from APPLIED/SHORTLISTED/INTERVIEW_SCHEDULED/INTERVIEWED to support
-     * recruiters extending an offer at any pre-offer stage via OfferService.
+     * (you can reject/withdraw at any active stage).
+     *
+     * GAP_REPORT A3 (hard gate, no override): OFFERED is reachable ONLY from
+     * {INTERVIEWED, SELECTED_CONDITIONAL}. Direct APPLIED/SHORTLISTED/
+     * INTERVIEW_SCHEDULED → OFFERED jumps were previously legal and have
+     * been removed — an interview decision is a prerequisite for an offer.
+     * SELECTED_CONDITIONAL is reachable ONLY from INTERVIEWED.
      *
      * Enforced by {@code ApplicationService.transitionTo}. The override path
      * ({@code transitionToSystem}) bypasses this map for SYSTEM/ADMIN-only
@@ -90,7 +94,7 @@ public final class ApplicationLifecycle {
             Map.entry(ApplicationStatus.APPLIED, EnumSet.of(
                     ApplicationStatus.SCREENING_SENT,
                     ApplicationStatus.SHORTLISTED,
-                    ApplicationStatus.OFFERED,
+                    // GAP A3: OFFERED removed — must go via INTERVIEWED first.
                     ApplicationStatus.REJECTED,
                     ApplicationStatus.WITHDRAWN)),
             // Phase 2.1 screening. SHORTLISTED is NOT reachable from
@@ -109,13 +113,14 @@ public final class ApplicationLifecycle {
                     ApplicationStatus.WITHDRAWN)),
             Map.entry(ApplicationStatus.SHORTLISTED, EnumSet.of(
                     ApplicationStatus.INTERVIEW_SCHEDULED,
-                    ApplicationStatus.OFFERED,
+                    // GAP A3: OFFERED removed — must go via INTERVIEWED first.
                     ApplicationStatus.REJECTED,
                     ApplicationStatus.WITHDRAWN)),
             Map.entry(ApplicationStatus.INTERVIEW_SCHEDULED, EnumSet.of(
                     ApplicationStatus.INTERVIEWED,
                     ApplicationStatus.INTERVIEW_SCHEDULED, // legal re-schedule
-                    ApplicationStatus.OFFERED,
+                    // GAP A3: OFFERED removed — must reach INTERVIEWED first
+                    // (an interview decision is a prerequisite).
                     ApplicationStatus.NO_SHOW,
                     ApplicationStatus.REJECTED,
                     ApplicationStatus.WITHDRAWN)),

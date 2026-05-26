@@ -16,11 +16,13 @@ import type {
   Page,
 } from '@/types';
 
+// GAP A3 — keep this aligned with the backend OFFER_ALLOWED_FROM set in
+// OfferService.java. An interview decision is a prerequisite; pre-interview
+// applications are hidden from the picker so the recruiter never sees a
+// 403 INTERVIEW_REQUIRED after clicking "Create offer".
 const ALLOWED_STATUSES: ReadonlyArray<ApplicationStatus> = [
-  'APPLIED',
-  'SHORTLISTED',
-  'INTERVIEW_SCHEDULED',
   'INTERVIEWED',
+  'SELECTED_CONDITIONAL',
   'OFFERED',
 ];
 

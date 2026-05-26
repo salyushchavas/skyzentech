@@ -7,6 +7,7 @@ import api from '@/lib/api';
 import ProtectedRoute from '@/components/ProtectedRoute';
 import FileUpload from '@/components/FileUpload';
 import AdaptiveCareersLayout from '@/components/careers/AdaptiveCareersLayout';
+import { useAuth } from '@/lib/auth-context';
 import type { JobPostingResponse, ResumeResponse } from '@/types';
 
 export default function ApplyPage() {
@@ -23,6 +24,7 @@ function ApplyFlow() {
   const router = useRouter();
   const params = useParams<{ slug: string }>();
   const slug = params?.slug;
+  const { user } = useAuth();
 
   const [posting, setPosting] = useState<JobPostingResponse | null>(null);
   const [resumes, setResumes] = useState<ResumeResponse[]>([]);
@@ -32,9 +34,15 @@ function ApplyFlow() {
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [showUploader, setShowUploader] = useState(false);
-  // Phase 1.3: when the apply endpoint returns 403 + EMAIL_UNVERIFIED, swap
-  // the whole form for the verify-prompt rather than show a raw error toast.
+  // Phase 1.3 / GAP A4: when the apply endpoint returns 403 + EMAIL_UNVERIFIED,
+  // OR when we already know up-front (user.emailVerified === false), swap the
+  // whole form for the verify-prompt rather than show a raw error toast.
   const [emailUnverified, setEmailUnverified] = useState(false);
+
+  // GAP A4 — short-circuit pre-submit when we already know the user is
+  // unverified. ProtectedRoute already gated unauthenticated visitors to the
+  // login page, so user is non-null by the time this runs.
+  const preflightEmailUnverified = user?.emailVerified === false;
 
   useEffect(() => {
     if (!slug) return;
@@ -147,7 +155,7 @@ function ApplyFlow() {
     );
   }
 
-  if (emailUnverified) {
+  if (emailUnverified || preflightEmailUnverified) {
     const returnTo = `/careers/openings/${posting.slug}/apply`;
     return (
       <div className="mx-auto max-w-2xl rounded-lg border border-amber-200 bg-amber-50 p-8 text-center">

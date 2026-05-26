@@ -3,6 +3,7 @@ package com.skyzen.careers.bootstrap;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.CommandLineRunner;
+import org.springframework.context.annotation.Profile;
 import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
 
@@ -22,6 +23,7 @@ import org.springframework.stereotype.Component;
  * thrown at commit time is caught here instead of propagating to startup.
  */
 @Component
+@Profile("!prod") // GAP E4 — demo data; never seeded in production.
 @Order(4)
 @RequiredArgsConstructor
 @Slf4j

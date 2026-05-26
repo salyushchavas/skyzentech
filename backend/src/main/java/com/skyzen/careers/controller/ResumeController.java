@@ -44,14 +44,22 @@ public class ResumeController {
         return resumeService.listForUser(user.getId());
     }
 
+    /**
+     * GAP A6 — declarative coarse role gate. ensureCanDownload below is the
+     * row-level gate (owner check for candidates, "linked to an application
+     * I can see" check for staff). The two layers together: @PreAuthorize
+     * rejects unauth + wrong-role principals up front; the in-handler check
+     * enforces ownership / scope.
+     */
     @GetMapping("/{id}/download")
+    @PreAuthorize("hasAnyRole('CANDIDATE', 'RECRUITER', 'ERM', 'ADMIN')")
     public ResponseEntity<FileSystemResource> download(@PathVariable UUID id,
                                                        @AuthenticationPrincipal User user) {
-        if (user == null) {
-            throw new ForbiddenException("Authentication required");
-        }
         Resume resume = resumeService.loadEntity(id);
         ensureCanDownload(resume, user);
+        // GAP E6 — sensitive PII event. Audit BEFORE serving the file so a
+        // serve-time IO failure can't dissolve the audit record (audit-first).
+        resumeService.recordDownloadAudit(resume, user);
         FileSystemResource resource = resumeService.loadFile(resume);
 
         String contentType = resume.getContentType() != null

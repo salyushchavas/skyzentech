@@ -22,6 +22,7 @@ import com.skyzen.careers.repository.UserRepository;
 import com.skyzen.careers.service.ApplicantIdGenerator;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -52,6 +53,17 @@ public class AuthService {
     private final JwtUtil jwtUtil;
     private final NotificationStub notificationStub;
     private final ApplicantIdGenerator applicantIdGenerator;
+
+    /**
+     * GAP E3 — dev-only escape hatch for the password-reset token. When
+     * {@code app.notification.surface-reset-token=true} (set in dev only) the
+     * token is logged at INFO so a developer can copy it without a real email
+     * provider. Default FALSE — production log sinks NEVER see a live token.
+     * Non-final so @Value field-injection composes with @RequiredArgsConstructor
+     * (the Lombok constructor still ignores non-final fields).
+     */
+    @Value("${app.notification.surface-reset-token:false}")
+    private boolean surfaceResetToken;
 
     @Transactional
     public AuthResponse register(RegisterRequest req) {
@@ -245,7 +257,13 @@ public class AuthService {
                     .used(false)
                     .build();
             passwordResetTokenRepository.save(prt);
-            log.info("DEV ONLY — password reset token for {}: {}", req.email(), token);
+            // GAP E3 — gated dev-only echo. Default config keeps this OFF so
+            // prod log sinks never see a live token. Dev sets
+            // app.notification.surface-reset-token=true to retrieve it.
+            if (surfaceResetToken) {
+                log.info("DEV ONLY — password reset token for {}: {}",
+                        req.email(), token);
+            }
         }
         // Always returns success at the controller level — do not reveal account existence.
     }

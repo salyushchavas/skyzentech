@@ -20,6 +20,7 @@ import com.skyzen.careers.enums.OfferStatus;
 import com.skyzen.careers.enums.UserRole;
 import com.skyzen.careers.exception.BadRequestException;
 import com.skyzen.careers.exception.ForbiddenException;
+import com.skyzen.careers.exception.InterviewRequiredException;
 import com.skyzen.careers.exception.ResourceNotFoundException;
 import com.skyzen.careers.repository.ApplicationRepository;
 import com.skyzen.careers.repository.AuditLogRepository;
@@ -65,16 +66,18 @@ import java.util.UUID;
 @Slf4j
 public class OfferService {
 
-    /** Application statuses we refuse to extend a new offer from. */
-    private static final Set<ApplicationStatus> TERMINAL_FOR_OFFER = EnumSet.of(
-            ApplicationStatus.ACCEPTED,
-            ApplicationStatus.REJECTED,
-            ApplicationStatus.WITHDRAWN,
-            ApplicationStatus.ONBOARDING,
-            ApplicationStatus.ACTIVE,
-            ApplicationStatus.COMPLETED,
-            ApplicationStatus.LAPSED,
-            ApplicationStatus.NO_SHOW
+    /**
+     * GAP_REPORT A3 — hard allow-list for offer creation. An offer may be
+     * extended ONLY when the application has reached an interview decision
+     * (INTERVIEWED), conditional selection (SELECTED_CONDITIONAL), or is
+     * already OFFERED (revision / re-send path against an existing offer).
+     * Every other source state is refused with 403 INTERVIEW_REQUIRED. There
+     * is no admin / HR override — PED rule 3.
+     */
+    private static final Set<ApplicationStatus> OFFER_ALLOWED_FROM = EnumSet.of(
+            ApplicationStatus.INTERVIEWED,
+            ApplicationStatus.SELECTED_CONDITIONAL,
+            ApplicationStatus.OFFERED // existing offer being revised / re-sent
     );
 
     /** Privileged staff roles that get the full OfferResponse view. */
@@ -104,9 +107,13 @@ public class OfferService {
                 .orElseThrow(() -> new ResourceNotFoundException(
                         "Application not found: " + req.getApplicationId()));
 
-        if (TERMINAL_FOR_OFFER.contains(application.getStatus())) {
-            throw new BadRequestException(
-                    "Cannot create offer for application in status " + application.getStatus());
+        // GAP A3 hard gate — refuse any offer create from a pre-interview
+        // state. The OFFERED branch covers an existing-offer revision path.
+        // No admin/HR override.
+        if (!OFFER_ALLOWED_FROM.contains(application.getStatus())) {
+            throw new InterviewRequiredException(
+                    "Offer requires an interview decision first (application status: "
+                            + application.getStatus() + ").");
         }
 
         if (req.getExpectedEndDate() != null
@@ -234,9 +241,12 @@ public class OfferService {
 
         Application application = offer.getApplication();
         if (application != null && !isOfferTerminalForApp(application.getStatus())) {
-            // Gated lifecycle: APPLIED/SHORTLISTED/INTERVIEW_SCHEDULED/INTERVIEWED
-            // are all legal → OFFERED in LEGAL_TRANSITIONS. transitionTo writes
-            // the single STATUS_CHANGE audit row internally.
+            // GAP A3: only INTERVIEWED / SELECTED_CONDITIONAL are now legal
+            // sources for OFFERED in LEGAL_TRANSITIONS. create() already
+            // blocked any pre-interview application, so this transition can
+            // only fire from one of the two allowed states (or from OFFERED
+            // itself, which is a same-state no-op). transitionTo writes the
+            // single STATUS_CHANGE audit row internally.
             applicationService.transitionTo(application, ApplicationStatus.OFFERED,
                     "STATUS_CHANGE", sender);
         }
@@ -471,6 +481,12 @@ public class OfferService {
         if (safeLast.isEmpty()) safeLast = "candidate";
         String shortId = offer.getId().toString().substring(0, 8);
         String filename = "Offer-" + safeLast + "-" + shortId + ".txt";
+        // GAP E6 — sensitive PII event (compensation, signed letter contents).
+        // Audit BEFORE returning the bytes so a downstream wire failure can't
+        // hide the access. Reuses the existing writeAudit pattern; null before
+        // + after since download mutates nothing.
+        writeAudit("Offer", offer.getId(), "OFFER_DOWNLOADED",
+                caller != null ? caller.getId() : null, null, null);
         return new LetterDownload(filename, offer.getLetterContent() != null ? offer.getLetterContent() : "");
     }
 
