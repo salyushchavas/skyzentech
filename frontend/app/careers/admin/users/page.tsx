@@ -1,11 +1,12 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { MoreHorizontal, Plus, Search } from 'lucide-react';
+import { AlertCircle, MoreHorizontal, Plus, Search, ShieldAlert } from 'lucide-react';
 import api from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
 import ProtectedRoute from '@/components/ProtectedRoute';
 import DashboardLayout from '@/components/dashboard/DashboardLayout';
+import { formatDateOnly } from '@/lib/format-date';
 import type { Uuid, UserRole } from '@/types';
 
 interface AdminUserResponse {
@@ -15,7 +16,12 @@ interface AdminUserResponse {
   roles: UserRole[];
   active: boolean;
   createdAt: string;
+  applicantId?: string | null;
 }
+
+/** Matches the backend's LAST_SUPER_ADMIN_MSG so we can render this as the
+ *  blocked-state banner instead of a passing toast. */
+const LAST_SUPER_ADMIN_FRAGMENT = 'last active SUPER_ADMIN';
 
 // PED §7 + SUPER_ADMIN split — STAFF_ROLES are the five roles a SUPER_ADMIN
 // can assign via this UI. APPLICANT and INTERN are NOT in the picker — those
@@ -94,6 +100,11 @@ function UsersTable() {
   const [showCreate, setShowCreate] = useState(false);
   const [menuFor, setMenuFor] = useState<Uuid | null>(null);
   const [changingRoleFor, setChangingRoleFor] = useState<AdminUserResponse | null>(null);
+  const [confirmingDeactivateFor, setConfirmingDeactivateFor] =
+    useState<AdminUserResponse | null>(null);
+  // Surfaces the last-active-SUPER_ADMIN refusal as a persistent banner the
+  // operator has to dismiss — not a passing toast.
+  const [blockedMessage, setBlockedMessage] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setError(null);
@@ -130,27 +141,61 @@ function UsersTable() {
     });
   }, [users, search, roleFilter]);
 
-  const toggleActive = async (u: AdminUserResponse) => {
-    const nextActive = !u.active;
-    // Optimistic update
-    setUsers((curr) =>
-      curr ? curr.map((x) => (x.id === u.id ? { ...x, active: nextActive } : x)) : curr,
-    );
-    setMenuFor(null);
-    try {
-      await api.put(`/api/v1/admin/users/${u.id}/status`, { active: nextActive });
-      setToast(nextActive ? 'User activated.' : 'User deactivated.');
-    } catch (err: any) {
-      // Rollback
+  const setStatus = useCallback(
+    async (u: AdminUserResponse, nextActive: boolean) => {
+      // Optimistic update — rolled back on error.
       setUsers((curr) =>
-        curr ? curr.map((x) => (x.id === u.id ? { ...x, active: u.active } : x)) : curr,
+        curr ? curr.map((x) => (x.id === u.id ? { ...x, active: nextActive } : x)) : curr,
       );
-      setToast(err?.response?.data?.error ?? 'Could not update status.');
-    }
+      setMenuFor(null);
+      try {
+        await api.put(`/api/v1/admin/users/${u.id}/status`, { active: nextActive });
+        setToast(nextActive ? 'User activated.' : 'User deactivated.');
+      } catch (err: any) {
+        // Rollback optimistic state.
+        setUsers((curr) =>
+          curr ? curr.map((x) => (x.id === u.id ? { ...x, active: u.active } : x)) : curr,
+        );
+        const status = err?.response?.status;
+        const msg = err?.response?.data?.error ?? 'Could not update status.';
+        if (status === 409 && msg.includes(LAST_SUPER_ADMIN_FRAGMENT)) {
+          // The brief's "clear blocked state, not a server error" — render
+          // as a persistent banner the SA has to acknowledge.
+          setBlockedMessage(msg);
+        } else {
+          setToast(msg);
+        }
+      }
+    },
+    [],
+  );
+
+  // Activate is fire-and-forget; deactivate gates through a confirm modal.
+  const activate = (u: AdminUserResponse) => void setStatus(u, true);
+  const askDeactivate = (u: AdminUserResponse) => {
+    setMenuFor(null);
+    setConfirmingDeactivateFor(u);
   };
 
   return (
     <section>
+      {blockedMessage && (
+        <div className="mb-4 flex items-start gap-3 rounded border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
+          <ShieldAlert className="mt-0.5 h-4 w-4 shrink-0" strokeWidth={2} />
+          <div className="flex-1">
+            <div className="font-semibold">Blocked by policy</div>
+            <div className="mt-0.5 text-red-700">{blockedMessage}</div>
+          </div>
+          <button
+            type="button"
+            onClick={() => setBlockedMessage(null)}
+            className="rounded border border-red-300 px-2 py-0.5 text-xs font-medium text-red-700 hover:bg-red-100"
+          >
+            Dismiss
+          </button>
+        </div>
+      )}
+
       {toast && (
         <div className="mb-4 rounded border border-emerald-200 bg-emerald-50 px-4 py-2 text-sm text-emerald-800">
           {toast}
@@ -217,6 +262,8 @@ function UsersTable() {
                 <th className="px-4 py-3 font-medium">Email</th>
                 <th className="px-4 py-3 font-medium">Role</th>
                 <th className="px-4 py-3 font-medium">Status</th>
+                <th className="px-4 py-3 font-medium">Applicant ID</th>
+                <th className="px-4 py-3 font-medium">Created</th>
                 <th className="px-4 py-3 font-medium text-right">Actions</th>
               </tr>
             </thead>
@@ -252,6 +299,12 @@ function UsersTable() {
                         {u.active ? 'Active' : 'Inactive'}
                       </span>
                     </td>
+                    <td className="px-4 py-3 font-mono text-xs text-gray-600">
+                      {u.applicantId ?? '—'}
+                    </td>
+                    <td className="px-4 py-3 text-xs text-gray-600">
+                      {u.createdAt ? formatDateOnly(u.createdAt) : '—'}
+                    </td>
                     <td className="relative px-4 py-3 text-right">
                       <button
                         type="button"
@@ -276,7 +329,7 @@ function UsersTable() {
                           </button>
                           <button
                             type="button"
-                            onClick={() => void toggleActive(u)}
+                            onClick={() => (u.active ? askDeactivate(u) : activate(u))}
                             disabled={isSelf}
                             className="block w-full px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-50"
                           >
@@ -312,6 +365,22 @@ function UsersTable() {
             setChangingRoleFor(null);
             setToast('Role updated.');
             void load();
+          }}
+          onBlocked={(msg) => {
+            setChangingRoleFor(null);
+            setBlockedMessage(msg);
+          }}
+        />
+      )}
+
+      {confirmingDeactivateFor && (
+        <ConfirmDeactivateModal
+          target={confirmingDeactivateFor}
+          onCancel={() => setConfirmingDeactivateFor(null)}
+          onConfirm={async () => {
+            const u = confirmingDeactivateFor;
+            setConfirmingDeactivateFor(null);
+            await setStatus(u, false);
           }}
         />
       )}
@@ -456,10 +525,12 @@ function ChangeRoleModal({
   target,
   onClose,
   onSaved,
+  onBlocked,
 }: {
   target: AdminUserResponse;
   onClose: () => void;
   onSaved: () => void;
+  onBlocked: (msg: string) => void;
 }) {
   const current = primaryRole(target.roles);
   const [role, setRole] = useState<UserRole>(STAFF_ROLES.includes(current) ? current : 'OPERATIONS');
@@ -473,7 +544,15 @@ function ChangeRoleModal({
       await api.put(`/api/v1/admin/users/${target.id}/role`, { role });
       onSaved();
     } catch (err: any) {
-      setError(err?.response?.data?.error ?? 'Could not update role.');
+      const status = err?.response?.status;
+      const msg = err?.response?.data?.error ?? 'Could not update role.';
+      if (status === 409 && msg.includes(LAST_SUPER_ADMIN_FRAGMENT)) {
+        // Escalate to the parent's blocked-state banner and close the modal —
+        // the action isn't a "retryable" inline error, it's a policy refusal.
+        onBlocked(msg);
+        return;
+      }
+      setError(msg);
     } finally {
       setSubmitting(false);
     }
@@ -518,6 +597,72 @@ function ChangeRoleModal({
             className="rounded-md bg-accent px-4 py-2 text-sm font-medium text-white hover:bg-accent/90 disabled:opacity-60"
           >
             {submitting ? 'Saving…' : 'Save'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ConfirmDeactivateModal({
+  target,
+  onCancel,
+  onConfirm,
+}: {
+  target: AdminUserResponse;
+  onCancel: () => void;
+  onConfirm: () => void | Promise<void>;
+}) {
+  const [submitting, setSubmitting] = useState(false);
+  const isSuperAdmin = target.roles?.includes('SUPER_ADMIN');
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+      role="dialog"
+      aria-modal="true"
+    >
+      <div className="w-full max-w-md rounded-lg bg-white p-6 shadow-xl">
+        <div className="mb-3 flex items-start gap-3">
+          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-amber-100 text-amber-700">
+            <AlertCircle className="h-5 w-5" strokeWidth={2} />
+          </span>
+          <div className="flex-1">
+            <h3 className="text-lg font-semibold text-gray-900">Deactivate user</h3>
+            <p className="mt-1 text-sm text-gray-600">
+              {target.name} <span className="text-gray-400">·</span> {target.email}
+            </p>
+          </div>
+        </div>
+        <p className="text-sm text-gray-700">
+          Deactivated users can&apos;t sign in. You can reactivate the account later;
+          their data isn&apos;t deleted.
+        </p>
+        {isSuperAdmin && (
+          <p className="mt-2 rounded-md border border-amber-200 bg-amber-50 p-2 text-xs text-amber-900">
+            This is a SUPER_ADMIN account — if they&apos;re the only active one,
+            this will be blocked.
+          </p>
+        )}
+        <div className="mt-5 flex justify-end gap-2">
+          <button
+            type="button"
+            onClick={onCancel}
+            disabled={submitting}
+            className="rounded-md border border-gray-300 bg-white px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-60"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={async () => {
+              setSubmitting(true);
+              await onConfirm();
+              // Parent unmounts this modal; no need to reset state.
+            }}
+            disabled={submitting}
+            className="rounded-md bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-60"
+          >
+            {submitting ? 'Deactivating…' : 'Deactivate'}
           </button>
         </div>
       </div>
