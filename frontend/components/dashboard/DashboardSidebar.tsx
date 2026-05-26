@@ -12,6 +12,7 @@ import {
   FileBadge,
   FileCheck,
   FileSignature,
+  FileText,
   FolderArchive,
   Hammer,
   KanbanSquare,
@@ -51,6 +52,7 @@ const CANDIDATE_LINKS: NavLink[] = [
   { icon: FileBadge, label: 'Training Plan', href: '/careers/candidate/training-plans' },
   { icon: Hammer, label: 'My Work', href: '/careers/intern/work' },
   { icon: BookOpen, label: 'Weekly Materials', href: '/careers/candidate/weekly-materials' },
+  { icon: FileText, label: 'Weekly Reports', href: '/careers/candidate/weekly-reports' },
   { icon: UserCircle, label: 'Profile', href: '/careers/candidate/profile' },
 ];
 
@@ -81,6 +83,7 @@ const ROLE_LINKS: Record<UserRole, NavLink[]> = {
     { icon: CalendarClock, label: 'Sessions', href: '/careers/evaluator/sessions' },
     { icon: ClipboardList, label: 'Assignments', href: '/careers/evaluator/assignments' },
     { icon: BookOpen, label: 'Weekly Materials', href: '/careers/evaluator/weekly-materials' },
+    { icon: FileText, label: 'Weekly Reports', href: '/careers/evaluator/weekly-reports' },
     { icon: Users, label: 'Supervised', href: '/careers/supervised' },
   ],
   EXECUTIVE: [
@@ -123,16 +126,19 @@ export default function DashboardSidebar({ onNavigate }: Props) {
   // candidate.expectedTrack on the user payload). Candidates with no track
   // yet also have the tile hidden — they haven't asked for STEM_OPT routing.
   //
-  // Weekly Materials is intern-face only — APPLICANT can't reach the endpoint
-  // (post-hire training, gated by ACTIVE engagement) so the tile would just
-  // bounce them off a 403. Hide it pre-hire.
+  // Weekly Materials + Weekly Reports are intern-face only — APPLICANT can't
+  // reach either endpoint (both gated by an ACTIVE engagement) so the tiles
+  // would just bounce them off a 403. Hide pre-hire.
   const isCandidate = role === 'APPLICANT' || role === 'INTERN';
   const links = baseLinks.filter((l) => {
     if (!isCandidate) return true;
     if (l.href === '/careers/candidate/training-plans') {
       return user?.expectedTrack === 'STEM_OPT';
     }
-    if (l.href === '/careers/candidate/weekly-materials') {
+    if (
+      l.href === '/careers/candidate/weekly-materials' ||
+      l.href === '/careers/candidate/weekly-reports'
+    ) {
       return role === 'INTERN';
     }
     return true;

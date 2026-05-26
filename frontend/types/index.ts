@@ -1139,6 +1139,55 @@ export interface UpdateWeeklyMaterialRequest {
   clearEngagement?: boolean;
 }
 
+// === Weekly reports (Phase-2 weekly cycle, piece #2) =========================
+
+export type WeeklyReportStatus =
+  | 'DRAFT'
+  | 'SUBMITTED'
+  | 'RETURNED'
+  | 'APPROVED';
+
+export interface WeeklyReportResponse {
+  id: Uuid;
+  internCandidateId: Uuid;
+  internName?: string | null;
+  weekStart: string; // LocalDate (YYYY-MM-DD)
+  completedWork?: string | null;
+  blockers?: string | null;
+  learningOutcomes?: string | null;
+  nextPlan?: string | null;
+  status: WeeklyReportStatus;
+  submittedAt?: IsoDateTime | null;
+  reviewedById?: Uuid | null;
+  reviewedByName?: string | null;
+  reviewNotes?: string | null;
+  reviewedAt?: IsoDateTime | null;
+  createdAt: IsoDateTime;
+  updatedAt: IsoDateTime;
+}
+
+export interface CreateWeeklyReportRequest {
+  weekStart: string;
+  completedWork?: string;
+  blockers?: string;
+  learningOutcomes?: string;
+  nextPlan?: string;
+}
+
+export interface UpdateWeeklyReportRequest {
+  weekStart?: string;
+  completedWork?: string;
+  blockers?: string;
+  learningOutcomes?: string;
+  nextPlan?: string;
+  /** Set true to also transition DRAFT/RETURNED → SUBMITTED in the same call. */
+  submit?: boolean;
+}
+
+export interface ReviewWeeklyReportRequest {
+  reviewNotes?: string;
+}
+
 // === Candidate dashboard journey (SPEC §3 §4 §5 §6) ==========================
 
 export type StageState = 'done' | 'current' | 'upcoming' | 'blocked';
