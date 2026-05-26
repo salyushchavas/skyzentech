@@ -48,12 +48,20 @@ public class SupervisedInternsService {
     @Transactional(readOnly = true)
     public List<InternSummaryResponse> listHiredInterns(UUID entityId, String search) {
         String normalized = (search != null && !search.isBlank()) ? search.trim() : null;
+        // Precompute the lowercase %wildcard% pattern in Java. Postgres 18's
+        // type resolver can't infer `:param` as text inside
+        // `LOWER(CONCAT('%', :param, '%'))` and falls back to bytea, which
+        // makes `LOWER(...)` blow up (SQLSTATE 42883). Binding the pre-built
+        // pattern directly to LIKE gives Postgres an unambiguous text type.
+        String searchPattern = (normalized == null)
+                ? null
+                : "%" + normalized.toLowerCase() + "%";
         Set<UUID> seen = new HashSet<>();
         List<InternSummaryResponse> out = new ArrayList<>();
 
         // ── Engagement-first read (the new canonical path) ─────────────────
         List<Engagement> engagements = engagementRepository
-                .findRosterByStatusIn(ROSTER_STATUSES, entityId, normalized);
+                .findRosterByStatusIn(ROSTER_STATUSES, entityId, searchPattern);
         for (Engagement e : engagements) {
             Candidate c = e.getCandidate();
             if (c == null || !seen.add(c.getId())) continue;
@@ -75,7 +83,7 @@ public class SupervisedInternsService {
 
         // ── Legacy fallback — Application.HIRED for candidates not yet on an
         // engagement. Removed by step-11 backfill.
-        List<Application> legacy = applicationRepository.findHiredInterns(entityId, normalized);
+        List<Application> legacy = applicationRepository.findHiredInterns(entityId, searchPattern);
         for (Application app : legacy) {
             Candidate c = app.getCandidate();
             if (c == null || !seen.add(c.getId())) continue;

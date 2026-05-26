@@ -70,6 +70,13 @@ public interface ApplicationRepository
      * candidate id, keeping the most recent by statusUpdatedAt thanks to the
      * ORDER BY clause.
      */
+    /**
+     * Postgres 18 fix — same as {@code EngagementRepository.findRosterByStatusIn}:
+     * the previous LOWER(CONCAT('%', :search, '%')) tripped type-inference
+     * (SQLSTATE 42883 "function lower(bytea) does not exist"). Service layer
+     * now precomputes the lowercase wildcard pattern and binds it directly.
+     * Null skips the filter.
+     */
     @Query("SELECT a FROM Application a " +
             "JOIN FETCH a.candidate c " +
             "JOIN FETCH c.user u " +
@@ -78,11 +85,12 @@ public interface ApplicationRepository
             "JOIN FETCH jp.entity e " +
             "WHERE a.status = com.skyzen.careers.enums.ApplicationStatus.HIRED " +
             "AND (:entityId IS NULL OR e.id = :entityId) " +
-            "AND (:search IS NULL OR LOWER(u.fullName) LIKE LOWER(CONCAT('%', :search, '%')) " +
-            "                    OR LOWER(u.email)    LIKE LOWER(CONCAT('%', :search, '%'))) " +
+            "AND (:searchPattern IS NULL " +
+            "     OR LOWER(u.fullName) LIKE :searchPattern " +
+            "     OR LOWER(u.email)    LIKE :searchPattern) " +
             "ORDER BY a.statusUpdatedAt DESC")
     List<Application> findHiredInterns(@Param("entityId") UUID entityId,
-                                       @Param("search") String search);
+                                       @Param("searchPattern") String searchPattern);
 
     /**
      * Hired applications for interns whose {@code assignedEvaluator} is the

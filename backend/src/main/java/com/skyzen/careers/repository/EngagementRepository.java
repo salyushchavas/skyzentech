@@ -66,6 +66,17 @@ public interface EngagementRepository extends JpaRepository<Engagement, UUID> {
      * Optional entity filter + case-insensitive search on candidate name/email.
      * Newest start first.
      */
+    /**
+     * Postgres 18 fix: the previous JPQL form
+     *   {@code LOWER(u.fullName) LIKE LOWER(CONCAT('%', :search, '%'))}
+     * tripped the new type-inference resolver — without an inferable type at
+     * the parameter position, the {@code ||} concatenation defaulted to
+     * {@code bytea} and {@code lower(bytea)} doesn't exist
+     * (SQLSTATE 42883). We now precompute the {@code %lower%} wildcard
+     * pattern in the service layer and bind it directly to {@code LIKE},
+     * so the parameter type is unambiguously {@code text}. Caller passes
+     * {@code null} to skip the filter.
+     */
     @Query("SELECT e FROM Engagement e " +
             "JOIN FETCH e.candidate c " +
             "JOIN FETCH c.user u " +
@@ -75,10 +86,11 @@ public interface EngagementRepository extends JpaRepository<Engagement, UUID> {
             "LEFT JOIN FETCH a.jobPosting jp " +
             "WHERE e.status IN :statuses " +
             "AND (:entityId IS NULL OR en.id = :entityId) " +
-            "AND (:search IS NULL OR LOWER(u.fullName) LIKE LOWER(CONCAT('%', :search, '%')) " +
-            "                    OR LOWER(u.email)    LIKE LOWER(CONCAT('%', :search, '%'))) " +
+            "AND (:searchPattern IS NULL " +
+            "     OR LOWER(u.fullName) LIKE :searchPattern " +
+            "     OR LOWER(u.email)    LIKE :searchPattern) " +
             "ORDER BY e.actualStartDate DESC NULLS LAST, e.createdAt DESC")
     List<Engagement> findRosterByStatusIn(@Param("statuses") Collection<EngagementStatus> statuses,
                                           @Param("entityId") UUID entityId,
-                                          @Param("search") String search);
+                                          @Param("searchPattern") String searchPattern);
 }
