@@ -64,6 +64,7 @@ const ROLE_LINKS: Record<UserRole, NavLink[]> = {
     { icon: Users, label: 'Supervised', href: '/careers/supervised' },
   ],
   OPERATIONS: [
+    { icon: LayoutDashboard, label: 'Dashboard', href: '/careers/operations' },
     { icon: KanbanSquare, label: 'Pipeline', href: '/careers/recruiter' },
     { icon: Users, label: 'Candidates', href: '/careers/recruiter/candidates' },
     { icon: Video, label: 'Interviews', href: '/careers/erm/interviews' },
