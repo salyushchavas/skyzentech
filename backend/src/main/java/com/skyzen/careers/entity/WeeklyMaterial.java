@@ -76,8 +76,7 @@ public class WeeklyMaterial {
      * Null for broadcasts (all ACTIVE interns see the material); set for
      * single-engagement scoped publishes. The release-time RBAC check
      * requires that the actor either owns this engagement
-     * ({@code engagement.supervisor.id == actor.id}) or holds an elevated
-     * role (ERM/ADMIN) — same shape as GAP B6.
+     * ({@code engagement.supervisor.id == actor.id}) or holds SUPER_ADMIN.
      */
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "engagement_id")

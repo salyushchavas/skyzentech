@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
   BadgeCheck,
+  BookOpen,
   Briefcase,
   Building2,
   CalendarClock,
@@ -49,6 +50,7 @@ const CANDIDATE_LINKS: NavLink[] = [
   { icon: ShieldCheck, label: 'I-9 Form', href: '/careers/candidate/i9' },
   { icon: FileBadge, label: 'Training Plan', href: '/careers/candidate/training-plans' },
   { icon: Hammer, label: 'My Work', href: '/careers/intern/work' },
+  { icon: BookOpen, label: 'Weekly Materials', href: '/careers/candidate/weekly-materials' },
   { icon: UserCircle, label: 'Profile', href: '/careers/candidate/profile' },
 ];
 
@@ -78,6 +80,7 @@ const ROLE_LINKS: Record<UserRole, NavLink[]> = {
     { icon: Users, label: 'My Interns', href: '/careers/evaluator/interns' },
     { icon: CalendarClock, label: 'Sessions', href: '/careers/evaluator/sessions' },
     { icon: ClipboardList, label: 'Assignments', href: '/careers/evaluator/assignments' },
+    { icon: BookOpen, label: 'Weekly Materials', href: '/careers/evaluator/weekly-materials' },
     { icon: Users, label: 'Supervised', href: '/careers/supervised' },
   ],
   EXECUTIVE: [
@@ -119,11 +122,20 @@ export default function DashboardSidebar({ onNavigate }: Props) {
   // STEM_OPT is the source of truth (snapshot on the engagement, mirrored by
   // candidate.expectedTrack on the user payload). Candidates with no track
   // yet also have the tile hidden — they haven't asked for STEM_OPT routing.
+  //
+  // Weekly Materials is intern-face only — APPLICANT can't reach the endpoint
+  // (post-hire training, gated by ACTIVE engagement) so the tile would just
+  // bounce them off a 403. Hide it pre-hire.
   const isCandidate = role === 'APPLICANT' || role === 'INTERN';
   const links = baseLinks.filter((l) => {
     if (!isCandidate) return true;
-    if (l.href !== '/careers/candidate/training-plans') return true;
-    return user?.expectedTrack === 'STEM_OPT';
+    if (l.href === '/careers/candidate/training-plans') {
+      return user?.expectedTrack === 'STEM_OPT';
+    }
+    if (l.href === '/careers/candidate/weekly-materials') {
+      return role === 'INTERN';
+    }
+    return true;
   });
   const activeHref = pickLongestMatch(pathname, links);
 

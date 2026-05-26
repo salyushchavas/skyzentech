@@ -66,7 +66,14 @@ import java.util.stream.Collectors;
 @Slf4j
 public class WeeklyMaterialService {
 
-    private static final Set<UserRole> ELEVATED_PUBLISHER_ROLES = EnumSet.of(UserRole.OPERATIONS);
+    /**
+     * Roles that bypass the per-engagement supervisor check on scoped publishes
+     * and the publisher-ownership check on edit / release / read-acks. After
+     * the SUPER_ADMIN split, god-mode lives on SUPER_ADMIN only — OPERATIONS
+     * is the recruiter/ERM operational role and is NOT a weekly-materials
+     * publisher.
+     */
+    private static final Set<UserRole> ELEVATED_PUBLISHER_ROLES = EnumSet.of(UserRole.SUPER_ADMIN);
 
     private static final TypeReference<List<String>> URL_LIST_TYPE = new TypeReference<>() {};
 
@@ -265,7 +272,7 @@ public class WeeklyMaterialService {
         User supervisor = engagement.getSupervisor();
         if (supervisor == null || !supervisor.getId().equals(actor.getId())) {
             throw new ForbiddenException(
-                    "Only this engagement's supervisor (or ERM/ADMIN) may publish to it.");
+                    "Only this engagement's supervisor (or SUPER_ADMIN) may publish to it.");
         }
         return engagement;
     }
@@ -279,7 +286,7 @@ public class WeeklyMaterialService {
         User publisher = material.getPublishedBy();
         if (publisher == null || !publisher.getId().equals(actor.getId())) {
             throw new ForbiddenException(
-                    "Only the original publisher (or ERM/ADMIN) may manage this material.");
+                    "Only the original publisher (or SUPER_ADMIN) may manage this material.");
         }
     }
 

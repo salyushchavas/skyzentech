@@ -10,13 +10,14 @@ import { formatDateOnly } from '@/lib/format-date';
 import type { WeeklyMaterialResponse } from '@/types';
 
 /**
- * GAP C1 + D4 — intern view of released weekly training materials.
+ * Intern view of released weekly training materials. Phase-2 weekly cycle.
  * Backed by GET /api/v1/weekly-materials/me. Backend enforces the
- * active-intern + scoped-engagement visibility gate.
+ * active-engagement + scoped-engagement visibility gate; APPLICANT cannot
+ * reach the endpoint by design (weekly materials are post-hire training).
  */
 export default function CandidateWeeklyMaterialsPage() {
   return (
-    <ProtectedRoute requiredRoles={['APPLICANT', 'INTERN']}>
+    <ProtectedRoute requiredRoles={['INTERN']}>
       <DashboardLayout title="Weekly Materials">
         <Body />
       </DashboardLayout>

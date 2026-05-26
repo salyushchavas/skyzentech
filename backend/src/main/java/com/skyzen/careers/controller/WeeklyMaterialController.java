@@ -18,16 +18,28 @@ import java.util.List;
 import java.util.UUID;
 
 /**
- * GAP_REPORT C1 + D4 — weekly training materials.
+ * Weekly training materials — Phase-2 weekly cycle, piece #1.
  *
- * Roles per endpoint:
- *   - Supervisor-side (create / update / release / publisher list / read acks):
- *     hasAnyRole('OPERATIONS', 'TECHNICAL_SUPERVISOR')
- *   - Intern-side (visible feed / acknowledge):
- *     hasAnyRole('APPLICANT', 'INTERN')
+ * <h2>Roles per endpoint</h2>
+ * <ul>
+ *   <li>Supervisor commands (create / update / release / publisher list /
+ *       per-material ack roster): {@code TECHNICAL_SUPERVISOR} or
+ *       {@code SUPER_ADMIN}.</li>
+ *   <li>Intern commands (visible feed / acknowledge): {@code INTERN} only.
+ *       APPLICANT is intentionally excluded — weekly materials are part of
+ *       the post-hire training cycle, and the service-level
+ *       active-engagement gate would 403 an APPLICANT anyway.</li>
+ * </ul>
  *
- * Service enforces the engagement-supervisor gate on scoped publishes
- * (GAP B6 shape) and the active-intern visibility gate.
+ * <h2>Service-enforced gates beyond @PreAuthorize</h2>
+ * <ul>
+ *   <li>Scoped publish: caller must own the engagement (be its supervisor)
+ *       OR hold SUPER_ADMIN. TECHNICAL_SUPERVISOR is scoped to their own
+ *       roster — SUPER_ADMIN bypasses.</li>
+ *   <li>Active-intern visibility: the intern must have an Engagement in
+ *       status ACTIVE — PENDING_COMPLIANCE / READY_TO_START don't see the
+ *       weekly cycle yet.</li>
+ * </ul>
  */
 @RestController
 @RequestMapping("/api/v1/weekly-materials")
@@ -39,7 +51,7 @@ public class WeeklyMaterialController {
     // ── Supervisor commands ─────────────────────────────────────────────────
 
     @PostMapping
-    @PreAuthorize("hasAnyRole('OPERATIONS', 'TECHNICAL_SUPERVISOR')")
+    @PreAuthorize("hasAnyRole('TECHNICAL_SUPERVISOR', 'SUPER_ADMIN')")
     public ResponseEntity<WeeklyMaterialResponse> create(
             @Valid @RequestBody CreateWeeklyMaterialRequest req,
             @AuthenticationPrincipal User user) {
@@ -49,7 +61,7 @@ public class WeeklyMaterialController {
     }
 
     @PutMapping("/{id}")
-    @PreAuthorize("hasAnyRole('OPERATIONS', 'TECHNICAL_SUPERVISOR')")
+    @PreAuthorize("hasAnyRole('TECHNICAL_SUPERVISOR', 'SUPER_ADMIN')")
     public WeeklyMaterialResponse update(
             @PathVariable UUID id,
             @Valid @RequestBody UpdateWeeklyMaterialRequest req,
@@ -58,7 +70,7 @@ public class WeeklyMaterialController {
     }
 
     @PostMapping("/{id}/release")
-    @PreAuthorize("hasAnyRole('OPERATIONS', 'TECHNICAL_SUPERVISOR')")
+    @PreAuthorize("hasAnyRole('TECHNICAL_SUPERVISOR', 'SUPER_ADMIN')")
     public WeeklyMaterialResponse release(@PathVariable UUID id,
                                           @AuthenticationPrincipal User user) {
         return service.release(id, user);
@@ -66,14 +78,14 @@ public class WeeklyMaterialController {
 
     /** Materials this supervisor has published (DRAFT + RELEASED). Newest first. */
     @GetMapping("/published")
-    @PreAuthorize("hasAnyRole('OPERATIONS', 'TECHNICAL_SUPERVISOR')")
+    @PreAuthorize("hasAnyRole('TECHNICAL_SUPERVISOR', 'SUPER_ADMIN')")
     public List<WeeklyMaterialResponse> listMine(@AuthenticationPrincipal User user) {
         return service.listMine(user);
     }
 
     /** Per-material ack roster (which interns acknowledged + when). */
     @GetMapping("/{id}/acknowledgements")
-    @PreAuthorize("hasAnyRole('OPERATIONS', 'TECHNICAL_SUPERVISOR')")
+    @PreAuthorize("hasAnyRole('TECHNICAL_SUPERVISOR', 'SUPER_ADMIN')")
     public List<MaterialAcknowledgementResponse> listAcks(@PathVariable UUID id,
                                                           @AuthenticationPrincipal User user) {
         return service.listAcksForMaterial(id, user);
@@ -83,13 +95,13 @@ public class WeeklyMaterialController {
 
     /** Released materials visible to this ACTIVE intern (broadcast OR engagement-scoped). */
     @GetMapping("/me")
-    @PreAuthorize("hasAnyRole('APPLICANT', 'INTERN')")
+    @PreAuthorize("hasRole('INTERN')")
     public List<WeeklyMaterialResponse> listForMe(@AuthenticationPrincipal User user) {
         return service.getVisibleForIntern(user);
     }
 
     @PostMapping("/{id}/acknowledge")
-    @PreAuthorize("hasAnyRole('APPLICANT', 'INTERN')")
+    @PreAuthorize("hasRole('INTERN')")
     public MaterialAcknowledgementResponse acknowledge(@PathVariable UUID id,
                                                        @AuthenticationPrincipal User user) {
         return service.acknowledge(id, user);

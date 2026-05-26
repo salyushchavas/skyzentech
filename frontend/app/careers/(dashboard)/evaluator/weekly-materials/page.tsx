@@ -13,8 +13,8 @@ import type {
 } from '@/types';
 
 /**
- * GAP C1 + D4 — supervisor view: publish new weekly materials and inspect
- * per-intern acknowledgement rosters for ones already released.
+ * Supervisor view: publish new weekly materials and inspect per-intern
+ * acknowledgement rosters for ones already released. Phase-2 weekly cycle.
  *
  * Routes:
  *   GET    /api/v1/weekly-materials/published
@@ -22,11 +22,11 @@ import type {
  *   POST   /api/v1/weekly-materials/{id}/release
  *   GET    /api/v1/weekly-materials/{id}/acknowledgements
  *
- * Role gate matches the backend: ERM, TECHNICAL_EVALUATOR, ADMIN.
+ * Role gate matches the backend: TECHNICAL_SUPERVISOR or SUPER_ADMIN.
  */
 export default function SupervisorWeeklyMaterialsPage() {
   return (
-    <ProtectedRoute requiredRoles={['OPERATIONS', 'TECHNICAL_SUPERVISOR']}>
+    <ProtectedRoute requiredRoles={['TECHNICAL_SUPERVISOR', 'SUPER_ADMIN']}>
       <DashboardLayout title="Weekly Materials">
         <Body />
       </DashboardLayout>
