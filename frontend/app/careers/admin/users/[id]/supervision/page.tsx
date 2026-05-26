@@ -1,6 +1,6 @@
 'use client';
 
-import { use, useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import {
   ArrowLeft,
@@ -152,10 +152,12 @@ const ROLE_COLOR: Record<UserRole, string> = {
 export default function SupervisionPage({
   params,
 }: {
-  params: Promise<{ id: string }>;
+  params: { id: string };
 }) {
-  // Next 14 App Router — params is a Promise; unwrap with React.use().
-  const { id } = use(params);
+  // Next 14 App Router — params is a plain synchronous object. (Async params
+  // landed in Next 15; using React.use() on this in Next 14 throws because
+  // it's not a Promise.)
+  const { id } = params;
   return (
     <ProtectedRoute requiredRoles={['SUPER_ADMIN']}>
       <DashboardLayout title="Supervision">
