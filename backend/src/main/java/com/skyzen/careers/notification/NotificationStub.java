@@ -1,32 +1,47 @@
 package com.skyzen.careers.notification;
 
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 import java.time.Instant;
 
 /**
- * One-and-only-one wrapper around outbound transactional emails. Real send is
- * NOT wired yet (decision D2). Every method logs at INFO and returns; in
- * non-prod the calling controller surfaces the same value in the HTTP response
- * so the flow is testable end-to-end without an SMTP server.
+ * Facade around the wired {@link EmailProvider}. Owns the
+ * {@code surface-stub} flag (a dev/staging-only convenience that echoes the
+ * verification code in the HTTP response) and delegates the actual send to
+ * the chosen provider — SMTP in production, log in dev / unconfigured envs.
  *
- * When real SES/SendGrid integration lands later, swap the bodies here — the
- * call sites stay identical.
+ * <h2>History</h2>
+ * Previously a concrete log-only stub (decision D2: "real send NOT wired").
+ * C3 inverts that: an {@link EmailProvider} interface is now selected by
+ * {@link EmailProviderConfiguration} based on whether SMTP creds are
+ * configured. This class survives as the facade because every call site is
+ * already injecting it by name — renaming would be churn for no benefit, and
+ * keeping the {@link #shouldSurfaceStub()} concern paired with the email
+ * call sites makes the dev/prod toggle obvious.
+ *
+ * <h2>Failure semantics</h2>
+ * This class passes {@link EmailDeliveryException} through unchanged.
+ * Callers decide:
+ * <ul>
+ *   <li>Auth verification flows: catch + surface a retryable HTTP error
+ *       (and let the @Transactional roll back).</li>
+ *   <li>Post-verification "applicant ID issued" notice: best-effort —
+ *       catching + logging keeps the verification successful.</li>
+ *   <li>Password reset: best-effort — never reveal account existence.</li>
+ *   <li>Recruiter conditional-selection: best-effort — selection itself is
+ *       the source of truth.</li>
+ * </ul>
  */
 @Component
-@Slf4j
 public class NotificationStub {
 
-    /**
-     * Whether stub values (verification codes, applicant IDs) should be echoed
-     * in the HTTP response. Defaults TRUE so the dev/staging flow stays
-     * testable; prod sets {@code app.notification.surface-stub=false}.
-     */
+    private final EmailProvider emailProvider;
     private final boolean surfaceStubInResponse;
 
-    public NotificationStub(@Value("${app.notification.surface-stub:true}") boolean surfaceStub) {
+    public NotificationStub(EmailProvider emailProvider,
+                            @Value("${app.notification.surface-stub:true}") boolean surfaceStub) {
+        this.emailProvider = emailProvider;
         this.surfaceStubInResponse = surfaceStub;
     }
 
@@ -34,29 +49,21 @@ public class NotificationStub {
         return surfaceStubInResponse;
     }
 
-    /** Stub for the post-registration verification email. */
     public void sendVerificationCode(String email, String code, Instant expiresAt) {
-        log.info("[STUB EMAIL] Verification code for {}: {} (expires {})",
-                email, code, expiresAt);
+        emailProvider.sendVerificationCode(email, code, expiresAt);
     }
 
-    /** Stub for the post-verification "your Skyzen Applicant ID" notice. */
     public void sendApplicantIdIssued(String email, String applicantId) {
-        log.info("[STUB EMAIL] Applicant ID issued for {}: {}", email, applicantId);
+        emailProvider.sendApplicantIdIssued(email, applicantId);
     }
 
-    /**
-     * Phase 2.3 — conditional employment confirmation. Sent after the recruiter
-     * picks a candidate off the 2.2 scorecard but before HR issues the formal
-     * offer. The body in real-send land would explain "selected, pending offer
-     * + compliance"; here we just log so the integration test can see it fired.
-     */
+    public void sendPasswordReset(String email, String resetUrl, Instant expiresAt) {
+        emailProvider.sendPasswordReset(email, resetUrl, expiresAt);
+    }
+
     public void sendConditionalSelectionConfirmation(String email,
                                                      String jobPostingTitle,
                                                      String entityName) {
-        log.info("[STUB EMAIL] Conditional selection confirmed for {} — {}{}",
-                email,
-                jobPostingTitle != null ? jobPostingTitle : "(role)",
-                entityName != null ? " @ " + entityName : "");
+        emailProvider.sendConditionalSelectionConfirmation(email, jobPostingTitle, entityName);
     }
 }

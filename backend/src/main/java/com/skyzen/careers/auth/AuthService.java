@@ -14,6 +14,7 @@ import com.skyzen.careers.entity.Candidate;
 import com.skyzen.careers.entity.PasswordResetToken;
 import com.skyzen.careers.entity.User;
 import com.skyzen.careers.enums.UserRole;
+import com.skyzen.careers.notification.EmailDeliveryException;
 import com.skyzen.careers.notification.NotificationStub;
 import com.skyzen.careers.repository.AuditLogRepository;
 import com.skyzen.careers.repository.CandidateRepository;
@@ -65,6 +66,14 @@ public class AuthService {
     @Value("${app.notification.surface-reset-token:false}")
     private boolean surfaceResetToken;
 
+    /**
+     * URL template the password-reset email points at. Must contain a
+     * {@code {token}} placeholder; the service substitutes the one-time
+     * token at send time.
+     */
+    @Value("${app.password-reset.url-template:http://localhost:3000/careers/reset-password?token={token}}")
+    private String passwordResetUrlTemplate;
+
     @Transactional
     public AuthResponse register(RegisterRequest req) {
         if (userRepository.existsByEmail(req.email())) {
@@ -107,7 +116,17 @@ public class AuthService {
                 .build();
         candidateRepository.save(candidate);
 
-        notificationStub.sendVerificationCode(user.getEmail(), code, expiresAt);
+        // Send verification code. SMTP failure throws — the @Transactional
+        // rolls back the user + candidate save so a re-registration starts
+        // clean. Never silently swallow a failed verification email (C3).
+        try {
+            notificationStub.sendVerificationCode(user.getEmail(), code, expiresAt);
+        } catch (EmailDeliveryException e) {
+            log.error("Verification email send failed during register for {}: {}",
+                    user.getEmail(), e.getMessage());
+            throw new AuthException(HttpStatus.SERVICE_UNAVAILABLE,
+                    "Couldn't send your verification code. Please try again in a moment.");
+        }
         writeAccountAudit(user.getId(), "EMAIL_VERIFICATION_PENDING");
         log.info("User registered: {}", user.getEmail());
 
@@ -167,7 +186,14 @@ public class AuthService {
             applicantId = applicantIdGenerator.nextApplicantId();
             user.setApplicantId(applicantId);
             user.setApplicantIdCreatedAt(Instant.now());
-            notificationStub.sendApplicantIdIssued(user.getEmail(), applicantId);
+            // Best-effort — the ID assignment is the source of truth; an email
+            // hiccup must not block the verification flow.
+            try {
+                notificationStub.sendApplicantIdIssued(user.getEmail(), applicantId);
+            } catch (EmailDeliveryException e) {
+                log.warn("Applicant ID email failed (non-fatal) for {}: {}",
+                        user.getEmail(), e.getMessage());
+            }
             writeAccountAudit(user.getId(), "APPLICANT_ID_CREATED");
         }
         userRepository.save(user);
@@ -200,7 +226,17 @@ public class AuthService {
         user.setEmailVerificationExpiresAt(expiresAt);
         userRepository.save(user);
 
-        notificationStub.sendVerificationCode(user.getEmail(), code, expiresAt);
+        // Resend: same retryable-error semantics as register. The code change
+        // is persisted; throwing here just stops the response from claiming
+        // success when no email actually went out.
+        try {
+            notificationStub.sendVerificationCode(user.getEmail(), code, expiresAt);
+        } catch (EmailDeliveryException e) {
+            log.error("Verification email resend failed for {}: {}",
+                    user.getEmail(), e.getMessage());
+            throw new AuthException(HttpStatus.SERVICE_UNAVAILABLE,
+                    "Couldn't send your verification code. Please try again in a moment.");
+        }
         writeAccountAudit(user.getId(), "EMAIL_VERIFICATION_RESENT");
     }
 
@@ -253,20 +289,35 @@ public class AuthService {
     public void forgotPassword(ForgotPasswordRequest req) {
         Optional<User> userOpt = userRepository.findByEmail(req.email());
         if (userOpt.isPresent()) {
+            User user = userOpt.get();
             String token = UUID.randomUUID().toString();
+            Instant expiresAt = Instant.now().plusSeconds(RESET_TOKEN_TTL_SECONDS);
             PasswordResetToken prt = PasswordResetToken.builder()
-                    .userId(userOpt.get().getId())
+                    .userId(user.getId())
                     .token(token)
-                    .expiresAt(Instant.now().plusSeconds(RESET_TOKEN_TTL_SECONDS))
+                    .expiresAt(expiresAt)
                     .used(false)
                     .build();
             passwordResetTokenRepository.save(prt);
+
             // GAP E3 — gated dev-only echo. Default config keeps this OFF so
             // prod log sinks never see a live token. Dev sets
             // app.notification.surface-reset-token=true to retrieve it.
             if (surfaceResetToken) {
                 log.info("DEV ONLY — password reset token for {}: {}",
                         req.email(), token);
+            }
+
+            // C3 — actually email the reset link. Best-effort: a delivery
+            // failure must not surface a different response to the caller
+            // (that would leak account existence). The token row is the
+            // source of truth; the user can retry via /forgot-password.
+            String resetUrl = passwordResetUrlTemplate.replace("{token}", token);
+            try {
+                notificationStub.sendPasswordReset(user.getEmail(), resetUrl, expiresAt);
+            } catch (EmailDeliveryException e) {
+                log.error("Password-reset email failed for {}: {}",
+                        user.getEmail(), e.getMessage());
             }
         }
         // Always returns success at the controller level — do not reveal account existence.
