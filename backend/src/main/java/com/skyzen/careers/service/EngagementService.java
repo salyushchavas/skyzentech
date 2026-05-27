@@ -15,6 +15,7 @@ import com.skyzen.careers.enums.EngagementStatus;
 import com.skyzen.careers.enums.WorkAuthTrack;
 import com.skyzen.careers.exception.BadRequestException;
 import com.skyzen.careers.enums.UserRole;
+import com.skyzen.careers.notification.NotificationService;
 import com.skyzen.careers.repository.AuditLogRepository;
 import com.skyzen.careers.repository.EngagementRepository;
 import com.skyzen.careers.repository.UserRepository;
@@ -57,6 +58,7 @@ public class EngagementService {
     private final AuditLogRepository auditLogRepository;
     private final UserRepository userRepository;
     private final ObjectMapper objectMapper;
+    private final NotificationService notificationService;
 
     /**
      * Phase 3 step 3 — spin up an Engagement at OFFER_ACCEPTED. Snapshots the
@@ -270,6 +272,14 @@ public class EngagementService {
         // explicitly changes the role (audit / forensic posture).
         if (target == EngagementStatus.ACTIVE) {
             promoteApplicantToIntern(saved, actorId);
+            // Batch-1 — onboarding welcome to the new intern. Idempotent per
+            // engagement; best-effort: a send failure must NOT block activation.
+            try {
+                notificationService.sendOnboardingWelcome(saved);
+            } catch (Exception e) {
+                log.warn("ONBOARDING_WELCOME notify failed (non-fatal) for engagement {}: {}",
+                        saved.getId(), e.getMessage());
+            }
         }
         return saved;
     }

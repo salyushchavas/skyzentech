@@ -8,8 +8,11 @@ import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.mail.javamail.MimeMessageHelper;
 
 import java.io.UnsupportedEncodingException;
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 
@@ -49,6 +52,13 @@ public class SmtpEmailProvider implements EmailProvider {
     private static final DateTimeFormatter EXPIRY_FORMAT =
             DateTimeFormatter.ofPattern("MMM d, yyyy 'at' h:mm a z")
                     .withZone(ZoneId.of("America/New_York"));
+
+    private static final DateTimeFormatter INTERVIEW_FORMAT =
+            DateTimeFormatter.ofPattern("EEEE, MMM d 'at' h:mm a z")
+                    .withZone(ZoneId.of("America/New_York"));
+
+    private static final DateTimeFormatter DATE_FORMAT =
+            DateTimeFormatter.ofPattern("MMM d, yyyy");
 
     // Brand tokens — mirror frontend/tailwind.config.ts so the email is
     // visually continuous with the rest of the product.
@@ -198,6 +208,343 @@ public class SmtpEmailProvider implements EmailProvider {
         send(email, "You've been conditionally selected — Skyzen Tech", plain, html);
     }
 
+    // ── Batch 1 — applicant lifecycle ───────────────────────────────────────
+
+    @Override
+    public void sendApplicationReceived(String email, String candidateName,
+                                        String jobTitle, String entityName) {
+        String role = jobTitle != null ? jobTitle : "the role";
+        String at = entityName != null ? " at " + entityName : "";
+        String greet = greeting(candidateName);
+        String plain = ""
+                + greet + "\n\n"
+                + "Thanks for applying to " + role + at + ".\n\n"
+                + "We've received your application and the recruiting team is reviewing it.\n"
+                + "We'll be in touch once there's an update — typically within a few days.\n\n"
+                + "You can track this application from your Skyzen Careers dashboard.\n\n"
+                + "— The Skyzen Tech team\n";
+        String html = wrapHtml(
+                "We've got your application",
+                "<p style=\"margin:0 0 12px;font-size:15px;color:" + COLOR_TEXT_BODY + ";\">"
+                        + escape(greet) + "</p>"
+                        + "<p style=\"margin:0 0 12px;font-size:15px;color:" + COLOR_TEXT_BODY + ";\">"
+                        + "Thanks for applying to <strong>" + escape(role) + "</strong>"
+                        + escape(at) + "."
+                        + "</p>"
+                        + "<p style=\"margin:0 0 12px;font-size:14px;color:" + COLOR_TEXT_HINT + ";\">"
+                        + "We've received your application and the recruiting team is reviewing it. "
+                        + "We'll be in touch once there's an update — typically within a few days."
+                        + "</p>"
+                        + "<p style=\"margin:16px 0 0;font-size:13px;color:" + COLOR_TEXT_MUTED + ";\">"
+                        + "You can track this application from your Skyzen Careers dashboard."
+                        + "</p>"
+        );
+        send(email, "We've got your application — Skyzen Tech", plain, html);
+    }
+
+    @Override
+    public void sendApplicationShortlisted(String email, String candidateName,
+                                           String jobTitle, String entityName) {
+        String role = jobTitle != null ? jobTitle : "the role";
+        String at = entityName != null ? " at " + entityName : "";
+        String greet = greeting(candidateName);
+        String plain = ""
+                + greet + "\n\n"
+                + "Good news — you've been shortlisted for " + role + at + ".\n\n"
+                + "Our recruiting team will reach out shortly with the next steps,\n"
+                + "which typically include an interview.\n\n"
+                + "— The Skyzen Tech team\n";
+        String html = wrapHtml(
+                "You've been shortlisted",
+                "<p style=\"margin:0 0 12px;font-size:15px;color:" + COLOR_TEXT_BODY + ";\">"
+                        + escape(greet) + "</p>"
+                        + "<p style=\"margin:0 0 12px;font-size:15px;color:" + COLOR_TEXT_BODY + ";\">"
+                        + "Good news — you've been <strong>shortlisted</strong> for "
+                        + "<strong>" + escape(role) + "</strong>" + escape(at) + "."
+                        + "</p>"
+                        + "<p style=\"margin:0 0 12px;font-size:14px;color:" + COLOR_TEXT_HINT + ";\">"
+                        + "Our recruiting team will reach out shortly with the next steps, which "
+                        + "typically include an interview."
+                        + "</p>"
+        );
+        send(email, "You've been shortlisted — Skyzen Tech", plain, html);
+    }
+
+    @Override
+    public void sendApplicationRejected(String email, String candidateName,
+                                        String jobTitle, String entityName) {
+        String role = jobTitle != null ? jobTitle : "the role";
+        String at = entityName != null ? " at " + entityName : "";
+        String greet = greeting(candidateName);
+        String plain = ""
+                + greet + "\n\n"
+                + "Thanks for your interest in " + role + at + " and for the time you put\n"
+                + "into your application.\n\n"
+                + "After careful review, we've decided to move forward with other candidates\n"
+                + "whose experience more closely matches what we're looking for right now.\n\n"
+                + "This isn't a reflection of your potential — keep an eye on Skyzen Careers\n"
+                + "for roles that better match your strengths; you're welcome to apply again.\n\n"
+                + "Wishing you the very best with your search.\n\n"
+                + "— The Skyzen Tech team\n";
+        String html = wrapHtml(
+                "Update on your application",
+                "<p style=\"margin:0 0 12px;font-size:15px;color:" + COLOR_TEXT_BODY + ";\">"
+                        + escape(greet) + "</p>"
+                        + "<p style=\"margin:0 0 12px;font-size:15px;color:" + COLOR_TEXT_BODY + ";\">"
+                        + "Thanks for your interest in <strong>" + escape(role) + "</strong>"
+                        + escape(at) + " and for the time you put into your application."
+                        + "</p>"
+                        + "<p style=\"margin:0 0 12px;font-size:14px;color:" + COLOR_TEXT_HINT + ";\">"
+                        + "After careful review, we've decided to move forward with other candidates "
+                        + "whose experience more closely matches what we're looking for right now."
+                        + "</p>"
+                        + "<p style=\"margin:0 0 12px;font-size:14px;color:" + COLOR_TEXT_HINT + ";\">"
+                        + "This isn't a reflection of your potential — keep an eye on Skyzen Careers "
+                        + "for roles that better match your strengths; you're welcome to apply again."
+                        + "</p>"
+                        + "<p style=\"margin:16px 0 0;font-size:13px;color:" + COLOR_TEXT_MUTED + ";\">"
+                        + "Wishing you the very best with your search."
+                        + "</p>"
+        );
+        send(email, "Update on your application — Skyzen Tech", plain, html);
+    }
+
+    @Override
+    public void sendInterviewScheduled(String email, String candidateName,
+                                       String jobTitle, String entityName,
+                                       Instant scheduledAt, Integer durationMinutes,
+                                       String interviewType, String interviewerName,
+                                       String meetingUrl, String candidateNotes) {
+        String role = jobTitle != null ? jobTitle : "the role";
+        String at = entityName != null ? " at " + entityName : "";
+        String greet = greeting(candidateName);
+        String when = scheduledAt != null ? INTERVIEW_FORMAT.format(scheduledAt) : "TBD";
+        String duration = durationMinutes != null ? (durationMinutes + " minutes") : "—";
+        String mode = interviewType != null ? interviewType.replace('_', ' ').toLowerCase() : "interview";
+        String plain = ""
+                + greet + "\n\n"
+                + "Your interview for " + role + at + " is scheduled.\n\n"
+                + "When:        " + when + "\n"
+                + "Duration:    " + duration + "\n"
+                + "Type:        " + mode + "\n"
+                + (interviewerName != null ? "Interviewer: " + interviewerName + "\n" : "")
+                + (meetingUrl != null ? "Link:        " + meetingUrl + "\n" : "")
+                + (candidateNotes != null ? "\nNotes from the team:\n" + candidateNotes + "\n" : "")
+                + "\nIf you need to reschedule, reply to your recruiter ASAP.\n\n"
+                + "— The Skyzen Tech team\n";
+        String html = wrapHtml(
+                "Your interview is scheduled",
+                "<p style=\"margin:0 0 12px;font-size:15px;color:" + COLOR_TEXT_BODY + ";\">"
+                        + escape(greet) + "</p>"
+                        + "<p style=\"margin:0 0 12px;font-size:15px;color:" + COLOR_TEXT_BODY + ";\">"
+                        + "Your interview for <strong>" + escape(role) + "</strong>"
+                        + escape(at) + " is scheduled."
+                        + "</p>"
+                        + interviewDetailsBlock(when, duration, mode, interviewerName, meetingUrl)
+                        + (meetingUrl != null
+                            ? buttonBlock("Join the meeting", meetingUrl)
+                            : "")
+                        + (candidateNotes != null
+                            ? "<p style=\"margin:0 0 8px;font-size:13px;font-weight:600;color:"
+                                + COLOR_TEXT_BODY + ";\">Notes from the team</p>"
+                              + "<p style=\"margin:0 0 12px;font-size:13px;color:" + COLOR_TEXT_HINT
+                                + ";white-space:pre-wrap;\">" + escape(candidateNotes) + "</p>"
+                            : "")
+                        + "<p style=\"margin:16px 0 0;font-size:13px;color:" + COLOR_TEXT_MUTED + ";\">"
+                        + "If you need to reschedule, reply to your recruiter as soon as you can."
+                        + "</p>"
+        );
+        send(email, "Interview scheduled — Skyzen Tech", plain, html);
+    }
+
+    @Override
+    public void sendInterviewReminder(String email, String candidateName,
+                                      String jobTitle, String entityName,
+                                      Instant scheduledAt, Integer durationMinutes,
+                                      String interviewType, String interviewerName,
+                                      String meetingUrl) {
+        String role = jobTitle != null ? jobTitle : "the role";
+        String greet = greeting(candidateName);
+        String when = scheduledAt != null ? INTERVIEW_FORMAT.format(scheduledAt) : "tomorrow";
+        String duration = durationMinutes != null ? (durationMinutes + " minutes") : "—";
+        String mode = interviewType != null ? interviewType.replace('_', ' ').toLowerCase() : "interview";
+        String plain = ""
+                + greet + "\n\n"
+                + "Quick reminder — your interview for " + role + " is tomorrow.\n\n"
+                + "When:        " + when + "\n"
+                + "Duration:    " + duration + "\n"
+                + "Type:        " + mode + "\n"
+                + (interviewerName != null ? "Interviewer: " + interviewerName + "\n" : "")
+                + (meetingUrl != null ? "Link:        " + meetingUrl + "\n" : "")
+                + "\nGood luck!\n\n"
+                + "— The Skyzen Tech team\n";
+        String html = wrapHtml(
+                "Interview reminder — tomorrow",
+                "<p style=\"margin:0 0 12px;font-size:15px;color:" + COLOR_TEXT_BODY + ";\">"
+                        + escape(greet) + "</p>"
+                        + "<p style=\"margin:0 0 12px;font-size:15px;color:" + COLOR_TEXT_BODY + ";\">"
+                        + "Quick reminder — your interview for <strong>" + escape(role) + "</strong>"
+                        + " is <strong>tomorrow</strong>."
+                        + "</p>"
+                        + interviewDetailsBlock(when, duration, mode, interviewerName, meetingUrl)
+                        + (meetingUrl != null
+                            ? buttonBlock("Join the meeting", meetingUrl)
+                            : "")
+                        + "<p style=\"margin:16px 0 0;font-size:13px;color:" + COLOR_TEXT_MUTED + ";\">"
+                        + "Good luck!"
+                        + "</p>"
+        );
+        send(email, "Interview reminder — Skyzen Tech", plain, html);
+    }
+
+    @Override
+    public void sendOfferExtended(String email, String candidateName,
+                                  String jobTitle, String entityName,
+                                  BigDecimal compensationAmount, String compensationCurrency,
+                                  String compensationFrequency, LocalDate startDate,
+                                  Instant expiresAt, String viewOfferUrl) {
+        String role = jobTitle != null ? jobTitle : "the role";
+        String at = entityName != null ? " at " + entityName : "";
+        String greet = greeting(candidateName);
+        String comp = formatComp(compensationAmount, compensationCurrency, compensationFrequency);
+        String start = startDate != null ? DATE_FORMAT.format(startDate) : "TBD";
+        String expires = expiresAt != null ? EXPIRY_FORMAT.format(expiresAt) : "soon";
+        String plain = ""
+                + greet + "\n\n"
+                + "Congratulations — we'd like to offer you " + role + at + ".\n\n"
+                + "Compensation: " + comp + "\n"
+                + "Start date:   " + start + "\n"
+                + "Respond by:   " + expires + "\n\n"
+                + "Review the full letter and respond from your Skyzen Careers dashboard:\n"
+                + (viewOfferUrl != null ? viewOfferUrl + "\n\n" : "")
+                + "We're excited about the prospect of working together.\n\n"
+                + "— The Skyzen Tech team\n";
+        String html = wrapHtml(
+                "Your offer is here",
+                "<p style=\"margin:0 0 12px;font-size:15px;color:" + COLOR_TEXT_BODY + ";\">"
+                        + escape(greet) + "</p>"
+                        + "<p style=\"margin:0 0 12px;font-size:15px;color:" + COLOR_TEXT_BODY + ";\">"
+                        + "Congratulations — we'd like to offer you <strong>"
+                        + escape(role) + "</strong>" + escape(at) + "."
+                        + "</p>"
+                        + offerDetailsBlock(comp, start, expires)
+                        + (viewOfferUrl != null
+                            ? buttonBlock("Review and respond", viewOfferUrl)
+                            : "")
+                        + "<p style=\"margin:16px 0 0;font-size:13px;color:" + COLOR_TEXT_MUTED + ";\">"
+                        + "We're excited about the prospect of working together."
+                        + "</p>"
+        );
+        send(email, "Your offer from Skyzen Tech", plain, html);
+    }
+
+    @Override
+    public void sendOfferAccepted(String email, String candidateName,
+                                  String jobTitle, String entityName,
+                                  LocalDate startDate) {
+        String role = jobTitle != null ? jobTitle : "the role";
+        String at = entityName != null ? " at " + entityName : "";
+        String greet = greeting(candidateName);
+        String start = startDate != null ? DATE_FORMAT.format(startDate) : "TBD";
+        String plain = ""
+                + greet + "\n\n"
+                + "Welcome to Skyzen — we've recorded your acceptance for " + role + at + ".\n\n"
+                + "Start date: " + start + "\n\n"
+                + "Our team will be in touch with onboarding steps shortly. In the meantime,\n"
+                + "track outstanding compliance tasks from your Skyzen Careers dashboard.\n\n"
+                + "— The Skyzen Tech team\n";
+        String html = wrapHtml(
+                "Welcome to Skyzen Tech",
+                "<p style=\"margin:0 0 12px;font-size:15px;color:" + COLOR_TEXT_BODY + ";\">"
+                        + escape(greet) + "</p>"
+                        + "<p style=\"margin:0 0 12px;font-size:15px;color:" + COLOR_TEXT_BODY + ";\">"
+                        + "We've recorded your acceptance for <strong>" + escape(role) + "</strong>"
+                        + escape(at) + "."
+                        + "</p>"
+                        + miniRow("Start date", start)
+                        + "<p style=\"margin:14px 0 0;font-size:14px;color:" + COLOR_TEXT_HINT + ";\">"
+                        + "Our team will be in touch with onboarding steps shortly. In the meantime, "
+                        + "track outstanding compliance tasks from your Skyzen Careers dashboard."
+                        + "</p>"
+        );
+        send(email, "Acceptance confirmed — Skyzen Tech", plain, html);
+    }
+
+    @Override
+    public void sendOfferAcceptedToOps(String opsEmail, String candidateName,
+                                       String candidateEmail, String jobTitle,
+                                       String entityName, LocalDate startDate) {
+        String role = jobTitle != null ? jobTitle : "the role";
+        String at = entityName != null ? " at " + entityName : "";
+        String start = startDate != null ? DATE_FORMAT.format(startDate) : "TBD";
+        String plain = ""
+                + "Offer accepted.\n\n"
+                + "Candidate:  " + (candidateName != null ? candidateName : "—")
+                + (candidateEmail != null ? " <" + candidateEmail + ">" : "") + "\n"
+                + "Role:       " + role + at + "\n"
+                + "Start date: " + start + "\n\n"
+                + "Next: verify onboarding tasks seeded, confirm compliance routing,\n"
+                + "and prepare engagement activation.\n\n"
+                + "— Skyzen Careers ops bot\n";
+        String html = wrapHtml(
+                "Offer accepted — operations heads-up",
+                "<p style=\"margin:0 0 12px;font-size:15px;color:" + COLOR_TEXT_BODY + ";\">"
+                        + "An offer has been <strong>accepted</strong>."
+                        + "</p>"
+                        + miniRow("Candidate",
+                            (candidateName != null ? candidateName : "—")
+                            + (candidateEmail != null ? " &lt;" + escape(candidateEmail) + "&gt;" : ""))
+                        + miniRow("Role", escape(role) + escape(at))
+                        + miniRow("Start date", start)
+                        + "<p style=\"margin:14px 0 0;font-size:13px;color:" + COLOR_TEXT_HINT + ";\">"
+                        + "Next: verify onboarding tasks seeded, confirm compliance routing, and "
+                        + "prepare engagement activation."
+                        + "</p>"
+        );
+        send(opsEmail, "Offer accepted — " + (candidateName != null ? candidateName : "candidate"),
+                plain, html);
+    }
+
+    @Override
+    public void sendOnboardingWelcome(String email, String internName,
+                                      String jobTitle, String entityName,
+                                      LocalDate startDate, String dashboardUrl) {
+        String role = jobTitle != null ? jobTitle : "your role";
+        String at = entityName != null ? " at " + entityName : "";
+        String greet = greeting(internName);
+        String start = startDate != null ? DATE_FORMAT.format(startDate) : "today";
+        String plain = ""
+                + greet + "\n\n"
+                + "Welcome to Skyzen Tech! Your engagement for " + role + at + " is now active.\n\n"
+                + "Start date: " + start + "\n\n"
+                + "Your Skyzen Careers dashboard is the home for your weekly materials,\n"
+                + "reports, projects, training plan, and evaluations.\n"
+                + (dashboardUrl != null ? "\nOpen your dashboard: " + dashboardUrl + "\n\n" : "\n")
+                + "We're glad to have you on the team.\n\n"
+                + "— The Skyzen Tech team\n";
+        String html = wrapHtml(
+                "Welcome aboard — let's get started",
+                "<p style=\"margin:0 0 12px;font-size:15px;color:" + COLOR_TEXT_BODY + ";\">"
+                        + escape(greet) + "</p>"
+                        + "<p style=\"margin:0 0 12px;font-size:15px;color:" + COLOR_TEXT_BODY + ";\">"
+                        + "Welcome to <strong>Skyzen Tech</strong>! Your engagement for "
+                        + "<strong>" + escape(role) + "</strong>" + escape(at) + " is now active."
+                        + "</p>"
+                        + miniRow("Start date", start)
+                        + "<p style=\"margin:14px 0 12px;font-size:14px;color:" + COLOR_TEXT_HINT + ";\">"
+                        + "Your Skyzen Careers dashboard is the home for your weekly materials, "
+                        + "reports, projects, training plan, and evaluations."
+                        + "</p>"
+                        + (dashboardUrl != null
+                            ? buttonBlock("Open your dashboard", dashboardUrl)
+                            : "")
+                        + "<p style=\"margin:16px 0 0;font-size:13px;color:" + COLOR_TEXT_MUTED + ";\">"
+                        + "We're glad to have you on the team."
+                        + "</p>"
+        );
+        send(email, "Welcome to Skyzen Tech", plain, html);
+    }
+
     // ── Wire ────────────────────────────────────────────────────────────────
 
     private void send(String to, String subject, String plain, String html) {
@@ -298,6 +645,74 @@ public class SmtpEmailProvider implements EmailProvider {
                 + escape(label)
                 + "</a>"
                 + "</p>";
+    }
+
+    /** "Hi Jane," / "Hi there," when name is unknown. */
+    private static String greeting(String name) {
+        if (name == null || name.isBlank()) return "Hi there,";
+        // Just the first word so "Jane Q. Doe" doesn't read awkwardly.
+        String first = name.trim().split("\\s+", 2)[0];
+        return "Hi " + first + ",";
+    }
+
+    /** Two-column label/value row used inside cards. */
+    private String miniRow(String label, String value) {
+        return "<table role=\"presentation\" cellpadding=\"0\" cellspacing=\"0\" "
+                + "style=\"margin:6px 0;font-size:14px;\">"
+                + "<tr><td style=\"padding:2px 12px 2px 0;color:" + COLOR_TEXT_MUTED + ";"
+                + "font-size:12px;text-transform:uppercase;letter-spacing:0.04em;"
+                + "font-weight:600;\">" + escape(label) + "</td>"
+                + "<td style=\"padding:2px 0;color:" + COLOR_TEXT_BODY + ";\">"
+                + value + "</td></tr></table>";
+    }
+
+    /** Boxed interview-details panel used by scheduled + reminder emails. */
+    private String interviewDetailsBlock(String when, String duration, String mode,
+                                         String interviewerName, String meetingUrl) {
+        StringBuilder rows = new StringBuilder();
+        rows.append(miniRow("When", escape(when)));
+        rows.append(miniRow("Duration", escape(duration)));
+        rows.append(miniRow("Type", escape(mode)));
+        if (interviewerName != null) {
+            rows.append(miniRow("Interviewer", escape(interviewerName)));
+        }
+        if (meetingUrl != null) {
+            rows.append(miniRow("Link",
+                    "<a href=\"" + escape(meetingUrl) + "\" "
+                            + "style=\"color:" + COLOR_ACCENT_TO + ";text-decoration:none;"
+                            + "word-break:break-all;\">" + escape(meetingUrl) + "</a>"));
+        }
+        return "<div style=\"margin:14px 0 18px;padding:14px 18px;border:1px solid "
+                + COLOR_CARD_BORDER + ";border-radius:8px;background:#f9fafb;\">"
+                + rows.toString()
+                + "</div>";
+    }
+
+    /** Boxed offer-details panel used by the offer email. */
+    private String offerDetailsBlock(String comp, String start, String expires) {
+        return "<div style=\"margin:14px 0 18px;padding:14px 18px;border:1px solid "
+                + COLOR_CARD_BORDER + ";border-radius:8px;background:#f9fafb;\">"
+                + miniRow("Compensation", escape(comp))
+                + miniRow("Start date", escape(start))
+                + miniRow("Respond by", escape(expires))
+                + "</div>";
+    }
+
+    /**
+     * "$25.00 USD per HOUR" / "$5000.00 USD per MONTHLY" — kept human-friendly
+     * but doesn't try to localize the frequency word, since the OfferFrequency
+     * enum names already read well.
+     */
+    private static String formatComp(BigDecimal amount, String currency, String frequency) {
+        if (amount == null) return "—";
+        BigDecimal rounded = amount.setScale(2, RoundingMode.HALF_UP);
+        StringBuilder sb = new StringBuilder();
+        sb.append(rounded.toPlainString());
+        if (currency != null && !currency.isBlank()) sb.append(" ").append(currency);
+        if (frequency != null && !frequency.isBlank()) {
+            sb.append(" per ").append(frequency.toLowerCase().replace('_', ' '));
+        }
+        return sb.toString();
     }
 
     private static String escape(String s) {

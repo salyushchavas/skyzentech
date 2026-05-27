@@ -56,6 +56,25 @@ public interface InterviewRepository extends JpaRepository<Interview, UUID>,
             "WHERE i.id = :id")
     Optional<Interview> findByIdWithGraph(@Param("id") UUID id);
 
+    /**
+     * Interview reminder cron — SCHEDULED interviews whose start sits inside
+     * the supplied window. The scheduler runs hourly and passes (now+23h,
+     * now+25h] so each interview falls into the window roughly once; the
+     * notification idempotency table makes duplicate hits a no-op.
+     */
+    @Query("SELECT i FROM Interview i " +
+            "JOIN FETCH i.application a " +
+            "JOIN FETCH a.candidate c " +
+            "JOIN FETCH c.user u " +
+            "LEFT JOIN FETCH a.jobPosting jp " +
+            "LEFT JOIN FETCH jp.entity je " +
+            "LEFT JOIN FETCH i.interviewer ir " +
+            "WHERE i.status = com.skyzen.careers.enums.InterviewStatus.SCHEDULED " +
+            "  AND i.scheduledAt BETWEEN :windowStart AND :windowEnd")
+    List<Interview> findScheduledBetweenWithGraph(
+            @Param("windowStart") Instant windowStart,
+            @Param("windowEnd") Instant windowEnd);
+
     // The staff list query was rewritten as a JPA Specification — see
     // {@link InterviewSpecifications#withFilters}. Reason: the previous
     // {@code @Query} used the {@code :param IS NULL OR col = :param} pattern

@@ -22,6 +22,7 @@ import com.skyzen.careers.enums.UserRole;
 import com.skyzen.careers.exception.BadRequestException;
 import com.skyzen.careers.exception.ForbiddenException;
 import com.skyzen.careers.exception.ResourceNotFoundException;
+import com.skyzen.careers.notification.NotificationService;
 import com.skyzen.careers.repository.ApplicationRepository;
 import com.skyzen.careers.repository.AuditLogRepository;
 import com.skyzen.careers.repository.InterviewRepository;
@@ -55,6 +56,7 @@ public class InterviewService {
     private final AuditLogRepository auditLogRepository;
     private final ObjectMapper objectMapper;
     private final ApplicationService applicationService;
+    private final NotificationService notificationService;
 
     // ── Commands ────────────────────────────────────────────────────────────
 
@@ -100,6 +102,15 @@ public class InterviewService {
 
         writeAudit("Interview", interview.getId(), "SCHEDULE", scheduler.getId(),
                 null, snapshot(interview));
+
+        // Batch-1 notification — applicant gets interview details. Best-effort:
+        // a send failure must NOT block scheduling.
+        try {
+            notificationService.sendInterviewScheduled(interview);
+        } catch (Exception e) {
+            log.warn("INTERVIEW_SCHEDULED notify failed (non-fatal) for {}: {}",
+                    interview.getId(), e.getMessage());
+        }
         return toResponse(interview);
     }
 

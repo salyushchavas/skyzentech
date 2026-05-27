@@ -24,6 +24,7 @@ import com.skyzen.careers.exception.EmailUnverifiedException;
 import com.skyzen.careers.exception.ForbiddenException;
 import com.skyzen.careers.exception.InterviewRequiredException;
 import com.skyzen.careers.exception.ResourceNotFoundException;
+import com.skyzen.careers.notification.NotificationService;
 import com.skyzen.careers.notification.NotificationStub;
 import com.skyzen.careers.repository.ApplicationRepository;
 import com.skyzen.careers.repository.ApplicationSpecifications;
@@ -60,6 +61,7 @@ public class ApplicationService {
     private final AuditLogRepository auditLogRepository;
     private final ObjectMapper objectMapper;
     private final NotificationStub notificationStub;
+    private final NotificationService notificationService;
 
     @Transactional
     public ApplicationResponse apply(User user, ApplicationCreateRequest req) {
@@ -102,6 +104,15 @@ public class ApplicationService {
                 .status(ApplicationStatus.APPLIED)
                 .build();
         application = applicationRepository.save(application);
+
+        // Batch-1 notification — applicant receives a confirmation. Best-effort:
+        // a send failure must NOT block submission.
+        try {
+            notificationService.sendApplicationReceived(application);
+        } catch (Exception e) {
+            log.warn("APPLICATION_RECEIVED notify failed (non-fatal) for {}: {}",
+                    application.getId(), e.getMessage());
+        }
         return toResponse(application);
     }
 
@@ -216,6 +227,22 @@ public class ApplicationService {
         app.setStatusUpdatedBy(actorId);
         Application saved = applicationRepository.save(app);
         writeStatusAudit(saved.getId(), auditAction, actorId, from, target);
+
+        // Batch-1 lifecycle notifications. Routed through the central
+        // applyTransition so one-click, Kanban drag, and bulk-action paths all
+        // emit. Idempotency lives in NotificationService — re-flipping back to
+        // SHORTLISTED after a brief excursion only emails once. Best-effort:
+        // an email failure never rolls back the status change.
+        try {
+            if (target == ApplicationStatus.SHORTLISTED) {
+                notificationService.sendApplicationShortlisted(saved);
+            } else if (target == ApplicationStatus.REJECTED) {
+                notificationService.sendApplicationRejected(saved);
+            }
+        } catch (Exception e) {
+            log.warn("Lifecycle notify failed (non-fatal) for {} -> {} on {}: {}",
+                    from, target, saved.getId(), e.getMessage());
+        }
         return saved;
     }
 

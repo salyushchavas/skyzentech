@@ -22,6 +22,7 @@ import com.skyzen.careers.exception.BadRequestException;
 import com.skyzen.careers.exception.ForbiddenException;
 import com.skyzen.careers.exception.InterviewRequiredException;
 import com.skyzen.careers.exception.ResourceNotFoundException;
+import com.skyzen.careers.notification.NotificationService;
 import com.skyzen.careers.repository.ApplicationRepository;
 import com.skyzen.careers.repository.AuditLogRepository;
 import com.skyzen.careers.repository.OfferRepository;
@@ -93,6 +94,7 @@ public class OfferService {
     private final ApplicationService applicationService;
     private final EngagementService engagementService;
     private final ComplianceRoutingService complianceRoutingService;
+    private final NotificationService notificationService;
 
     // ── Commands ────────────────────────────────────────────────────────────
 
@@ -247,6 +249,15 @@ public class OfferService {
         }
 
         writeAudit("Offer", offer.getId(), "SEND", sender.getId(), before, snapshot(offer));
+
+        // Batch-1 notification — applicant receives the offer with comp + start
+        // + view link. Best-effort: a send failure must NOT block the SEND.
+        try {
+            notificationService.sendOfferExtended(offer);
+        } catch (Exception e) {
+            log.warn("OFFER_EXTENDED notify failed (non-fatal) for {}: {}",
+                    offer.getId(), e.getMessage());
+        }
         return toResponse(offer);
     }
 
@@ -316,6 +327,16 @@ public class OfferService {
                 log.warn("Failed to route engagement {} for accepted offer {}: {}",
                         engagement.getId(), offer.getId(), e.getMessage(), e);
             }
+        }
+
+        // Batch-1 notification — TWO sends: applicant confirmation + ops
+        // heads-up. The service handles both, idempotent per (event, offer).
+        // Best-effort: a send failure must NOT roll back acceptance.
+        try {
+            notificationService.sendOfferAccepted(offer);
+        } catch (Exception e) {
+            log.warn("OFFER_ACCEPTED notify failed (non-fatal) for {}: {}",
+                    offer.getId(), e.getMessage());
         }
         return offer;
     }
