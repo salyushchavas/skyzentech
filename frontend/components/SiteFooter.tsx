@@ -15,10 +15,15 @@ const SERVICE_LINKS: ReadonlyArray<{ label: string; href: string }> = [
   { label: 'Training', href: '/#what-we-do' },
   { label: 'Staffing', href: '/#what-we-do' },
   { label: 'Careers', href: '/careers/openings' },
-  { label: 'Privacy Policy', href: '/privacy-policy.html' },
+];
+
+const LEGAL_LINKS: ReadonlyArray<{ label: string; href: string }> = [
+  { label: 'Privacy Policy', href: '/privacy' },
+  { label: 'Terms of Service', href: '/terms' },
 ];
 
 export default function SiteFooter() {
+  const year = new Date().getFullYear();
   return (
     <footer className="bg-[#050a14] text-skyzen-text">
       <div className="mx-auto max-w-7xl px-6 pt-16 pb-6">
@@ -135,16 +140,21 @@ export default function SiteFooter() {
         </div>
 
         {/* Bottom */}
-        <div className="mt-12 flex flex-wrap items-center justify-between gap-3 border-t border-skyzen-border pt-5">
+        <div className="mt-12 flex flex-wrap items-center justify-between gap-4 border-t border-skyzen-border pt-5">
           <span className="text-xs text-skyzen-muted">
-            &copy; 2025 Skyzen Technologies LLC. All rights reserved.
+            &copy; {year} Skyzen Technologies LLC. All rights reserved.
           </span>
-          <Link
-            href="/privacy-policy.html"
-            className="text-xs text-skyzen-muted transition hover:text-accent"
-          >
-            Privacy Policy
-          </Link>
+          <div className="flex flex-wrap items-center gap-4">
+            {LEGAL_LINKS.map((link) => (
+              <Link
+                key={link.href}
+                href={link.href}
+                className="text-xs text-skyzen-muted transition hover:text-accent"
+              >
+                {link.label}
+              </Link>
+            ))}
+          </div>
         </div>
       </div>
     </footer>

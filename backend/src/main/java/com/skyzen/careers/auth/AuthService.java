@@ -48,6 +48,13 @@ public class AuthService {
     private static final long VERIFICATION_CODE_TTL_HOURS = 24L;
     private static final SecureRandom RNG = new SecureRandom();
 
+    /**
+     * Current ToS / Privacy version stamp. Bump this whenever the legal text
+     * meaningfully changes — every fresh registration captures the version
+     * the user agreed to at signup.
+     */
+    private static final String TOS_VERSION = "2026-05-27";
+
     private final UserRepository userRepository;
     private final CandidateRepository candidateRepository;
     private final PasswordResetTokenRepository passwordResetTokenRepository;
@@ -95,6 +102,11 @@ public class AuthService {
                 .phoneNumber(req.phoneNumber())
                 .roles(EnumSet.of(UserRole.APPLICANT))
                 .emailVerified(false)
+                // Proof of consent — stamped because the @AssertTrue on
+                // RegisterRequest.acceptedTos passed validation by the time
+                // we reach this point.
+                .tosAcceptedAt(now)
+                .tosVersion(TOS_VERSION)
                 .emailVerificationCode(code)
                 .emailVerificationSentAt(now)
                 .emailVerificationExpiresAt(expiresAt)

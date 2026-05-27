@@ -31,6 +31,7 @@ export default function RegisterPage() {
   const [expectedTrack, setExpectedTrack] = useState<WorkAuthTrack | ''>('');
   const [validityDate, setValidityDate] = useState('');
 
+  const [acceptedTos, setAcceptedTos] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -44,6 +45,10 @@ export default function RegisterPage() {
     }
     if (password !== confirmPassword) {
       setError('Passwords do not match.');
+      return;
+    }
+    if (!acceptedTos) {
+      setError('Please accept the Privacy Policy and Terms of Service to continue.');
       return;
     }
 
@@ -65,6 +70,7 @@ export default function RegisterPage() {
           expectedTrack: expectedTrack || undefined,
           validityDate: validityDate || undefined,
         },
+        acceptedTos,
       );
       // Phase 1.2 — every fresh registration starts unverified; route to verify.
       // The code is delivered ONLY by email (never round-tripped through the
@@ -181,9 +187,38 @@ export default function RegisterPage() {
           onChange={setValidityDate}
         />
 
+        <label className="flex items-start gap-2 rounded border border-gray-200 bg-gray-50 px-3 py-2.5 text-sm text-gray-700">
+          <input
+            type="checkbox"
+            checked={acceptedTos}
+            onChange={(e) => setAcceptedTos(e.target.checked)}
+            className="mt-0.5 h-4 w-4 cursor-pointer rounded border-gray-300 text-accent focus:ring-accent"
+            aria-required="true"
+          />
+          <span>
+            I agree to the{' '}
+            <Link
+              href="/privacy"
+              target="_blank"
+              className="font-medium text-primary-700 hover:text-primary-800 hover:underline"
+            >
+              Privacy Policy
+            </Link>{' '}
+            and{' '}
+            <Link
+              href="/terms"
+              target="_blank"
+              className="font-medium text-primary-700 hover:text-primary-800 hover:underline"
+            >
+              Terms of Service
+            </Link>
+            .
+          </span>
+        </label>
+
         <button
           type="submit"
-          disabled={loading}
+          disabled={loading || !acceptedTos}
           className="w-full rounded-full bg-gradient-to-r from-accent to-accent-dark px-4 py-2.5 font-semibold text-white shadow-glow-accent transition hover:shadow-glow-accent-lg disabled:opacity-50 disabled:shadow-none"
         >
           {loading ? 'Creating account…' : 'Create account'}

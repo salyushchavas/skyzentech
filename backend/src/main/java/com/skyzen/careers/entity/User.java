@@ -94,6 +94,30 @@ public class User {
     @Column(name = "seen_nav_items", columnDefinition = "TEXT")
     private String seenNavItemsJson;
 
+    /**
+     * Email notification opt-outs. Both default TRUE (opt-in) — transactional
+     * emails ignore these flags entirely (per CAN-SPAM + sensibility). Set to
+     * FALSE in the user's preferences page to silence reminders / engagement
+     * updates respectively.
+     */
+    @Column(name = "prefs_reminders", nullable = false,
+            columnDefinition = "boolean not null default true")
+    @Builder.Default
+    private Boolean prefsReminders = true;
+
+    @Column(name = "prefs_engagement_updates", nullable = false,
+            columnDefinition = "boolean not null default true")
+    @Builder.Default
+    private Boolean prefsEngagementUpdates = true;
+
+    /** When the user accepted ToS + privacy. Null for legacy pre-checkbox accounts. */
+    @Column(name = "tos_accepted_at")
+    private Instant tosAcceptedAt;
+
+    /** Version of the ToS the user accepted (e.g. "2026-05-27"). */
+    @Column(name = "tos_version", length = 32)
+    private String tosVersion;
+
     @Column(nullable = false, updatable = false)
     private Instant createdAt;
 

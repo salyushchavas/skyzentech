@@ -53,7 +53,8 @@ interface AuthContextValue {
     password: string,
     fullName: string,
     phoneNumber?: string,
-    intake?: RegistrationIntake
+    intake?: RegistrationIntake,
+    acceptedTos?: boolean,
   ) => Promise<User>;
   /**
    * Update the locally-cached user object after a state change (e.g.
@@ -135,7 +136,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     password: string,
     fullName: string,
     phoneNumber?: string,
-    intake?: RegistrationIntake
+    intake?: RegistrationIntake,
+    acceptedTos?: boolean,
   ): Promise<User> {
     const res = await api.post<AuthResponse>('/auth/register', {
       email,
@@ -154,6 +156,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       sponsorshipNeeded: intake?.sponsorshipNeeded,
       expectedTrack: intake?.expectedTrack,
       validityDate: intake?.validityDate,
+      // Required by the backend's @AssertTrue gate.
+      acceptedTos,
     });
     setToken(res.data.token);
     setRefreshToken(res.data.refreshToken ?? null);

@@ -797,6 +797,24 @@ public class NotificationService {
      */
     private void deliver(NotificationEventType eventType, UUID targetId, String recipient,
                          Runnable sendFn) {
+        // Opt-out gate. Transactional events are always sent. For
+        // reminders + engagement-updates, look up the recipient user and skip
+        // if their preference flag is off. We can't resolve a user for blasts
+        // sent to a comma-joined HR/Ops list — those proceed unconditionally,
+        // which is correct: those are staff workflows, not user-personalised
+        // streams.
+        NotificationCategory category = NotificationEventCategories.categoryOf(eventType);
+        if (category != NotificationCategory.TRANSACTIONAL && recipient != null
+                && !recipient.contains(",")) {
+            User recipientUser = userRepository.findByEmail(recipient.trim()).orElse(null);
+            if (recipientUser != null && isOptedOut(recipientUser, category)) {
+                log.info("Skipping {} for {} — user opted out of {}",
+                        eventType, recipient, category);
+                writeOptOutAudit(eventType, targetId, recipient, category);
+                return;
+            }
+        }
+
         try {
             sendFn.run();
         } catch (Exception e) {
@@ -889,6 +907,46 @@ public class NotificationService {
         if (c == null) return null;
         User u = c.getUser();
         return u != null ? u.getFullName() : null;
+    }
+
+    /**
+     * Has the recipient turned off this category? Defaults to FALSE (opt-in
+     * is the default) — null flag on a legacy User row means "not opted out".
+     */
+    private static boolean isOptedOut(User user, NotificationCategory category) {
+        if (user == null || category == null) return false;
+        return switch (category) {
+            case REMINDERS -> Boolean.FALSE.equals(user.getPrefsReminders());
+            case ENGAGEMENT_UPDATES -> Boolean.FALSE.equals(user.getPrefsEngagementUpdates());
+            case TRANSACTIONAL -> false; // never opt-outable
+        };
+    }
+
+    /**
+     * Audit a suppression so the operator can see the user's intent reflected
+     * in the same audit stream as real sends. {@code action=NOTIFICATION_SKIPPED}
+     * lives alongside {@code NOTIFICATION_SENT} for a clean ledger.
+     */
+    private void writeOptOutAudit(NotificationEventType eventType, UUID targetId,
+                                  String recipient, NotificationCategory category) {
+        try {
+            Map<String, Object> after = new LinkedHashMap<>();
+            after.put("eventType", eventType.name());
+            after.put("targetId", targetId != null ? targetId.toString() : null);
+            after.put("recipient", recipient);
+            after.put("reason", "opted_out");
+            after.put("category", category.name());
+            AuditLog entry = AuditLog.builder()
+                    .entityType("Notification")
+                    .entityId(targetId)
+                    .action("NOTIFICATION_SKIPPED")
+                    .afterJson(objectMapper.writeValueAsString(after))
+                    .build();
+            auditLogRepository.save(entry);
+        } catch (Exception e) {
+            log.warn("Failed to write NOTIFICATION_SKIPPED audit (non-fatal): {}",
+                    e.getMessage());
+        }
     }
 
     /**

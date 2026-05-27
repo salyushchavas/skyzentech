@@ -1,20 +1,28 @@
 package com.skyzen.careers.service;
 
 import com.skyzen.careers.dto.users.ChangePasswordRequest;
+import com.skyzen.careers.dto.users.NotificationPreferencesResponse;
+import com.skyzen.careers.dto.users.UpdateNotificationPreferencesRequest;
 import com.skyzen.careers.dto.users.UpdateProfileRequest;
 import com.skyzen.careers.dto.users.UserProfileResponse;
+import com.skyzen.careers.entity.AuditLog;
 import com.skyzen.careers.entity.Candidate;
 import com.skyzen.careers.entity.User;
 import com.skyzen.careers.exception.BadRequestException;
 import com.skyzen.careers.exception.ResourceNotFoundException;
+import com.skyzen.careers.repository.AuditLogRepository;
 import com.skyzen.careers.repository.CandidateRepository;
 import com.skyzen.careers.repository.UserRepository;
+import com.skyzen.careers.repository.UserSessionRepository;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Instant;
 import java.util.Optional;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
 /**
@@ -28,11 +36,14 @@ import java.util.stream.Collectors;
  */
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class UserProfileService {
 
     private final UserRepository userRepository;
     private final CandidateRepository candidateRepository;
     private final PasswordEncoder passwordEncoder;
+    private final UserSessionRepository userSessionRepository;
+    private final AuditLogRepository auditLogRepository;
 
     @Transactional(readOnly = true)
     public UserProfileResponse getProfile(User caller) {
@@ -83,7 +94,7 @@ public class UserProfileService {
     }
 
     @Transactional
-    public void changePassword(User caller, ChangePasswordRequest req) {
+    public void changePassword(User caller, ChangePasswordRequest req, UUID currentSessionId) {
         if (caller == null || caller.getId() == null) {
             throw new BadRequestException("Authentication required");
         }
@@ -99,6 +110,76 @@ public class UserProfileService {
         }
         user.setPasswordHash(passwordEncoder.encode(req.getNewPassword()));
         userRepository.save(user);
+
+        // Security: revoke every other session. The caller stays signed in on
+        // the device they just changed the password from (their refresh token
+        // is still valid), but every other browser / phone is forced to
+        // re-authenticate on next request. Standard practice. Pre-session
+        // legacy callers (no session_id claim) have currentSessionId == null,
+        // and revokeAllForUser treats that as "no exclusion" — i.e. ALL
+        // sessions including the caller's are revoked. Acceptable: a legacy
+        // user's JWT continues until natural expiry anyway, so the worst case
+        // is a "sign in again next access-token cycle".
+        try {
+            int n = userSessionRepository.revokeAllForUser(
+                    user.getId(), currentSessionId, Instant.now(), "password_changed");
+            log.info("Password changed for {} — revoked {} other session(s)",
+                    user.getEmail(), n);
+        } catch (Exception e) {
+            log.warn("Failed to revoke other sessions on password change (non-fatal): {}",
+                    e.getMessage());
+        }
+
+        // Audit row — best-effort.
+        try {
+            AuditLog row = AuditLog.builder()
+                    .entityType("User")
+                    .entityId(user.getId())
+                    .action("PASSWORD_CHANGED")
+                    .userId(user.getId())
+                    .build();
+            auditLogRepository.save(row);
+        } catch (Exception e) {
+            log.warn("Failed to write PASSWORD_CHANGED audit row (non-fatal): {}",
+                    e.getMessage());
+        }
+    }
+
+    // ── Notification preferences ───────────────────────────────────────────
+
+    @Transactional(readOnly = true)
+    public NotificationPreferencesResponse getNotificationPreferences(User caller) {
+        if (caller == null || caller.getId() == null) {
+            throw new BadRequestException("Authentication required");
+        }
+        User user = userRepository.findById(caller.getId())
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+        return NotificationPreferencesResponse.builder()
+                // Legacy rows with null flags surface as opt-in (the default).
+                .reminders(!Boolean.FALSE.equals(user.getPrefsReminders()))
+                .engagementUpdates(!Boolean.FALSE.equals(user.getPrefsEngagementUpdates()))
+                .build();
+    }
+
+    @Transactional
+    public NotificationPreferencesResponse updateNotificationPreferences(
+            User caller, UpdateNotificationPreferencesRequest req) {
+        if (caller == null || caller.getId() == null) {
+            throw new BadRequestException("Authentication required");
+        }
+        User user = userRepository.findById(caller.getId())
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+        if (req != null) {
+            if (req.reminders() != null) user.setPrefsReminders(req.reminders());
+            if (req.engagementUpdates() != null) {
+                user.setPrefsEngagementUpdates(req.engagementUpdates());
+            }
+        }
+        userRepository.save(user);
+        return NotificationPreferencesResponse.builder()
+                .reminders(!Boolean.FALSE.equals(user.getPrefsReminders()))
+                .engagementUpdates(!Boolean.FALSE.equals(user.getPrefsEngagementUpdates()))
+                .build();
     }
 
     private UserProfileResponse toResponse(User user, Candidate candidate) {

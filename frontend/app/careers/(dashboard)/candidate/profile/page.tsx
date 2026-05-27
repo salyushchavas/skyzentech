@@ -81,6 +81,7 @@ function ProfileBody() {
   return (
     <div className="space-y-6">
       <ProfileForm profile={profile} onSaved={(p) => setProfile(p)} />
+      <NotificationPreferencesCard />
       <ChangePasswordForm />
       <SessionsLinkCard />
     </div>
@@ -513,6 +514,147 @@ function ChangePasswordForm() {
         </button>
       </div>
     </form>
+  );
+}
+
+interface NotificationPrefs {
+  reminders: boolean;
+  engagementUpdates: boolean;
+}
+
+function NotificationPreferencesCard() {
+  const [prefs, setPrefs] = useState<NotificationPrefs | null>(null);
+  const [saving, setSaving] = useState<'reminders' | 'engagementUpdates' | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await api.get<NotificationPrefs>(
+          '/api/v1/me/notification-preferences',
+        );
+        if (!cancelled) setPrefs(res.data);
+      } catch (err: any) {
+        if (!cancelled) {
+          setError(
+            err?.response?.data?.error ??
+              "Couldn't load your notification preferences.",
+          );
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  async function toggle(field: keyof NotificationPrefs, next: boolean) {
+    if (!prefs) return;
+    const prev = prefs[field];
+    setPrefs({ ...prefs, [field]: next });
+    setSaving(field);
+    setError(null);
+    try {
+      const res = await api.put<NotificationPrefs>(
+        '/api/v1/me/notification-preferences',
+        { [field]: next },
+      );
+      setPrefs(res.data);
+      toast.success(next ? 'Subscribed.' : 'Unsubscribed.');
+    } catch (err: any) {
+      setPrefs({ ...prefs, [field]: prev });
+      setError(err?.response?.data?.error ?? "Couldn't save that change.");
+    } finally {
+      setSaving(null);
+    }
+  }
+
+  return (
+    <section className="rounded-lg border border-gray-200 bg-white p-6">
+      <header className="mb-4">
+        <h2 className="text-lg font-semibold text-gray-900">
+          Notification preferences
+        </h2>
+        <p className="mt-1 text-sm text-gray-600">
+          Choose which optional emails you want. Account-safety and compliance
+          emails (verification, password reset, offer letters, E-Verify alerts)
+          are always sent.
+        </p>
+      </header>
+
+      {prefs === null ? (
+        <div className="py-4 text-center text-sm text-gray-500">Loading…</div>
+      ) : (
+        <ul className="space-y-3">
+          <PreferenceRow
+            title="Reminders"
+            description="Compliance reminders, weekly report / timesheet due-soon nudges, work-auth expiry alerts."
+            value={prefs.reminders}
+            saving={saving === 'reminders'}
+            onChange={(v) => void toggle('reminders', v)}
+          />
+          <PreferenceRow
+            title="Engagement updates"
+            description="Project assigned / returned / completed, evaluation finalized, weekly material released."
+            value={prefs.engagementUpdates}
+            saving={saving === 'engagementUpdates'}
+            onChange={(v) => void toggle('engagementUpdates', v)}
+          />
+          <li className="rounded-md border border-dashed border-gray-200 bg-gray-50 px-4 py-3 text-xs text-gray-500">
+            <strong className="font-medium text-gray-700">Always sent:</strong>{' '}
+            verification codes, password resets, offer letters, I-9 / E-Verify
+            status (incl. TNC). Required for account safety + legal compliance.
+          </li>
+        </ul>
+      )}
+
+      {error && (
+        <p className="mt-3 text-sm text-red-600">{error}</p>
+      )}
+    </section>
+  );
+}
+
+function PreferenceRow({
+  title,
+  description,
+  value,
+  saving,
+  onChange,
+}: {
+  title: string;
+  description: string;
+  value: boolean;
+  saving: boolean;
+  onChange: (next: boolean) => void;
+}) {
+  return (
+    <li className="flex items-start justify-between gap-4 rounded-md border border-gray-200 bg-white px-4 py-3">
+      <div className="min-w-0 flex-1">
+        <p className="text-sm font-medium text-gray-900">{title}</p>
+        <p className="mt-0.5 text-xs text-gray-600">{description}</p>
+      </div>
+      <button
+        type="button"
+        role="switch"
+        aria-checked={value}
+        disabled={saving}
+        onClick={() => onChange(!value)}
+        className={
+          'relative inline-flex h-6 w-11 shrink-0 cursor-pointer items-center rounded-full transition-colors duration-150 ' +
+          (saving ? 'opacity-60 ' : '') +
+          (value ? 'bg-accent' : 'bg-gray-300')
+        }
+      >
+        <span
+          className={
+            'inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform duration-150 ' +
+            (value ? 'translate-x-5' : 'translate-x-0.5')
+          }
+        />
+      </button>
+    </li>
   );
 }
 

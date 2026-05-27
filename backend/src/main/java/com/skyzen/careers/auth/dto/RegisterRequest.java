@@ -1,6 +1,7 @@
 package com.skyzen.careers.auth.dto;
 
 import com.skyzen.careers.enums.WorkAuthTrack;
+import jakarta.validation.constraints.AssertTrue;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
@@ -17,6 +18,9 @@ import java.time.LocalDate;
  * Compliance: this DTO must NEVER carry document fields (I-9, E-Verify, work
  * permits, visas). The four attestation fields are the candidate's neutral
  * self-statement; documents come post-offer only (Phase 3).
+ *
+ * Legal: {@code acceptedTos} must be true at submit — proof of consent is
+ * stamped on the user (tos_accepted_at + tos_version) by AuthService.
  */
 public record RegisterRequest(
         @Email @NotBlank String email,
@@ -34,5 +38,12 @@ public record RegisterRequest(
         Boolean authorizedToWork,
         Boolean sponsorshipNeeded,
         WorkAuthTrack expectedTrack,
-        LocalDate validityDate
-) {}
+        LocalDate validityDate,
+        // Legal — must be explicitly true at submit
+        Boolean acceptedTos
+) {
+    @AssertTrue(message = "You must accept the Privacy Policy and Terms of Service")
+    public boolean isTosAccepted() {
+        return Boolean.TRUE.equals(acceptedTos);
+    }
+}
