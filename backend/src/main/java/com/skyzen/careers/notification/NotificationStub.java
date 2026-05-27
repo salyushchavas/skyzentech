@@ -1,24 +1,21 @@
 package com.skyzen.careers.notification;
 
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 import java.time.Instant;
 
 /**
- * Facade around the wired {@link EmailProvider}. Owns the
- * {@code surface-stub} flag (a dev/staging-only convenience that echoes the
- * verification code in the HTTP response) and delegates the actual send to
- * the chosen provider — SMTP in production, log in dev / unconfigured envs.
+ * Facade around the wired {@link EmailProvider}. Delegates the actual send to
+ * whichever provider was selected by {@link EmailProviderConfiguration} —
+ * {@link SmtpEmailProvider} in prod, {@link LogEmailProvider} in dev /
+ * unconfigured envs.
  *
  * <h2>History</h2>
- * Previously a concrete log-only stub (decision D2: "real send NOT wired").
- * C3 inverts that: an {@link EmailProvider} interface is now selected by
- * {@link EmailProviderConfiguration} based on whether SMTP creds are
- * configured. This class survives as the facade because every call site is
- * already injecting it by name — renaming would be churn for no benefit, and
- * keeping the {@link #shouldSurfaceStub()} concern paired with the email
- * call sites makes the dev/prod toggle obvious.
+ * Previously a concrete log-only stub (decision D2: "real send NOT wired");
+ * also owned a {@code surface-stub} flag that echoed the verification code in
+ * the registration HTTP response so the verify-email page could prefill it.
+ * That field was a security hole — the code now rides email ONLY, never the
+ * API. {@code surface-stub} is retired.
  *
  * <h2>Failure semantics</h2>
  * This class passes {@link EmailDeliveryException} through unchanged.
@@ -37,16 +34,9 @@ import java.time.Instant;
 public class NotificationStub {
 
     private final EmailProvider emailProvider;
-    private final boolean surfaceStubInResponse;
 
-    public NotificationStub(EmailProvider emailProvider,
-                            @Value("${app.notification.surface-stub:true}") boolean surfaceStub) {
+    public NotificationStub(EmailProvider emailProvider) {
         this.emailProvider = emailProvider;
-        this.surfaceStubInResponse = surfaceStub;
-    }
-
-    public boolean shouldSurfaceStub() {
-        return surfaceStubInResponse;
     }
 
     public void sendVerificationCode(String email, String code, Instant expiresAt) {

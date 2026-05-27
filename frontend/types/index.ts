@@ -59,12 +59,6 @@ export interface AuthResponse {
   roles: UserRole[];
   emailVerified?: boolean;
   applicantId?: string;
-  /**
-   * Stub verification code echoed by the dev backend immediately after
-   * registration so the verify-email page can prefill it. Production sets
-   * {@code app.notification.surface-stub=false} and this field is absent.
-   */
-  devVerificationCode?: string;
 }
 
 export interface VerifyEmailResponse {

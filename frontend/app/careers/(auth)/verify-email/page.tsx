@@ -26,11 +26,12 @@ function VerifyEmailInner() {
   // logged-in user, since an unauthenticated visitor (e.g. arriving via a
   // verification link in their inbox) may not yet have a session.
   const initialEmail = params.get('email') ?? user?.email ?? '';
-  const devCode = params.get('devCode') ?? '';
   const returnTo = safeReturnTo(params.get('returnTo'));
 
   const [email, setEmail] = useState(initialEmail);
-  const [code, setCode] = useState(devCode);
+  // SECURITY — the verification code is never round-tripped through the API.
+  // The user reads the 6-digit code from their email and types it here.
+  const [code, setCode] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [resending, setResending] = useState(false);
@@ -129,11 +130,6 @@ function VerifyEmailInner() {
             className="w-full rounded border border-gray-300 px-3 py-2 tracking-[0.5em] text-center text-lg focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
             autoComplete="one-time-code"
           />
-          {devCode && (
-            <p className="mt-1 text-xs text-gray-500">
-              Dev mode: code prefilled from the API response.
-            </p>
-          )}
         </div>
         <button
           type="submit"

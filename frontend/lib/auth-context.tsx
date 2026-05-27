@@ -37,12 +37,6 @@ interface MeResponse {
   expectedTrack?: WorkAuthTrack;
 }
 
-interface RegisterResult {
-  user: User;
-  /** Dev-only: present when the backend surfaces the stub verification code. */
-  devVerificationCode?: string;
-}
-
 interface AuthContextValue {
   user: User | null;
   isLoading: boolean;
@@ -53,7 +47,7 @@ interface AuthContextValue {
     fullName: string,
     phoneNumber?: string,
     intake?: RegistrationIntake
-  ) => Promise<RegisterResult>;
+  ) => Promise<User>;
   /**
    * Update the locally-cached user object after a state change (e.g.
    * email verification flipped emailVerified to true). Persists to
@@ -134,7 +128,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     fullName: string,
     phoneNumber?: string,
     intake?: RegistrationIntake
-  ): Promise<RegisterResult> {
+  ): Promise<User> {
     const res = await api.post<AuthResponse>('/auth/register', {
       email,
       password,
@@ -157,7 +151,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const u = userFromAuthResponse(res.data, phoneNumber);
     setUser(u);
     setUserState(u);
-    return { user: u, devVerificationCode: res.data.devVerificationCode };
+    return u;
   }
 
   function updateUser(patch: Partial<User>): void {

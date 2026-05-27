@@ -130,10 +130,11 @@ public class AuthService {
         writeAccountAudit(user.getId(), "EMAIL_VERIFICATION_PENDING");
         log.info("User registered: {}", user.getEmail());
 
-        // dev-mode echo of the code so the frontend can prefill the verify
-        // screen; gated by app.notification.surface-stub (default true, prod false).
-        String surfacedCode = notificationStub.shouldSurfaceStub() ? code : null;
-        return toAuthResponse(user, surfacedCode);
+        // SECURITY — the verification code is NEVER returned to the client.
+        // It rides email only; in dev the LogEmailProvider also writes it to
+        // the backend log when surface-stub is on, so developers can read it
+        // without an SMTP server, but it never round-trips to the browser.
+        return toAuthResponse(user);
     }
 
     /**
@@ -368,10 +369,6 @@ public class AuthService {
     }
 
     private AuthResponse toAuthResponse(User user) {
-        return toAuthResponse(user, null);
-    }
-
-    private AuthResponse toAuthResponse(User user, String surfacedVerificationCode) {
         String token = jwtUtil.generateToken(user);
         List<String> roles = user.getRoles().stream().map(Enum::name).toList();
         return new AuthResponse(
@@ -381,8 +378,7 @@ public class AuthService {
                 user.getFullName(),
                 roles,
                 user.getEmailVerified(),
-                user.getApplicantId(),
-                surfacedVerificationCode
+                user.getApplicantId()
         );
     }
 }

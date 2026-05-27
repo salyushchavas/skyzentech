@@ -15,18 +15,16 @@ import org.springframework.mail.javamail.JavaMailSender;
  *   <li>Either missing → {@link LogEmailProvider} (fallback; logs at INFO).</li>
  * </ul>
  *
- * The decision happens at bean-construction time so {@code @Autowired
- * EmailProvider} resolves to exactly one bean. JavaMailSender is itself
- * auto-configured by Spring Boot from {@code spring.mail.*}; we only need to
- * read those values to know whether SMTP is "live".
- *
  * <h2>Env vars</h2>
  * <ul>
  *   <li>{@code SMTP_HOST} → {@code spring.mail.host}</li>
  *   <li>{@code SMTP_PORT} → {@code spring.mail.port} (default 587 STARTTLS)</li>
  *   <li>{@code SMTP_USERNAME} → {@code spring.mail.username}</li>
  *   <li>{@code SMTP_PASSWORD} → {@code spring.mail.password}</li>
- *   <li>{@code MAIL_FROM} → the From: header on every outgoing message</li>
+ *   <li>{@code MAIL_FROM} → From: address (must be authorized for the SMTP account)</li>
+ *   <li>{@code MAIL_FROM_NAME} → personal name on the From: header (default "Skyzen Tech")</li>
+ *   <li>{@code MAIL_LOGO_URL} → public URL of the Skyzen logo for the email header</li>
+ *   <li>{@code MAIL_BRAND_URL} → public brand site, used in the header / footer links</li>
  *   <li>{@code SMTP_STARTTLS} (default {@code true})</li>
  *   <li>{@code SMTP_SSL} (default {@code false})</li>
  * </ul>
@@ -44,6 +42,15 @@ public class EmailProviderConfiguration {
     @Value("${app.mail.from:noreply@skyzentech.com}")
     private String mailFrom;
 
+    @Value("${app.mail.from-name:Skyzen Tech}")
+    private String mailFromName;
+
+    @Value("${app.mail.logo-url:https://www.skyzentech.com/images/skyzen-logo.png}")
+    private String logoUrl;
+
+    @Value("${app.mail.brand-url:https://www.skyzentech.com}")
+    private String brandUrl;
+
     @Bean
     public EmailProvider emailProvider(JavaMailSender mailSender) {
         if (isBlank(mailHost) || isBlank(mailUsername)) {
@@ -52,9 +59,9 @@ public class EmailProviderConfiguration {
                     + "Set SMTP_HOST + SMTP_USERNAME + SMTP_PASSWORD + MAIL_FROM to enable real send.");
             return new LogEmailProvider();
         }
-        log.info("SMTP configured — using SmtpEmailProvider (host={}, from={})",
-                mailHost, mailFrom);
-        return new SmtpEmailProvider(mailSender, mailFrom);
+        log.info("SMTP configured — using SmtpEmailProvider (host={}, from=\"{}\" <{}>)",
+                mailHost, mailFromName, mailFrom);
+        return new SmtpEmailProvider(mailSender, mailFrom, mailFromName, logoUrl, brandUrl);
     }
 
     private static boolean isBlank(String s) {

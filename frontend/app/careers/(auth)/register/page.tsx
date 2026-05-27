@@ -49,7 +49,7 @@ export default function RegisterPage() {
 
     setLoading(true);
     try {
-      const { user, devVerificationCode } = await register(
+      const user = await register(
         email,
         password,
         fullName,
@@ -67,9 +67,10 @@ export default function RegisterPage() {
         },
       );
       // Phase 1.2 — every fresh registration starts unverified; route to verify.
+      // The code is delivered ONLY by email (never round-tripped through the
+      // API), so the verify field starts empty and the user types it in.
       if (user.emailVerified === false || user.emailVerified === undefined) {
         const params = new URLSearchParams({ email: user.email });
-        if (devVerificationCode) params.set('devCode', devVerificationCode);
         const returnTo = safeReturnTo();
         if (returnTo) params.set('returnTo', returnTo);
         router.replace(`/careers/verify-email?${params.toString()}`);
