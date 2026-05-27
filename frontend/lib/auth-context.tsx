@@ -2,7 +2,14 @@
 
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import api from './api';
-import { clearAuth, getToken, getUser, setToken, setUser } from './auth-storage';
+import {
+  clearAuth,
+  getToken,
+  getUser,
+  setRefreshToken,
+  setToken,
+  setUser,
+} from './auth-storage';
 import type { AuthResponse, User, WorkAuthTrack } from '@/types';
 
 /**
@@ -116,6 +123,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   async function login(email: string, password: string): Promise<User> {
     const res = await api.post<AuthResponse>('/auth/login', { email, password });
     setToken(res.data.token);
+    setRefreshToken(res.data.refreshToken ?? null);
     const u = userFromAuthResponse(res.data);
     setUser(u);
     setUserState(u);
@@ -148,6 +156,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       validityDate: intake?.validityDate,
     });
     setToken(res.data.token);
+    setRefreshToken(res.data.refreshToken ?? null);
     const u = userFromAuthResponse(res.data, phoneNumber);
     setUser(u);
     setUserState(u);

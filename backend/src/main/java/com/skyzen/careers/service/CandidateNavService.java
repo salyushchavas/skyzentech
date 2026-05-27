@@ -192,9 +192,11 @@ public class CandidateNavService {
                     "/careers/candidate/evaluations", "primary", null, seen));
         }
 
-        // Tail — Profile + Help always at the bottom.
+        // Tail — Profile + Sessions + Help always at the bottom.
         items.add(item("profile", "Profile",
                 "/careers/candidate/profile", group(intern, "primary"), null, seen));
+        items.add(item("sessions", "Active sessions",
+                "/careers/sessions", group(intern, "primary"), null, seen));
         items.add(item("help", "Help & Support",
                 "/careers/help", group(intern, "primary"), null, seen));
 

@@ -5,9 +5,8 @@ import com.fasterxml.jackson.annotation.JsonInclude;
 import java.util.List;
 
 /**
- * Login + registration response. Adds verification + applicant-ID fields
- * so the frontend can route an unverified candidate straight to the
- * verify-email page without an extra round-trip.
+ * Login + registration response. Includes the access + refresh token pair
+ * issued for a freshly-created session.
  *
  * <p>Security note: the verification code itself is NEVER returned by any
  * endpoint. It is delivered only via email (real SMTP in prod; the backend
@@ -17,6 +16,8 @@ import java.util.List;
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public record AuthResponse(
         String token,
+        String refreshToken,
+        Long accessTokenExpiresInSeconds,
         String userId,
         String email,
         String fullName,

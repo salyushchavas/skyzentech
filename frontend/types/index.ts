@@ -53,12 +53,27 @@ export interface User {
 
 export interface AuthResponse {
   token: string;
+  /** Refresh token (raw, only returned at issuance — stored client-side). */
+  refreshToken?: string;
+  /** Lifetime of the access token in seconds. */
+  accessTokenExpiresInSeconds?: number;
   userId: string;
   email: string;
   fullName: string;
   roles: UserRole[];
   emailVerified?: boolean;
   applicantId?: string;
+}
+
+// Session management — /api/v1/me/sessions
+export interface UserSessionResponse {
+  id: string;
+  createdAt: string;
+  lastUsedAt: string;
+  userAgent?: string;
+  deviceLabel: string;
+  ip?: string;
+  current: boolean;
 }
 
 export interface VerifyEmailResponse {

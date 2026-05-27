@@ -4,12 +4,14 @@ import com.skyzen.careers.auth.dto.AuthResponse;
 import com.skyzen.careers.auth.dto.ForgotPasswordRequest;
 import com.skyzen.careers.auth.dto.LoginRequest;
 import com.skyzen.careers.auth.dto.MeResponse;
+import com.skyzen.careers.auth.dto.RefreshTokenRequest;
 import com.skyzen.careers.auth.dto.RegisterRequest;
 import com.skyzen.careers.auth.dto.ResendVerificationRequest;
 import com.skyzen.careers.auth.dto.ResetPasswordRequest;
 import com.skyzen.careers.auth.dto.VerifyEmailRequest;
 import com.skyzen.careers.auth.dto.VerifyEmailResponse;
 import com.skyzen.careers.entity.User;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -31,13 +33,26 @@ public class AuthController {
     private final AuthService authService;
 
     @PostMapping("/register")
-    public ResponseEntity<AuthResponse> register(@Valid @RequestBody RegisterRequest req) {
-        return ResponseEntity.ok(authService.register(req));
+    public ResponseEntity<AuthResponse> register(@Valid @RequestBody RegisterRequest req,
+                                                 HttpServletRequest httpRequest) {
+        return ResponseEntity.ok(authService.register(req, httpRequest));
     }
 
     @PostMapping("/login")
-    public ResponseEntity<AuthResponse> login(@Valid @RequestBody LoginRequest req) {
-        return ResponseEntity.ok(authService.login(req));
+    public ResponseEntity<AuthResponse> login(@Valid @RequestBody LoginRequest req,
+                                              HttpServletRequest httpRequest) {
+        return ResponseEntity.ok(authService.login(req, httpRequest));
+    }
+
+    /**
+     * Exchange a refresh token for a fresh access+refresh pair. The presented
+     * refresh token is revoked on success (rotation); a replayed or revoked
+     * token returns 401 and the device is effectively signed out.
+     */
+    @PostMapping("/refresh")
+    public ResponseEntity<AuthResponse> refresh(@Valid @RequestBody RefreshTokenRequest req,
+                                                HttpServletRequest httpRequest) {
+        return ResponseEntity.ok(authService.refresh(req.refreshToken(), httpRequest));
     }
 
     @PostMapping("/forgot-password")

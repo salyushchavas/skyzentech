@@ -20,7 +20,9 @@ import com.skyzen.careers.repository.AuditLogRepository;
 import com.skyzen.careers.repository.CandidateRepository;
 import com.skyzen.careers.repository.PasswordResetTokenRepository;
 import com.skyzen.careers.repository.UserRepository;
+import com.skyzen.careers.repository.UserSessionRepository;
 import com.skyzen.careers.service.ApplicantIdGenerator;
+import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -54,6 +56,8 @@ public class AuthService {
     private final JwtUtil jwtUtil;
     private final NotificationStub notificationStub;
     private final ApplicantIdGenerator applicantIdGenerator;
+    private final SessionTokenService sessionTokenService;
+    private final UserSessionRepository userSessionRepository;
 
     /**
      * GAP E3 — dev-only escape hatch for the password-reset token. When
@@ -75,7 +79,7 @@ public class AuthService {
     private String passwordResetUrlTemplate;
 
     @Transactional
-    public AuthResponse register(RegisterRequest req) {
+    public AuthResponse register(RegisterRequest req, HttpServletRequest httpRequest) {
         if (userRepository.existsByEmail(req.email())) {
             throw new AuthException(HttpStatus.CONFLICT, "Email already registered");
         }
@@ -134,7 +138,7 @@ public class AuthService {
         // It rides email only; in dev the LogEmailProvider also writes it to
         // the backend log when surface-stub is on, so developers can read it
         // without an SMTP server, but it never round-trips to the browser.
-        return toAuthResponse(user);
+        return issueSessionResponse(user, httpRequest);
     }
 
     /**
@@ -267,7 +271,7 @@ public class AuthService {
         auditLogRepository.save(row);
     }
 
-    public AuthResponse login(LoginRequest req) {
+    public AuthResponse login(LoginRequest req, HttpServletRequest httpRequest) {
         Optional<User> userOpt = userRepository.findByEmail(req.email());
         if (userOpt.isEmpty() || !passwordEncoder.matches(req.password(), userOpt.get().getPasswordHash())) {
             log.warn("Failed login attempt for email: {}", req.email());
@@ -283,7 +287,33 @@ public class AuthService {
             throw new AuthException(HttpStatus.UNAUTHORIZED, "Invalid credentials");
         }
         log.info("User logged in: {}", user.getEmail());
-        return toAuthResponse(user);
+        return issueSessionResponse(user, httpRequest);
+    }
+
+    /**
+     * Refresh-token rotation. Validates the presented refresh token against a
+     * non-revoked, non-expired session, then rotates (revokes the old row,
+     * issues a fresh access+refresh pair). Used by the frontend's auto-refresh
+     * on 401.
+     */
+    @Transactional
+    public AuthResponse refresh(String refreshToken, HttpServletRequest httpRequest) {
+        if (refreshToken == null || refreshToken.isBlank()) {
+            throw new AuthException(HttpStatus.UNAUTHORIZED, "Invalid refresh token");
+        }
+        String hash = SessionTokenService.hash(refreshToken);
+        com.skyzen.careers.entity.UserSession session = userSessionRepository
+                .findByRefreshTokenHash(hash)
+                .orElseThrow(() -> new AuthException(HttpStatus.UNAUTHORIZED,
+                        "Invalid refresh token"));
+        User user = userRepository.findById(session.getUserId())
+                .orElseThrow(() -> new AuthException(HttpStatus.UNAUTHORIZED,
+                        "Invalid refresh token"));
+        if (Boolean.FALSE.equals(user.getActive())) {
+            throw new AuthException(HttpStatus.UNAUTHORIZED, "Invalid refresh token");
+        }
+        SessionTokenService.Issued issued = sessionTokenService.rotate(user, refreshToken, httpRequest);
+        return buildAuthResponse(user, issued);
     }
 
     @Transactional
@@ -368,11 +398,24 @@ public class AuthService {
         );
     }
 
-    private AuthResponse toAuthResponse(User user) {
-        String token = jwtUtil.generateToken(user);
+    /**
+     * Create a fresh session + bind a freshly-signed access token to it.
+     * Used by login + register; the refresh path uses {@link #buildAuthResponse}
+     * directly off a rotated session.
+     */
+    private AuthResponse issueSessionResponse(User user, HttpServletRequest httpRequest) {
+        SessionTokenService.Issued issued = sessionTokenService.issueSession(
+                user, httpRequest, "login");
+        return buildAuthResponse(user, issued);
+    }
+
+    private AuthResponse buildAuthResponse(User user, SessionTokenService.Issued issued) {
+        String accessToken = jwtUtil.generateAccessToken(user, issued.session().getId());
         List<String> roles = user.getRoles().stream().map(Enum::name).toList();
         return new AuthResponse(
-                token,
+                accessToken,
+                issued.rawRefreshToken(),
+                jwtUtil.accessTtlSeconds(),
                 user.getId().toString(),
                 user.getEmail(),
                 user.getFullName(),

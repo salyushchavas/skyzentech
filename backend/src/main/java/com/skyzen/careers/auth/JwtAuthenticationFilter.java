@@ -31,8 +31,12 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             "/auth/register",
             "/auth/login",
             "/auth/forgot-password",
-            "/auth/reset-password"
+            "/auth/reset-password",
+            "/auth/refresh"
     );
+
+    /** Request attribute the SessionController reads to flag is_current rows. */
+    public static final String CURRENT_SESSION_ID_ATTR = "skyzen.currentSessionId";
 
     private final JwtUtil jwtUtil;
     private final UserRepository userRepository;
@@ -64,6 +68,14 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                     UsernamePasswordAuthenticationToken auth =
                             new UsernamePasswordAuthenticationToken(user, null, authorities);
                     SecurityContextHolder.getContext().setAuthentication(auth);
+                    // Surface the caller's session id (claim is null for
+                    // legacy pre-session JWTs — the attribute then stays
+                    // absent, and the SessionController treats every row as
+                    // non-current).
+                    UUID sessionId = jwtUtil.extractSessionId(claims);
+                    if (sessionId != null) {
+                        request.setAttribute(CURRENT_SESSION_ID_ATTR, sessionId);
+                    }
                 }
             } catch (Exception ex) {
                 log.debug("JWT validation failed: {}", ex.getMessage());

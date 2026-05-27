@@ -1,6 +1,8 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
+import Link from 'next/link';
+import { ShieldCheck } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '@/lib/api';
 import ProtectedRoute from '@/components/ProtectedRoute';
@@ -80,6 +82,7 @@ function ProfileBody() {
     <div className="space-y-6">
       <ProfileForm profile={profile} onSaved={(p) => setProfile(p)} />
       <ChangePasswordForm />
+      <SessionsLinkCard />
     </div>
   );
 }
@@ -510,5 +513,30 @@ function ChangePasswordForm() {
         </button>
       </div>
     </form>
+  );
+}
+
+function SessionsLinkCard() {
+  return (
+    <Link
+      href="/careers/sessions"
+      className="block rounded-lg border border-gray-200 bg-white p-6 transition-shadow hover:shadow-sm"
+    >
+      <div className="flex items-start gap-3">
+        <span className="rounded-full bg-accent/10 p-2 text-accent">
+          <ShieldCheck className="h-5 w-5" strokeWidth={2} />
+        </span>
+        <div className="min-w-0 flex-1">
+          <h2 className="text-lg font-semibold text-gray-900">
+            Active sessions
+          </h2>
+          <p className="mt-1 text-sm text-gray-600">
+            See where you&apos;re signed in. Sign out individual browsers or
+            everywhere at once.
+          </p>
+        </div>
+        <span className="self-center text-sm text-accent">Manage →</span>
+      </div>
+    </Link>
   );
 }

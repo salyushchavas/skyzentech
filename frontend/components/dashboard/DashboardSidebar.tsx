@@ -19,6 +19,7 @@ import {
   Hammer,
   HelpCircle,
   KanbanSquare,
+  KeyRound,
   LayoutDashboard,
   ListChecks,
   ScrollText,
@@ -53,6 +54,7 @@ const STAFF_ROLE_LINKS: Partial<Record<UserRole, StaffLink[]>> = {
     { icon: BadgeCheck, label: 'I-9 / E-Verify', href: '/careers/hr/i9-everify' },
     { icon: FolderArchive, label: 'Document Vault', href: '/careers/hr/documents' },
     { icon: Users, label: 'Supervised', href: '/careers/supervised' },
+    { icon: KeyRound, label: 'Sessions', href: '/careers/sessions' },
   ],
   OPERATIONS: [
     { icon: LayoutDashboard, label: 'Dashboard', href: '/careers/operations' },
@@ -63,6 +65,7 @@ const STAFF_ROLE_LINKS: Partial<Record<UserRole, StaffLink[]>> = {
     { icon: FileBadge, label: 'I-983 Plans', href: '/careers/erm/training-plans' },
     { icon: Briefcase, label: 'Postings', href: '/careers/admin/postings' },
     { icon: Users, label: 'Supervised', href: '/careers/supervised' },
+    { icon: KeyRound, label: 'Sessions', href: '/careers/sessions' },
   ],
   TECHNICAL_SUPERVISOR: [
     { icon: LayoutDashboard, label: 'Dashboard', href: '/careers/evaluator' },
@@ -74,10 +77,12 @@ const STAFF_ROLE_LINKS: Partial<Record<UserRole, StaffLink[]>> = {
     { icon: ClipboardList, label: 'Projects', href: '/careers/evaluator/projects' },
     { icon: Star, label: 'Evaluations', href: '/careers/evaluator/evaluations' },
     { icon: Users, label: 'Supervised', href: '/careers/supervised' },
+    { icon: KeyRound, label: 'Active sessions', href: '/careers/sessions' },
   ],
   EXECUTIVE: [
     { icon: LayoutDashboard, label: 'Dashboard', href: '/careers/executive' },
     { icon: ShieldCheck, label: 'Compliance', href: '/careers/hr/compliance' },
+    { icon: KeyRound, label: 'Sessions', href: '/careers/sessions' },
   ],
   SUPER_ADMIN: [
     { icon: LayoutDashboard, label: 'Overview', href: '/careers/admin' },
@@ -85,6 +90,7 @@ const STAFF_ROLE_LINKS: Partial<Record<UserRole, StaffLink[]>> = {
     { icon: Building2, label: 'Entities', href: '/careers/admin/entities' },
     { icon: ScrollText, label: 'Audit Log', href: '/careers/admin/audit-log' },
     { icon: ShieldCheck, label: 'Compliance', href: '/careers/hr/compliance' },
+    { icon: KeyRound, label: 'Sessions', href: '/careers/sessions' },
   ],
 };
 
@@ -107,6 +113,7 @@ const CANDIDATE_KEY_ICONS: Record<string, LucideIcon> = {
   projects: ClipboardList,
   evaluations: Star,
   profile: UserCircle,
+  sessions: KeyRound,
   help: HelpCircle,
 };
 
