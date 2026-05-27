@@ -90,6 +90,7 @@ public class I983Service {
     private final UserRepository userRepository;
     private final AuditLogRepository auditLogRepository;
     private final EngagementRepository engagementRepository;
+    private final com.skyzen.careers.notification.NotificationService notificationService;
     private final ObjectMapper objectMapper;
 
     // ── Commands ────────────────────────────────────────────────────────────
@@ -404,6 +405,16 @@ public class I983Service {
         }
         plan = planRepository.save(plan);
         writeAudit(plan.getId(), "SIGN_STUDENT", student.getId(), before, snapshot(plan));
+
+        // Batch-2 — HR gets a "plan ready for employer signature" heads-up.
+        // Fires on every student-sign; idempotent per (event, plan_id) so a
+        // re-sign after an amendment only emails once. Best-effort.
+        try {
+            notificationService.sendI983PlanReady(plan);
+        } catch (Exception e) {
+            log.warn("I983_PLAN_READY notify failed (non-fatal) for plan {}: {}",
+                    plan.getId(), e.getMessage());
+        }
         return plan;
     }
 

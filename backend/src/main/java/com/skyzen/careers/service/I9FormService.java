@@ -81,6 +81,7 @@ public class I9FormService {
     private final EngagementRepository engagementRepository;
     private final OnboardingService onboardingService;
     private final ObjectMapper objectMapper;
+    private final com.skyzen.careers.notification.NotificationService notificationService;
 
     // ── Lazy-create + lookups ───────────────────────────────────────────────
 
@@ -246,6 +247,17 @@ public class I9FormService {
         // task flips to COMPLETED in the same transaction as the submit.
         if (!req.isDraft() && form.getCandidate() != null) {
             onboardingService.reconcileFromCompliance(form.getCandidate().getId(), actor);
+        }
+        // Batch-2 — HR gets a §2-pending heads-up exactly when the form
+        // transitions into SECTION_2_PENDING (i.e. on the real submit, not on
+        // re-saves or drafts). Idempotent per (event, form_id); best-effort.
+        if (!req.isDraft() && form.getStatus() == I9Status.SECTION_2_PENDING) {
+            try {
+                notificationService.sendI9Section2Pending(form);
+            } catch (Exception e) {
+                log.warn("I9_SECTION2_PENDING notify failed (non-fatal) for form {}: {}",
+                        form.getId(), e.getMessage());
+            }
         }
         return form;
     }

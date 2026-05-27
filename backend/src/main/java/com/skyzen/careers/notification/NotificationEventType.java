@@ -33,5 +33,27 @@ public enum NotificationEventType {
 
     // Existing — recruiter conditional select (kept for the migration when
     // it moves under the unified NotificationService).
-    CONDITIONAL_SELECT
+    CONDITIONAL_SELECT,
+
+    // Batch 2 — compliance / onboarding.
+    I9_SECTION1_REMINDER,        // intern, after engagement ACTIVE & §1 incomplete
+    I9_SECTION2_PENDING,         // HR, when intern completes §1
+    I983_PLAN_NEEDED,            // intern (STEM_OPT only), after engagement ACTIVE
+    I983_PLAN_READY,             // HR, when student signs the plan
+    EVERIFY_CASE_OPENED,         // intern, when case auto-promotes to OPEN
+    EVERIFY_TNC_ALERT,           // intern — URGENT (Tentative Nonconfirmation)
+    EVERIFY_CLEARED,             // intern (and HR via shared subject), favorable close
+
+    // Work-authorization expiry — one event type per threshold so the
+    // (event_type, target_id=engagement_id) unique constraint naturally
+    // emails each threshold exactly once.
+    WORKAUTH_EXPIRY_90,
+    WORKAUTH_EXPIRY_60,
+    WORKAUTH_EXPIRY_30,
+    WORKAUTH_EXPIRY_14,
+    WORKAUTH_EXPIRY_7,
+
+    // Generic compliance-task reminder — target_id = task_id, so one reminder
+    // per overdue task (not one per overdue day).
+    COMPLIANCE_TASK_REMINDER
 }

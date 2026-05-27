@@ -545,6 +545,295 @@ public class SmtpEmailProvider implements EmailProvider {
         send(email, "Welcome to Skyzen Tech", plain, html);
     }
 
+    // ── Batch 2 — compliance / onboarding ───────────────────────────────────
+    // PII RULE: every body below contains ONLY status + names + dates + URLs.
+    // Never SSN, document numbers, DOB, or addresses. The CTA points back to
+    // the dashboard where the real (decrypted, access-controlled) data lives.
+
+    @Override
+    public void sendI9Section1Reminder(String email, String internName,
+                                       LocalDate section1DueDate, String dashboardUrl) {
+        String greet = greeting(internName);
+        String due = section1DueDate != null ? DATE_FORMAT.format(section1DueDate) : "soon";
+        String plain = ""
+                + greet + "\n\n"
+                + "Quick reminder — your I-9 Section 1 is still pending.\n\n"
+                + "Section 1 due: " + due + "\n\n"
+                + "Sign in to complete it from your dashboard:\n"
+                + (dashboardUrl != null ? dashboardUrl + "\n\n" : "\n")
+                + "— The Skyzen Tech team\n";
+        String html = wrapHtml(
+                "Your I-9 Section 1 is pending",
+                "<p style=\"margin:0 0 12px;font-size:15px;color:" + COLOR_TEXT_BODY + ";\">"
+                        + escape(greet) + "</p>"
+                        + "<p style=\"margin:0 0 12px;font-size:15px;color:" + COLOR_TEXT_BODY + ";\">"
+                        + "Quick reminder — your <strong>I-9 Section 1</strong> is still pending. "
+                        + "It's a federal employment-eligibility form we need on file before your "
+                        + "first day."
+                        + "</p>"
+                        + miniRow("Section 1 due", escape(due))
+                        + (dashboardUrl != null ? buttonBlock("Complete Section 1", dashboardUrl) : "")
+                        + "<p style=\"margin:16px 0 0;font-size:13px;color:" + COLOR_TEXT_MUTED + ";\">"
+                        + "If you've already submitted it, you can ignore this reminder."
+                        + "</p>"
+        );
+        send(email, "I-9 Section 1 reminder — Skyzen Tech", plain, html);
+    }
+
+    @Override
+    public void sendI9Section2Pending(String hrEmail, String internName,
+                                      LocalDate section2DueDate, String hrDashboardUrl) {
+        String due = section2DueDate != null ? DATE_FORMAT.format(section2DueDate) : "—";
+        String who = internName != null ? internName : "an intern";
+        String plain = ""
+                + "Heads up — " + who + " has completed I-9 Section 1.\n\n"
+                + "Section 2 due: " + due + "\n\n"
+                + "Open the I-9 in the HR dashboard to complete Section 2:\n"
+                + (hrDashboardUrl != null ? hrDashboardUrl + "\n\n" : "\n")
+                + "— Skyzen Careers ops bot\n";
+        String html = wrapHtml(
+                "I-9 Section 2 is now due",
+                "<p style=\"margin:0 0 12px;font-size:15px;color:" + COLOR_TEXT_BODY + ";\">"
+                        + "<strong>" + escape(who) + "</strong> has completed I-9 Section 1. "
+                        + "Section 2 is now due."
+                        + "</p>"
+                        + miniRow("Section 2 due", escape(due))
+                        + (hrDashboardUrl != null
+                            ? buttonBlock("Complete Section 2", hrDashboardUrl) : "")
+        );
+        send(hrEmail, "I-9 Section 2 pending — " + who, plain, html);
+    }
+
+    @Override
+    public void sendI983PlanNeeded(String email, String internName, String dashboardUrl) {
+        String greet = greeting(internName);
+        String plain = ""
+                + greet + "\n\n"
+                + "Because your engagement is on the STEM OPT track, we need your I-983\n"
+                + "training plan on file before training begins.\n\n"
+                + "Sign in to provide your details and sign the plan:\n"
+                + (dashboardUrl != null ? dashboardUrl + "\n\n" : "\n")
+                + "— The Skyzen Tech team\n";
+        String html = wrapHtml(
+                "I-983 training plan needed",
+                "<p style=\"margin:0 0 12px;font-size:15px;color:" + COLOR_TEXT_BODY + ";\">"
+                        + escape(greet) + "</p>"
+                        + "<p style=\"margin:0 0 12px;font-size:15px;color:" + COLOR_TEXT_BODY + ";\">"
+                        + "Because your engagement is on the <strong>STEM OPT</strong> track, we "
+                        + "need your <strong>I-983 training plan</strong> on file before training "
+                        + "begins."
+                        + "</p>"
+                        + (dashboardUrl != null
+                            ? buttonBlock("Open the I-983 plan", dashboardUrl) : "")
+                        + "<p style=\"margin:16px 0 0;font-size:13px;color:" + COLOR_TEXT_MUTED + ";\">"
+                        + "Your DSO will use the same plan, so the sooner you submit, the smoother "
+                        + "your STEM OPT review will be."
+                        + "</p>"
+        );
+        send(email, "I-983 training plan needed — Skyzen Tech", plain, html);
+    }
+
+    @Override
+    public void sendI983PlanReady(String hrEmail, String internName, String hrDashboardUrl) {
+        String who = internName != null ? internName : "the intern";
+        String plain = ""
+                + "Heads up — " + who + " has signed their I-983 training plan.\n\n"
+                + "It's ready for the employer signature. Open the plan in the HR\n"
+                + "dashboard to review and sign:\n"
+                + (hrDashboardUrl != null ? hrDashboardUrl + "\n\n" : "\n")
+                + "— Skyzen Careers ops bot\n";
+        String html = wrapHtml(
+                "I-983 plan ready for employer signature",
+                "<p style=\"margin:0 0 12px;font-size:15px;color:" + COLOR_TEXT_BODY + ";\">"
+                        + "<strong>" + escape(who) + "</strong> has signed their I-983 training "
+                        + "plan. It's ready for the <strong>employer signature</strong>."
+                        + "</p>"
+                        + (hrDashboardUrl != null
+                            ? buttonBlock("Review and sign", hrDashboardUrl) : "")
+        );
+        send(hrEmail, "I-983 ready for employer signature — " + who, plain, html);
+    }
+
+    @Override
+    public void sendEVerifyCaseOpened(String email, String internName, String dashboardUrl) {
+        String greet = greeting(internName);
+        String plain = ""
+                + greet + "\n\n"
+                + "Your E-Verify case has been opened. This is the federal employment-\n"
+                + "eligibility check; in most cases no action is required on your part.\n\n"
+                + "We'll let you know if anything changes. You can also check progress\n"
+                + "from your dashboard:\n"
+                + (dashboardUrl != null ? dashboardUrl + "\n\n" : "\n")
+                + "— The Skyzen Tech team\n";
+        String html = wrapHtml(
+                "Your E-Verify case is open",
+                "<p style=\"margin:0 0 12px;font-size:15px;color:" + COLOR_TEXT_BODY + ";\">"
+                        + escape(greet) + "</p>"
+                        + "<p style=\"margin:0 0 12px;font-size:15px;color:" + COLOR_TEXT_BODY + ";\">"
+                        + "Your <strong>E-Verify</strong> case has been opened. This is the federal "
+                        + "employment-eligibility check; in most cases no action is required on "
+                        + "your part."
+                        + "</p>"
+                        + (dashboardUrl != null ? buttonBlock("Check status", dashboardUrl) : "")
+                        + "<p style=\"margin:16px 0 0;font-size:13px;color:" + COLOR_TEXT_MUTED + ";\">"
+                        + "We'll email you if anything changes."
+                        + "</p>"
+        );
+        send(email, "E-Verify case opened — Skyzen Tech", plain, html);
+    }
+
+    @Override
+    public void sendEVerifyTncAlert(String email, String internName, String dashboardUrl) {
+        String greet = greeting(internName);
+        String plain = ""
+                + greet + "\n\n"
+                + "ACTION REQUIRED — your E-Verify case has come back as a\n"
+                + "Tentative Nonconfirmation (TNC). This means the federal system\n"
+                + "couldn't immediately confirm your work eligibility.\n\n"
+                + "A TNC is NOT a final answer. You have the right to contest it,\n"
+                + "and Skyzen will walk you through the steps. Sign in to your\n"
+                + "dashboard right away:\n"
+                + (dashboardUrl != null ? dashboardUrl + "\n\n" : "\n")
+                + "Time matters here — please act today.\n\n"
+                + "— The Skyzen Tech team\n";
+        String html = wrapHtml(
+                "Urgent — E-Verify action required",
+                // Red urgency banner — only place we deviate from the calm
+                // brand tone, intentional for the highest-impact email.
+                "<div style=\"margin:0 0 16px;padding:12px 16px;border-radius:8px;"
+                        + "background:#fef2f2;border:1px solid #fecaca;color:#991b1b;"
+                        + "font-size:13px;font-weight:600;\">"
+                        + "Action required — please respond today."
+                        + "</div>"
+                        + "<p style=\"margin:0 0 12px;font-size:15px;color:" + COLOR_TEXT_BODY + ";\">"
+                        + escape(greet) + "</p>"
+                        + "<p style=\"margin:0 0 12px;font-size:15px;color:" + COLOR_TEXT_BODY + ";\">"
+                        + "Your <strong>E-Verify</strong> case has come back as a "
+                        + "<strong>Tentative Nonconfirmation (TNC)</strong>. This means the federal "
+                        + "system couldn't immediately confirm your work eligibility."
+                        + "</p>"
+                        + "<p style=\"margin:0 0 12px;font-size:14px;color:" + COLOR_TEXT_HINT + ";\">"
+                        + "A TNC is <strong>not</strong> a final answer. You have the right to "
+                        + "contest it, and Skyzen will walk you through the steps."
+                        + "</p>"
+                        + (dashboardUrl != null
+                            ? buttonBlock("Take action now", dashboardUrl) : "")
+                        + "<p style=\"margin:16px 0 0;font-size:13px;color:" + COLOR_TEXT_MUTED + ";\">"
+                        + "Time matters here — please act today."
+                        + "</p>"
+        );
+        send(email, "URGENT — E-Verify action required", plain, html);
+    }
+
+    @Override
+    public void sendEVerifyCleared(String email, String internName, String dashboardUrl) {
+        String greet = greeting(internName);
+        String plain = ""
+                + greet + "\n\n"
+                + "Great news — your E-Verify case has cleared. Federal work\n"
+                + "authorization is confirmed; no further action is needed.\n\n"
+                + "You can view the case status from your dashboard:\n"
+                + (dashboardUrl != null ? dashboardUrl + "\n\n" : "\n")
+                + "— The Skyzen Tech team\n";
+        String html = wrapHtml(
+                "E-Verify cleared",
+                "<p style=\"margin:0 0 12px;font-size:15px;color:" + COLOR_TEXT_BODY + ";\">"
+                        + escape(greet) + "</p>"
+                        + "<p style=\"margin:0 0 12px;font-size:15px;color:" + COLOR_TEXT_BODY + ";\">"
+                        + "Great news — your <strong>E-Verify</strong> case has cleared. Federal "
+                        + "work authorization is confirmed; no further action is needed."
+                        + "</p>"
+                        + (dashboardUrl != null ? buttonBlock("View status", dashboardUrl) : "")
+        );
+        send(email, "E-Verify cleared — Skyzen Tech", plain, html);
+    }
+
+    @Override
+    public void sendWorkAuthExpiryReminder(String email, String internName,
+                                           int daysUntilExpiry, LocalDate expirationDate,
+                                           String authType, String dashboardUrl) {
+        String greet = greeting(internName);
+        String type = (authType != null && !authType.isBlank()) ? authType : "Work authorization";
+        String when = expirationDate != null ? DATE_FORMAT.format(expirationDate) : "soon";
+        boolean urgent = daysUntilExpiry <= 14;
+        String urgencyPhrase = urgent
+                ? "Time is short — please act this week."
+                : "Plan ahead so the renewal lands before the deadline.";
+        String plain = ""
+                + greet + "\n\n"
+                + type + " expiring in " + daysUntilExpiry + " day"
+                + (daysUntilExpiry == 1 ? "" : "s") + ".\n\n"
+                + "Authorization type: " + type + "\n"
+                + "Expires:            " + when + "\n\n"
+                + urgencyPhrase + "\n"
+                + "Open your Skyzen Careers dashboard to start the renewal process:\n"
+                + (dashboardUrl != null ? dashboardUrl + "\n\n" : "\n")
+                + "— The Skyzen Tech team\n";
+        String html = wrapHtml(
+                type + " expires in " + daysUntilExpiry + " day"
+                        + (daysUntilExpiry == 1 ? "" : "s"),
+                (urgent
+                        ? "<div style=\"margin:0 0 16px;padding:12px 16px;border-radius:8px;"
+                            + "background:#fff7ed;border:1px solid #fed7aa;color:#7c2d12;"
+                            + "font-size:13px;font-weight:600;\">"
+                            + "Time-sensitive — renewal should be in progress already."
+                            + "</div>"
+                        : "")
+                        + "<p style=\"margin:0 0 12px;font-size:15px;color:" + COLOR_TEXT_BODY + ";\">"
+                        + escape(greet) + "</p>"
+                        + "<p style=\"margin:0 0 12px;font-size:15px;color:" + COLOR_TEXT_BODY + ";\">"
+                        + "Your <strong>" + escape(type) + "</strong> is set to expire in "
+                        + "<strong>" + daysUntilExpiry + " day"
+                        + (daysUntilExpiry == 1 ? "" : "s") + "</strong>."
+                        + "</p>"
+                        + miniRow("Authorization", escape(type))
+                        + miniRow("Expires", escape(when))
+                        + (dashboardUrl != null
+                            ? buttonBlock("Start the renewal", dashboardUrl) : "")
+                        + "<p style=\"margin:16px 0 0;font-size:13px;color:" + COLOR_TEXT_MUTED + ";\">"
+                        + escape(urgencyPhrase)
+                        + "</p>"
+        );
+        send(email,
+                (urgent ? "URGENT — " : "")
+                        + type + " expires in " + daysUntilExpiry + "d — Skyzen Tech",
+                plain, html);
+    }
+
+    @Override
+    public void sendComplianceTaskReminder(String email, String internName,
+                                           String taskTitle, LocalDate dueDate,
+                                           Integer daysOverdue, String dashboardUrl) {
+        String greet = greeting(internName);
+        String title = taskTitle != null ? taskTitle : "a compliance task";
+        String due = dueDate != null ? DATE_FORMAT.format(dueDate) : "—";
+        String overdueLabel = daysOverdue != null && daysOverdue > 0
+                ? daysOverdue + " day" + (daysOverdue == 1 ? "" : "s") + " overdue"
+                : "still pending";
+        String plain = ""
+                + greet + "\n\n"
+                + "Reminder — \"" + title + "\" is " + overdueLabel + ".\n\n"
+                + "Due date:   " + due + "\n"
+                + "Status:     " + overdueLabel + "\n\n"
+                + "Open your Skyzen Careers dashboard to complete it:\n"
+                + (dashboardUrl != null ? dashboardUrl + "\n\n" : "\n")
+                + "— The Skyzen Tech team\n";
+        String html = wrapHtml(
+                "Compliance task reminder",
+                "<p style=\"margin:0 0 12px;font-size:15px;color:" + COLOR_TEXT_BODY + ";\">"
+                        + escape(greet) + "</p>"
+                        + "<p style=\"margin:0 0 12px;font-size:15px;color:" + COLOR_TEXT_BODY + ";\">"
+                        + "Reminder — <strong>" + escape(title) + "</strong> is "
+                        + "<strong>" + escape(overdueLabel) + "</strong>."
+                        + "</p>"
+                        + miniRow("Due date", escape(due))
+                        + miniRow("Status", escape(overdueLabel))
+                        + (dashboardUrl != null
+                            ? buttonBlock("Open dashboard", dashboardUrl) : "")
+        );
+        send(email, "Reminder: " + title + " — Skyzen Tech", plain, html);
+    }
+
     // ── Wire ────────────────────────────────────────────────────────────────
 
     private void send(String to, String subject, String plain, String html) {

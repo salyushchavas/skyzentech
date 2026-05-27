@@ -141,4 +141,64 @@ public class LogEmailProvider implements EmailProvider {
                 entityName != null ? " @ " + entityName : "",
                 startDate, dashboardUrl);
     }
+
+    @Override
+    public void sendI9Section1Reminder(String email, String internName,
+                                       LocalDate section1DueDate, String dashboardUrl) {
+        log.info("[LOG EMAIL] I-9 §1 reminder to {} ({}) — due {} dashboard={}",
+                internName, email, section1DueDate, dashboardUrl);
+    }
+
+    @Override
+    public void sendI9Section2Pending(String hrEmail, String internName,
+                                      LocalDate section2DueDate, String hrDashboardUrl) {
+        log.info("[LOG EMAIL] I-9 §2 pending → HR ({}) — intern={}, due={} dashboard={}",
+                hrEmail, internName, section2DueDate, hrDashboardUrl);
+    }
+
+    @Override
+    public void sendI983PlanNeeded(String email, String internName, String dashboardUrl) {
+        log.info("[LOG EMAIL] I-983 plan needed to {} ({}) — dashboard={}",
+                internName, email, dashboardUrl);
+    }
+
+    @Override
+    public void sendI983PlanReady(String hrEmail, String internName, String hrDashboardUrl) {
+        log.info("[LOG EMAIL] I-983 plan ready → HR ({}) — intern={}, dashboard={}",
+                hrEmail, internName, hrDashboardUrl);
+    }
+
+    @Override
+    public void sendEVerifyCaseOpened(String email, String internName, String dashboardUrl) {
+        log.info("[LOG EMAIL] E-Verify case OPENED to {} ({}) — dashboard={}",
+                internName, email, dashboardUrl);
+    }
+
+    @Override
+    public void sendEVerifyTncAlert(String email, String internName, String dashboardUrl) {
+        log.warn("[LOG EMAIL] E-Verify TNC ALERT (URGENT) to {} ({}) — dashboard={}",
+                internName, email, dashboardUrl);
+    }
+
+    @Override
+    public void sendEVerifyCleared(String email, String internName, String dashboardUrl) {
+        log.info("[LOG EMAIL] E-Verify CLEARED to {} ({}) — dashboard={}",
+                internName, email, dashboardUrl);
+    }
+
+    @Override
+    public void sendWorkAuthExpiryReminder(String email, String internName,
+                                           int daysUntilExpiry, LocalDate expirationDate,
+                                           String authType, String dashboardUrl) {
+        log.info("[LOG EMAIL] Work-auth expiry T-{}d to {} ({}) — type={} expires={} dashboard={}",
+                daysUntilExpiry, internName, email, authType, expirationDate, dashboardUrl);
+    }
+
+    @Override
+    public void sendComplianceTaskReminder(String email, String internName,
+                                           String taskTitle, LocalDate dueDate,
+                                           Integer daysOverdue, String dashboardUrl) {
+        log.info("[LOG EMAIL] Compliance task reminder to {} ({}) — task=\"{}\" due={} overdue={}d dashboard={}",
+                internName, email, taskTitle, dueDate, daysOverdue, dashboardUrl);
+    }
 }

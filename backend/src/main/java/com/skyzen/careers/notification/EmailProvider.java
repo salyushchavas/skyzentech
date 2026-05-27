@@ -110,4 +110,67 @@ public interface EmailProvider {
                                String entityName,
                                LocalDate startDate,
                                String dashboardUrl);
+
+    // ── Batch 2 — compliance / onboarding ───────────────────────────────────
+    // PII RULE: every method here takes ONLY status + names + URLs. No SSN,
+    // no document numbers, no DOB, no addresses, no decrypted PII of any kind.
+    // The email body always points the user back to the dashboard to view the
+    // actual data.
+
+    /** Intern reminder to complete I-9 Section 1. */
+    void sendI9Section1Reminder(String email,
+                                String internName,
+                                LocalDate section1DueDate,
+                                String dashboardUrl);
+
+    /** HR notification that an intern just completed §1 and §2 is due. */
+    void sendI9Section2Pending(String hrEmail,
+                               String internName,
+                               LocalDate section2DueDate,
+                               String hrDashboardUrl);
+
+    /** Intern (STEM OPT only) — fill in the I-983 training plan. */
+    void sendI983PlanNeeded(String email,
+                            String internName,
+                            String dashboardUrl);
+
+    /** HR — intern has signed the I-983; ready for employer signature. */
+    void sendI983PlanReady(String hrEmail,
+                           String internName,
+                           String hrDashboardUrl);
+
+    /** Intern — E-Verify case has been opened (status: OPEN). */
+    void sendEVerifyCaseOpened(String email,
+                               String internName,
+                               String dashboardUrl);
+
+    /** Intern — URGENT: Tentative Nonconfirmation requires action. */
+    void sendEVerifyTncAlert(String email,
+                             String internName,
+                             String dashboardUrl);
+
+    /** Intern + HR — favorable close (Employment Authorized or Closed favorably). */
+    void sendEVerifyCleared(String email,
+                            String internName,
+                            String dashboardUrl);
+
+    /**
+     * Work-authorization expiry reminder. {@code daysUntilExpiry} is the
+     * threshold (90 / 60 / 30 / 14 / 7), used to phrase urgency. The actual
+     * expiry date is included as a date — NOT the document number or any PII.
+     */
+    void sendWorkAuthExpiryReminder(String email,
+                                    String internName,
+                                    int daysUntilExpiry,
+                                    LocalDate expirationDate,
+                                    String authType,
+                                    String dashboardUrl);
+
+    /** Generic compliance-task reminder. {@code taskTitle} is a non-PII label. */
+    void sendComplianceTaskReminder(String email,
+                                    String internName,
+                                    String taskTitle,
+                                    LocalDate dueDate,
+                                    Integer daysOverdue,
+                                    String dashboardUrl);
 }

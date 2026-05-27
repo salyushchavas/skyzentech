@@ -5,15 +5,21 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.skyzen.careers.entity.Application;
 import com.skyzen.careers.entity.AuditLog;
 import com.skyzen.careers.entity.Candidate;
+import com.skyzen.careers.entity.EVerifyCase;
 import com.skyzen.careers.entity.Engagement;
+import com.skyzen.careers.entity.I9Form;
+import com.skyzen.careers.entity.I983Plan;
 import com.skyzen.careers.entity.Interview;
 import com.skyzen.careers.entity.JobPosting;
 import com.skyzen.careers.entity.Offer;
+import com.skyzen.careers.entity.OnboardingTask;
 import com.skyzen.careers.entity.SentNotification;
 import com.skyzen.careers.entity.StaffingEntity;
 import com.skyzen.careers.entity.User;
+import com.skyzen.careers.enums.UserRole;
 import com.skyzen.careers.repository.AuditLogRepository;
 import com.skyzen.careers.repository.SentNotificationRepository;
+import com.skyzen.careers.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -22,7 +28,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDate;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
@@ -58,6 +66,7 @@ public class NotificationService {
     private final SentNotificationRepository sentNotificationRepository;
     private final AuditLogRepository auditLogRepository;
     private final ObjectMapper objectMapper;
+    private final UserRepository userRepository;
 
     /**
      * Operations recipient for "offer accepted" notifications. Configure as a
@@ -71,6 +80,10 @@ public class NotificationService {
     /** Public URL of the candidate dashboard, used in the onboarding welcome. */
     @Value("${app.onboarding.dashboard-url:https://www.skyzentech.com/careers/candidate}")
     private String dashboardUrl;
+
+    /** HR dashboard URL surfaced in batch-2 HR-targeted emails (I-9 §2, I-983 ready). */
+    @Value("${app.hr.dashboard-url:https://www.skyzentech.com/careers/hr}")
+    private String hrDashboardUrl;
 
     /**
      * Template for the offer "view" URL embedded in the offer-extended email.
@@ -270,6 +283,207 @@ public class NotificationService {
                         engagement.getActualStartDate(), dashboardUrl));
     }
 
+    // ── Batch 2 — compliance / onboarding ───────────────────────────────────
+    // PII RULE: callers pass only the entity reference. The send-fns here pull
+    // ONLY name + status + dates + URLs from the entity — never SSN, document
+    // numbers, addresses, or any decrypted PII. See SmtpEmailProvider templates.
+
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void sendI9Section1Reminder(I9Form form) {
+        if (form == null) return;
+        UUID targetId = form.getId();
+        String email = candidateEmailFromForm(form);
+        String name = candidateNameFromForm(form);
+        if (email == null) {
+            log.warn("I9_SECTION1_REMINDER skipped — no candidate email on i9-form {}", targetId);
+            return;
+        }
+        if (alreadySent(NotificationEventType.I9_SECTION1_REMINDER, targetId)) return;
+
+        deliver(NotificationEventType.I9_SECTION1_REMINDER, targetId, email,
+                () -> emailProvider.sendI9Section1Reminder(
+                        email, name, form.getSection1DueDate(), dashboardUrl));
+    }
+
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void sendI9Section2Pending(I9Form form) {
+        if (form == null) return;
+        UUID targetId = form.getId();
+        if (alreadySent(NotificationEventType.I9_SECTION2_PENDING, targetId)) return;
+
+        String internName = candidateNameFromForm(form);
+        List<String> hrRecipients = hrComplianceEmails();
+        if (hrRecipients.isEmpty()) {
+            log.warn("I9_SECTION2_PENDING skipped — no HR_COMPLIANCE users to notify "
+                    + "(form {}). Add a user with HR_COMPLIANCE role.", targetId);
+            return;
+        }
+        // Single ledger row keyed on the form; the email goes to all HR users
+        // via the To: list so we don't fan-out per recipient.
+        String to = String.join(", ", hrRecipients);
+        deliver(NotificationEventType.I9_SECTION2_PENDING, targetId, to,
+                () -> emailProvider.sendI9Section2Pending(
+                        to, internName, form.getSection2DueDate(), hrDashboardUrl));
+    }
+
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void sendI983PlanNeeded(Engagement engagement) {
+        if (engagement == null) return;
+        UUID targetId = engagement.getId();
+        Application application = engagement.getApplication();
+        String email = candidateEmail(application);
+        String name = candidateName(application);
+        if (email == null) {
+            log.warn("I983_PLAN_NEEDED skipped — no candidate email on engagement {}", targetId);
+            return;
+        }
+        if (alreadySent(NotificationEventType.I983_PLAN_NEEDED, targetId)) return;
+
+        deliver(NotificationEventType.I983_PLAN_NEEDED, targetId, email,
+                () -> emailProvider.sendI983PlanNeeded(email, name, dashboardUrl));
+    }
+
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void sendI983PlanReady(I983Plan plan) {
+        if (plan == null) return;
+        UUID targetId = plan.getId();
+        if (alreadySent(NotificationEventType.I983_PLAN_READY, targetId)) return;
+
+        Candidate c = plan.getCandidate();
+        User u = c != null ? c.getUser() : null;
+        String internName = u != null ? u.getFullName() : null;
+
+        List<String> hrRecipients = hrComplianceEmails();
+        if (hrRecipients.isEmpty()) {
+            log.warn("I983_PLAN_READY skipped — no HR_COMPLIANCE users (plan {})", targetId);
+            return;
+        }
+        String to = String.join(", ", hrRecipients);
+        deliver(NotificationEventType.I983_PLAN_READY, targetId, to,
+                () -> emailProvider.sendI983PlanReady(to, internName, hrDashboardUrl));
+    }
+
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void sendEVerifyCaseOpened(EVerifyCase ev) {
+        if (ev == null) return;
+        UUID targetId = ev.getId();
+        I9Form form = ev.getI9Form();
+        String email = candidateEmailFromForm(form);
+        String name = candidateNameFromForm(form);
+        if (email == null) {
+            log.warn("EVERIFY_CASE_OPENED skipped — no candidate email on case {}", targetId);
+            return;
+        }
+        if (alreadySent(NotificationEventType.EVERIFY_CASE_OPENED, targetId)) return;
+
+        deliver(NotificationEventType.EVERIFY_CASE_OPENED, targetId, email,
+                () -> emailProvider.sendEVerifyCaseOpened(email, name, dashboardUrl));
+    }
+
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void sendEVerifyTncAlert(EVerifyCase ev) {
+        if (ev == null) return;
+        UUID targetId = ev.getId();
+        I9Form form = ev.getI9Form();
+        String email = candidateEmailFromForm(form);
+        String name = candidateNameFromForm(form);
+        if (email == null) {
+            log.warn("EVERIFY_TNC_ALERT skipped — no candidate email on case {}", targetId);
+            return;
+        }
+        if (alreadySent(NotificationEventType.EVERIFY_TNC_ALERT, targetId)) return;
+
+        deliver(NotificationEventType.EVERIFY_TNC_ALERT, targetId, email,
+                () -> emailProvider.sendEVerifyTncAlert(email, name, dashboardUrl));
+    }
+
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void sendEVerifyCleared(EVerifyCase ev) {
+        if (ev == null) return;
+        UUID targetId = ev.getId();
+        I9Form form = ev.getI9Form();
+        String email = candidateEmailFromForm(form);
+        String name = candidateNameFromForm(form);
+        if (email == null) {
+            log.warn("EVERIFY_CLEARED skipped — no candidate email on case {}", targetId);
+            return;
+        }
+        if (alreadySent(NotificationEventType.EVERIFY_CLEARED, targetId)) return;
+
+        deliver(NotificationEventType.EVERIFY_CLEARED, targetId, email,
+                () -> emailProvider.sendEVerifyCleared(email, name, dashboardUrl));
+    }
+
+    /**
+     * Work-auth expiry reminder. One event type per threshold, target_id =
+     * engagement_id, so each engagement gets at most one email per threshold
+     * (90/60/30/14/7). Scheduler decides which threshold to fire.
+     */
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void sendWorkAuthExpiryReminder(Engagement engagement, int daysUntilExpiry,
+                                           LocalDate expirationDate, String authType) {
+        if (engagement == null) return;
+        NotificationEventType eventType = workAuthEventForThreshold(daysUntilExpiry);
+        if (eventType == null) return; // not a configured threshold
+        UUID targetId = engagement.getId();
+        Application application = engagement.getApplication();
+        String email = candidateEmail(application);
+        String name = candidateName(application);
+        if (email == null) {
+            log.warn("{} skipped — no candidate email on engagement {}", eventType, targetId);
+            return;
+        }
+        if (alreadySent(eventType, targetId)) return;
+
+        deliver(eventType, targetId, email,
+                () -> emailProvider.sendWorkAuthExpiryReminder(
+                        email, name, daysUntilExpiry, expirationDate, authType, dashboardUrl));
+    }
+
+    /**
+     * Generic compliance-task reminder. target_id = task_id so each overdue
+     * task gets exactly one reminder ever (re-running the scheduler on the
+     * same overdue task is a no-op).
+     */
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void sendComplianceTaskReminder(OnboardingTask task) {
+        if (task == null) return;
+        UUID targetId = task.getId();
+        Candidate c = task.getCandidate();
+        User u = c != null ? c.getUser() : null;
+        String email = u != null ? u.getEmail() : null;
+        String name = u != null ? u.getFullName() : null;
+        if (email == null) {
+            log.warn("COMPLIANCE_TASK_REMINDER skipped — no candidate email on task {}", targetId);
+            return;
+        }
+        if (alreadySent(NotificationEventType.COMPLIANCE_TASK_REMINDER, targetId)) return;
+
+        Integer overdue = null;
+        if (task.getDueDate() != null) {
+            long days = java.time.temporal.ChronoUnit.DAYS.between(
+                    task.getDueDate(), LocalDate.now());
+            overdue = days > 0 ? (int) days : 0;
+        }
+        final Integer overdueFinal = overdue;
+        deliver(NotificationEventType.COMPLIANCE_TASK_REMINDER, targetId, email,
+                () -> emailProvider.sendComplianceTaskReminder(
+                        email, name, task.getTitle(), task.getDueDate(),
+                        overdueFinal, dashboardUrl));
+    }
+
+    /** Public so the WorkAuthExpiryScheduler can pick the right threshold. */
+    public static NotificationEventType workAuthEventForThreshold(int days) {
+        return switch (days) {
+            case 90 -> NotificationEventType.WORKAUTH_EXPIRY_90;
+            case 60 -> NotificationEventType.WORKAUTH_EXPIRY_60;
+            case 30 -> NotificationEventType.WORKAUTH_EXPIRY_30;
+            case 14 -> NotificationEventType.WORKAUTH_EXPIRY_14;
+            case 7  -> NotificationEventType.WORKAUTH_EXPIRY_7;
+            default -> null;
+        };
+    }
+
     // ── Internal plumbing ──────────────────────────────────────────────────
 
     private boolean alreadySent(NotificationEventType eventType, UUID targetId) {
@@ -365,5 +579,40 @@ public class NotificationService {
         if (jp == null) return null;
         StaffingEntity ent = jp.getEntity();
         return ent != null ? ent.getName() : null;
+    }
+
+    private static String candidateEmailFromForm(I9Form form) {
+        if (form == null) return null;
+        Candidate c = form.getCandidate();
+        if (c == null) return null;
+        User u = c.getUser();
+        return u != null ? u.getEmail() : null;
+    }
+
+    private static String candidateNameFromForm(I9Form form) {
+        if (form == null) return null;
+        Candidate c = form.getCandidate();
+        if (c == null) return null;
+        User u = c.getUser();
+        return u != null ? u.getFullName() : null;
+    }
+
+    /**
+     * Active recipients with the HR_COMPLIANCE role. Used for the HR-targeted
+     * batch-2 sends (I-9 §2 pending, I-983 ready). Filters out blanks/null
+     * emails so a misconfigured user doesn't break the send.
+     */
+    private List<String> hrComplianceEmails() {
+        try {
+            return userRepository.findByRole(UserRole.HR_COMPLIANCE).stream()
+                    .filter(u -> u != null && Boolean.TRUE.equals(u.getActive()))
+                    .map(User::getEmail)
+                    .filter(e -> e != null && !e.isBlank())
+                    .distinct()
+                    .toList();
+        } catch (Exception e) {
+            log.warn("HR recipient lookup failed (non-fatal): {}", e.getMessage());
+            return List.of();
+        }
     }
 }

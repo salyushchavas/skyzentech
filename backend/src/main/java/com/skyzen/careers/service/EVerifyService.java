@@ -79,6 +79,7 @@ public class EVerifyService {
     private final I9FormRepository i9FormRepository;
     private final UserRepository userRepository;
     private final AuditLogRepository auditLogRepository;
+    private final com.skyzen.careers.notification.NotificationService notificationService;
     private final ObjectMapper objectMapper;
 
     // ── Commands ────────────────────────────────────────────────────────────
@@ -177,13 +178,27 @@ public class EVerifyService {
         if (req.getNotes() != null) c.setNotes(req.getNotes());
 
         // Auto-promote PENDING_SUBMISSION → OPEN when a case number is first set.
+        boolean transitionedToOpen = false;
         if (newCaseNumberJustSet && c.getStatus() == EVerifyStatus.PENDING_SUBMISSION) {
             c.setStatus(EVerifyStatus.OPEN);
             c.setOpenedAt(Instant.now());
+            transitionedToOpen = true;
         }
 
         c = caseRepository.save(c);
         writeAudit(c.getId(), "UPDATE", actor.getId(), before, snapshot(c));
+
+        // Batch-2 — case opened. Fire only on the real transition, not on
+        // subsequent updates against an already-OPEN case. Idempotent per
+        // (event, case_id); best-effort.
+        if (transitionedToOpen) {
+            try {
+                notificationService.sendEVerifyCaseOpened(c);
+            } catch (Exception e) {
+                log.warn("EVERIFY_CASE_OPENED notify failed (non-fatal) for case {}: {}",
+                        c.getId(), e.getMessage());
+            }
+        }
         return toResponse(c);
     }
 
@@ -218,6 +233,26 @@ public class EVerifyService {
 
         c = caseRepository.save(c);
         writeAudit(c.getId(), "STATUS_CHANGE", actor.getId(), before, snapshot(c));
+
+        // Batch-2 — status-driven notifications. Three branches:
+        //  - case just opened (PENDING_SUBMISSION → OPEN): same as the
+        //    updateFields auto-promote path
+        //  - TNC: high-priority alert
+        //  - EMPLOYMENT_AUTHORIZED: favorable clearance
+        // Each is idempotent per (event, case_id). Failures never roll back
+        // the status change.
+        try {
+            if (from == EVerifyStatus.PENDING_SUBMISSION && to == EVerifyStatus.OPEN) {
+                notificationService.sendEVerifyCaseOpened(c);
+            } else if (to == EVerifyStatus.TENTATIVE_NONCONFIRMATION) {
+                notificationService.sendEVerifyTncAlert(c);
+            } else if (to == EVerifyStatus.EMPLOYMENT_AUTHORIZED) {
+                notificationService.sendEVerifyCleared(c);
+            }
+        } catch (Exception e) {
+            log.warn("E-Verify status notify failed (non-fatal) for case {} {} -> {}: {}",
+                    c.getId(), from, to, e.getMessage());
+        }
         return toResponse(c);
     }
 

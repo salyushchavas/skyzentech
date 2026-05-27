@@ -18,6 +18,7 @@ import com.skyzen.careers.enums.UserRole;
 import com.skyzen.careers.notification.NotificationService;
 import com.skyzen.careers.repository.AuditLogRepository;
 import com.skyzen.careers.repository.EngagementRepository;
+import com.skyzen.careers.repository.I9FormRepository;
 import com.skyzen.careers.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -59,6 +60,7 @@ public class EngagementService {
     private final UserRepository userRepository;
     private final ObjectMapper objectMapper;
     private final NotificationService notificationService;
+    private final I9FormRepository i9FormRepository;
 
     /**
      * Phase 3 step 3 — spin up an Engagement at OFFER_ACCEPTED. Snapshots the
@@ -280,8 +282,43 @@ public class EngagementService {
                 log.warn("ONBOARDING_WELCOME notify failed (non-fatal) for engagement {}: {}",
                         saved.getId(), e.getMessage());
             }
+            // Batch-2 — I-9 §1 reminder. Only fires if there's an I-9 row and
+            // it's not already past §1 (i.e. still NOT_STARTED). Idempotent
+            // per (event, form_id).
+            try {
+                fireI9Section1ReminderIfPending(saved);
+            } catch (Exception e) {
+                log.warn("I9_SECTION1_REMINDER fire failed (non-fatal) for engagement {}: {}",
+                        saved.getId(), e.getMessage());
+            }
+            // Batch-2 — I-983 plan needed (STEM OPT only).
+            if (saved.getTrack() == WorkAuthTrack.STEM_OPT) {
+                try {
+                    notificationService.sendI983PlanNeeded(saved);
+                } catch (Exception e) {
+                    log.warn("I983_PLAN_NEEDED notify failed (non-fatal) for engagement {}: {}",
+                            saved.getId(), e.getMessage());
+                }
+            }
         }
         return saved;
+    }
+
+    /**
+     * I-9 §1 reminder dispatch on engagement activation. We fire only when an
+     * I-9 row exists AND it's still pre-§1 (NOT_STARTED) — past that, the
+     * intern has already done their part. The scheduler (batch-2, daily)
+     * fires recurring reminders for stale §1 in a separate path; this is the
+     * one-shot at activation.
+     */
+    private void fireI9Section1ReminderIfPending(Engagement engagement) {
+        if (engagement == null || engagement.getCandidate() == null) return;
+        UUID candidateId = engagement.getCandidate().getId();
+        i9FormRepository.findByCandidateId(candidateId).ifPresent(form -> {
+            if (form.getStatus() == com.skyzen.careers.enums.I9Status.NOT_STARTED) {
+                notificationService.sendI9Section1Reminder(form);
+            }
+        });
     }
 
     /**
