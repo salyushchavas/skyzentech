@@ -7,15 +7,19 @@ import com.skyzen.careers.entity.AuditLog;
 import com.skyzen.careers.entity.Candidate;
 import com.skyzen.careers.entity.EVerifyCase;
 import com.skyzen.careers.entity.Engagement;
+import com.skyzen.careers.entity.Evaluation;
 import com.skyzen.careers.entity.I9Form;
 import com.skyzen.careers.entity.I983Plan;
 import com.skyzen.careers.entity.Interview;
 import com.skyzen.careers.entity.JobPosting;
 import com.skyzen.careers.entity.Offer;
 import com.skyzen.careers.entity.OnboardingTask;
+import com.skyzen.careers.entity.Project;
 import com.skyzen.careers.entity.SentNotification;
 import com.skyzen.careers.entity.StaffingEntity;
 import com.skyzen.careers.entity.User;
+import com.skyzen.careers.entity.WeeklyMaterial;
+import com.skyzen.careers.entity.WeeklyReport;
 import com.skyzen.careers.enums.UserRole;
 import com.skyzen.careers.repository.AuditLogRepository;
 import com.skyzen.careers.repository.SentNotificationRepository;
@@ -28,6 +32,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -84,6 +89,10 @@ public class NotificationService {
     /** HR dashboard URL surfaced in batch-2 HR-targeted emails (I-9 §2, I-983 ready). */
     @Value("${app.hr.dashboard-url:https://www.skyzentech.com/careers/hr}")
     private String hrDashboardUrl;
+
+    /** Supervisor dashboard URL surfaced in batch-3 supervisor-targeted emails. */
+    @Value("${app.supervisor.dashboard-url:https://www.skyzentech.com/careers/evaluator}")
+    private String supervisorDashboardUrl;
 
     /**
      * Template for the offer "view" URL embedded in the offer-extended email.
@@ -470,6 +479,291 @@ public class NotificationService {
                 () -> emailProvider.sendComplianceTaskReminder(
                         email, name, task.getTitle(), task.getDueDate(),
                         overdueFinal, dashboardUrl));
+    }
+
+    // ── Batch 3 — intern weekly cycle ───────────────────────────────────────
+
+    /**
+     * Material released — one email per (material × intern). Broadcast
+     * materials fan out across all ACTIVE engagements; scoped materials
+     * email just the targeted engagement's intern. Caller supplies the list
+     * of recipient candidates so this method stays storage-shape-agnostic.
+     */
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void sendWeeklyMaterialReleased(WeeklyMaterial material, Candidate intern) {
+        if (material == null || intern == null) return;
+        User u = intern.getUser();
+        String email = u != null ? u.getEmail() : null;
+        String name = u != null ? u.getFullName() : null;
+        if (email == null) return;
+
+        UUID targetId = weeklyTargetId("MATERIAL_RELEASED",
+                material.getId().toString(), intern.getId().toString());
+        if (alreadySent(NotificationEventType.WEEKLY_MATERIAL_RELEASED, targetId)) return;
+
+        deliver(NotificationEventType.WEEKLY_MATERIAL_RELEASED, targetId, email,
+                () -> emailProvider.sendWeeklyMaterialReleased(
+                        email, name, material.getWeekNo(), material.getTitle(),
+                        dashboardUrl));
+    }
+
+    /** Material still unread — fired by the daily scheduler. */
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void sendMaterialUnreadReminder(WeeklyMaterial material, Candidate intern) {
+        if (material == null || intern == null) return;
+        User u = intern.getUser();
+        String email = u != null ? u.getEmail() : null;
+        String name = u != null ? u.getFullName() : null;
+        if (email == null) return;
+
+        UUID targetId = weeklyTargetId("MATERIAL_UNREAD",
+                material.getId().toString(), intern.getId().toString());
+        if (alreadySent(NotificationEventType.MATERIAL_UNREAD_REMINDER, targetId)) return;
+
+        deliver(NotificationEventType.MATERIAL_UNREAD_REMINDER, targetId, email,
+                () -> emailProvider.sendMaterialUnreadReminder(
+                        email, name, material.getWeekNo(), material.getTitle(),
+                        dashboardUrl));
+    }
+
+    /** Weekly report due — fired by the daily scheduler late in the week. */
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void sendWeeklyReportDue(Engagement engagement, LocalDate weekStart) {
+        if (engagement == null || weekStart == null) return;
+        Candidate c = engagement.getCandidate();
+        User u = c != null ? c.getUser() : null;
+        String email = u != null ? u.getEmail() : null;
+        String name = u != null ? u.getFullName() : null;
+        if (email == null) return;
+
+        UUID targetId = weeklyTargetId("REPORT_DUE",
+                engagement.getId().toString(), weekStart.toString());
+        if (alreadySent(NotificationEventType.WEEKLY_REPORT_DUE, targetId)) return;
+
+        deliver(NotificationEventType.WEEKLY_REPORT_DUE, targetId, email,
+                () -> emailProvider.sendWeeklyReportDue(email, name, weekStart, dashboardUrl));
+    }
+
+    /** Weekly report returned for changes — event-triggered. */
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void sendWeeklyReportReturned(WeeklyReport report) {
+        if (report == null) return;
+        UUID targetId = report.getId();
+        Candidate c = report.getIntern();
+        User u = c != null ? c.getUser() : null;
+        String email = u != null ? u.getEmail() : null;
+        String name = u != null ? u.getFullName() : null;
+        if (email == null) {
+            log.warn("WEEKLY_REPORT_RETURNED skipped — no candidate email on report {}", targetId);
+            return;
+        }
+        if (alreadySent(NotificationEventType.WEEKLY_REPORT_RETURNED, targetId)) return;
+
+        deliver(NotificationEventType.WEEKLY_REPORT_RETURNED, targetId, email,
+                () -> emailProvider.sendWeeklyReportReturned(
+                        email, name, report.getWeekStart(),
+                        report.getReviewNotes(), dashboardUrl));
+    }
+
+    /** Weekly report approved — event-triggered. */
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void sendWeeklyReportApproved(WeeklyReport report) {
+        if (report == null) return;
+        UUID targetId = report.getId();
+        Candidate c = report.getIntern();
+        User u = c != null ? c.getUser() : null;
+        String email = u != null ? u.getEmail() : null;
+        String name = u != null ? u.getFullName() : null;
+        if (email == null) return;
+        if (alreadySent(NotificationEventType.WEEKLY_REPORT_APPROVED, targetId)) return;
+
+        deliver(NotificationEventType.WEEKLY_REPORT_APPROVED, targetId, email,
+                () -> emailProvider.sendWeeklyReportApproved(
+                        email, name, report.getWeekStart(), dashboardUrl));
+    }
+
+    /** Timesheet due — fired by the daily scheduler. */
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void sendTimesheetDue(Engagement engagement, LocalDate weekStart) {
+        if (engagement == null || weekStart == null) return;
+        Candidate c = engagement.getCandidate();
+        User u = c != null ? c.getUser() : null;
+        String email = u != null ? u.getEmail() : null;
+        String name = u != null ? u.getFullName() : null;
+        if (email == null) return;
+
+        UUID targetId = weeklyTargetId("TIMESHEET_DUE",
+                engagement.getId().toString(), weekStart.toString());
+        if (alreadySent(NotificationEventType.TIMESHEET_DUE, targetId)) return;
+
+        deliver(NotificationEventType.TIMESHEET_DUE, targetId, email,
+                () -> emailProvider.sendTimesheetDue(email, name, weekStart, dashboardUrl));
+    }
+
+    /** Project assigned — event-triggered, intern recipient. */
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void sendProjectAssigned(Project project) {
+        if (project == null) return;
+        UUID targetId = project.getId();
+        Candidate intern = project.getIntern();
+        User u = intern != null ? intern.getUser() : null;
+        String email = u != null ? u.getEmail() : null;
+        String name = u != null ? u.getFullName() : null;
+        if (email == null) {
+            log.warn("PROJECT_ASSIGNED skipped — no candidate email on project {}", targetId);
+            return;
+        }
+        if (alreadySent(NotificationEventType.PROJECT_ASSIGNED, targetId)) return;
+
+        User assignedBy = project.getAssignedBy();
+        String by = assignedBy != null ? assignedBy.getFullName() : null;
+        deliver(NotificationEventType.PROJECT_ASSIGNED, targetId, email,
+                () -> emailProvider.sendProjectAssigned(
+                        email, name, project.getTitle(), project.getDueDate(),
+                        by, dashboardUrl));
+    }
+
+    /** Project submitted — event-triggered, supervisor recipient. */
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void sendProjectSubmitted(Project project) {
+        if (project == null) return;
+        UUID targetId = project.getId();
+        Engagement eng = project.getEngagement();
+        User supervisor = eng != null ? eng.getSupervisor() : null;
+        // Fallback to whoever assigned it if engagement.supervisor is null.
+        if (supervisor == null) supervisor = project.getAssignedBy();
+        String email = supervisor != null ? supervisor.getEmail() : null;
+        String name = supervisor != null ? supervisor.getFullName() : null;
+        if (email == null) {
+            log.warn("PROJECT_SUBMITTED skipped — no supervisor email on project {}", targetId);
+            return;
+        }
+        if (alreadySent(NotificationEventType.PROJECT_SUBMITTED, targetId)) return;
+
+        Candidate intern = project.getIntern();
+        User iu = intern != null ? intern.getUser() : null;
+        String internName = iu != null ? iu.getFullName() : null;
+        final String supervisorEmail = email;
+        final String supervisorName = name;
+        deliver(NotificationEventType.PROJECT_SUBMITTED, targetId, supervisorEmail,
+                () -> emailProvider.sendProjectSubmitted(
+                        supervisorEmail, supervisorName, internName,
+                        project.getTitle(), supervisorDashboardUrl));
+    }
+
+    /** Project returned for changes — event-triggered, intern recipient. */
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void sendProjectReturned(Project project) {
+        if (project == null) return;
+        UUID targetId = project.getId();
+        Candidate intern = project.getIntern();
+        User u = intern != null ? intern.getUser() : null;
+        String email = u != null ? u.getEmail() : null;
+        String name = u != null ? u.getFullName() : null;
+        if (email == null) return;
+        if (alreadySent(NotificationEventType.PROJECT_RETURNED, targetId)) return;
+
+        deliver(NotificationEventType.PROJECT_RETURNED, targetId, email,
+                () -> emailProvider.sendProjectReturned(
+                        email, name, project.getTitle(),
+                        project.getReviewNotes(), dashboardUrl));
+    }
+
+    /** Project completed — event-triggered, intern recipient. */
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void sendProjectCompleted(Project project) {
+        if (project == null) return;
+        UUID targetId = project.getId();
+        Candidate intern = project.getIntern();
+        User u = intern != null ? intern.getUser() : null;
+        String email = u != null ? u.getEmail() : null;
+        String name = u != null ? u.getFullName() : null;
+        if (email == null) return;
+        if (alreadySent(NotificationEventType.PROJECT_COMPLETED, targetId)) return;
+
+        deliver(NotificationEventType.PROJECT_COMPLETED, targetId, email,
+                () -> emailProvider.sendProjectCompleted(
+                        email, name, project.getTitle(), dashboardUrl));
+    }
+
+    /** Evaluation due — fired by the daily scheduler against DRAFT older than N days. */
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void sendEvaluationDue(Evaluation evaluation, int daysInDraft) {
+        if (evaluation == null) return;
+        UUID targetId = evaluation.getId();
+        User supervisor = evaluation.getEvaluator();
+        String email = supervisor != null ? supervisor.getEmail() : null;
+        String name = supervisor != null ? supervisor.getFullName() : null;
+        if (email == null) {
+            log.warn("EVALUATION_DUE skipped — no evaluator email on evaluation {}", targetId);
+            return;
+        }
+        if (alreadySent(NotificationEventType.EVALUATION_DUE, targetId)) return;
+
+        Candidate intern = evaluation.getIntern();
+        User iu = intern != null ? intern.getUser() : null;
+        String internName = iu != null ? iu.getFullName() : null;
+        String type = evaluation.getType() != null ? evaluation.getType().name() : null;
+        final String supervisorEmail = email;
+        final String supervisorName = name;
+        deliver(NotificationEventType.EVALUATION_DUE, targetId, supervisorEmail,
+                () -> emailProvider.sendEvaluationDue(
+                        supervisorEmail, supervisorName, internName, type,
+                        daysInDraft, supervisorDashboardUrl));
+    }
+
+    /** Evaluation finalized — event-triggered, intern recipient. */
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void sendEvaluationFinalized(Evaluation evaluation) {
+        if (evaluation == null) return;
+        UUID targetId = evaluation.getId();
+        Candidate intern = evaluation.getIntern();
+        User iu = intern != null ? intern.getUser() : null;
+        String email = iu != null ? iu.getEmail() : null;
+        String name = iu != null ? iu.getFullName() : null;
+        if (email == null) return;
+        if (alreadySent(NotificationEventType.EVALUATION_FINALIZED, targetId)) return;
+
+        User supervisor = evaluation.getEvaluator();
+        String supervisorName = supervisor != null ? supervisor.getFullName() : null;
+        String type = evaluation.getType() != null ? evaluation.getType().name() : null;
+        deliver(NotificationEventType.EVALUATION_FINALIZED, targetId, email,
+                () -> emailProvider.sendEvaluationFinalized(
+                        email, name, type, supervisorName,
+                        evaluation.getOverallRating(), dashboardUrl));
+    }
+
+    /** I-983 self-review due — fired by the daily scheduler. */
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void sendI983SelfEvalDue(Evaluation evaluation) {
+        if (evaluation == null) return;
+        UUID targetId = evaluation.getId();
+        Candidate intern = evaluation.getIntern();
+        User iu = intern != null ? intern.getUser() : null;
+        String email = iu != null ? iu.getEmail() : null;
+        String name = iu != null ? iu.getFullName() : null;
+        if (email == null) return;
+        if (alreadySent(NotificationEventType.I983_SELF_EVAL_DUE, targetId)) return;
+
+        String type = evaluation.getType() != null ? evaluation.getType().name() : null;
+        deliver(NotificationEventType.I983_SELF_EVAL_DUE, targetId, email,
+                () -> emailProvider.sendI983SelfEvalDue(email, name, type, dashboardUrl));
+    }
+
+    /**
+     * Build a deterministic UUID for "weekly" idempotency keys. The
+     * sent_notifications table is keyed on (event_type, target_id) — for
+     * events that fire once per (resource × recipient × period) we need a
+     * synthetic target_id that encodes all three. UUIDv3 over a salted name
+     * gives us a stable hash that survives restarts and runs deterministic
+     * across the cluster.
+     */
+    public static UUID weeklyTargetId(String namespace, String... parts) {
+        StringBuilder sb = new StringBuilder(namespace);
+        for (String p : parts) {
+            sb.append(':').append(p == null ? "" : p);
+        }
+        return UUID.nameUUIDFromBytes(sb.toString().getBytes(StandardCharsets.UTF_8));
     }
 
     /** Public so the WorkAuthExpiryScheduler can pick the right threshold. */

@@ -834,6 +834,370 @@ public class SmtpEmailProvider implements EmailProvider {
         send(email, "Reminder: " + title + " — Skyzen Tech", plain, html);
     }
 
+    // ── Batch 3 — intern weekly cycle ───────────────────────────────────────
+
+    @Override
+    public void sendWeeklyMaterialReleased(String email, String internName,
+                                           Integer weekNo, String materialTitle,
+                                           String dashboardUrl) {
+        String greet = greeting(internName);
+        String label = materialTitle != null ? materialTitle : "this week's reading";
+        String wkLabel = weekNo != null ? ("Week " + weekNo) : "This week";
+        String plain = ""
+                + greet + "\n\n"
+                + wkLabel + " is published: \"" + label + "\".\n\n"
+                + "Read it before your weekly check-in:\n"
+                + (dashboardUrl != null ? dashboardUrl + "\n\n" : "\n")
+                + "— The Skyzen Tech team\n";
+        String html = wrapHtml(
+                wkLabel + " is published",
+                "<p style=\"margin:0 0 12px;font-size:15px;color:" + COLOR_TEXT_BODY + ";\">"
+                        + escape(greet) + "</p>"
+                        + "<p style=\"margin:0 0 12px;font-size:15px;color:" + COLOR_TEXT_BODY + ";\">"
+                        + "<strong>" + escape(wkLabel) + "</strong> is now available: "
+                        + "<strong>" + escape(label) + "</strong>."
+                        + "</p>"
+                        + (dashboardUrl != null ? buttonBlock("Open this week's reading", dashboardUrl) : "")
+        );
+        send(email, wkLabel + " released — Skyzen Tech", plain, html);
+    }
+
+    @Override
+    public void sendMaterialUnreadReminder(String email, String internName,
+                                           Integer weekNo, String materialTitle,
+                                           String dashboardUrl) {
+        String greet = greeting(internName);
+        String label = materialTitle != null ? materialTitle : "this week's reading";
+        String wkLabel = weekNo != null ? ("Week " + weekNo) : "Your weekly material";
+        String plain = ""
+                + greet + "\n\n"
+                + "Reminder — " + wkLabel + " (\"" + label + "\") is still unread.\n\n"
+                + "Open your dashboard to acknowledge it:\n"
+                + (dashboardUrl != null ? dashboardUrl + "\n\n" : "\n")
+                + "— The Skyzen Tech team\n";
+        String html = wrapHtml(
+                wkLabel + " — still unread",
+                "<p style=\"margin:0 0 12px;font-size:15px;color:" + COLOR_TEXT_BODY + ";\">"
+                        + escape(greet) + "</p>"
+                        + "<p style=\"margin:0 0 12px;font-size:15px;color:" + COLOR_TEXT_BODY + ";\">"
+                        + "Reminder — <strong>" + escape(wkLabel) + "</strong> "
+                        + "(<strong>" + escape(label) + "</strong>) is still unread."
+                        + "</p>"
+                        + (dashboardUrl != null ? buttonBlock("Open and acknowledge", dashboardUrl) : "")
+        );
+        send(email, "Reminder: " + wkLabel + " unread — Skyzen Tech", plain, html);
+    }
+
+    @Override
+    public void sendWeeklyReportDue(String email, String internName,
+                                    LocalDate weekStart, String dashboardUrl) {
+        String greet = greeting(internName);
+        String week = weekStart != null ? DATE_FORMAT.format(weekStart) : "this week";
+        String plain = ""
+                + greet + "\n\n"
+                + "Friendly reminder — your weekly report for the week of " + week + "\n"
+                + "isn't submitted yet. The supervisor reviews these end-of-week.\n\n"
+                + "Open your dashboard to submit it:\n"
+                + (dashboardUrl != null ? dashboardUrl + "\n\n" : "\n")
+                + "— The Skyzen Tech team\n";
+        String html = wrapHtml(
+                "Submit your weekly report",
+                "<p style=\"margin:0 0 12px;font-size:15px;color:" + COLOR_TEXT_BODY + ";\">"
+                        + escape(greet) + "</p>"
+                        + "<p style=\"margin:0 0 12px;font-size:15px;color:" + COLOR_TEXT_BODY + ";\">"
+                        + "Friendly reminder — your weekly report for the week of "
+                        + "<strong>" + escape(week) + "</strong> isn't submitted yet."
+                        + "</p>"
+                        + (dashboardUrl != null ? buttonBlock("Open weekly report", dashboardUrl) : "")
+        );
+        send(email, "Weekly report due — Skyzen Tech", plain, html);
+    }
+
+    @Override
+    public void sendWeeklyReportReturned(String email, String internName,
+                                         LocalDate weekStart, String reviewNotes,
+                                         String dashboardUrl) {
+        String greet = greeting(internName);
+        String week = weekStart != null ? DATE_FORMAT.format(weekStart) : "your report";
+        String notes = reviewNotes != null && !reviewNotes.isBlank() ? reviewNotes : null;
+        String plain = ""
+                + greet + "\n\n"
+                + "Your supervisor returned your report for the week of " + week + "\n"
+                + "with notes for revisions.\n\n"
+                + (notes != null ? "Notes from your supervisor:\n" + notes + "\n\n" : "")
+                + "Open your dashboard to address the changes and resubmit:\n"
+                + (dashboardUrl != null ? dashboardUrl + "\n\n" : "\n")
+                + "— The Skyzen Tech team\n";
+        String html = wrapHtml(
+                "Your weekly report needs changes",
+                "<p style=\"margin:0 0 12px;font-size:15px;color:" + COLOR_TEXT_BODY + ";\">"
+                        + escape(greet) + "</p>"
+                        + "<p style=\"margin:0 0 12px;font-size:15px;color:" + COLOR_TEXT_BODY + ";\">"
+                        + "Your supervisor returned your report for the week of "
+                        + "<strong>" + escape(week) + "</strong> with notes for revisions."
+                        + "</p>"
+                        + (notes != null
+                            ? "<p style=\"margin:0 0 8px;font-size:13px;font-weight:600;color:"
+                                + COLOR_TEXT_BODY + ";\">Notes from your supervisor</p>"
+                              + "<p style=\"margin:0 0 12px;font-size:13px;color:" + COLOR_TEXT_HINT
+                                + ";white-space:pre-wrap;\">" + escape(notes) + "</p>"
+                            : "")
+                        + (dashboardUrl != null ? buttonBlock("Open and revise", dashboardUrl) : "")
+        );
+        send(email, "Report returned — please revise — Skyzen Tech", plain, html);
+    }
+
+    @Override
+    public void sendWeeklyReportApproved(String email, String internName,
+                                         LocalDate weekStart, String dashboardUrl) {
+        String greet = greeting(internName);
+        String week = weekStart != null ? DATE_FORMAT.format(weekStart) : "your report";
+        String plain = ""
+                + greet + "\n\n"
+                + "Nice work — your weekly report for the week of " + week + " has been\n"
+                + "approved.\n\n"
+                + "Review it any time from your dashboard:\n"
+                + (dashboardUrl != null ? dashboardUrl + "\n\n" : "\n")
+                + "— The Skyzen Tech team\n";
+        String html = wrapHtml(
+                "Your weekly report is approved",
+                "<p style=\"margin:0 0 12px;font-size:15px;color:" + COLOR_TEXT_BODY + ";\">"
+                        + escape(greet) + "</p>"
+                        + "<p style=\"margin:0 0 12px;font-size:15px;color:" + COLOR_TEXT_BODY + ";\">"
+                        + "Nice work — your weekly report for the week of "
+                        + "<strong>" + escape(week) + "</strong> has been "
+                        + "<strong>approved</strong>."
+                        + "</p>"
+                        + (dashboardUrl != null ? buttonBlock("View report", dashboardUrl) : "")
+        );
+        send(email, "Report approved — Skyzen Tech", plain, html);
+    }
+
+    @Override
+    public void sendTimesheetDue(String email, String internName,
+                                 LocalDate weekStart, String dashboardUrl) {
+        String greet = greeting(internName);
+        String week = weekStart != null ? DATE_FORMAT.format(weekStart) : "this week";
+        String plain = ""
+                + greet + "\n\n"
+                + "Reminder — please log your hours for the week of " + week + ".\n\n"
+                + "Open your timesheet from the dashboard:\n"
+                + (dashboardUrl != null ? dashboardUrl + "\n\n" : "\n")
+                + "— The Skyzen Tech team\n";
+        String html = wrapHtml(
+                "Log this week's hours",
+                "<p style=\"margin:0 0 12px;font-size:15px;color:" + COLOR_TEXT_BODY + ";\">"
+                        + escape(greet) + "</p>"
+                        + "<p style=\"margin:0 0 12px;font-size:15px;color:" + COLOR_TEXT_BODY + ";\">"
+                        + "Reminder — please log your hours for the week of "
+                        + "<strong>" + escape(week) + "</strong>."
+                        + "</p>"
+                        + (dashboardUrl != null ? buttonBlock("Open timesheet", dashboardUrl) : "")
+        );
+        send(email, "Timesheet due — Skyzen Tech", plain, html);
+    }
+
+    @Override
+    public void sendProjectAssigned(String email, String internName,
+                                    String projectTitle, LocalDate dueDate,
+                                    String supervisorName, String dashboardUrl) {
+        String greet = greeting(internName);
+        String title = projectTitle != null ? projectTitle : "a new project";
+        String by = supervisorName != null ? supervisorName : "your supervisor";
+        String due = dueDate != null ? DATE_FORMAT.format(dueDate) : "—";
+        String plain = ""
+                + greet + "\n\n"
+                + by + " just allocated a new project to you.\n\n"
+                + "Project:  " + title + "\n"
+                + "Due date: " + due + "\n\n"
+                + "Open it from your dashboard to read the deliverables:\n"
+                + (dashboardUrl != null ? dashboardUrl + "\n\n" : "\n")
+                + "— The Skyzen Tech team\n";
+        String html = wrapHtml(
+                "A new project is yours",
+                "<p style=\"margin:0 0 12px;font-size:15px;color:" + COLOR_TEXT_BODY + ";\">"
+                        + escape(greet) + "</p>"
+                        + "<p style=\"margin:0 0 12px;font-size:15px;color:" + COLOR_TEXT_BODY + ";\">"
+                        + "<strong>" + escape(by) + "</strong> just allocated a new project to you."
+                        + "</p>"
+                        + miniRow("Project", escape(title))
+                        + miniRow("Due date", escape(due))
+                        + (dashboardUrl != null ? buttonBlock("Open project", dashboardUrl) : "")
+        );
+        send(email, "New project assigned — Skyzen Tech", plain, html);
+    }
+
+    @Override
+    public void sendProjectSubmitted(String supervisorEmail, String supervisorName,
+                                     String internName, String projectTitle,
+                                     String supervisorDashboardUrl) {
+        String greet = greeting(supervisorName);
+        String title = projectTitle != null ? projectTitle : "their project";
+        String who = internName != null ? internName : "an intern";
+        String plain = ""
+                + greet + "\n\n"
+                + who + " just submitted \"" + title + "\" for your review.\n\n"
+                + "Open it from your dashboard:\n"
+                + (supervisorDashboardUrl != null ? supervisorDashboardUrl + "\n\n" : "\n")
+                + "— Skyzen Careers ops bot\n";
+        String html = wrapHtml(
+                "Project submission — " + title,
+                "<p style=\"margin:0 0 12px;font-size:15px;color:" + COLOR_TEXT_BODY + ";\">"
+                        + escape(greet) + "</p>"
+                        + "<p style=\"margin:0 0 12px;font-size:15px;color:" + COLOR_TEXT_BODY + ";\">"
+                        + "<strong>" + escape(who) + "</strong> just submitted "
+                        + "<strong>" + escape(title) + "</strong> for your review."
+                        + "</p>"
+                        + (supervisorDashboardUrl != null
+                            ? buttonBlock("Open and review", supervisorDashboardUrl) : "")
+        );
+        send(supervisorEmail, "Project submitted by " + who + " — Skyzen Tech", plain, html);
+    }
+
+    @Override
+    public void sendProjectReturned(String email, String internName,
+                                    String projectTitle, String reviewNotes,
+                                    String dashboardUrl) {
+        String greet = greeting(internName);
+        String title = projectTitle != null ? projectTitle : "your project";
+        String notes = reviewNotes != null && !reviewNotes.isBlank() ? reviewNotes : null;
+        String plain = ""
+                + greet + "\n\n"
+                + "Your supervisor returned \"" + title + "\" for changes.\n\n"
+                + (notes != null ? "Notes from your supervisor:\n" + notes + "\n\n" : "")
+                + "Open it from your dashboard to revise and resubmit:\n"
+                + (dashboardUrl != null ? dashboardUrl + "\n\n" : "\n")
+                + "— The Skyzen Tech team\n";
+        String html = wrapHtml(
+                "Project returned — please revise",
+                "<p style=\"margin:0 0 12px;font-size:15px;color:" + COLOR_TEXT_BODY + ";\">"
+                        + escape(greet) + "</p>"
+                        + "<p style=\"margin:0 0 12px;font-size:15px;color:" + COLOR_TEXT_BODY + ";\">"
+                        + "Your supervisor returned <strong>" + escape(title) + "</strong> for "
+                        + "changes."
+                        + "</p>"
+                        + (notes != null
+                            ? "<p style=\"margin:0 0 8px;font-size:13px;font-weight:600;color:"
+                                + COLOR_TEXT_BODY + ";\">Notes from your supervisor</p>"
+                              + "<p style=\"margin:0 0 12px;font-size:13px;color:" + COLOR_TEXT_HINT
+                                + ";white-space:pre-wrap;\">" + escape(notes) + "</p>"
+                            : "")
+                        + (dashboardUrl != null ? buttonBlock("Open and revise", dashboardUrl) : "")
+        );
+        send(email, "Project returned: " + title + " — Skyzen Tech", plain, html);
+    }
+
+    @Override
+    public void sendProjectCompleted(String email, String internName,
+                                     String projectTitle, String dashboardUrl) {
+        String greet = greeting(internName);
+        String title = projectTitle != null ? projectTitle : "your project";
+        String plain = ""
+                + greet + "\n\n"
+                + "Great work — \"" + title + "\" has been marked complete by your supervisor.\n\n"
+                + "Review the closing notes any time from your dashboard:\n"
+                + (dashboardUrl != null ? dashboardUrl + "\n\n" : "\n")
+                + "— The Skyzen Tech team\n";
+        String html = wrapHtml(
+                "Project completed",
+                "<p style=\"margin:0 0 12px;font-size:15px;color:" + COLOR_TEXT_BODY + ";\">"
+                        + escape(greet) + "</p>"
+                        + "<p style=\"margin:0 0 12px;font-size:15px;color:" + COLOR_TEXT_BODY + ";\">"
+                        + "Great work — <strong>" + escape(title) + "</strong> has been marked "
+                        + "<strong>complete</strong> by your supervisor."
+                        + "</p>"
+                        + (dashboardUrl != null ? buttonBlock("View project", dashboardUrl) : "")
+        );
+        send(email, "Project completed: " + title + " — Skyzen Tech", plain, html);
+    }
+
+    @Override
+    public void sendEvaluationDue(String supervisorEmail, String supervisorName,
+                                  String internName, String evaluationType,
+                                  Integer daysInDraft, String supervisorDashboardUrl) {
+        String greet = greeting(supervisorName);
+        String who = internName != null ? internName : "your intern";
+        String type = evaluationType != null ? evaluationType.replace('_', ' ') : "Evaluation";
+        String ageLabel = daysInDraft != null && daysInDraft > 0
+                ? daysInDraft + " day" + (daysInDraft == 1 ? "" : "s") + " in draft"
+                : "still in draft";
+        String plain = ""
+                + greet + "\n\n"
+                + "Reminder — the " + type + " for " + who + " is " + ageLabel + ".\n\n"
+                + "Open it from your supervisor dashboard to finalize:\n"
+                + (supervisorDashboardUrl != null ? supervisorDashboardUrl + "\n\n" : "\n")
+                + "— Skyzen Careers ops bot\n";
+        String html = wrapHtml(
+                "Evaluation pending — " + who,
+                "<p style=\"margin:0 0 12px;font-size:15px;color:" + COLOR_TEXT_BODY + ";\">"
+                        + escape(greet) + "</p>"
+                        + "<p style=\"margin:0 0 12px;font-size:15px;color:" + COLOR_TEXT_BODY + ";\">"
+                        + "Reminder — the <strong>" + escape(type) + "</strong> for "
+                        + "<strong>" + escape(who) + "</strong> is "
+                        + "<strong>" + escape(ageLabel) + "</strong>."
+                        + "</p>"
+                        + (supervisorDashboardUrl != null
+                            ? buttonBlock("Open and finalize", supervisorDashboardUrl) : "")
+        );
+        send(supervisorEmail, "Evaluation pending — " + who + " — Skyzen Tech", plain, html);
+    }
+
+    @Override
+    public void sendEvaluationFinalized(String email, String internName,
+                                        String evaluationType, String supervisorName,
+                                        Integer overallRating, String dashboardUrl) {
+        String greet = greeting(internName);
+        String type = evaluationType != null ? evaluationType.replace('_', ' ') : "Evaluation";
+        String by = supervisorName != null ? supervisorName : "your supervisor";
+        String rating = overallRating != null ? (overallRating + " / 5") : "—";
+        String plain = ""
+                + greet + "\n\n"
+                + by + " finalized your " + type + " evaluation.\n\n"
+                + "Overall rating: " + rating + "\n\n"
+                + "Read the full evaluation from your dashboard:\n"
+                + (dashboardUrl != null ? dashboardUrl + "\n\n" : "\n")
+                + "— The Skyzen Tech team\n";
+        String html = wrapHtml(
+                "Your evaluation is ready",
+                "<p style=\"margin:0 0 12px;font-size:15px;color:" + COLOR_TEXT_BODY + ";\">"
+                        + escape(greet) + "</p>"
+                        + "<p style=\"margin:0 0 12px;font-size:15px;color:" + COLOR_TEXT_BODY + ";\">"
+                        + "<strong>" + escape(by) + "</strong> finalized your "
+                        + "<strong>" + escape(type) + "</strong> evaluation."
+                        + "</p>"
+                        + miniRow("Overall rating", escape(rating))
+                        + (dashboardUrl != null ? buttonBlock("Read your evaluation", dashboardUrl) : "")
+        );
+        send(email, type + " evaluation finalized — Skyzen Tech", plain, html);
+    }
+
+    @Override
+    public void sendI983SelfEvalDue(String email, String internName,
+                                    String evaluationType, String dashboardUrl) {
+        String greet = greeting(internName);
+        String type = evaluationType != null ? evaluationType.replace('_', ' ') : "I-983";
+        String plain = ""
+                + greet + "\n\n"
+                + "Your " + type + " self-evaluation is awaiting your reflection.\n\n"
+                + "Add your reflection and ratings before your supervisor finalizes:\n"
+                + (dashboardUrl != null ? dashboardUrl + "\n\n" : "\n")
+                + "— The Skyzen Tech team\n";
+        String html = wrapHtml(
+                "I-983 self-evaluation due",
+                "<p style=\"margin:0 0 12px;font-size:15px;color:" + COLOR_TEXT_BODY + ";\">"
+                        + escape(greet) + "</p>"
+                        + "<p style=\"margin:0 0 12px;font-size:15px;color:" + COLOR_TEXT_BODY + ";\">"
+                        + "Your <strong>" + escape(type) + "</strong> self-evaluation is awaiting "
+                        + "your reflection."
+                        + "</p>"
+                        + (dashboardUrl != null ? buttonBlock("Add self-review", dashboardUrl) : "")
+                        + "<p style=\"margin:16px 0 0;font-size:13px;color:" + COLOR_TEXT_MUTED + ";\">"
+                        + "Your supervisor will see this alongside their evaluation."
+                        + "</p>"
+        );
+        send(email, type + " self-evaluation due — Skyzen Tech", plain, html);
+    }
+
     // ── Wire ────────────────────────────────────────────────────────────────
 
     private void send(String to, String subject, String plain, String html) {

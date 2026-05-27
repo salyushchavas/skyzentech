@@ -84,6 +84,7 @@ public class ProjectService {
     private final EngagementRepository engagementRepository;
     private final AuditLogRepository auditLogRepository;
     private final ObjectMapper objectMapper;
+    private final com.skyzen.careers.notification.NotificationService notificationService;
 
     // ── Supervisor: allocate ────────────────────────────────────────────────
 
@@ -126,7 +127,15 @@ public class ProjectService {
                 "candidateId", intern.getId(),
                 "engagementId", engagement.getId()));
 
-        return toResponse(reload(project.getId()));
+        // Batch-3 — intern gets a "new project assigned" email. Best-effort.
+        Project saved = reload(project.getId());
+        try {
+            notificationService.sendProjectAssigned(saved);
+        } catch (Exception e) {
+            log.warn("PROJECT_ASSIGNED notify failed (non-fatal) for {}: {}",
+                    saved.getId(), e.getMessage());
+        }
+        return toResponse(saved);
     }
 
     // ── Supervisor: edit ────────────────────────────────────────────────────
@@ -205,7 +214,16 @@ public class ProjectService {
         writeAudit(project.getId(), "PROJECT_RETURNED", actor.getId(), Map.of(
                 "candidateId", project.getIntern().getId()));
 
-        return toResponse(reload(project.getId()));
+        // Batch-3 — intern gets a "project returned" email with review notes.
+        // Best-effort.
+        Project saved = reload(project.getId());
+        try {
+            notificationService.sendProjectReturned(saved);
+        } catch (Exception e) {
+            log.warn("PROJECT_RETURNED notify failed (non-fatal) for {}: {}",
+                    saved.getId(), e.getMessage());
+        }
+        return toResponse(saved);
     }
 
     @Transactional
@@ -233,7 +251,15 @@ public class ProjectService {
         writeAudit(project.getId(), "PROJECT_COMPLETED", actor.getId(), Map.of(
                 "candidateId", project.getIntern().getId()));
 
-        return toResponse(reload(project.getId()));
+        // Batch-3 — intern gets a "project completed" email. Best-effort.
+        Project saved = reload(project.getId());
+        try {
+            notificationService.sendProjectCompleted(saved);
+        } catch (Exception e) {
+            log.warn("PROJECT_COMPLETED notify failed (non-fatal) for {}: {}",
+                    saved.getId(), e.getMessage());
+        }
+        return toResponse(saved);
     }
 
     // ── Intern: read + lifecycle ────────────────────────────────────────────
@@ -327,7 +353,16 @@ public class ProjectService {
         writeAudit(project.getId(), "PROJECT_SUBMITTED", candidateUser.getId(), Map.of(
                 "candidateId", project.getIntern().getId()));
 
-        return toResponse(reload(project.getId()));
+        // Batch-3 — supervisor gets a "project submitted by {intern}" email.
+        // Best-effort.
+        Project saved = reload(project.getId());
+        try {
+            notificationService.sendProjectSubmitted(saved);
+        } catch (Exception e) {
+            log.warn("PROJECT_SUBMITTED notify failed (non-fatal) for {}: {}",
+                    saved.getId(), e.getMessage());
+        }
+        return toResponse(saved);
     }
 
     // ── Gate helpers ────────────────────────────────────────────────────────

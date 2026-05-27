@@ -173,4 +173,95 @@ public interface EmailProvider {
                                     LocalDate dueDate,
                                     Integer daysOverdue,
                                     String dashboardUrl);
+
+    // ── Batch 3 — intern weekly cycle ───────────────────────────────────────
+
+    /** Intern — a new weekly material has been released. */
+    void sendWeeklyMaterialReleased(String email,
+                                    String internName,
+                                    Integer weekNo,
+                                    String materialTitle,
+                                    String dashboardUrl);
+
+    /** Intern — released material still unacked. */
+    void sendMaterialUnreadReminder(String email,
+                                    String internName,
+                                    Integer weekNo,
+                                    String materialTitle,
+                                    String dashboardUrl);
+
+    /** Intern — end-of-week reminder to submit this week's report. */
+    void sendWeeklyReportDue(String email,
+                             String internName,
+                             java.time.LocalDate weekStart,
+                             String dashboardUrl);
+
+    /** Intern — supervisor returned a report for corrections. */
+    void sendWeeklyReportReturned(String email,
+                                  String internName,
+                                  java.time.LocalDate weekStart,
+                                  String reviewNotes,
+                                  String dashboardUrl);
+
+    /** Intern — supervisor approved a report. */
+    void sendWeeklyReportApproved(String email,
+                                  String internName,
+                                  java.time.LocalDate weekStart,
+                                  String dashboardUrl);
+
+    /** Intern — end-of-week reminder to log hours. */
+    void sendTimesheetDue(String email,
+                          String internName,
+                          java.time.LocalDate weekStart,
+                          String dashboardUrl);
+
+    /** Intern — supervisor allocated a new project. */
+    void sendProjectAssigned(String email,
+                             String internName,
+                             String projectTitle,
+                             java.time.LocalDate dueDate,
+                             String supervisorName,
+                             String dashboardUrl);
+
+    /** Supervisor — intern submitted a project for review. */
+    void sendProjectSubmitted(String supervisorEmail,
+                              String supervisorName,
+                              String internName,
+                              String projectTitle,
+                              String supervisorDashboardUrl);
+
+    /** Intern — supervisor returned a project for changes. */
+    void sendProjectReturned(String email,
+                             String internName,
+                             String projectTitle,
+                             String reviewNotes,
+                             String dashboardUrl);
+
+    /** Intern — supervisor marked project complete. */
+    void sendProjectCompleted(String email,
+                              String internName,
+                              String projectTitle,
+                              String dashboardUrl);
+
+    /** Supervisor — DRAFT evaluation is still pending finalization. */
+    void sendEvaluationDue(String supervisorEmail,
+                           String supervisorName,
+                           String internName,
+                           String evaluationType,
+                           Integer daysInDraft,
+                           String supervisorDashboardUrl);
+
+    /** Intern — supervisor finalized an evaluation; visible now. */
+    void sendEvaluationFinalized(String email,
+                                 String internName,
+                                 String evaluationType,
+                                 String supervisorName,
+                                 Integer overallRating,
+                                 String dashboardUrl);
+
+    /** Intern — DRAFT I-983 self-review is awaiting their reflection. */
+    void sendI983SelfEvalDue(String email,
+                             String internName,
+                             String evaluationType,
+                             String dashboardUrl);
 }

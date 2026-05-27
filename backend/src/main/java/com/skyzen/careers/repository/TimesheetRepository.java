@@ -7,6 +7,7 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -80,4 +81,7 @@ public interface TimesheetRepository extends JpaRepository<Timesheet, UUID> {
             "WHERE t.engagement.id = :engagementId " +
             "AND t.status = com.skyzen.careers.enums.TimesheetStatus.APPROVED")
     BigDecimal sumApprovedHoursForEngagement(@Param("engagementId") UUID engagementId);
+
+    /** Exact-week lookup used by the daily timesheet-due scheduler. */
+    Optional<Timesheet> findByInternIdAndWeekStart(UUID internId, LocalDate weekStart);
 }

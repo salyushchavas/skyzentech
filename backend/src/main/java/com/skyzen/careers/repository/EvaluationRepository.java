@@ -91,4 +91,34 @@ public interface EvaluationRepository extends JpaRepository<Evaluation, UUID> {
             "WHERE e.status = com.skyzen.careers.enums.EvaluationStatus.FINALIZED " +
             "  AND e.overallRating IS NOT NULL")
     Double averageFinalizedOverallRating();
+
+    /**
+     * DRAFT evaluations whose createdAt is older than {@code cutoff} — the
+     * scheduler reads this for the "evaluation pending finalization" reminder
+     * to the supervisor.
+     */
+    @Query("SELECT e FROM Evaluation e " +
+            "JOIN FETCH e.intern i " +
+            "JOIN FETCH i.user iu " +
+            "JOIN FETCH e.engagement eng " +
+            "JOIN FETCH e.evaluator ev " +
+            "WHERE e.status = com.skyzen.careers.enums.EvaluationStatus.DRAFT " +
+            "  AND e.createdAt < :cutoff " +
+            "ORDER BY e.createdAt ASC")
+    List<Evaluation> findDraftsOlderThanWithGraph(@Param("cutoff") java.time.Instant cutoff);
+
+    /**
+     * All DRAFT I-983 self-review-eligible rows — used by the daily scheduler
+     * to nudge interns who still owe a reflection.
+     */
+    @Query("SELECT e FROM Evaluation e " +
+            "JOIN FETCH e.intern i " +
+            "JOIN FETCH i.user iu " +
+            "JOIN FETCH e.engagement eng " +
+            "JOIN FETCH e.evaluator ev " +
+            "WHERE e.status = com.skyzen.careers.enums.EvaluationStatus.DRAFT " +
+            "  AND e.type IN (com.skyzen.careers.enums.EvaluationType.I983_12MO, " +
+            "                 com.skyzen.careers.enums.EvaluationType.I983_FINAL) " +
+            "ORDER BY e.createdAt ASC")
+    List<Evaluation> findAllSelfReviewableDraftsWithGraph();
 }

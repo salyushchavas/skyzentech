@@ -201,4 +201,103 @@ public class LogEmailProvider implements EmailProvider {
         log.info("[LOG EMAIL] Compliance task reminder to {} ({}) — task=\"{}\" due={} overdue={}d dashboard={}",
                 internName, email, taskTitle, dueDate, daysOverdue, dashboardUrl);
     }
+
+    @Override
+    public void sendWeeklyMaterialReleased(String email, String internName,
+                                           Integer weekNo, String materialTitle,
+                                           String dashboardUrl) {
+        log.info("[LOG EMAIL] Weekly material released to {} ({}) — wk{} \"{}\" dashboard={}",
+                internName, email, weekNo, materialTitle, dashboardUrl);
+    }
+
+    @Override
+    public void sendMaterialUnreadReminder(String email, String internName,
+                                           Integer weekNo, String materialTitle,
+                                           String dashboardUrl) {
+        log.info("[LOG EMAIL] Material unread reminder to {} ({}) — wk{} \"{}\" dashboard={}",
+                internName, email, weekNo, materialTitle, dashboardUrl);
+    }
+
+    @Override
+    public void sendWeeklyReportDue(String email, String internName,
+                                    LocalDate weekStart, String dashboardUrl) {
+        log.info("[LOG EMAIL] Weekly report due reminder to {} ({}) — weekStart={} dashboard={}",
+                internName, email, weekStart, dashboardUrl);
+    }
+
+    @Override
+    public void sendWeeklyReportReturned(String email, String internName,
+                                         LocalDate weekStart, String reviewNotes,
+                                         String dashboardUrl) {
+        log.info("[LOG EMAIL] Weekly report returned to {} ({}) — weekStart={} dashboard={}",
+                internName, email, weekStart, dashboardUrl);
+    }
+
+    @Override
+    public void sendWeeklyReportApproved(String email, String internName,
+                                         LocalDate weekStart, String dashboardUrl) {
+        log.info("[LOG EMAIL] Weekly report approved to {} ({}) — weekStart={} dashboard={}",
+                internName, email, weekStart, dashboardUrl);
+    }
+
+    @Override
+    public void sendTimesheetDue(String email, String internName,
+                                 LocalDate weekStart, String dashboardUrl) {
+        log.info("[LOG EMAIL] Timesheet due reminder to {} ({}) — weekStart={} dashboard={}",
+                internName, email, weekStart, dashboardUrl);
+    }
+
+    @Override
+    public void sendProjectAssigned(String email, String internName,
+                                    String projectTitle, LocalDate dueDate,
+                                    String supervisorName, String dashboardUrl) {
+        log.info("[LOG EMAIL] Project assigned to {} ({}) — \"{}\" due={} by={} dashboard={}",
+                internName, email, projectTitle, dueDate, supervisorName, dashboardUrl);
+    }
+
+    @Override
+    public void sendProjectSubmitted(String supervisorEmail, String supervisorName,
+                                     String internName, String projectTitle,
+                                     String supervisorDashboardUrl) {
+        log.info("[LOG EMAIL] Project submitted → supervisor ({}) — by {}, \"{}\" dashboard={}",
+                supervisorEmail, internName, projectTitle, supervisorDashboardUrl);
+    }
+
+    @Override
+    public void sendProjectReturned(String email, String internName,
+                                    String projectTitle, String reviewNotes,
+                                    String dashboardUrl) {
+        log.info("[LOG EMAIL] Project returned to {} ({}) — \"{}\" dashboard={}",
+                internName, email, projectTitle, dashboardUrl);
+    }
+
+    @Override
+    public void sendProjectCompleted(String email, String internName,
+                                     String projectTitle, String dashboardUrl) {
+        log.info("[LOG EMAIL] Project completed to {} ({}) — \"{}\" dashboard={}",
+                internName, email, projectTitle, dashboardUrl);
+    }
+
+    @Override
+    public void sendEvaluationDue(String supervisorEmail, String supervisorName,
+                                  String internName, String evaluationType,
+                                  Integer daysInDraft, String supervisorDashboardUrl) {
+        log.info("[LOG EMAIL] Evaluation due → supervisor ({}) — intern={} type={} draftAge={}d dashboard={}",
+                supervisorEmail, internName, evaluationType, daysInDraft, supervisorDashboardUrl);
+    }
+
+    @Override
+    public void sendEvaluationFinalized(String email, String internName,
+                                        String evaluationType, String supervisorName,
+                                        Integer overallRating, String dashboardUrl) {
+        log.info("[LOG EMAIL] Evaluation finalized to {} ({}) — type={} by={} rating={} dashboard={}",
+                internName, email, evaluationType, supervisorName, overallRating, dashboardUrl);
+    }
+
+    @Override
+    public void sendI983SelfEvalDue(String email, String internName,
+                                    String evaluationType, String dashboardUrl) {
+        log.info("[LOG EMAIL] I-983 self-eval due to {} ({}) — type={} dashboard={}",
+                internName, email, evaluationType, dashboardUrl);
+    }
 }

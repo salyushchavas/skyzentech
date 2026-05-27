@@ -74,6 +74,7 @@ public class WeeklyReportService {
     private final CandidateRepository candidateRepository;
     private final EngagementRepository engagementRepository;
     private final AuditLogRepository auditLogRepository;
+    private final com.skyzen.careers.notification.NotificationService notificationService;
     private final ObjectMapper objectMapper;
 
     // ── Intern commands ─────────────────────────────────────────────────────
@@ -223,6 +224,14 @@ public class WeeklyReportService {
 
         WeeklyReport refreshed = reportRepository.findByIdWithGraph(saved.getId())
                 .orElse(saved);
+        // Batch-3 — intern gets a "your report needs changes" email with
+        // the supervisor's review notes. Best-effort.
+        try {
+            notificationService.sendWeeklyReportReturned(refreshed);
+        } catch (Exception e) {
+            log.warn("WEEKLY_REPORT_RETURNED notify failed (non-fatal) for {}: {}",
+                    refreshed.getId(), e.getMessage());
+        }
         return toResponse(refreshed);
     }
 
@@ -258,6 +267,13 @@ public class WeeklyReportService {
 
         WeeklyReport refreshed = reportRepository.findByIdWithGraph(saved.getId())
                 .orElse(saved);
+        // Batch-3 — intern gets a "nice work, approved" email. Best-effort.
+        try {
+            notificationService.sendWeeklyReportApproved(refreshed);
+        } catch (Exception e) {
+            log.warn("WEEKLY_REPORT_APPROVED notify failed (non-fatal) for {}: {}",
+                    refreshed.getId(), e.getMessage());
+        }
         return toResponse(refreshed);
     }
 

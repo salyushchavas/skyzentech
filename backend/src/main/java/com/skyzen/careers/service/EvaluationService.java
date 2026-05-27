@@ -102,6 +102,7 @@ public class EvaluationService {
     private final TimesheetRepository timesheetRepository;
     private final AuditLogRepository auditLogRepository;
     private final ObjectMapper objectMapper;
+    private final com.skyzen.careers.notification.NotificationService notificationService;
 
     // ── Supervisor write paths ──────────────────────────────────────────────
 
@@ -186,7 +187,16 @@ public class EvaluationService {
                 "type", evaluation.getType().name(),
                 "candidateId", evaluation.getIntern().getId()));
 
-        return toResponse(reload(evaluation.getId()), true);
+        // Batch-3 — intern gets a "your evaluation is ready" email with
+        // rating + supervisor name. Best-effort.
+        Evaluation reloaded = reload(evaluation.getId());
+        try {
+            notificationService.sendEvaluationFinalized(reloaded);
+        } catch (Exception e) {
+            log.warn("EVALUATION_FINALIZED notify failed (non-fatal) for {}: {}",
+                    reloaded.getId(), e.getMessage());
+        }
+        return toResponse(reloaded, true);
     }
 
     // ── Read paths ──────────────────────────────────────────────────────────

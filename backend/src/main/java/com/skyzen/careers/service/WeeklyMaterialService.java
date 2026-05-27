@@ -83,6 +83,7 @@ public class WeeklyMaterialService {
     private final CandidateRepository candidateRepository;
     private final AuditLogRepository auditLogRepository;
     private final ObjectMapper objectMapper;
+    private final com.skyzen.careers.notification.NotificationService notificationService;
 
     // ── Supervisor commands ─────────────────────────────────────────────────
 
@@ -167,7 +168,38 @@ public class WeeklyMaterialService {
                         "title", material.getTitle(),
                         "engagementId", material.getEngagement() != null
                                 ? material.getEngagement().getId() : null));
+
+        // Batch-3 — fan out to recipients. Scoped material → just that
+        // engagement's intern. Broadcast (engagement == null) → every ACTIVE
+        // engagement's intern. Each (material × intern) gets at most one
+        // email via NotificationService idempotency. Best-effort.
+        try {
+            for (Candidate intern : resolveMaterialAudience(material)) {
+                notificationService.sendWeeklyMaterialReleased(material, intern);
+            }
+        } catch (Exception e) {
+            log.warn("WEEKLY_MATERIAL_RELEASED fan-out failed (non-fatal) for material {}: {}",
+                    material.getId(), e.getMessage());
+        }
         return toResponse(material, actor, null);
+    }
+
+    /**
+     * Recipients for a freshly-released material. Scoped → the engagement's
+     * candidate. Broadcast → all ACTIVE engagement candidates. Null-safe
+     * skip-and-warn on rows with no candidate / no user.
+     */
+    private List<Candidate> resolveMaterialAudience(WeeklyMaterial material) {
+        if (material.getEngagement() != null) {
+            Candidate c = material.getEngagement().getCandidate();
+            return c != null ? List.of(c) : Collections.emptyList();
+        }
+        // Broadcast — every ACTIVE engagement's intern.
+        return engagementRepository.findByStatus(EngagementStatus.ACTIVE).stream()
+                .map(Engagement::getCandidate)
+                .filter(c -> c != null && c.getUser() != null)
+                .distinct()
+                .toList();
     }
 
     @Transactional(readOnly = true)
