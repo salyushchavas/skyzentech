@@ -84,6 +84,16 @@ public class User {
     @Column(name = "applicant_id_created_at")
     private Instant applicantIdCreatedAt;
 
+    /**
+     * JSON array of nav-item keys this candidate/intern has already opened —
+     * used to suppress the "new" badge after the first visit. Additive column
+     * (ddl-auto handles it); legacy rows surface as null which the nav
+     * service treats as an empty list. Stored as TEXT to keep the entity
+     * Hibernate-portable; the service parses with ObjectMapper.
+     */
+    @Column(name = "seen_nav_items", columnDefinition = "TEXT")
+    private String seenNavItemsJson;
+
     @Column(nullable = false, updatable = false)
     private Instant createdAt;
 

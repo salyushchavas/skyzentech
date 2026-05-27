@@ -1379,6 +1379,25 @@ export interface SubmitSelfReviewRequest {
   selfGrowthRating?: number;
 }
 
+// === Candidate sidebar (backend-driven) =====================================
+
+export type NavBadge =
+  | { type: 'count'; value: number }
+  | { type: 'new' };
+
+export interface NavItem {
+  key: string;
+  label: string;
+  route: string;
+  group: 'primary' | 'history' | null;
+  badge?: NavBadge | null;
+}
+
+export interface CandidateNavResponse {
+  items: NavItem[];
+  intern: boolean;
+}
+
 // === Candidate dashboard journey (SPEC §3 §4 §5 §6) ==========================
 
 export type StageState = 'done' | 'current' | 'upcoming' | 'blocked';
