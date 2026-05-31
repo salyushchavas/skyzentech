@@ -750,6 +750,59 @@ public class NotificationService {
                 () -> emailProvider.sendI983SelfEvalDue(email, name, type, dashboardUrl));
     }
 
+    // ── Two-role workflow (P1b) ─────────────────────────────────────────────
+
+    /** Intern email — technical supervisor approved their submission. */
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void sendProjectTechApproved(Project project) {
+        if (project == null) return;
+        UUID targetId = project.getId();
+        Candidate intern = project.getIntern();
+        User u = intern != null ? intern.getUser() : null;
+        String email = u != null ? u.getEmail() : null;
+        String name = u != null ? u.getFullName() : null;
+        if (email == null) return;
+        if (alreadySent(NotificationEventType.PROJECT_TECH_APPROVED, targetId)) return;
+
+        deliver(NotificationEventType.PROJECT_TECH_APPROVED, targetId, email,
+                () -> emailProvider.sendProjectTechApproved(
+                        email, name, project.getTitle(), dashboardUrl));
+    }
+
+    /** Intern email — reviewer returned the project for revisions. */
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void sendProjectReturnedForRevisions(Project project, String reason) {
+        if (project == null) return;
+        UUID targetId = project.getId();
+        Candidate intern = project.getIntern();
+        User u = intern != null ? intern.getUser() : null;
+        String email = u != null ? u.getEmail() : null;
+        String name = u != null ? u.getFullName() : null;
+        if (email == null) return;
+        if (alreadySent(NotificationEventType.PROJECT_RETURNED_FOR_REVISIONS, targetId)) return;
+
+        deliver(NotificationEventType.PROJECT_RETURNED_FOR_REVISIONS, targetId, email,
+                () -> emailProvider.sendProjectReturnedForRevisions(
+                        email, name, project.getTitle(), reason, dashboardUrl));
+    }
+
+    /** Intern email — Reporting Manager scheduled the viva. */
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void sendProjectPendingViva(Project project) {
+        if (project == null) return;
+        UUID targetId = project.getId();
+        Candidate intern = project.getIntern();
+        User u = intern != null ? intern.getUser() : null;
+        String email = u != null ? u.getEmail() : null;
+        String name = u != null ? u.getFullName() : null;
+        if (email == null) return;
+        if (alreadySent(NotificationEventType.PROJECT_PENDING_VIVA, targetId)) return;
+
+        deliver(NotificationEventType.PROJECT_PENDING_VIVA, targetId, email,
+                () -> emailProvider.sendProjectPendingViva(
+                        email, name, project.getTitle(), dashboardUrl));
+    }
+
     /**
      * Build a deterministic UUID for "weekly" idempotency keys. The
      * sent_notifications table is keyed on (event_type, target_id) — for

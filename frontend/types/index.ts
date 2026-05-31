@@ -1204,6 +1204,8 @@ export type ProjectStatus =
   | 'IN_PROGRESS'
   | 'SUBMITTED'
   | 'RETURNED'
+  | 'TECH_APPROVED'
+  | 'PENDING_VIVA'
   | 'COMPLETED';
 
 export interface ProjectTaskResponse {

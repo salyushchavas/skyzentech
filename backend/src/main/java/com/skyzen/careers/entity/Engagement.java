@@ -105,6 +105,16 @@ public class Engagement {
     @JoinColumn(name = "supervisor_id")
     private User supervisor;
 
+    /**
+     * Reporting Manager — second reviewer that runs the post-merge viva and
+     * signs the final project completion. Distinct from {@link #supervisor}
+     * (the technical reviewer) so a single engagement carries both
+     * sign-offs. Nullable until Operations assigns one.
+     */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "reporting_manager_id")
+    private User reportingManager;
+
     @Column(length = 200)
     private String worksite;
 

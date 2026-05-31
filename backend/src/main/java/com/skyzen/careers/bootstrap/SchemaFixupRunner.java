@@ -48,6 +48,27 @@ public class SchemaFixupRunner implements CommandLineRunner {
             log.warn("i9_forms_status_check drop failed (non-fatal): {}", e.getMessage(), e);
         }
 
+        // Two-role workflow: TECH_APPROVED + PENDING_VIVA were added to
+        // ProjectStatus. Drop the stale CHECK so the existing projects table
+        // accepts the new values. Java enum is the source of truth.
+        try {
+            jdbcTemplate.execute(
+                    "ALTER TABLE projects DROP CONSTRAINT IF EXISTS projects_status_check");
+            log.info("Dropped stale projects_status_check (if present).");
+        } catch (Exception e) {
+            log.warn("projects_status_check drop failed (non-fatal): {}", e.getMessage(), e);
+        }
+
+        // REPORTING_MANAGER was added to UserRole. The role values live on
+        // the user_roles join table; same stale-CHECK reasoning as above.
+        try {
+            jdbcTemplate.execute(
+                    "ALTER TABLE user_roles DROP CONSTRAINT IF EXISTS user_roles_role_check");
+            log.info("Dropped stale user_roles_role_check (if present).");
+        } catch (Exception e) {
+            log.warn("user_roles_role_check drop failed (non-fatal): {}", e.getMessage(), e);
+        }
+
         try {
             // Adds the `users.active` column on existing databases. Hibernate's
             // ddl-auto=update can't add a NOT NULL column to a table with rows

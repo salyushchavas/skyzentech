@@ -31,6 +31,13 @@ public enum UserRole {
     HR_COMPLIANCE,
     OPERATIONS,
     TECHNICAL_SUPERVISOR,
+    /**
+     * Reporting Manager — second reviewer on a project after the technical
+     * supervisor approves. Runs the post-merge viva and signs off on final
+     * completion. Distinct from TECHNICAL_SUPERVISOR so the same engagement
+     * can carry both reviewers and the workflow can enforce two sign-offs.
+     */
+    REPORTING_MANAGER,
     EXECUTIVE,
     SUPER_ADMIN
 }

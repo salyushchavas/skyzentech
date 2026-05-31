@@ -1198,6 +1198,94 @@ public class SmtpEmailProvider implements EmailProvider {
         send(email, type + " self-evaluation due — Skyzen Tech", plain, html);
     }
 
+    // ── Two-role workflow (P1b) ─────────────────────────────────────────────
+
+    @Override
+    public void sendProjectTechApproved(String email, String internName,
+                                        String projectTitle, String dashboardUrl) {
+        String greet = greeting(internName);
+        String title = projectTitle != null ? projectTitle : "your project";
+        String plain = ""
+                + greet + "\n\n"
+                + "Your technical supervisor signed off on \"" + title + "\".\n\n"
+                + "Next: your Reporting Manager will schedule a brief viva to "
+                + "wrap things up.\n\n"
+                + (dashboardUrl != null ? dashboardUrl + "\n\n" : "\n")
+                + "— The Skyzen Tech team\n";
+        String html = wrapHtml(
+                "Technical approval — " + title,
+                "<p style=\"margin:0 0 12px;font-size:15px;color:" + COLOR_TEXT_BODY + ";\">"
+                        + escape(greet) + "</p>"
+                        + "<p style=\"margin:0 0 12px;font-size:15px;color:" + COLOR_TEXT_BODY + ";\">"
+                        + "Your technical supervisor signed off on <strong>"
+                        + escape(title) + "</strong>."
+                        + "</p>"
+                        + "<p style=\"margin:0 0 12px;font-size:14px;color:" + COLOR_TEXT_HINT + ";\">"
+                        + "Next, your Reporting Manager will schedule a brief viva to wrap "
+                        + "things up."
+                        + "</p>"
+                        + (dashboardUrl != null ? buttonBlock("View project", dashboardUrl) : "")
+        );
+        send(email, "Project tech-approved: " + title + " — Skyzen Tech", plain, html);
+    }
+
+    @Override
+    public void sendProjectReturnedForRevisions(String email, String internName,
+                                                String projectTitle, String reason,
+                                                String dashboardUrl) {
+        String greet = greeting(internName);
+        String title = projectTitle != null ? projectTitle : "your project";
+        String notes = reason != null && !reason.isBlank() ? reason : null;
+        String plain = ""
+                + greet + "\n\n"
+                + "A reviewer sent \"" + title + "\" back for revisions.\n\n"
+                + (notes != null ? "Notes:\n" + notes + "\n\n" : "")
+                + "Open the project to revise and resubmit:\n"
+                + (dashboardUrl != null ? dashboardUrl + "\n\n" : "\n")
+                + "— The Skyzen Tech team\n";
+        String html = wrapHtml(
+                "Revisions requested — " + title,
+                "<p style=\"margin:0 0 12px;font-size:15px;color:" + COLOR_TEXT_BODY + ";\">"
+                        + escape(greet) + "</p>"
+                        + "<p style=\"margin:0 0 12px;font-size:15px;color:" + COLOR_TEXT_BODY + ";\">"
+                        + "A reviewer sent <strong>" + escape(title) + "</strong> back "
+                        + "for revisions."
+                        + "</p>"
+                        + (notes != null
+                            ? "<p style=\"margin:0 0 8px;font-size:13px;font-weight:600;color:"
+                                + COLOR_TEXT_BODY + ";\">Notes from your reviewer</p>"
+                              + "<p style=\"margin:0 0 12px;font-size:13px;color:" + COLOR_TEXT_HINT
+                                + ";white-space:pre-wrap;\">" + escape(notes) + "</p>"
+                            : "")
+                        + (dashboardUrl != null ? buttonBlock("Open project", dashboardUrl) : "")
+        );
+        send(email, "Project returned for revisions: " + title + " — Skyzen Tech", plain, html);
+    }
+
+    @Override
+    public void sendProjectPendingViva(String email, String internName,
+                                       String projectTitle, String dashboardUrl) {
+        String greet = greeting(internName);
+        String title = projectTitle != null ? projectTitle : "your project";
+        String plain = ""
+                + greet + "\n\n"
+                + "Your Reporting Manager is set up to run the viva for \"" + title + "\".\n\n"
+                + "Check your dashboard for the time and any pre-read notes:\n"
+                + (dashboardUrl != null ? dashboardUrl + "\n\n" : "\n")
+                + "— The Skyzen Tech team\n";
+        String html = wrapHtml(
+                "Viva scheduled — " + title,
+                "<p style=\"margin:0 0 12px;font-size:15px;color:" + COLOR_TEXT_BODY + ";\">"
+                        + escape(greet) + "</p>"
+                        + "<p style=\"margin:0 0 12px;font-size:15px;color:" + COLOR_TEXT_BODY + ";\">"
+                        + "Your Reporting Manager is set up to run the viva for <strong>"
+                        + escape(title) + "</strong>."
+                        + "</p>"
+                        + (dashboardUrl != null ? buttonBlock("View project", dashboardUrl) : "")
+        );
+        send(email, "Viva scheduled: " + title + " — Skyzen Tech", plain, html);
+    }
+
     // ── Wire ────────────────────────────────────────────────────────────────
 
     private void send(String to, String subject, String plain, String html) {

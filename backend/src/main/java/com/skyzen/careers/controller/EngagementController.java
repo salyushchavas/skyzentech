@@ -3,6 +3,8 @@ package com.skyzen.careers.controller;
 import com.skyzen.careers.dto.engagement.EngagementResponse;
 import com.skyzen.careers.entity.Engagement;
 import com.skyzen.careers.entity.User;
+import com.skyzen.careers.enums.UserRole;
+import com.skyzen.careers.exception.BadRequestException;
 import com.skyzen.careers.exception.ResourceNotFoundException;
 import com.skyzen.careers.repository.EngagementRepository;
 import com.skyzen.careers.repository.UserRepository;
@@ -14,11 +16,14 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.util.Map;
 import java.util.UUID;
 
 /**
@@ -73,6 +78,44 @@ public class EngagementController {
                 .orElseThrow(() -> new ResourceNotFoundException("Engagement not found: " + id));
         Engagement updated = engagementService.startEngagement(engagement, caller);
         return ResponseEntity.ok(toResponse(updated));
+    }
+
+    /**
+     * Two-role workflow prerequisite — assign the Reporting Manager who
+     * runs the post-merge viva and signs final project completion. Pass
+     * {@code reportingManagerUserId: null} to unassign. The target user
+     * MUST hold the {@code REPORTING_MANAGER} role.
+     */
+    @PatchMapping("/{id}/reporting-manager")
+    @PreAuthorize("hasAnyRole('OPERATIONS', 'SUPER_ADMIN')")
+    @Transactional
+    public ResponseEntity<EngagementResponse> setReportingManager(
+            @PathVariable UUID id,
+            @RequestBody Map<String, String> body) {
+        Engagement engagement = engagementRepository.findByIdWithGraph(id)
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "Engagement not found: " + id));
+        String raw = body != null ? body.get("reportingManagerUserId") : null;
+        if (raw == null || raw.isBlank() || "null".equals(raw)) {
+            engagement.setReportingManager(null);
+        } else {
+            UUID userId;
+            try {
+                userId = UUID.fromString(raw);
+            } catch (IllegalArgumentException e) {
+                throw new BadRequestException("Malformed reportingManagerUserId");
+            }
+            User user = userRepository.findById(userId).orElseThrow(
+                    () -> new ResourceNotFoundException("User not found: " + userId));
+            if (user.getRoles() == null
+                    || !user.getRoles().contains(UserRole.REPORTING_MANAGER)) {
+                throw new BadRequestException(
+                        "User " + userId + " does not hold the REPORTING_MANAGER role.");
+            }
+            engagement.setReportingManager(user);
+        }
+        engagementRepository.save(engagement);
+        return ResponseEntity.ok(toResponse(engagement));
     }
 
     private EngagementResponse toResponse(Engagement e) {

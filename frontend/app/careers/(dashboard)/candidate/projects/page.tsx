@@ -42,6 +42,8 @@ const STATUS_PILL: Record<ProjectStatus, string> = {
   IN_PROGRESS: 'bg-sky-100 text-sky-800',
   SUBMITTED: 'bg-amber-100 text-amber-800',
   RETURNED: 'bg-orange-100 text-orange-800',
+  TECH_APPROVED: 'bg-indigo-100 text-indigo-800',
+  PENDING_VIVA: 'bg-violet-100 text-violet-800',
   COMPLETED: 'bg-emerald-100 text-emerald-800',
 };
 
@@ -50,6 +52,8 @@ const STATUS_LABEL: Record<ProjectStatus, string> = {
   IN_PROGRESS: 'In progress',
   SUBMITTED: 'Awaiting review',
   RETURNED: 'Returned',
+  TECH_APPROVED: 'Tech approved',
+  PENDING_VIVA: 'Pending viva',
   COMPLETED: 'Completed',
 };
 

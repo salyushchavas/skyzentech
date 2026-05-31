@@ -264,4 +264,25 @@ public interface EmailProvider {
                              String internName,
                              String evaluationType,
                              String dashboardUrl);
+
+    // ── Two-role workflow (P1b) ─────────────────────────────────────────────
+
+    /** Intern — technical supervisor approved their submission. */
+    void sendProjectTechApproved(String email,
+                                 String internName,
+                                 String projectTitle,
+                                 String dashboardUrl);
+
+    /** Intern — a reviewer returned the project for revisions, with their note. */
+    void sendProjectReturnedForRevisions(String email,
+                                         String internName,
+                                         String projectTitle,
+                                         String reason,
+                                         String dashboardUrl);
+
+    /** Intern — Reporting Manager scheduled the viva. */
+    void sendProjectPendingViva(String email,
+                                String internName,
+                                String projectTitle,
+                                String dashboardUrl);
 }

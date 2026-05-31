@@ -77,6 +77,11 @@ final class NotificationEventCategories {
         MAP.put(NotificationEventType.TIMESHEET_DUE, NotificationCategory.REMINDERS);
         MAP.put(NotificationEventType.EVALUATION_DUE, NotificationCategory.REMINDERS);
         MAP.put(NotificationEventType.I983_SELF_EVAL_DUE, NotificationCategory.REMINDERS);
+
+        // Two-role workflow — intern-facing transition updates.
+        MAP.put(NotificationEventType.PROJECT_TECH_APPROVED, NotificationCategory.ENGAGEMENT_UPDATES);
+        MAP.put(NotificationEventType.PROJECT_RETURNED_FOR_REVISIONS, NotificationCategory.ENGAGEMENT_UPDATES);
+        MAP.put(NotificationEventType.PROJECT_PENDING_VIVA, NotificationCategory.ENGAGEMENT_UPDATES);
     }
 
     private NotificationEventCategories() {}

@@ -49,11 +49,15 @@ const STATUS_PILL: Record<ProjectStatus, string> = {
   IN_PROGRESS: 'bg-sky-100 text-sky-800',
   SUBMITTED: 'bg-amber-100 text-amber-800',
   RETURNED: 'bg-orange-100 text-orange-800',
+  TECH_APPROVED: 'bg-indigo-100 text-indigo-800',
+  PENDING_VIVA: 'bg-violet-100 text-violet-800',
   COMPLETED: 'bg-emerald-100 text-emerald-800',
 };
 
 const STATUS_ORDER: ProjectStatus[] = [
   'SUBMITTED',
+  'TECH_APPROVED',
+  'PENDING_VIVA',
   'RETURNED',
   'IN_PROGRESS',
   'NOT_STARTED',
@@ -65,6 +69,8 @@ const STATUS_LABEL: Record<ProjectStatus, string> = {
   IN_PROGRESS: 'In progress',
   SUBMITTED: 'Awaiting review',
   RETURNED: 'Returned',
+  TECH_APPROVED: 'Tech approved',
+  PENDING_VIVA: 'Pending viva',
   COMPLETED: 'Completed',
 };
 
@@ -477,10 +483,24 @@ function ReviewProjectModal({
 }) {
   const [returnNotes, setReturnNotes] = useState('');
   const [completeNotes, setCompleteNotes] = useState('');
-  const [busy, setBusy] = useState<'return' | 'complete' | null>(null);
+  const [busy, setBusy] = useState<
+    'return' | 'complete' | 'tech-approve' | 'return-revisions'
+      | 'mark-pending-viva' | 'complete-after-viva' | null
+  >(null);
   const [error, setError] = useState<string | null>(null);
+  const [revisionsReason, setRevisionsReason] = useState('');
   const canAct = project.status === 'SUBMITTED' || project.status === 'RETURNED';
   const locked = project.status === 'COMPLETED';
+
+  // Two-role workflow gates (the backend enforces them too).
+  const canTechApprove = project.status === 'SUBMITTED';
+  const canMarkPendingViva = project.status === 'TECH_APPROVED';
+  const canCompleteAfterViva =
+    project.status === 'PENDING_VIVA' || project.status === 'TECH_APPROVED';
+  const canReturnFromReview =
+    project.status === 'SUBMITTED'
+    || project.status === 'TECH_APPROVED'
+    || project.status === 'PENDING_VIVA';
   const latestSubmission = project.submissions?.[0];
 
   const callReview = async (
@@ -494,6 +514,33 @@ function ReviewProjectModal({
       onReviewed(
         action === 'return' ? 'Returned for changes.' : 'Project completed.',
       );
+    } catch (err: any) {
+      setError(err?.response?.data?.error ?? "Couldn't update the project.");
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  /**
+   * Two-role workflow actions (P1b). Each hits its dedicated endpoint and
+   * surfaces backend errors verbatim — the backend's guard messages are
+   * cleaner than anything we can synthesise client-side.
+   */
+  const callWorkflow = async (
+    action: 'tech-approve' | 'return-revisions'
+      | 'mark-pending-viva' | 'complete-after-viva',
+    body?: Record<string, unknown>,
+  ) => {
+    setBusy(action);
+    setError(null);
+    try {
+      await api.post(`/api/v1/projects/${project.id}/${action}`, body ?? {});
+      const toastMsg =
+        action === 'tech-approve' ? 'Marked tech-approved.'
+          : action === 'return-revisions' ? 'Returned for revisions.'
+          : action === 'mark-pending-viva' ? 'Marked pending viva.'
+          : 'Completed after viva.';
+      onReviewed(toastMsg);
     } catch (err: any) {
       setError(err?.response?.data?.error ?? "Couldn't update the project.");
     } finally {
@@ -651,6 +698,79 @@ function ReviewProjectModal({
             <div className="rounded-md border border-gray-200 bg-gray-50 p-3 text-xs italic text-gray-500">
               <AlertCircle className="mr-1 inline h-3.5 w-3.5" strokeWidth={2} />
               Waiting on the intern — review actions unlock after they submit.
+            </div>
+          )}
+
+          {/* Two-role workflow actions. Rendered alongside the legacy
+              return/complete so reviewers can opt into the new path on
+              tech stacks that use it. Backend enforces the role gate;
+              the buttons hide when the transition isn't legal from the
+              current status. */}
+          {(canTechApprove || canMarkPendingViva || canCompleteAfterViva || canReturnFromReview) && (
+            <div className="space-y-3 rounded-md border border-indigo-200 bg-indigo-50/40 p-3">
+              <div className="text-xs font-semibold uppercase tracking-wide text-indigo-700">
+                Two-role workflow
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {canTechApprove && (
+                  <button
+                    type="button"
+                    onClick={() => void callWorkflow('tech-approve')}
+                    disabled={busy !== null}
+                    className="rounded-md bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-60"
+                  >
+                    {busy === 'tech-approve' ? 'Approving…' : 'Approve technically'}
+                  </button>
+                )}
+                {canMarkPendingViva && (
+                  <button
+                    type="button"
+                    onClick={() => void callWorkflow('mark-pending-viva')}
+                    disabled={busy !== null}
+                    className="rounded-md bg-violet-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-violet-700 disabled:opacity-60"
+                  >
+                    {busy === 'mark-pending-viva' ? 'Marking…' : 'Mark pending viva'}
+                  </button>
+                )}
+                {canCompleteAfterViva && (
+                  <button
+                    type="button"
+                    onClick={() => void callWorkflow('complete-after-viva')}
+                    disabled={busy !== null}
+                    className="rounded-md bg-emerald-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-60"
+                  >
+                    {busy === 'complete-after-viva' ? 'Completing…' : 'Complete after viva'}
+                  </button>
+                )}
+              </div>
+              {canReturnFromReview && (
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-gray-700">
+                    Return for revisions — reason (required)
+                  </label>
+                  <textarea
+                    rows={2}
+                    value={revisionsReason}
+                    onChange={(e) => setRevisionsReason(e.target.value)}
+                    placeholder="What needs to change before sign-off?"
+                    className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
+                  />
+                  <div className="mt-2 flex justify-end">
+                    <button
+                      type="button"
+                      onClick={() =>
+                        void callWorkflow('return-revisions', {
+                          reason: revisionsReason.trim(),
+                        })
+                      }
+                      disabled={busy !== null || revisionsReason.trim().length === 0}
+                      className="rounded-md border border-orange-300 bg-white px-3 py-1.5 text-sm font-medium text-orange-800 hover:bg-orange-50 disabled:opacity-60"
+                    >
+                      {busy === 'return-revisions' ? 'Returning…' : 'Return for revisions'}
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </div>

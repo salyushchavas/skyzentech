@@ -76,5 +76,14 @@ public enum NotificationEventType {
     WEEKLY_REPORT_DUE,           // intern (per engagement × weekStart)
     TIMESHEET_DUE,               // intern (per engagement × weekStart)
     EVALUATION_DUE,              // supervisor; target_id = evaluation_id (DRAFT N+ days)
-    I983_SELF_EVAL_DUE           // intern; target_id = evaluation_id
+    I983_SELF_EVAL_DUE,          // intern; target_id = evaluation_id
+
+    // Two-role workflow (P1b prerequisite for the workspace task).
+    // target_id = project_id; recipient is the intern for tech-approval +
+    // return-for-revisions + pending-viva, and the intern again on
+    // completion (the existing PROJECT_COMPLETED covers that path so no
+    // new completion type is added here).
+    PROJECT_TECH_APPROVED,
+    PROJECT_RETURNED_FOR_REVISIONS,
+    PROJECT_PENDING_VIVA
 }

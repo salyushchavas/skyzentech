@@ -8,6 +8,7 @@ import com.skyzen.careers.dto.project.UpdateProgressRequest;
 import com.skyzen.careers.dto.project.UpdateProjectRequest;
 import com.skyzen.careers.entity.User;
 import com.skyzen.careers.service.ProjectService;
+import com.skyzen.careers.service.ProjectWorkflowService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -16,7 +17,9 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 import java.net.URI;
+import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 /**
@@ -51,6 +54,7 @@ import java.util.UUID;
 public class ProjectController {
 
     private final ProjectService service;
+    private final ProjectWorkflowService workflowService;
 
     // ── Supervisor commands ─────────────────────────────────────────────────
 
@@ -136,5 +140,62 @@ public class ProjectController {
             @RequestBody(required = false) SubmitProjectRequest req,
             @AuthenticationPrincipal User user) {
         return service.submit(id, req, user);
+    }
+
+    // ── Two-role workflow (P1b) ─────────────────────────────────────────────
+    //
+    // The four endpoints below sit alongside the legacy /return + /complete
+    // (which are the single-reviewer path). The two-role flow is opt-in per
+    // project — the workspace task will eventually drive it from the GitHub
+    // PR webhook, but each endpoint is also callable directly by the
+    // appropriate reviewer for stacks that don't go through GitHub.
+    //
+    // All thin pass-throughs to ProjectWorkflowService.
+
+    @PostMapping("/{id}/tech-approve")
+    @PreAuthorize("hasAnyRole('TECHNICAL_SUPERVISOR', 'SUPER_ADMIN')")
+    public Map<String, Object> techApprove(
+            @PathVariable UUID id,
+            @AuthenticationPrincipal User user) {
+        var saved = workflowService.techApprove(id, user);
+        return Map.of("id", saved.getId(), "status", saved.getStatus().name());
+    }
+
+    @PostMapping("/{id}/return-revisions")
+    @PreAuthorize("hasAnyRole('TECHNICAL_SUPERVISOR', 'REPORTING_MANAGER', 'SUPER_ADMIN')")
+    public Map<String, Object> returnForRevisions(
+            @PathVariable UUID id,
+            @RequestBody Map<String, String> body,
+            @AuthenticationPrincipal User user) {
+        var saved = workflowService.returnForRevisions(id, user,
+                body != null ? body.get("reason") : null);
+        return Map.of("id", saved.getId(), "status", saved.getStatus().name());
+    }
+
+    @PostMapping("/{id}/mark-pending-viva")
+    @PreAuthorize("hasAnyRole('REPORTING_MANAGER', 'SUPER_ADMIN')")
+    public Map<String, Object> markPendingViva(
+            @PathVariable UUID id,
+            @RequestBody(required = false) Map<String, String> body,
+            @AuthenticationPrincipal User user) {
+        Instant scheduledAt = null;
+        if (body != null && body.get("scheduledAt") != null) {
+            try {
+                scheduledAt = Instant.parse(body.get("scheduledAt"));
+            } catch (Exception ignored) {
+                // tolerate malformed input — the RM can re-edit.
+            }
+        }
+        var saved = workflowService.markPendingViva(id, user, scheduledAt);
+        return Map.of("id", saved.getId(), "status", saved.getStatus().name());
+    }
+
+    @PostMapping("/{id}/complete-after-viva")
+    @PreAuthorize("hasAnyRole('REPORTING_MANAGER', 'SUPER_ADMIN')")
+    public Map<String, Object> completeAfterViva(
+            @PathVariable UUID id,
+            @AuthenticationPrincipal User user) {
+        var saved = workflowService.completeAfterViva(id, user);
+        return Map.of("id", saved.getId(), "status", saved.getStatus().name());
     }
 }

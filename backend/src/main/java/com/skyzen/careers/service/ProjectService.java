@@ -85,6 +85,7 @@ public class ProjectService {
     private final AuditLogRepository auditLogRepository;
     private final ObjectMapper objectMapper;
     private final com.skyzen.careers.notification.NotificationService notificationService;
+    private final org.springframework.context.ApplicationEventPublisher eventPublisher;
 
     // ── Supervisor: allocate ────────────────────────────────────────────────
 
@@ -257,6 +258,20 @@ public class ProjectService {
             notificationService.sendProjectCompleted(saved);
         } catch (Exception e) {
             log.warn("PROJECT_COMPLETED notify failed (non-fatal) for {}: {}",
+                    saved.getId(), e.getMessage());
+        }
+
+        // Two-role workflow prerequisite — emit ProjectCompletedEvent from
+        // BOTH paths (this legacy single-reviewer complete + the
+        // ProjectWorkflowService.completeAfterViva path) so downstream
+        // listeners (offboarding, badges, portfolio link) don't need to
+        // know which reviewer signed off.
+        try {
+            eventPublisher.publishEvent(
+                    new com.skyzen.careers.event.project.ProjectCompletedEvent(
+                            saved.getId(), actor != null ? actor.getId() : null));
+        } catch (Exception e) {
+            log.warn("ProjectCompletedEvent publish failed (non-fatal) for {}: {}",
                     saved.getId(), e.getMessage());
         }
         return toResponse(saved);

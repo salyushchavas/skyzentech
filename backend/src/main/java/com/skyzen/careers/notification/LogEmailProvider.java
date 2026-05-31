@@ -300,4 +300,26 @@ public class LogEmailProvider implements EmailProvider {
         log.info("[LOG EMAIL] I-983 self-eval due to {} ({}) — type={} dashboard={}",
                 internName, email, evaluationType, dashboardUrl);
     }
+
+    @Override
+    public void sendProjectTechApproved(String email, String internName,
+                                        String projectTitle, String dashboardUrl) {
+        log.info("[LOG EMAIL] Project tech-approved → {} ({}) — \"{}\" dashboard={}",
+                internName, email, projectTitle, dashboardUrl);
+    }
+
+    @Override
+    public void sendProjectReturnedForRevisions(String email, String internName,
+                                                String projectTitle, String reason,
+                                                String dashboardUrl) {
+        log.info("[LOG EMAIL] Project returned for revisions → {} ({}) — \"{}\" reason={} dashboard={}",
+                internName, email, projectTitle, reason, dashboardUrl);
+    }
+
+    @Override
+    public void sendProjectPendingViva(String email, String internName,
+                                       String projectTitle, String dashboardUrl) {
+        log.info("[LOG EMAIL] Project pending viva → {} ({}) — \"{}\" dashboard={}",
+                internName, email, projectTitle, dashboardUrl);
+    }
 }
