@@ -82,6 +82,16 @@ public class SchemaFixupRunner implements CommandLineRunner {
                     e.getMessage(), e);
         }
 
+        // Q&A sessions — drop the auto-generated CHECK on status so future
+        // QaSessionStatus additions don't trip the stale-CHECK trap.
+        try {
+            jdbcTemplate.execute(
+                    "ALTER TABLE qa_sessions DROP CONSTRAINT IF EXISTS qa_sessions_status_check");
+            log.info("Dropped stale qa_sessions_status_check (if present).");
+        } catch (Exception e) {
+            log.warn("qa_sessions_status_check drop failed (non-fatal): {}", e.getMessage(), e);
+        }
+
         try {
             // Adds the `users.active` column on existing databases. Hibernate's
             // ddl-auto=update can't add a NOT NULL column to a table with rows

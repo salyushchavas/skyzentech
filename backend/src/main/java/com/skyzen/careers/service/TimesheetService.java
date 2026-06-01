@@ -2,25 +2,35 @@ package com.skyzen.careers.service;
 
 import com.skyzen.careers.dto.supervised.LogTimesheetRequest;
 import com.skyzen.careers.dto.supervised.RejectTimesheetRequest;
+import com.skyzen.careers.dto.supervised.TimesheetDayResponse;
 import com.skyzen.careers.dto.supervised.TimesheetListResponse;
 import com.skyzen.careers.dto.supervised.TimesheetResponse;
+import com.skyzen.careers.dto.supervised.TimesheetWeekResponse;
 import com.skyzen.careers.dto.supervised.UpdateTimesheetRequest;
 import com.skyzen.careers.entity.Candidate;
 import com.skyzen.careers.entity.Engagement;
 import com.skyzen.careers.entity.Timesheet;
+import com.skyzen.careers.entity.TimesheetDay;
 import com.skyzen.careers.entity.User;
 import com.skyzen.careers.enums.TimesheetStatus;
+import com.skyzen.careers.enums.UserRole;
 import com.skyzen.careers.exception.BadRequestException;
 import com.skyzen.careers.exception.ForbiddenException;
 import com.skyzen.careers.exception.ResourceNotFoundException;
 import com.skyzen.careers.repository.CandidateRepository;
+import com.skyzen.careers.repository.TimesheetDayRepository;
 import com.skyzen.careers.repository.TimesheetRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
+import java.time.DayOfWeek;
 import java.time.Instant;
+import java.time.LocalDate;
+import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.UUID;
 
@@ -31,6 +41,7 @@ public class TimesheetService {
     private static final BigDecimal MAX_HOURS = new BigDecimal("168");
 
     private final TimesheetRepository timesheetRepository;
+    private final TimesheetDayRepository timesheetDayRepository;
     private final CandidateRepository candidateRepository;
     private final EngagementService engagementService;
 
@@ -190,5 +201,181 @@ public class TimesheetService {
                 .reviewNote(t.getReviewNote())
                 .createdAt(t.getCreatedAt())
                 .build();
+    }
+
+    // ─── Day-by-day week-mode API ───────────────────────────────────────────
+    //
+    // Additive surface for the intern timesheet entry page + the RM approval
+    // queue. The parent {@link Timesheet} row is reused as the weekly
+    // container — its {@code hours} is recomputed from the day rows on every
+    // PATCH so the legacy weekly-total readers stay correct.
+
+    /**
+     * Find-or-create the intern caller's timesheet for {@code weekStart}. A
+     * weekStart must be a Monday — otherwise we'd risk multiple rows pointing
+     * at overlapping weeks. Newly-created weeks start in DRAFT with no day
+     * rows; the UI calls {@link #patchDay} for each cell as the intern types.
+     */
+    @Transactional
+    public TimesheetWeekResponse getOrCreateWeek(LocalDate weekStart, User caller) {
+        if (weekStart == null) {
+            throw new BadRequestException("weekStart is required.");
+        }
+        if (weekStart.getDayOfWeek() != DayOfWeek.MONDAY) {
+            throw new BadRequestException("weekStart must fall on a Monday.");
+        }
+        Timesheet t = timesheetRepository
+                .findByCandidateUserAndWeek(caller.getId(), weekStart)
+                .orElse(null);
+        if (t == null) {
+            Candidate intern = candidateRepository.findByUserId(caller.getId())
+                    .orElseThrow(() -> new ResourceNotFoundException(
+                            "Candidate profile not found for user " + caller.getId()));
+            Engagement engagement = engagementService
+                    .resolveActiveForCandidate(intern.getId())
+                    .orElse(null);
+            t = Timesheet.builder()
+                    .intern(intern)
+                    .engagement(engagement)
+                    .weekStart(weekStart)
+                    .hours(BigDecimal.ZERO)
+                    .status(TimesheetStatus.DRAFT)
+                    .build();
+            t = timesheetRepository.save(t);
+        }
+        return toWeekResponse(t);
+    }
+
+    /**
+     * Intern upserts one day of their own week. Recomputes the parent's
+     * {@code hours} total. Only DRAFT / REJECTED weeks are editable —
+     * SUBMITTED + APPROVED are locked (server enforced).
+     */
+    @Transactional
+    public TimesheetWeekResponse patchDay(UUID timesheetId, DayOfWeek dayOfWeek,
+                                          BigDecimal hours, String notes, User caller) {
+        if (dayOfWeek == null) {
+            throw new BadRequestException("dayOfWeek is required.");
+        }
+        if (hours == null || hours.compareTo(BigDecimal.ZERO) < 0
+                || hours.compareTo(MAX_DAILY_HOURS) > 0) {
+            throw new BadRequestException("hours must be between 0 and 24.");
+        }
+        Timesheet t = loadOwned(timesheetId, caller);
+        if (t.getStatus() != TimesheetStatus.DRAFT
+                && t.getStatus() != TimesheetStatus.REJECTED) {
+            throw new BadRequestException(
+                    "Only DRAFT or REJECTED weeks can be edited (current: " + t.getStatus() + ")");
+        }
+
+        TimesheetDay day = timesheetDayRepository
+                .findByTimesheetIdAndDayOfWeek(t.getId(), dayOfWeek)
+                .orElseGet(() -> TimesheetDay.builder()
+                        .timesheet(t)
+                        .dayOfWeek(dayOfWeek)
+                        .hours(BigDecimal.ZERO)
+                        .build());
+        day.setHours(hours);
+        day.setNotes(trimToNull(notes));
+        timesheetDayRepository.save(day);
+
+        // Recompute the parent total so legacy readers stay accurate.
+        BigDecimal total = timesheetDayRepository.findByTimesheetIdOrderByDayOfWeekAsc(t.getId())
+                .stream()
+                .map(d -> d.getId() != null && d.getId().equals(day.getId()) ? hours : d.getHours())
+                .reduce(BigDecimal.ZERO, BigDecimal::add)
+                .setScale(2, RoundingMode.HALF_UP);
+        if (total.compareTo(MAX_HOURS) > 0) {
+            throw new BadRequestException("Weekly total cannot exceed 168 hours.");
+        }
+        t.setHours(total);
+        timesheetRepository.save(t);
+
+        return toWeekResponse(t);
+    }
+
+    /** RM-scoped queue of SUBMITTED timesheets. SUPER_ADMIN bypasses scope. */
+    @Transactional(readOnly = true)
+    public List<TimesheetWeekResponse> listPendingApproval(User caller) {
+        if (caller == null) throw new ForbiddenException("Authentication required.");
+        List<Timesheet> rows;
+        if (isSuperAdmin(caller)) {
+            rows = timesheetRepository.findAllSubmitted();
+        } else if (hasRole(caller, UserRole.REPORTING_MANAGER)) {
+            rows = timesheetRepository.findSubmittedForReportingManager(caller.getId());
+        } else {
+            throw new ForbiddenException(
+                    "Only REPORTING_MANAGER or SUPER_ADMIN can view the approval queue.");
+        }
+        return rows.stream().map(this::toWeekResponse).toList();
+    }
+
+    /** Detail view for the RM approval page. Same scope rules as the queue. */
+    @Transactional(readOnly = true)
+    public TimesheetWeekResponse getWeek(UUID timesheetId, User caller) {
+        Timesheet t = timesheetRepository.findByIdWithGraph(timesheetId)
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "Timesheet not found: " + timesheetId));
+        if (caller == null) throw new ForbiddenException("Authentication required.");
+        UUID callerId = caller.getId();
+        boolean isOwner = t.getIntern() != null
+                && t.getIntern().getUser() != null
+                && t.getIntern().getUser().getId().equals(callerId);
+        boolean isRm = t.getEngagement() != null
+                && t.getEngagement().getReportingManager() != null
+                && t.getEngagement().getReportingManager().getId().equals(callerId);
+        boolean isSupervisor = t.getEngagement() != null
+                && t.getEngagement().getSupervisor() != null
+                && t.getEngagement().getSupervisor().getId().equals(callerId);
+        if (!isOwner && !isRm && !isSupervisor && !isSuperAdmin(caller)
+                && !hasRole(caller, UserRole.OPERATIONS)
+                && !hasRole(caller, UserRole.HR_COMPLIANCE)) {
+            throw new ForbiddenException("Not authorised to view this timesheet.");
+        }
+        return toWeekResponse(t);
+    }
+
+    private TimesheetWeekResponse toWeekResponse(Timesheet t) {
+        List<TimesheetDay> days = timesheetDayRepository
+                .findByTimesheetIdOrderByDayOfWeekAsc(t.getId());
+        List<TimesheetDayResponse> dayDtos = new ArrayList<>(days.size());
+        for (TimesheetDay d : days) {
+            dayDtos.add(new TimesheetDayResponse(
+                    d.getId(), d.getDayOfWeek(), d.getHours(), d.getNotes()));
+        }
+        dayDtos.sort(Comparator.comparing(TimesheetDayResponse::dayOfWeek));
+        User approver = t.getApprovedBy();
+        var intern = t.getIntern();
+        var internUser = intern != null ? intern.getUser() : null;
+        return new TimesheetWeekResponse(
+                t.getId(),
+                internUser != null ? internUser.getId() : null,
+                internUser != null ? internUser.getFullName() : null,
+                t.getWeekStart(),
+                t.getStatus(),
+                t.getHours(),
+                dayDtos,
+                t.getReviewNote(),
+                approver != null ? approver.getFullName() : null,
+                t.getApprovedAt(),
+                null,
+                t.getCreatedAt()
+        );
+    }
+
+    private static final BigDecimal MAX_DAILY_HOURS = new BigDecimal("24");
+
+    private static boolean isSuperAdmin(User u) {
+        return u.getRoles() != null && u.getRoles().contains(UserRole.SUPER_ADMIN);
+    }
+
+    private static boolean hasRole(User u, UserRole role) {
+        return u.getRoles() != null && u.getRoles().contains(role);
+    }
+
+    private static String trimToNull(String raw) {
+        if (raw == null) return null;
+        String t = raw.trim();
+        return t.isEmpty() ? null : t;
     }
 }

@@ -62,4 +62,38 @@ public interface ProjectRepository extends JpaRepository<Project, UUID> {
             "WHERE p.assignedBy.id = :supervisorUserId AND p.status = :status")
     long countByAssignedByIdAndStatus(@Param("supervisorUserId") UUID supervisorUserId,
                                       @Param("status") ProjectStatus status);
+
+    /**
+     * RM-scoped projects in one of the given statuses, newest first. Joins
+     * through engagement.reporting_manager_id — null RM rows are skipped.
+     */
+    @Query("SELECT p FROM Project p " +
+            "JOIN FETCH p.engagement e " +
+            "LEFT JOIN FETCH e.reportingManager rm " +
+            "LEFT JOIN FETCH e.supervisor sv " +
+            "JOIN FETCH p.intern i " +
+            "JOIN FETCH i.user iu " +
+            "JOIN FETCH p.assignedBy ab " +
+            "WHERE rm.id = :rmUserId AND p.status IN :statuses " +
+            "ORDER BY p.updatedAt DESC")
+    List<Project> findForReportingManager(@org.springframework.data.repository.query.Param("rmUserId")
+                                          UUID rmUserId,
+                                          @org.springframework.data.repository.query.Param("statuses")
+                                          List<ProjectStatus> statuses);
+
+    /** Count of RM-scoped projects in a single status. */
+    @Query("SELECT COUNT(p) FROM Project p " +
+            "WHERE p.engagement.reportingManager.id = :rmUserId AND p.status = :status")
+    long countByReportingManagerAndStatus(
+            @Param("rmUserId") UUID rmUserId,
+            @Param("status") ProjectStatus status);
+
+    /** Count of RM-scoped projects completed at-or-after the given instant. */
+    @Query("SELECT COUNT(p) FROM Project p " +
+            "WHERE p.engagement.reportingManager.id = :rmUserId " +
+            "  AND p.status = com.skyzen.careers.enums.ProjectStatus.COMPLETED " +
+            "  AND p.completedAt >= :since")
+    long countCompletedSinceForReportingManager(
+            @Param("rmUserId") UUID rmUserId,
+            @Param("since") java.time.Instant since);
 }

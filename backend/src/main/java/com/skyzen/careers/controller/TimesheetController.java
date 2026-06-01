@@ -62,20 +62,20 @@ public class TimesheetController {
     }
 
     @GetMapping("/interns/{candidateId}/timesheets")
-    @PreAuthorize("hasAnyRole('OPERATIONS', 'HR_COMPLIANCE', 'TECHNICAL_SUPERVISOR')")
+    @PreAuthorize("hasAnyRole('OPERATIONS', 'HR_COMPLIANCE', 'TECHNICAL_SUPERVISOR', 'REPORTING_MANAGER')")
     public TimesheetListResponse listForIntern(@PathVariable UUID candidateId) {
         return timesheetService.listForIntern(candidateId);
     }
 
     @PostMapping("/timesheets/{id}/approve")
-    @PreAuthorize("hasAnyRole('OPERATIONS', 'TECHNICAL_SUPERVISOR')")
+    @PreAuthorize("hasAnyRole('OPERATIONS', 'TECHNICAL_SUPERVISOR', 'REPORTING_MANAGER', 'SUPER_ADMIN')")
     public TimesheetResponse approve(@PathVariable UUID id,
                                      @AuthenticationPrincipal User caller) {
         return timesheetService.approve(id, caller);
     }
 
     @PostMapping("/timesheets/{id}/reject")
-    @PreAuthorize("hasAnyRole('OPERATIONS', 'TECHNICAL_SUPERVISOR')")
+    @PreAuthorize("hasAnyRole('OPERATIONS', 'TECHNICAL_SUPERVISOR', 'REPORTING_MANAGER', 'SUPER_ADMIN')")
     public TimesheetResponse reject(@PathVariable UUID id,
                                     @Valid @RequestBody RejectTimesheetRequest req,
                                     @AuthenticationPrincipal User caller) {

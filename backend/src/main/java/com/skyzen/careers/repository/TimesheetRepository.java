@@ -84,4 +84,35 @@ public interface TimesheetRepository extends JpaRepository<Timesheet, UUID> {
 
     /** Exact-week lookup used by the daily timesheet-due scheduler. */
     Optional<Timesheet> findByInternIdAndWeekStart(UUID internId, LocalDate weekStart);
+
+    /** Exact-week lookup keyed by the candidate's User id (intern face). */
+    @Query("SELECT t FROM Timesheet t "
+            + "JOIN FETCH t.intern i "
+            + "JOIN FETCH i.user iu "
+            + "LEFT JOIN FETCH t.approvedBy ab "
+            + "WHERE iu.id = :userId AND t.weekStart = :weekStart")
+    Optional<Timesheet> findByCandidateUserAndWeek(@Param("userId") UUID userId,
+                                                   @Param("weekStart") LocalDate weekStart);
+
+    /**
+     * SUBMITTED timesheets scoped to a Reporting Manager — joins through the
+     * intern's active engagement. Newest submission first.
+     */
+    @Query("SELECT t FROM Timesheet t "
+            + "JOIN FETCH t.intern i "
+            + "JOIN FETCH i.user iu "
+            + "LEFT JOIN FETCH t.engagement e "
+            + "WHERE t.status = com.skyzen.careers.enums.TimesheetStatus.SUBMITTED "
+            + "  AND e.reportingManager.id = :rmUserId "
+            + "ORDER BY t.weekStart DESC, t.createdAt DESC")
+    List<Timesheet> findSubmittedForReportingManager(@Param("rmUserId") UUID rmUserId);
+
+    /** All SUBMITTED timesheets (admin override). Newest first. */
+    @Query("SELECT t FROM Timesheet t "
+            + "JOIN FETCH t.intern i "
+            + "JOIN FETCH i.user iu "
+            + "LEFT JOIN FETCH t.engagement e "
+            + "WHERE t.status = com.skyzen.careers.enums.TimesheetStatus.SUBMITTED "
+            + "ORDER BY t.weekStart DESC, t.createdAt DESC")
+    List<Timesheet> findAllSubmitted();
 }

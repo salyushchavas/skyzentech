@@ -1,0 +1,98 @@
+package com.skyzen.careers.service;
+
+import com.skyzen.careers.dto.qa.QaSessionResponse;
+import com.skyzen.careers.dto.rm.ReportingManagerDashboardResponse;
+import com.skyzen.careers.dto.rm.ReportingManagerDashboardResponse.ProjectAwaitingQa;
+import com.skyzen.careers.dto.supervised.TimesheetWeekResponse;
+import com.skyzen.careers.entity.Project;
+import com.skyzen.careers.entity.QaSession;
+import com.skyzen.careers.entity.User;
+import com.skyzen.careers.enums.ProjectStatus;
+import com.skyzen.careers.enums.QaSessionStatus;
+import com.skyzen.careers.repository.ProjectRepository;
+import com.skyzen.careers.repository.QaSessionRepository;
+import lombok.RequiredArgsConstructor;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.time.Instant;
+import java.time.LocalDate;
+import java.time.ZoneOffset;
+import java.util.ArrayList;
+import java.util.List;
+
+/**
+ * Composes the Reporting Manager dashboard view from existing repositories.
+ * No new persistence — every figure is read live.
+ */
+@Service
+@RequiredArgsConstructor
+public class ReportingManagerDashboardService {
+
+    private final ProjectRepository projectRepository;
+    private final QaSessionRepository qaSessionRepository;
+    private final QaSessionService qaSessionService;
+    private final TimesheetService timesheetService;
+
+    @Transactional(readOnly = true)
+    public ReportingManagerDashboardResponse build(User caller) {
+        long pendingQa = projectRepository.countByReportingManagerAndStatus(
+                caller.getId(), ProjectStatus.TECH_APPROVED);
+        long inProgress = projectRepository.countByReportingManagerAndStatus(
+                caller.getId(), ProjectStatus.PENDING_VIVA);
+
+        Instant monthStart = LocalDate.now()
+                .withDayOfMonth(1)
+                .atStartOfDay()
+                .toInstant(ZoneOffset.UTC);
+        long completedThisMonth = projectRepository
+                .countCompletedSinceForReportingManager(caller.getId(), monthStart);
+
+        List<Project> awaiting = projectRepository.findForReportingManager(
+                caller.getId(), List.of(ProjectStatus.TECH_APPROVED));
+        List<ProjectAwaitingQa> awaitingDtos = new ArrayList<>();
+        for (Project p : awaiting) {
+            var intern = p.getIntern();
+            var internUser = intern != null ? intern.getUser() : null;
+            awaitingDtos.add(new ProjectAwaitingQa(
+                    p.getId(),
+                    p.getTitle(),
+                    internUser != null ? internUser.getId() : null,
+                    internUser != null ? internUser.getFullName() : null,
+                    p.getReviewedAt()
+            ));
+        }
+
+        List<QaSession> activeSessions = qaSessionRepository.findActiveForRm(
+                caller.getId(),
+                List.of(QaSessionStatus.SCHEDULED, QaSessionStatus.CONDUCTED));
+        List<QaSessionResponse> activeSessionDtos = activeSessions.stream()
+                .map(qaSessionService::toResponse)
+                .toList();
+
+        // Top 5 pending timesheets (oldest first by weekStart asc). The full
+        // queue page calls /api/v1/timesheets/pending-approval directly.
+        List<TimesheetWeekResponse> pendingTimesheets = timesheetService
+                .listPendingApproval(caller).stream()
+                .sorted((a, b) -> {
+                    if (a.weekStart() == null && b.weekStart() == null) return 0;
+                    if (a.weekStart() == null) return 1;
+                    if (b.weekStart() == null) return -1;
+                    return a.weekStart().compareTo(b.weekStart());
+                })
+                .limit(5)
+                .toList();
+
+        long pendingTimesheetCount = timesheetService.listPendingApproval(caller).size();
+
+        return new ReportingManagerDashboardResponse(
+                pendingQa,
+                inProgress,
+                pendingTimesheetCount,
+                completedThisMonth,
+                awaitingDtos,
+                activeSessionDtos,
+                pendingTimesheets
+        );
+    }
+}
