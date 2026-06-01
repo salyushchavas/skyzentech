@@ -676,6 +676,12 @@ public class CandidateDashboardService {
                 sub = "HR opens the case after Form I-9 is complete";
             } else if (everify.getStatus() == EVerifyStatus.EMPLOYMENT_AUTHORIZED) {
                 state = "done"; sub = "Employment authorized";
+            } else if (everify.getStatus() == EVerifyStatus.CLOSED) {
+                state = "done"; sub = "E-Verify complete";
+            } else if (everify.getStatus() == EVerifyStatus.FINAL_NONCONFIRMATION) {
+                // Terminal but unfavorable — render as terminal so the
+                // dashboard doesn't claim HR is still working on it.
+                state = "done"; sub = "Final nonconfirmation — contact HR";
             } else if (everify.getStatus() == EVerifyStatus.PENDING_SUBMISSION) {
                 state = "waiting"; sub = "Case created — HR will submit shortly";
             } else {
@@ -880,6 +886,16 @@ public class CandidateDashboardService {
             } else if (everify.getStatus() == EVerifyStatus.EMPLOYMENT_AUTHORIZED) {
                 state = "COMPLETED";
                 sub = "Employment authorized";
+            } else if (everify.getStatus() == EVerifyStatus.CLOSED) {
+                state = "COMPLETED";
+                sub = "E-Verify complete";
+                at = everify.getClosedAt();
+            } else if (everify.getStatus() == EVerifyStatus.FINAL_NONCONFIRMATION) {
+                // Terminal but unfavorable — render as terminal so the
+                // dashboard doesn't claim HR is still working on it.
+                state = "COMPLETED";
+                sub = "Final nonconfirmation — contact HR";
+                at = everify.getClosedAt();
             } else if (everify.getStatus() == EVerifyStatus.PENDING_SUBMISSION) {
                 state = "IN_PROGRESS";
                 sub = "Case created — HR will submit shortly";
