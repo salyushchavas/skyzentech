@@ -92,6 +92,50 @@ public class SchemaFixupRunner implements CommandLineRunner {
             log.warn("qa_sessions_status_check drop failed (non-fatal): {}", e.getMessage(), e);
         }
 
+        // sent_notifications.event_type was created varchar(20) on the legacy
+        // schema; the entity now declares length = 64 but ddl-auto never
+        // widens an existing column. The longest enum name today is
+        // PROJECT_RETURNED_FOR_REVISIONS (30 chars); shorter values like
+        // I9_SECTION2_PENDING fit varchar(20) by one byte but trip the
+        // overflow during I-9 Section 1 commit because the row write fails
+        // before the column is widened. Idempotent: ALTER ... TYPE on an
+        // already-varchar(64) column is a no-op.
+        try {
+            jdbcTemplate.execute(
+                    "ALTER TABLE sent_notifications ALTER COLUMN event_type TYPE varchar(64)");
+            log.info("Ensured sent_notifications.event_type is varchar(64).");
+        } catch (Exception e) {
+            log.warn("sent_notifications.event_type widen failed (non-fatal): {}",
+                    e.getMessage(), e);
+        }
+
+        // sent_notifications — drop the auto-generated CHECK on event_type so
+        // post-batch-1 additions (I9_SECTION2_PENDING, the workspace events,
+        // workauth expiry buckets, …) write cleanly. Java enum is the source
+        // of truth; the CHECK is dead weight.
+        try {
+            jdbcTemplate.execute(
+                    "ALTER TABLE sent_notifications "
+                            + "DROP CONSTRAINT IF EXISTS sent_notifications_event_type_check");
+            log.info("Dropped stale sent_notifications_event_type_check (if present).");
+        } catch (Exception e) {
+            log.warn("sent_notifications_event_type_check drop failed (non-fatal): {}",
+                    e.getMessage(), e);
+        }
+
+        // i9_forms.status — defensive widening to varchar(32). The current
+        // longest I9Status value (SECTION_1_COMPLETE, 18 chars) fits the
+        // legacy varchar(20), but we widen pre-emptively so adding a longer
+        // status (e.g. a new SECTION_3_*) later doesn't hit the same
+        // ddl-auto-can't-widen trap that bit sent_notifications.
+        try {
+            jdbcTemplate.execute(
+                    "ALTER TABLE i9_forms ALTER COLUMN status TYPE varchar(32)");
+            log.info("Ensured i9_forms.status is varchar(32).");
+        } catch (Exception e) {
+            log.warn("i9_forms.status widen failed (non-fatal): {}", e.getMessage(), e);
+        }
+
         try {
             // Adds the `users.active` column on existing databases. Hibernate's
             // ddl-auto=update can't add a NOT NULL column to a table with rows
