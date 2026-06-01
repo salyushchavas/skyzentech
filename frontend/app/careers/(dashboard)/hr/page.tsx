@@ -160,6 +160,9 @@ function HrDashboardBody() {
 
       <AwaitingActivationCard />
 
+      {/* TEMP: remove after Bug #4 production fix verified */}
+      <StuckEngagementsTempCard />
+
       <ComplianceStatusBoardCard board={data.statusBoard} />
 
       <div className="grid gap-6 lg:grid-cols-3">
@@ -664,6 +667,134 @@ function AwaitingActivationCard() {
               {activating === row.engagementId
                 ? 'Activating…'
                 : 'Activate Engagement'}
+            </button>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
+// ── TEMP: bug-#4 recovery card ──────────────────────────────────────────────
+//
+// Lists ALL engagements stuck at PENDING_COMPLIANCE (regardless of compliance
+// readiness) and surfaces a "Mark as Hired" force button that bypasses the
+// readiness gate. Audit row stamps action FORCE_MARK_HIRED_TEMP so the
+// bypassed transitions are distinguishable.
+//
+// REMOVE this entire block (plus the <StuckEngagementsTempCard /> mount above)
+// once Bug #4 has been verified working in production. Backend pair:
+// GET  /api/v1/engagements/pending-compliance
+// POST /api/v1/engagements/{id}/force-mark-hired
+//
+// TEMP: remove after Bug #4 production fix verified
+
+interface StuckEngagementRow {
+  engagementId: Uuid;
+  candidateId: Uuid | null;
+  candidateName: string | null;
+  position: string | null;
+  ready: boolean;
+}
+
+function StuckEngagementsTempCard() {
+  const [rows, setRows] = useState<StuckEngagementRow[] | null>(null);
+  const [forcing, setForcing] = useState<Uuid | null>(null);
+
+  const load = useCallback(async () => {
+    try {
+      const res = await api.get<StuckEngagementRow[]>(
+        '/api/v1/engagements/pending-compliance',
+      );
+      setRows(res.data ?? []);
+    } catch {
+      setRows([]);
+    }
+  }, []);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  async function forceMarkHired(engagementId: Uuid) {
+    if (forcing) return;
+    const ok = window.confirm(
+      'Mark this engagement as hired? This bypasses compliance checks. '
+      + 'Temporary recovery action.',
+    );
+    if (!ok) return;
+    setForcing(engagementId);
+    try {
+      await api.post(`/api/v1/engagements/${engagementId}/force-mark-hired`);
+      toast.success('Engagement marked as hired');
+      await load();
+    } catch (err: any) {
+      toast.error(
+        err?.response?.data?.error ?? 'Failed to mark hired',
+      );
+    } finally {
+      setForcing(null);
+    }
+  }
+
+  if (rows === null) return null;
+  if (rows.length === 0) return null;
+
+  return (
+    <section className="rounded-lg border border-amber-300 bg-amber-50/60 p-5">
+      <div className="mb-2 flex items-center gap-2">
+        <AlertTriangle className="h-4 w-4 text-amber-700" strokeWidth={2} />
+        <h2 className="text-sm font-semibold text-gray-900">
+          Stuck engagements — temporary recovery ({rows.length})
+        </h2>
+      </div>
+      <p className="mb-3 text-xs text-gray-700">
+        Every engagement currently at <code>PENDING_COMPLIANCE</code>.
+        Use <strong>Mark as Hired</strong> to force-advance an engagement
+        past the compliance gate — temporary tool for recovering rows that
+        landed stuck. The proper flow (when compliance is genuinely complete)
+        is the <strong>Awaiting activation</strong> card above.
+      </p>
+      <ul className="space-y-2">
+        {rows.map((row) => (
+          <li
+            key={row.engagementId}
+            className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-amber-200 bg-white px-3 py-2"
+          >
+            <div className="flex min-w-0 items-center gap-2">
+              <Users className="h-3.5 w-3.5 shrink-0 text-amber-700" strokeWidth={2} />
+              <div className="min-w-0">
+                <Link
+                  href={
+                    row.candidateId
+                      ? `/careers/supervised/${row.candidateId}`
+                      : '#'
+                  }
+                  className="block truncate text-sm font-medium text-gray-900 hover:text-accent-dark hover:underline"
+                >
+                  {row.candidateName ?? '—'}
+                </Link>
+                <div className="truncate text-xs text-gray-500">
+                  {row.position ?? '—'}
+                  {row.ready ? (
+                    <span className="ml-2 rounded-full bg-emerald-100 px-1.5 py-0.5 text-[10px] font-medium text-emerald-800">
+                      Compliance ready
+                    </span>
+                  ) : (
+                    <span className="ml-2 rounded-full bg-gray-100 px-1.5 py-0.5 text-[10px] font-medium text-gray-700">
+                      Compliance incomplete
+                    </span>
+                  )}
+                </div>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => void forceMarkHired(row.engagementId)}
+              disabled={forcing !== null}
+              className="inline-flex items-center gap-1 rounded-md border border-amber-400 bg-white px-2.5 py-1 text-[11px] font-semibold text-amber-900 hover:bg-amber-100 disabled:opacity-60"
+            >
+              {forcing === row.engagementId ? 'Marking…' : 'Mark as Hired'}
             </button>
           </li>
         ))}

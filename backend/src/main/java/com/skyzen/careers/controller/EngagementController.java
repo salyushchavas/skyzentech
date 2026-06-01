@@ -115,6 +115,89 @@ public class EngagementController {
             String candidateName,
             String position) {}
 
+    // ── TEMP: bug-#4 recovery surface ──────────────────────────────────────────
+    // Listing + bypass action used by the HR landing's "Stuck engagements"
+    // card. The proper flow is /awaiting-activation + /mark-ready; this
+    // pair is for engagements that landed stuck while the activation gate
+    // had its bug. Once Bug #4 is verified working in production, every
+    // [TEMP-FORCE-HIRE] block in this file should be removed.
+
+    /**
+     * TEMP: returns ALL engagements at PENDING_COMPLIANCE (regardless of
+     * compliance readiness) so HR can see and force-advance stuck rows.
+     * Caller-side ready flag indicates whether the proper /mark-ready
+     * flow is also available for that row.
+     */
+    // TEMP: remove after Bug #4 production fix verified
+    @GetMapping("/pending-compliance")
+    @PreAuthorize("hasAnyRole('HR_COMPLIANCE', 'OPERATIONS', 'SUPER_ADMIN')")
+    @Transactional(readOnly = true)
+    public java.util.List<PendingComplianceRow> pendingCompliance() {
+        java.util.List<Engagement> pending = engagementRepository
+                .findByStatus(com.skyzen.careers.enums.EngagementStatus.PENDING_COMPLIANCE);
+        java.util.List<PendingComplianceRow> rows = new java.util.ArrayList<>();
+        for (Engagement e : pending) {
+            var candidate = e.getCandidate();
+            var candidateUser = candidate != null ? candidate.getUser() : null;
+            var application = e.getApplication();
+            var posting = application != null ? application.getJobPosting() : null;
+            rows.add(new PendingComplianceRow(
+                    e.getId(),
+                    candidate != null ? candidate.getId() : null,
+                    candidateUser != null ? candidateUser.getFullName() : null,
+                    posting != null ? posting.getTitle() : null,
+                    engagementActivationService.isReady(e)
+            ));
+        }
+        return rows;
+    }
+
+    /** TEMP: row payload for the HR stuck-engagements card. */
+    // TEMP: remove after Bug #4 production fix verified
+    public record PendingComplianceRow(
+            UUID engagementId,
+            UUID candidateId,
+            String candidateName,
+            String position,
+            boolean ready) {}
+
+    /**
+     * TEMP: force-flip PENDING_COMPLIANCE → READY_TO_START bypassing the
+     * compliance readiness gate. Used by HR to unstick engagements that
+     * landed in PENDING_COMPLIANCE while the activation gate had its
+     * Bug #4 defect. Logs are tagged [TEMP-FORCE-HIRE] so the whole
+     * surface can be removed by grep later.
+     */
+    // TEMP: remove after Bug #4 production fix verified
+    @PostMapping("/{id}/force-mark-hired")
+    @PreAuthorize("hasAnyRole('HR_COMPLIANCE', 'OPERATIONS', 'SUPER_ADMIN')")
+    @Transactional
+    public ResponseEntity<EngagementResponse> forceMarkHired(
+            @PathVariable UUID id,
+            @AuthenticationPrincipal User caller) {
+        Engagement engagement = engagementRepository.findByIdWithGraph(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Engagement not found: " + id));
+        if (engagement.getStatus()
+                != com.skyzen.careers.enums.EngagementStatus.PENDING_COMPLIANCE) {
+            throw new BadRequestException("Engagement is not PENDING_COMPLIANCE");
+        }
+        UUID actorId = caller != null ? caller.getId() : null;
+        UUID candidateId = engagement.getCandidate() != null
+                ? engagement.getCandidate().getId() : null;
+        org.slf4j.LoggerFactory.getLogger(EngagementController.class).warn(
+                "[TEMP-FORCE-HIRE] HR user {} force-advanced engagement {} "
+                        + "(candidate {}) PENDING_COMPLIANCE → READY_TO_START",
+                actorId, engagement.getId(), candidateId);
+        Engagement updated = engagementService.transitionToSystem(
+                engagement,
+                com.skyzen.careers.enums.EngagementStatus.READY_TO_START,
+                "FORCE_MARK_HIRED_TEMP",
+                actorId);
+        return ResponseEntity.ok(toResponse(updated));
+    }
+
+    // ── /TEMP ──────────────────────────────────────────────────────────────────
+
     @PostMapping("/{id}/mark-ready")
     @PreAuthorize("hasAnyRole('OPERATIONS', 'HR_COMPLIANCE')")
     @Transactional
