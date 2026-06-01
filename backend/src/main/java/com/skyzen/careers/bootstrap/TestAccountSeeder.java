@@ -4,6 +4,7 @@ import com.skyzen.careers.dto.project.CreateProjectRequest;
 import com.skyzen.careers.entity.Application;
 import com.skyzen.careers.entity.Candidate;
 import com.skyzen.careers.entity.Engagement;
+import com.skyzen.careers.entity.I983Plan;
 import com.skyzen.careers.entity.JobPosting;
 import com.skyzen.careers.entity.Offer;
 import com.skyzen.careers.entity.Project;
@@ -11,14 +12,19 @@ import com.skyzen.careers.entity.StaffingEntity;
 import com.skyzen.careers.entity.User;
 import com.skyzen.careers.enums.ApplicationStatus;
 import com.skyzen.careers.enums.CompensationFrequency;
+import com.skyzen.careers.enums.DegreeLevel;
+import com.skyzen.careers.enums.DsoApprovalStatus;
 import com.skyzen.careers.enums.EmploymentType;
 import com.skyzen.careers.enums.EngagementStatus;
+import com.skyzen.careers.enums.I983Status;
 import com.skyzen.careers.enums.JobPostingStatus;
 import com.skyzen.careers.enums.OfferStatus;
 import com.skyzen.careers.enums.UserRole;
+import com.skyzen.careers.enums.WorkAuthTrack;
 import com.skyzen.careers.repository.ApplicationRepository;
 import com.skyzen.careers.repository.CandidateRepository;
 import com.skyzen.careers.repository.EngagementRepository;
+import com.skyzen.careers.repository.I983PlanRepository;
 import com.skyzen.careers.repository.JobPostingRepository;
 import com.skyzen.careers.repository.OfferRepository;
 import com.skyzen.careers.repository.ProjectRepository;
@@ -101,6 +107,7 @@ public class TestAccountSeeder implements CommandLineRunner {
     private final EngagementRepository engagementRepository;
     private final ProjectRepository projectRepository;
     private final ProjectService projectService;
+    private final I983PlanRepository i983PlanRepository;
 
     public TestAccountSeeder(
             @Value("${app.seed.test-accounts-enabled:false}") boolean enabled,
@@ -113,7 +120,8 @@ public class TestAccountSeeder implements CommandLineRunner {
             OfferRepository offerRepository,
             EngagementRepository engagementRepository,
             ProjectRepository projectRepository,
-            ProjectService projectService) {
+            ProjectService projectService,
+            I983PlanRepository i983PlanRepository) {
         this.enabled = enabled;
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
@@ -125,6 +133,7 @@ public class TestAccountSeeder implements CommandLineRunner {
         this.engagementRepository = engagementRepository;
         this.projectRepository = projectRepository;
         this.projectService = projectService;
+        this.i983PlanRepository = i983PlanRepository;
     }
 
     @Override
@@ -145,6 +154,7 @@ public class TestAccountSeeder implements CommandLineRunner {
                     application, internCandidate, offer, entity, evaluator, rm);
 
             findOrCreateProject(internCandidate, engagement, evaluator);
+            findOrCreateI983Plan(internCandidate, application, offer, entity, engagement, evaluator);
             log.info("{} Seed complete.", LOG_TAG);
         } catch (Exception e) {
             // Never crash startup on a seeding failure — same defence used by
@@ -276,6 +286,7 @@ public class TestAccountSeeder implements CommandLineRunner {
                     .candidate(candidate)
                     .offer(offer)
                     .entity(entity)
+                    .track(WorkAuthTrack.STEM_OPT) // unlocks I-983 + E-Verify tiles for the test intern
                     .status(EngagementStatus.ACTIVE)
                     .plannedStartDate(LocalDate.now())
                     .actualStartDate(LocalDate.now())
@@ -304,7 +315,21 @@ public class TestAccountSeeder implements CommandLineRunner {
         } else {
             log.info("{}   reporting manager → already assigned, skipped", LOG_TAG);
         }
+        // Heal track on engagements created before the seeder set it — the
+        // I-983 plan gate + candidate dashboard tile both key off STEM_OPT.
+        if (engagement.getTrack() != WorkAuthTrack.STEM_OPT) {
+            engagement.setTrack(WorkAuthTrack.STEM_OPT);
+            dirty = true;
+            log.info("{}   engagement.track → set to STEM_OPT", LOG_TAG);
+        }
         if (dirty) engagementRepository.save(engagement);
+
+        // Mirror the track on the candidate's expectedTrack so dashboard
+        // fallbacks that read candidate.expectedTrack also resolve to STEM_OPT.
+        if (candidate.getExpectedTrack() != WorkAuthTrack.STEM_OPT) {
+            candidate.setExpectedTrack(WorkAuthTrack.STEM_OPT);
+            candidateRepository.save(candidate);
+        }
         return engagement;
     }
 
@@ -332,5 +357,140 @@ public class TestAccountSeeder implements CommandLineRunner {
         var resp = projectService.create(req, evaluator);
         log.info("{}   project \"{}\" → CREATED (id={})",
                 LOG_TAG, TEST_PROJECT_TITLE, resp.getId());
+    }
+
+    // ── I-983 training plan ─────────────────────────────────────────────────
+
+    /**
+     * Fully populated DRAFT I-983 plan for the test intern so the candidate
+     * I-983 page + the ERM training-plans UI have realistic content to render.
+     * Idempotent: skipped if the candidate already has any plan row.
+     *
+     * Built via direct repository.save (matching the established seeder
+     * pattern for upstream entities), not {@link com.skyzen.careers.service.I983Service#createPlan}
+     * — the service path has been observed to throw if the candidate's
+     * application chain isn't a perfect match for its private invariants,
+     * and the seeder owns its own data so the looser path is fine here.
+     */
+    private void findOrCreateI983Plan(Candidate intern, Application application,
+                                      Offer offer, StaffingEntity entity,
+                                      Engagement engagement, User creator) {
+        var existing = i983PlanRepository.findByCandidateIdOrderByCreatedAtDesc(intern.getId());
+        if (!existing.isEmpty()) {
+            log.info("{}   I-983 plan → already exists, skipped (count={}, latest={})",
+                    LOG_TAG, existing.size(), existing.get(0).getId());
+            return;
+        }
+
+        var internUser = intern.getUser();
+        String[] nameParts = splitFullName(internUser != null ? internUser.getFullName() : null);
+        LocalDate today = LocalDate.now();
+
+        I983Plan plan = I983Plan.builder()
+                .candidate(intern)
+                .application(application)
+                .offer(offer)
+                .engagement(engagement)
+                .entity(entity)
+                .status(I983Status.DRAFT)
+                .dsoApprovalStatus(DsoApprovalStatus.NOT_SUBMITTED)
+
+                // Section 1 — Student information
+                .studentLastName(nameParts[1])
+                .studentFirstName(nameParts[0])
+                .studentEmail(internUser != null ? internUser.getEmail() : null)
+                .sevisId("N0012345678")
+                .uscisNumber("123456789")
+                .degreeAwarded("Master of Science in Computer Science")
+                .degreeLevel(DegreeLevel.MASTERS)
+                .universityName("Skyzen Test University")
+                .universityCipCode("11.0701") // Computer Science CIP code
+                .dateOfDegreeAward(today.minusMonths(3))
+                .optStartDate(today.minusMonths(1))
+                .optEndDate(today.plusMonths(11))
+
+                // Section 2 — Employer information (mirrors the test
+                // StaffingEntity created earlier in the seeder run).
+                .employerName(entity.getName())
+                .employerEin("12-3456789")
+                .employerAddress("100 Test Street, Suite 200\nSan Francisco, CA 94105")
+                .employerWebsite("https://www.skyzentech.com")
+                .employerNaicsCode("541512") // Computer Systems Design Services
+                .employerNumberOfFullTimeEmployees(45)
+                .employerOfficialName(creator.getFullName())
+                .employerOfficialTitle("Technical Supervisor")
+                .employerOfficialEmail(creator.getEmail())
+                .employerOfficialPhone("+1-415-555-0199")
+
+                // Section 3 — Training program
+                .jobTitle("Software Engineering Intern (STEM OPT)")
+                .trainingStartDate(today)
+                .trainingEndDate(today.plusMonths(11))
+                .hoursPerWeek(40)
+                .compensationAmount(new java.math.BigDecimal("75000.00"))
+                .compensationFrequency(CompensationFrequency.YEARLY)
+                .compensationCurrency("USD")
+                .supervisorName(creator.getFullName())
+                .supervisorTitle("Technical Supervisor")
+                .supervisorEmail(creator.getEmail())
+                .supervisorPhone("+1-415-555-0199")
+
+                // Section 4 — Training program narrative
+                .trainingProgramDescription(
+                        "Hands-on training across the full-stack Skyzen Careers platform — "
+                        + "Java 21 / Spring Boot 3 on the backend, Next.js 14 / TypeScript "
+                        + "on the frontend. Intern owns small, well-scoped features end-to-end "
+                        + "with regular code review, biweekly evaluation sessions, and a "
+                        + "supervised project review cycle.")
+                .howTrainingRelatesToDegree(
+                        "Direct application of distributed-systems, web-architecture, and "
+                        + "data-modeling coursework. Intern's MS coursework in software "
+                        + "engineering and database systems maps to ongoing project work "
+                        + "on REST APIs, JPA/Hibernate persistence, and React-based UIs.")
+                .trainingGoalsAndObjectives(
+                        "1. Ship at least three production-grade features under code review.\n"
+                        + "2. Demonstrate proficiency in JPA query optimization and Spring "
+                        + "Security configuration.\n"
+                        + "3. Lead one end-to-end design discussion for a backend module.\n"
+                        + "4. Pass the biweekly evaluator rubric for code quality, "
+                        + "communication, and ownership.")
+                .performanceEvaluationMethod(
+                        "Biweekly 1:1 evaluation sessions with the Technical Supervisor "
+                        + "covering code quality, delivery cadence, communication, and "
+                        + "ownership. Mid-cycle and final written evaluations (12-month "
+                        + "and 24-month per DHS guidance).")
+                .reportingRequirements(
+                        "Weekly status reports submitted via the intern dashboard. "
+                        + "Material change reports filed with the DSO within 10 days "
+                        + "of any change to employer, position, or training plan.")
+                .skillsKnowledgeLearned(
+                        "Spring Boot 3, Hibernate 6 / JPA, Postgres query design, REST "
+                        + "API best practices, Spring Security + JWT, Next.js 14 App "
+                        + "Router, TypeScript, React Server Components, Tailwind, code "
+                        + "review hygiene, agile delivery in a small engineering team.")
+                .resourcesEquipmentMaterials(
+                        "Laptop + dual-monitor setup, IDE licenses (IntelliJ + VS Code), "
+                        + "access to staging environments, GitHub repository access, "
+                        + "internal documentation and code review tooling.")
+                .supervisorCommitments(
+                        "1. Weekly 1:1 mentorship sessions.\n"
+                        + "2. Biweekly written evaluation feedback.\n"
+                        + "3. Code review on every pull request.\n"
+                        + "4. Timely DSO notification of any material change to the "
+                        + "training plan.")
+
+                .createdBy(creator.getId())
+                .build();
+
+        plan = i983PlanRepository.save(plan);
+        log.info("{}   I-983 plan → CREATED (id={})", LOG_TAG, plan.getId());
+    }
+
+    private static String[] splitFullName(String full) {
+        if (full == null || full.isBlank()) return new String[] {"Test", "Intern"};
+        String trimmed = full.trim();
+        int space = trimmed.indexOf(' ');
+        if (space < 0) return new String[] {trimmed, "Intern"};
+        return new String[] {trimmed.substring(0, space), trimmed.substring(space + 1)};
     }
 }
