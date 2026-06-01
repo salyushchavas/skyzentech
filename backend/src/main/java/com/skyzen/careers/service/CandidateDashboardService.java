@@ -1123,11 +1123,12 @@ public class CandidateDashboardService {
                         .build();
             }
             if (es == EngagementStatus.PENDING_COMPLIANCE) {
-                // All compliance items may already be in their done-state but
-                // the engagement hasn't auto-advanced yet (legacy stuck rows
-                // pre-date EngagementAutoAdvancer + the backfill, or a race
-                // window before the advance commits). Render a friendlier
-                // "finalizing" hero — no false claim that HR still has work.
+                // When the candidate has finished their side and HR has
+                // signed off every compliance item, the engagement still
+                // sits in PENDING_COMPLIANCE until HR clicks "Activate
+                // Engagement" on the operations queue (POST /mark-ready).
+                // Render an accurate "awaiting activation" hero rather
+                // than the misleading "HR is finalizing…" copy.
                 boolean complianceDone = false;
                 try {
                     complianceDone = complianceRoutingService.requirementsSatisfied(engagement);
@@ -1136,13 +1137,13 @@ public class CandidateDashboardService {
                 }
                 if (complianceDone) {
                     return CandidateDashboardResponse.NextStep.builder()
-                            .type("FINALIZING_ONBOARDING")
-                            .title("Finalizing your onboarding…")
-                            .subtitle("All compliance items are complete — your engagement is being activated.")
-                            .ctaLabel(null)
-                            .ctaHref(null)
+                            .type("AWAITING_HR_ACTIVATION")
+                            .title("Onboarding complete")
+                            .subtitle("Awaiting HR activation — typically same-day.")
+                            .ctaLabel("View onboarding")
+                            .ctaHref("/careers/candidate/onboarding")
                             .isWaiting(true)
-                            .waitingFor("Engagement activation")
+                            .waitingFor("HR activation")
                             .build();
                 }
                 // Compliance items pending after candidate has done their part.

@@ -92,7 +92,6 @@ public class I983Service {
     private final EngagementRepository engagementRepository;
     private final com.skyzen.careers.notification.NotificationService notificationService;
     private final ObjectMapper objectMapper;
-    private final EngagementAutoAdvancer engagementAutoAdvancer;
 
     // ── Commands ────────────────────────────────────────────────────────────
 
@@ -514,18 +513,6 @@ public class I983Service {
 
         plan = planRepository.save(plan);
         writeAudit(plan.getId(), "DSO_RESPONSE", actor.getId(), before, snapshot(plan));
-
-        // DSO approval was the last compliance item for many STEM_OPT
-        // engagements — try the auto-advance. Idempotent + never throws.
-        if (next == DsoApprovalStatus.APPROVED
-                && plan.getCandidate() != null) {
-            try {
-                engagementAutoAdvancer.tryAdvanceForCandidate(plan.getCandidate().getId());
-            } catch (Exception e) {
-                log.warn("I-983 auto-advance lookup failed for plan {} (non-fatal): {}",
-                        plan.getId(), e.getMessage());
-            }
-        }
         return plan;
     }
 

@@ -56,6 +56,28 @@ public class EngagementController {
         return toResponse(engagement);
     }
 
+    /**
+     * Activation-readiness signal used by HR/Ops UI to decide whether to
+     * render the "Activate Engagement" button on a PENDING_COMPLIANCE row.
+     * Pure read — never mutates. The actual transition still goes through
+     * {@code POST /mark-ready} on this controller.
+     */
+    @GetMapping("/{id}/activation-readiness")
+    @PreAuthorize("hasAnyRole('OPERATIONS', 'HR_COMPLIANCE', 'SUPER_ADMIN')")
+    @Transactional(readOnly = true)
+    public ActivationReadinessResponse activationReadiness(@PathVariable UUID id) {
+        Engagement engagement = engagementRepository.findByIdWithGraph(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Engagement not found: " + id));
+        var missing = complianceRoutingService.missingRequirements(engagement);
+        boolean ready = missing.isEmpty();
+        return new ActivationReadinessResponse(ready, missing);
+    }
+
+    /** Lightweight readiness DTO inlined here — no other surface needs it. */
+    public record ActivationReadinessResponse(
+            boolean ready,
+            java.util.List<String> missing) {}
+
     @PostMapping("/{id}/mark-ready")
     @PreAuthorize("hasAnyRole('OPERATIONS', 'HR_COMPLIANCE')")
     @Transactional

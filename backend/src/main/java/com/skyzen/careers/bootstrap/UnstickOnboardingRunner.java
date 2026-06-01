@@ -4,7 +4,7 @@ import com.skyzen.careers.entity.Engagement;
 import com.skyzen.careers.enums.EngagementStatus;
 import com.skyzen.careers.repository.EngagementRepository;
 import com.skyzen.careers.service.ComplianceRoutingService;
-import com.skyzen.careers.service.EngagementAutoAdvancer;
+import com.skyzen.careers.service.EngagementActivationService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.CommandLineRunner;
@@ -14,76 +14,88 @@ import org.springframework.stereotype.Component;
 import java.util.List;
 
 /**
- * One-off backfill that unsticks engagements which sit in
+ * One-off recovery backfill that unsticks engagements sitting in
  * {@code PENDING_COMPLIANCE} even though every compliance item is already
- * in its done-state. These rows exist because before
- * {@link EngagementAutoAdvancer} landed, nothing watched the compliance
- * services to auto-flip the engagement past the gate — HR had to click
- * "Mark Ready" by hand and it was easy to forget.
+ * in its done-state. These rows exist because there was a window where no
+ * HR-facing "Activate Engagement" affordance existed yet, so HR had no
+ * way to flip the gate even though the candidate had finished everything.
  *
  * <p>Idempotent + gated by {@code app.backfill.unstuck-onboarding-enabled=true}
- * (env {@code BACKFILL_UNSTUCK_ONBOARDING}). Default false. Once it has
- * run on a database and there are no stuck rows left, leaving the flag
- * unset is the right thing — the runner is harmless even on re-runs but
- * there's no point doing the work.</p>
+ * (env {@code BACKFILL_UNSTUCK_ONBOARDING}). Default false. Operator flips
+ * it on, redeploys once to sweep, then flips it back off. Safe to re-run.</p>
  *
- * <p>Each candidate engagement is delegated to
- * {@link EngagementAutoAdvancer#tryAdvance(Engagement)}, which already
- * does the legal-state + requirements-satisfied checks and the audit
- * write. We just supply the iteration.</p>
+ * <p>This is <b>recovery, not policy</b>. The live flow is:
+ * compliance flips → HR sees "Activate Engagement" on the queue (driven by
+ * {@code GET /api/v1/engagements/{id}/activation-readiness}) → HR clicks
+ * → {@code POST /api/v1/engagements/{id}/mark-ready}. Nothing auto-flips
+ * on a compliance write.</p>
+ *
+ * <p>Each row is delegated to
+ * {@link EngagementActivationService#tryAdvance(Engagement, String)} with
+ * the audit-action string {@code RECOVERY_BACKFILL_UNSTICK} so the audit
+ * trail records exactly which path advanced the row.</p>
  */
 @Component
 @Order(20)
 @Slf4j
 public class UnstickOnboardingRunner implements CommandLineRunner {
 
+    private static final String AUDIT_ACTION = "RECOVERY_BACKFILL_UNSTICK";
+
     private final boolean enabled;
     private final EngagementRepository engagementRepository;
     private final ComplianceRoutingService complianceRoutingService;
-    private final EngagementAutoAdvancer engagementAutoAdvancer;
+    private final EngagementActivationService engagementActivationService;
 
     public UnstickOnboardingRunner(
             @Value("${app.backfill.unstuck-onboarding-enabled:false}") boolean enabled,
             EngagementRepository engagementRepository,
             ComplianceRoutingService complianceRoutingService,
-            EngagementAutoAdvancer engagementAutoAdvancer) {
+            EngagementActivationService engagementActivationService) {
         this.enabled = enabled;
         this.engagementRepository = engagementRepository;
         this.complianceRoutingService = complianceRoutingService;
-        this.engagementAutoAdvancer = engagementAutoAdvancer;
+        this.engagementActivationService = engagementActivationService;
     }
 
     @Override
     public void run(String... args) {
         if (!enabled) {
-            log.info("Unstick-onboarding backfill skipped — disabled "
+            log.info("[UnstickOnboardingRunner] skipped — disabled "
                     + "(set app.backfill.unstuck-onboarding-enabled=true to enable).");
             return;
         }
         try {
             List<Engagement> pending = engagementRepository
                     .findByStatus(EngagementStatus.PENDING_COMPLIANCE);
-            int candidates = pending.size();
+            int scanned = pending.size();
             int advanced = 0;
             int stillBlocked = 0;
+            int failed = 0;
             for (Engagement e : pending) {
                 try {
                     if (complianceRoutingService.requirementsSatisfied(e)) {
-                        engagementAutoAdvancer.tryAdvance(e);
+                        engagementActivationService.tryAdvance(e, AUDIT_ACTION);
+                        log.info("[UnstickOnboardingRunner] advanced engagement {} "
+                                + "(candidate {})",
+                                e.getId(),
+                                e.getCandidate() != null ? e.getCandidate().getId() : null);
                         advanced++;
                     } else {
                         stillBlocked++;
                     }
                 } catch (Exception ex) {
-                    log.warn("Unstick-onboarding: failed to advance engagement {} (non-fatal): {}",
-                            e.getId(), ex.getMessage());
+                    failed++;
+                    log.warn("[UnstickOnboardingRunner] failed to advance engagement {} "
+                            + "(non-fatal): {}", e.getId(), ex.getMessage());
                 }
             }
-            log.info("Unstick-onboarding backfill: scanned={}, advanced={}, "
-                    + "still-blocked={} (compliance not yet satisfied).",
-                    candidates, advanced, stillBlocked);
+            log.info("[UnstickOnboardingRunner] summary: scanned={}, advanced={}, "
+                    + "still-blocked={}, failed={}",
+                    scanned, advanced, stillBlocked, failed);
         } catch (Exception e) {
-            log.warn("Unstick-onboarding backfill failed (non-fatal): {}", e.getMessage(), e);
+            log.warn("[UnstickOnboardingRunner] sweep failed (non-fatal): {}",
+                    e.getMessage(), e);
         }
     }
 }

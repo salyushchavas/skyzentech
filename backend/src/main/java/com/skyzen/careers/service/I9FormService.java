@@ -82,7 +82,6 @@ public class I9FormService {
     private final OnboardingService onboardingService;
     private final ObjectMapper objectMapper;
     private final com.skyzen.careers.notification.NotificationService notificationService;
-    private final EngagementAutoAdvancer engagementAutoAdvancer;
 
     // ── Lazy-create + lookups ───────────────────────────────────────────────
 
@@ -355,9 +354,6 @@ public class I9FormService {
         // and "Upcoming" list reflect the real compliance state immediately.
         if (!req.isDraft() && form.getCandidate() != null) {
             onboardingService.reconcileFromCompliance(form.getCandidate().getId(), actor);
-            // Auto-advance the engagement past PENDING_COMPLIANCE if I-9 was
-            // the last compliance item. Idempotent + never throws.
-            engagementAutoAdvancer.tryAdvanceForCandidate(form.getCandidate().getId());
         }
         return form;
     }

@@ -7,6 +7,7 @@ import {
   Bell,
   Briefcase,
   CalendarClock,
+  CheckCircle2,
   ClipboardList,
   FileCheck,
   FileSignature,
@@ -15,6 +16,7 @@ import {
   TrendingUp,
   Users,
 } from 'lucide-react';
+import toast from 'react-hot-toast';
 import api from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
 import { formatRelative } from '@/lib/format-date';
@@ -196,7 +198,10 @@ function OperationsDashboardBody() {
           items={data.upcomingInterviews}
           pendingScorecards={data.pendingScorecards}
         />
-        <OnboardingQueueCard items={data.onboardingQueue} />
+        <OnboardingQueueCard
+          items={data.onboardingQueue}
+          onActivated={() => void load()}
+        />
       </div>
 
       <RecentApplicationsCard items={data.recentApplications} />
@@ -460,7 +465,13 @@ function UpcomingInterviewsCard({
 
 // ── Onboarding queue ────────────────────────────────────────────────────────
 
-function OnboardingQueueCard({ items }: { items: OnboardingQueueItem[] }) {
+function OnboardingQueueCard({
+  items,
+  onActivated,
+}: {
+  items: OnboardingQueueItem[];
+  onActivated: () => void;
+}) {
   return (
     <section className="rounded-lg border border-gray-200 bg-white p-5">
       <div className="mb-3 flex items-baseline justify-between">
@@ -480,41 +491,109 @@ function OnboardingQueueCard({ items }: { items: OnboardingQueueItem[] }) {
       ) : (
         <ul className="space-y-3">
           {items.map((row) => (
-            <li key={row.engagementId} className="flex items-start gap-3">
-              <div className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-amber-100 text-amber-700">
-                <Users className="h-3.5 w-3.5" strokeWidth={2} />
-              </div>
-              <div className="min-w-0 flex-1">
-                <Link
-                  href={`/careers/supervised/${row.candidateId}`}
-                  className="block truncate text-sm font-medium text-gray-900 hover:text-accent-dark hover:underline"
-                >
-                  {row.candidateName ?? '—'}
-                </Link>
-                <div className="truncate text-xs text-gray-500">{row.position ?? '—'}</div>
-              </div>
-              <div className="flex flex-col items-end gap-1">
-                {row.status && (
-                  <span
-                    className={
-                      'whitespace-nowrap rounded-full px-1.5 py-0.5 text-[10px] font-medium ' +
-                      (ENGAGEMENT_PILL[row.status] ?? 'bg-gray-100 text-gray-700')
-                    }
-                  >
-                    {row.status.replaceAll('_', ' ')}
-                  </span>
-                )}
-                {row.pendingTaskCount > 0 && (
-                  <span className="whitespace-nowrap text-[10px] text-gray-500">
-                    {row.pendingTaskCount} task{row.pendingTaskCount === 1 ? '' : 's'} pending
-                  </span>
-                )}
-              </div>
-            </li>
+            <OnboardingQueueRow
+              key={row.engagementId}
+              row={row}
+              onActivated={onActivated}
+            />
           ))}
         </ul>
       )}
     </section>
+  );
+}
+
+function OnboardingQueueRow({
+  row,
+  onActivated,
+}: {
+  row: OnboardingQueueItem;
+  onActivated: () => void;
+}) {
+  const [ready, setReady] = useState<boolean | null>(null);
+  const [activating, setActivating] = useState(false);
+
+  // Per-row readiness fetch — only when the row is still in
+  // PENDING_COMPLIANCE. Already-READY rows skip the call.
+  useEffect(() => {
+    let cancelled = false;
+    if (row.status !== 'PENDING_COMPLIANCE') {
+      setReady(null);
+      return;
+    }
+    (async () => {
+      try {
+        const res = await api.get<{ ready: boolean; missing: string[] }>(
+          `/api/v1/engagements/${row.engagementId}/activation-readiness`,
+        );
+        if (!cancelled) setReady(!!res.data.ready);
+      } catch {
+        if (!cancelled) setReady(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [row.engagementId, row.status]);
+
+  async function activate() {
+    if (activating) return;
+    setActivating(true);
+    try {
+      await api.post(`/api/v1/engagements/${row.engagementId}/mark-ready`);
+      toast.success('Engagement activated.');
+      onActivated();
+    } catch (err: any) {
+      toast.error(
+        err?.response?.data?.error ?? "Couldn't activate the engagement.",
+      );
+      setActivating(false);
+    }
+  }
+
+  return (
+    <li className="flex items-start gap-3">
+      <div className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-amber-100 text-amber-700">
+        <Users className="h-3.5 w-3.5" strokeWidth={2} />
+      </div>
+      <div className="min-w-0 flex-1">
+        <Link
+          href={`/careers/supervised/${row.candidateId}`}
+          className="block truncate text-sm font-medium text-gray-900 hover:text-accent-dark hover:underline"
+        >
+          {row.candidateName ?? '—'}
+        </Link>
+        <div className="truncate text-xs text-gray-500">{row.position ?? '—'}</div>
+      </div>
+      <div className="flex flex-col items-end gap-1">
+        {row.status && (
+          <span
+            className={
+              'whitespace-nowrap rounded-full px-1.5 py-0.5 text-[10px] font-medium ' +
+              (ENGAGEMENT_PILL[row.status] ?? 'bg-gray-100 text-gray-700')
+            }
+          >
+            {row.status.replaceAll('_', ' ')}
+          </span>
+        )}
+        {row.pendingTaskCount > 0 && (
+          <span className="whitespace-nowrap text-[10px] text-gray-500">
+            {row.pendingTaskCount} task{row.pendingTaskCount === 1 ? '' : 's'} pending
+          </span>
+        )}
+        {row.status === 'PENDING_COMPLIANCE' && ready && (
+          <button
+            type="button"
+            onClick={() => void activate()}
+            disabled={activating}
+            className="inline-flex items-center gap-1 rounded-md bg-emerald-600 px-2 py-1 text-[11px] font-semibold text-white hover:bg-emerald-700 disabled:opacity-60"
+          >
+            <CheckCircle2 className="h-3 w-3" strokeWidth={2.5} />
+            {activating ? 'Activating…' : 'Activate Engagement'}
+          </button>
+        )}
+      </div>
+    </li>
   );
 }
 

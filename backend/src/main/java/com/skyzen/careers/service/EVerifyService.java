@@ -81,7 +81,6 @@ public class EVerifyService {
     private final AuditLogRepository auditLogRepository;
     private final com.skyzen.careers.notification.NotificationService notificationService;
     private final ObjectMapper objectMapper;
-    private final EngagementAutoAdvancer engagementAutoAdvancer;
 
     // ── Commands ────────────────────────────────────────────────────────────
 
@@ -254,12 +253,6 @@ public class EVerifyService {
             log.warn("E-Verify status notify failed (non-fatal) for case {} {} -> {}: {}",
                     c.getId(), from, to, e.getMessage());
         }
-
-        // EMPLOYMENT_AUTHORIZED + CLOSED both potentially unblock the
-        // engagement gate — try the auto-advance. Never throws.
-        if (to == EVerifyStatus.EMPLOYMENT_AUTHORIZED || to == EVerifyStatus.CLOSED) {
-            advanceForCase(c);
-        }
         return toResponse(c);
     }
 
@@ -282,29 +275,7 @@ public class EVerifyService {
         }
         c = caseRepository.save(c);
         writeAudit(c.getId(), "CLOSE", actor.getId(), before, snapshot(c));
-        advanceForCase(c);
         return toResponse(c);
-    }
-
-    /**
-     * Helper for the auto-advance call. Resolves the candidate from the
-     * case's i9Form FK and delegates to {@link EngagementAutoAdvancer}.
-     * Wrapped so a lazy-load or null-walk failure can never poison the
-     * compliance write.
-     */
-    private void advanceForCase(EVerifyCase c) {
-        try {
-            UUID candidateId = c.getI9Form() != null
-                    && c.getI9Form().getCandidate() != null
-                    ? c.getI9Form().getCandidate().getId()
-                    : null;
-            if (candidateId != null) {
-                engagementAutoAdvancer.tryAdvanceForCandidate(candidateId);
-            }
-        } catch (Exception e) {
-            log.warn("E-Verify auto-advance lookup failed for case {} (non-fatal): {}",
-                    c.getId(), e.getMessage());
-        }
     }
 
     // ── Queries ─────────────────────────────────────────────────────────────
