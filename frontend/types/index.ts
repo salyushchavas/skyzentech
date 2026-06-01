@@ -1493,3 +1493,90 @@ export interface CandidateResumeInfo {
   fileName: string;
   uploadedAt?: IsoDateTime;
 }
+
+// === Q&A (viva) sessions ====================================================
+
+export type QaSessionStatus = 'SCHEDULED' | 'CONDUCTED' | 'COMPLETED' | 'RETURNED';
+
+export interface QaSession {
+  id: Uuid;
+  projectId: Uuid;
+  projectTitle?: string;
+  internUserId?: Uuid;
+  internName?: string;
+  scheduledAt: IsoDateTime;
+  meetingLink?: string;
+  status: QaSessionStatus;
+  questionsAsked?: string;
+  internResponses?: string;
+  marks?: number;
+  remarks?: string;
+  scheduledByUserId?: Uuid;
+  conductedByUserId?: Uuid;
+  completedAt?: IsoDateTime;
+  returnedAt?: IsoDateTime;
+  returnReason?: string;
+  createdAt?: IsoDateTime;
+  updatedAt?: IsoDateTime;
+}
+
+export interface ScheduleQaSessionRequest {
+  projectId: Uuid;
+  scheduledAt: IsoDateTime;
+  meetingLink?: string;
+}
+
+// === Day-by-day timesheet ===================================================
+
+export type DayOfWeek =
+  | 'MONDAY'
+  | 'TUESDAY'
+  | 'WEDNESDAY'
+  | 'THURSDAY'
+  | 'FRIDAY'
+  | 'SATURDAY'
+  | 'SUNDAY';
+
+export type TimesheetStatus = 'DRAFT' | 'SUBMITTED' | 'APPROVED' | 'REJECTED';
+
+export interface TimesheetDayCell {
+  id?: Uuid;
+  dayOfWeek: DayOfWeek;
+  hours: number;
+  notes?: string;
+}
+
+export interface TimesheetWeek {
+  id: Uuid;
+  internUserId?: Uuid;
+  internName?: string;
+  weekStart: string;
+  status: TimesheetStatus;
+  totalHours: number;
+  days: TimesheetDayCell[];
+  reviewNote?: string;
+  approvedByName?: string;
+  approvedAt?: IsoDateTime;
+  submittedAt?: IsoDateTime;
+  createdAt?: IsoDateTime;
+}
+
+// === Reporting Manager dashboard ===========================================
+
+export interface ProjectAwaitingQa {
+  projectId: Uuid;
+  projectTitle: string;
+  internUserId?: Uuid;
+  internName?: string;
+  techApprovedAt?: IsoDateTime;
+}
+
+export interface ReportingManagerDashboard {
+  pendingQaCount: number;
+  qaInProgressCount: number;
+  pendingTimesheetCount: number;
+  completedThisMonthCount: number;
+  projectsAwaitingQa: ProjectAwaitingQa[];
+  qaInProgress: QaSession[];
+  pendingTimesheets: TimesheetWeek[];
+}

@@ -65,6 +65,9 @@ interface EngagementSummary {
   actualStartDate: string | null;
   supervisorName: string | null;
   entityName: string | null;
+  /** Populated when the backend ships it; falls back to null on older builds. */
+  reportingManagerName?: string | null;
+  reportingManagerId?: Uuid | null;
 }
 
 interface ComplianceStatus {
@@ -602,6 +605,11 @@ function CandidateContextCard({ ctx }: { ctx: CandidateContext }) {
               ? ` · started ${formatDateOnly(ctx.engagement.actualStartDate)}`
               : ''}
           </div>
+          <ReportingManagerAssigner
+            engagementId={ctx.engagement.id}
+            currentName={ctx.engagement.reportingManagerName ?? null}
+            currentId={ctx.engagement.reportingManagerId ?? null}
+          />
         </div>
       )}
 
@@ -887,6 +895,133 @@ function Skeleton() {
         <div className="h-56 animate-pulse rounded-lg border border-gray-100 bg-gray-50 lg:col-span-2" />
         <div className="h-56 animate-pulse rounded-lg border border-gray-100 bg-gray-50" />
       </div>
+    </div>
+  );
+}
+
+// ── Reporting Manager assigner ──────────────────────────────────────────────
+//
+// Inline affordance dropping into the engagement card. Lists active users
+// with the REPORTING_MANAGER role and PATCHes
+// /api/v1/engagements/{id}/reporting-manager on Save. SUPER_ADMIN-only —
+// the supervision page itself is already gated.
+
+interface RmCandidate {
+  id: Uuid;
+  name: string;
+  email: string;
+}
+
+function ReportingManagerAssigner({
+  engagementId,
+  currentName,
+  currentId,
+}: {
+  engagementId: Uuid;
+  currentName: string | null;
+  currentId: Uuid | null;
+}) {
+  const [open, setOpen] = useState(false);
+  const [candidates, setCandidates] = useState<RmCandidate[]>([]);
+  const [selected, setSelected] = useState<string>(currentId ?? '');
+  const [saving, setSaving] = useState(false);
+  const [savedLabel, setSavedLabel] = useState<string | null>(currentName);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!open || candidates.length > 0) return;
+    (async () => {
+      try {
+        const res = await api.get<Array<{
+          id: Uuid;
+          name: string;
+          email: string;
+          active?: boolean;
+        }>>('/api/v1/admin/users?role=REPORTING_MANAGER');
+        setCandidates(
+          (res.data ?? [])
+            .filter((u) => u.active !== false)
+            .map((u) => ({ id: u.id, name: u.name, email: u.email })),
+        );
+      } catch (err: any) {
+        setError(err?.response?.data?.error ?? "Couldn't load Reporting Managers.");
+      }
+    })();
+  }, [open, candidates.length]);
+
+  async function save() {
+    setSaving(true);
+    setError(null);
+    try {
+      await api.patch(`/api/v1/engagements/${engagementId}/reporting-manager`, {
+        reportingManagerUserId: selected || 'null',
+      });
+      const match = candidates.find((c) => c.id === selected);
+      setSavedLabel(selected ? (match?.name ?? '(assigned)') : null);
+      setOpen(false);
+    } catch (err: any) {
+      setError(err?.response?.data?.error ?? "Couldn't save.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="mt-2 border-t border-gray-200 pt-2">
+      <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
+        <span className="text-gray-600">
+          <span className="font-medium text-gray-700">Reporting Manager: </span>
+          {savedLabel ?? <span className="italic text-gray-500">none</span>}
+        </span>
+        {!open && (
+          <button
+            type="button"
+            onClick={() => setOpen(true)}
+            className="rounded-md border border-gray-300 bg-white px-2.5 py-1 text-[11px] font-medium text-gray-700 hover:bg-gray-50"
+          >
+            {savedLabel ? 'Change' : 'Assign'}
+          </button>
+        )}
+      </div>
+      {open && (
+        <div className="mt-2 space-y-2">
+          <select
+            value={selected}
+            onChange={(e) => setSelected(e.target.value)}
+            className="w-full rounded-md border border-gray-300 bg-white px-2 py-1 text-xs focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
+          >
+            <option value="">— Unassign —</option>
+            {candidates.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.name} ({c.email})
+              </option>
+            ))}
+          </select>
+          {error && <p className="text-xs text-red-700">{error}</p>}
+          <div className="flex justify-end gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                setOpen(false);
+                setSelected(currentId ?? '');
+                setError(null);
+              }}
+              disabled={saving}
+              className="rounded-md border border-gray-300 bg-white px-2.5 py-1 text-[11px] font-medium text-gray-700 hover:bg-gray-50"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={() => void save()}
+              disabled={saving}
+              className="rounded-md bg-indigo-600 px-2.5 py-1 text-[11px] font-medium text-white hover:bg-indigo-700 disabled:opacity-60"
+            >
+              {saving ? 'Saving…' : 'Save'}
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

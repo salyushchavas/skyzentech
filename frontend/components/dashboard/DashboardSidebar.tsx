@@ -79,6 +79,12 @@ const STAFF_ROLE_LINKS: Partial<Record<UserRole, StaffLink[]>> = {
     { icon: Users, label: 'Supervised', href: '/careers/supervised' },
     { icon: KeyRound, label: 'Active sessions', href: '/careers/sessions' },
   ],
+  REPORTING_MANAGER: [
+    { icon: LayoutDashboard, label: 'Dashboard', href: '/careers/reporting-manager' },
+    { icon: CalendarClock, label: 'Q&A Sessions', href: '/careers/reporting-manager' },
+    { icon: Hammer, label: 'Timesheets', href: '/careers/reporting-manager/timesheets' },
+    { icon: KeyRound, label: 'Sessions', href: '/careers/sessions' },
+  ],
   EXECUTIVE: [
     { icon: LayoutDashboard, label: 'Dashboard', href: '/careers/executive' },
     { icon: ShieldCheck, label: 'Compliance', href: '/careers/hr/compliance' },
