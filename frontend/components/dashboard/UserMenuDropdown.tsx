@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Home, LogOut, User as UserIcon } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
+import type { UserRole } from '@/types';
 
 function initialOf(user: { fullName?: string; email: string }): string {
   if (user.fullName) {
@@ -14,8 +15,16 @@ function initialOf(user: { fullName?: string; email: string }): string {
   return user.email[0]?.toUpperCase() ?? 'U';
 }
 
-function roleSlug(role?: string): string {
-  return (role ?? 'candidate').toLowerCase();
+// Only candidate-side users have a profile page today
+// (frontend/app/careers/(dashboard)/candidate/profile). Staff roles get the
+// item hidden. The previous lowercase-the-enum trick produced 404s for every
+// role (/careers/applicant/profile, /careers/operations/profile, …).
+function profileHrefFor(roles: UserRole[] | undefined): string | null {
+  if (!roles?.length) return null;
+  if (roles.includes('APPLICANT') || roles.includes('INTERN')) {
+    return '/careers/candidate/profile';
+  }
+  return null;
 }
 
 export default function UserMenuDropdown() {
@@ -45,7 +54,7 @@ export default function UserMenuDropdown() {
   if (!user) return null;
 
   const initial = initialOf(user);
-  const profileHref = `/careers/${roleSlug(user.roles?.[0])}/profile`;
+  const profileHref = profileHrefFor(user.roles);
 
   function handleSignOut() {
     setOpen(false);
@@ -85,15 +94,17 @@ export default function UserMenuDropdown() {
           <div className="truncate text-xs text-gray-500">{user.email}</div>
         </div>
 
-        <Link
-          href={profileHref}
-          role="menuitem"
-          onClick={() => setOpen(false)}
-          className="flex items-center gap-2 px-3 py-2 text-sm text-gray-700 transition-colors hover:bg-gray-100 hover:text-gray-900"
-        >
-          <UserIcon className="h-[18px] w-[18px]" strokeWidth={2} />
-          Profile
-        </Link>
+        {profileHref && (
+          <Link
+            href={profileHref}
+            role="menuitem"
+            onClick={() => setOpen(false)}
+            className="flex items-center gap-2 px-3 py-2 text-sm text-gray-700 transition-colors hover:bg-gray-100 hover:text-gray-900"
+          >
+            <UserIcon className="h-[18px] w-[18px]" strokeWidth={2} />
+            Profile
+          </Link>
+        )}
         <Link
           href="/"
           role="menuitem"
