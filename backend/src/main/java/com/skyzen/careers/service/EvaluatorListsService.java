@@ -6,14 +6,17 @@ import com.skyzen.careers.dto.supervised.EvaluatorInternResponse;
 import com.skyzen.careers.dto.supervised.EvaluatorSessionResponse;
 import com.skyzen.careers.entity.Application;
 import com.skyzen.careers.entity.Candidate;
+import com.skyzen.careers.entity.Engagement;
 import com.skyzen.careers.entity.EvaluationSession;
 import com.skyzen.careers.entity.JobPosting;
 import com.skyzen.careers.entity.StaffingEntity;
 import com.skyzen.careers.entity.User;
 import com.skyzen.careers.entity.WorkAssignment;
+import com.skyzen.careers.enums.EngagementStatus;
 import com.skyzen.careers.enums.EvaluationSessionStatus;
 import com.skyzen.careers.enums.WorkAssignmentStatus;
 import com.skyzen.careers.repository.ApplicationRepository;
+import com.skyzen.careers.repository.EngagementRepository;
 import com.skyzen.careers.repository.EvaluationSessionRepository;
 import com.skyzen.careers.repository.WorkAssignmentRepository;
 import lombok.RequiredArgsConstructor;
@@ -46,14 +49,22 @@ public class EvaluatorListsService {
     private final ApplicationRepository applicationRepository;
     private final EvaluationSessionRepository evaluationSessionRepository;
     private final WorkAssignmentRepository workAssignmentRepository;
+    private final EngagementRepository engagementRepository;
+
+    private static final List<EngagementStatus> ROSTER_STATUSES = List.of(
+            EngagementStatus.READY_TO_START,
+            EngagementStatus.ACTIVE);
 
     @Transactional(readOnly = true)
     public List<EvaluatorInternResponse> listInterns(User evaluator) {
         if (evaluator == null) return List.of();
-        // Role-based scope — any TECHNICAL_SUPERVISOR sees every hired intern.
-        // The previous Candidate.assignedEvaluator FK filter is no longer the
-        // boundary.
-        return dedupeByCandidate(applicationRepository.findHiredInterns(null, null));
+        // Engagement-driven roster — post-Phase-3, Engagement.status is the
+        // source of truth for who's hired (Application.status = HIRED is
+        // deprecated). Returns every intern whose engagement is in
+        // READY_TO_START or ACTIVE, role-scoped via the controller's
+        // @PreAuthorize (any TECHNICAL_SUPERVISOR can see the full roster).
+        return dedupeFromEngagements(
+                engagementRepository.findActiveRoster(ROSTER_STATUSES));
     }
 
     @Transactional(readOnly = true)
@@ -79,8 +90,8 @@ public class EvaluatorListsService {
         }
         UUID evalId = evaluator.getId();
 
-        List<EvaluatorInternResponse> interns = dedupeByCandidate(
-                applicationRepository.findHiredInterns(null, null));
+        List<EvaluatorInternResponse> interns = dedupeFromEngagements(
+                engagementRepository.findActiveRoster(ROSTER_STATUSES));
 
         List<EvaluationSession> allSessions =
                 evaluationSessionRepository.findForEvaluatorUser(evalId);
@@ -139,6 +150,31 @@ public class EvaluatorListsService {
             User u = c.getUser();
             JobPosting jp = app.getJobPosting();
             StaffingEntity e = jp != null ? jp.getEntity() : null;
+            out.add(EvaluatorInternResponse.builder()
+                    .candidateId(c.getId())
+                    .name(u != null ? u.getFullName() : null)
+                    .position(jp != null ? jp.getTitle() : null)
+                    .entityName(e != null ? e.getName() : null)
+                    .build());
+        }
+        return out;
+    }
+
+    /**
+     * Map active engagements to the intern DTO, deduping by candidate id
+     * (an intern with multiple engagements keeps the first — repo orders
+     * newest first).
+     */
+    private List<EvaluatorInternResponse> dedupeFromEngagements(List<Engagement> engagements) {
+        Set<UUID> seen = new HashSet<>();
+        List<EvaluatorInternResponse> out = new ArrayList<>(engagements.size());
+        for (Engagement eng : engagements) {
+            Candidate c = eng.getCandidate();
+            if (c == null || !seen.add(c.getId())) continue;
+            User u = c.getUser();
+            Application app = eng.getApplication();
+            JobPosting jp = app != null ? app.getJobPosting() : null;
+            StaffingEntity e = eng.getEntity();
             out.add(EvaluatorInternResponse.builder()
                     .candidateId(c.getId())
                     .name(u != null ? u.getFullName() : null)

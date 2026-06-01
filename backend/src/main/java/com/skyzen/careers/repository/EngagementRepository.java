@@ -47,6 +47,25 @@ public interface EngagementRepository extends JpaRepository<Engagement, UUID> {
 
     List<Engagement> findByStatus(EngagementStatus status);
 
+    /**
+     * Engagement-driven roster — every engagement in one of the given
+     * statuses, newest-first, with the candidate + user + posting + entity
+     * graph eager so the Evaluator's intern dropdown can render the DTO
+     * without lazy access. Replaces the legacy {@code Application.status =
+     * HIRED} filter (HIRED is deprecated on ApplicationStatus per Phase 3
+     * step 10 — post-offer state lives on Engagement now).
+     */
+    @Query("SELECT e FROM Engagement e " +
+            "JOIN FETCH e.candidate c " +
+            "JOIN FETCH c.user u " +
+            "JOIN FETCH e.entity en " +
+            "LEFT JOIN FETCH e.application a " +
+            "LEFT JOIN FETCH a.jobPosting jp " +
+            "WHERE e.status IN :statuses " +
+            "ORDER BY e.createdAt DESC")
+    List<Engagement> findActiveRoster(
+            @Param("statuses") Collection<EngagementStatus> statuses);
+
     boolean existsByApplicationId(UUID applicationId);
 
     // ── Phase 3 step 10 — count + roster helpers ────────────────────────────
