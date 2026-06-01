@@ -117,8 +117,13 @@ public class CandidateNavService {
                 ? engagementRepository.findByCandidateId(candidate.getId())
                 : Collections.emptyList();
         boolean hasEngagement = !engagements.isEmpty();
+        // An engagement that has passed the activation gate (READY_TO_START
+        // or ACTIVE) flips the candidate's nav into the intern face — same
+        // signal the candidate-dashboard journey bar uses for the "Hired"
+        // stage (see CandidateDashboardService.resolveCurrentStageKey).
         boolean intern = hasEngagement && engagements.stream()
-                .anyMatch(e -> e.getStatus() == EngagementStatus.ACTIVE);
+                .anyMatch(e -> e.getStatus() == EngagementStatus.ACTIVE
+                        || e.getStatus() == EngagementStatus.READY_TO_START);
 
         // STEM OPT — engagement.track wins (canonical); fall back to
         // candidate.expectedTrack for pre-engagement candidates who declared
