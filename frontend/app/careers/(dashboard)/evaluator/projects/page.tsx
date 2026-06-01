@@ -1,6 +1,7 @@
 'use client';
 
 import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
+import Link from 'next/link';
 import {
   AlertCircle,
   CheckCircle2,
@@ -17,8 +18,10 @@ import type {
   CreateProjectRequest,
   ProjectResponse,
   ProjectStatus,
+  ReviewOutcome,
   ReviewProjectRequest,
   Uuid,
+  WorkspaceSubmission,
 } from '@/types';
 
 /**
@@ -489,6 +492,24 @@ function ReviewProjectModal({
   >(null);
   const [error, setError] = useState<string | null>(null);
   const [revisionsReason, setRevisionsReason] = useState('');
+  const [workspaceSubs, setWorkspaceSubs] = useState<WorkspaceSubmission[]>([]);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await api.get<WorkspaceSubmission[]>(
+          `/api/v1/projects/${project.id}/submissions`,
+        );
+        if (!cancelled) setWorkspaceSubs(res.data ?? []);
+      } catch {
+        // Workspace submissions are optional context — silently ignore.
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [project.id]);
   const canAct = project.status === 'SUBMITTED' || project.status === 'RETURNED';
   const locked = project.status === 'COMPLETED';
 
@@ -623,6 +644,41 @@ function ReviewProjectModal({
               {latestSubmission.links?.length > 0 && (
                 <LinkList label="Links" links={latestSubmission.links} compact />
               )}
+            </div>
+          )}
+
+          {workspaceSubs.length > 0 && (
+            <div className="rounded-md border border-indigo-200 bg-indigo-50/30 p-3">
+              <div className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-indigo-700">
+                In-platform submissions
+              </div>
+              <ul className="space-y-1.5">
+                {workspaceSubs.map((s) => (
+                  <li
+                    key={s.id}
+                    className="flex items-center justify-between gap-2 rounded border border-indigo-100 bg-white px-2.5 py-1.5"
+                  >
+                    <div className="min-w-0 text-xs text-gray-800">
+                      <span className="font-medium">#{s.submissionNumber}</span>
+                      <span className="text-gray-500"> · {formatRelative(s.submittedAt)}</span>
+                      {typeof s.fileCount === 'number' && (
+                        <span className="text-gray-500">
+                          {' '}· {s.fileCount} file{s.fileCount === 1 ? '' : 's'}
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <OutcomePill outcome={s.reviewOutcome} />
+                      <Link
+                        href={`/careers/submissions/${s.id}`}
+                        className="text-xs font-medium text-accent-dark hover:underline"
+                      >
+                        View
+                      </Link>
+                    </div>
+                  </li>
+                ))}
+              </ul>
             </div>
           )}
 
@@ -856,6 +912,29 @@ function LinkList({
         ))}
       </ul>
     </div>
+  );
+}
+
+function OutcomePill({ outcome }: { outcome: ReviewOutcome }) {
+  const palette: Record<ReviewOutcome, string> = {
+    PENDING: 'bg-amber-100 text-amber-800',
+    APPROVED: 'bg-emerald-100 text-emerald-800',
+    RETURNED: 'bg-orange-100 text-orange-800',
+  };
+  const label: Record<ReviewOutcome, string> = {
+    PENDING: 'Pending',
+    APPROVED: 'Approved',
+    RETURNED: 'Returned',
+  };
+  return (
+    <span
+      className={
+        'rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ' +
+        palette[outcome]
+      }
+    >
+      {label[outcome]}
+    </span>
   );
 }
 

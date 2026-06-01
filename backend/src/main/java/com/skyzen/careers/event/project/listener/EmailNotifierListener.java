@@ -3,6 +3,7 @@ package com.skyzen.careers.event.project.listener;
 import com.skyzen.careers.entity.Project;
 import com.skyzen.careers.event.project.ProjectMarkedPendingVivaEvent;
 import com.skyzen.careers.event.project.ProjectReturnedForRevisionsEvent;
+import com.skyzen.careers.event.project.ProjectSubmittedEvent;
 import com.skyzen.careers.event.project.ProjectTechApprovedEvent;
 import com.skyzen.careers.notification.NotificationService;
 import com.skyzen.careers.repository.ProjectRepository;
@@ -33,6 +34,24 @@ public class EmailNotifierListener {
 
     private final ProjectRepository projectRepository;
     private final NotificationService notificationService;
+
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+    public void onSubmitted(ProjectSubmittedEvent event) {
+        if (event == null) return;
+        try {
+            Project project = projectRepository.findByIdWithGraph(event.getProjectId())
+                    .orElse(null);
+            if (project == null) return;
+            // Reuses the existing supervisor-notification send (legacy
+            // ProjectService.submit calls this inline; the new workspace
+            // submit flow routes through this listener instead so the
+            // event-driven pattern owns the side effect end-to-end).
+            notificationService.sendProjectSubmitted(project);
+        } catch (Exception e) {
+            log.warn("PROJECT_SUBMITTED email failed (non-fatal) for {}: {}",
+                    event.getProjectId(), e.getMessage());
+        }
+    }
 
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     public void onTechApproved(ProjectTechApprovedEvent event) {

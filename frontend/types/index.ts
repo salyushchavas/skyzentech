@@ -25,6 +25,7 @@ export type UserRole =
   | 'HR_COMPLIANCE'
   | 'OPERATIONS'
   | 'TECHNICAL_SUPERVISOR'
+  | 'REPORTING_MANAGER'
   | 'EXECUTIVE'
   | 'SUPER_ADMIN';
 
@@ -1279,6 +1280,39 @@ export interface UpdateProjectRequest {
 export interface UpdateProgressRequest {
   progressPct?: number;
   taskUpdates?: { taskId: Uuid; done: boolean }[];
+}
+
+// === Workspace + immutable submissions ======================================
+
+export interface WorkspaceFile {
+  id: Uuid;
+  projectId?: Uuid;
+  path: string;
+  sizeBytes: number;
+  lastModifiedAt?: IsoDateTime;
+  lastModifiedBy?: Uuid;
+  /** Populated on single-file fetches; omitted from list responses. */
+  content?: string;
+}
+
+export type ReviewOutcome = 'PENDING' | 'APPROVED' | 'RETURNED';
+
+export interface WorkspaceSubmission {
+  id: Uuid;
+  projectId: Uuid;
+  submissionNumber: number;
+  submittedAt: IsoDateTime;
+  submittedBy: Uuid;
+  reviewedAt?: IsoDateTime;
+  reviewerId?: Uuid;
+  reviewOutcome: ReviewOutcome;
+  reviewReason?: string;
+  fileCount?: number;
+}
+
+export interface SubmissionDetail {
+  submission: WorkspaceSubmission;
+  files: WorkspaceFile[];
 }
 
 export interface SubmitProjectRequest {

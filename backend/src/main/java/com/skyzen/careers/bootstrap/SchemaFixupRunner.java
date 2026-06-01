@@ -69,6 +69,19 @@ public class SchemaFixupRunner implements CommandLineRunner {
             log.warn("user_roles_role_check drop failed (non-fatal): {}", e.getMessage(), e);
         }
 
+        // Workspace submissions — drop the auto-generated CHECK on
+        // review_outcome so future ReviewOutcome additions don't trip the
+        // stale-CHECK trap. Idempotent.
+        try {
+            jdbcTemplate.execute(
+                    "ALTER TABLE workspace_submissions "
+                            + "DROP CONSTRAINT IF EXISTS workspace_submissions_review_outcome_check");
+            log.info("Dropped stale workspace_submissions_review_outcome_check (if present).");
+        } catch (Exception e) {
+            log.warn("workspace_submissions_review_outcome_check drop failed (non-fatal): {}",
+                    e.getMessage(), e);
+        }
+
         try {
             // Adds the `users.active` column on existing databases. Hibernate's
             // ddl-auto=update can't add a NOT NULL column to a table with rows

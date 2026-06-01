@@ -27,6 +27,7 @@ const ROLE_LABEL: Record<UserRole, string> = {
   OPERATIONS: 'Operations',
   HR_COMPLIANCE: 'HR / Compliance',
   TECHNICAL_SUPERVISOR: 'Technical Supervisor',
+  REPORTING_MANAGER: 'Reporting Manager',
   EXECUTIVE: 'Executive',
   SUPER_ADMIN: 'Super admin',
 };

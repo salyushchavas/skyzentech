@@ -1,9 +1,11 @@
 'use client';
 
 import { FormEvent, useCallback, useEffect, useState } from 'react';
+import Link from 'next/link';
 import {
   AlertCircle,
   CheckCircle2,
+  Code,
   ExternalLink,
   Lock,
   PlayCircle,
@@ -393,6 +395,13 @@ function ProjectDetailModal({
                 </ul>
               )}
               <div className="flex flex-wrap justify-end gap-2">
+                <Link
+                  href={`/careers/candidate/projects/${project.id}/workspace`}
+                  className="inline-flex items-center gap-1.5 rounded-md border border-accent/40 bg-accent/5 px-3 py-1.5 text-sm font-medium text-accent-dark hover:bg-accent/10"
+                >
+                  <Code className="h-3.5 w-3.5" strokeWidth={2} />
+                  Open workspace
+                </Link>
                 {project.status === 'NOT_STARTED' && (
                   <button
                     type="button"

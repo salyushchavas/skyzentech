@@ -42,6 +42,7 @@ const ROLE_LABEL: Record<UserRole, string> = {
   OPERATIONS: 'Operations',
   HR_COMPLIANCE: 'HR / Compliance',
   TECHNICAL_SUPERVISOR: 'Technical Supervisor',
+  REPORTING_MANAGER: 'Reporting Manager',
   EXECUTIVE: 'Executive',
   SUPER_ADMIN: 'Super admin',
 };
@@ -52,6 +53,7 @@ const ROLE_COLOR: Record<UserRole, string> = {
   OPERATIONS: 'bg-rose-100 text-rose-800',
   HR_COMPLIANCE: 'bg-emerald-100 text-emerald-800',
   TECHNICAL_SUPERVISOR: 'bg-amber-100 text-amber-800',
+  REPORTING_MANAGER: 'bg-violet-100 text-violet-800',
   EXECUTIVE: 'bg-violet-100 text-violet-800',
   SUPER_ADMIN: 'bg-indigo-100 text-indigo-800',
 };

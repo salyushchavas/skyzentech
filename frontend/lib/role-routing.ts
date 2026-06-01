@@ -12,6 +12,7 @@ export const ROLE_DASHBOARDS: Record<UserRole, string> = {
   HR_COMPLIANCE: '/careers/hr',
   OPERATIONS: '/careers/operations',
   TECHNICAL_SUPERVISOR: '/careers/evaluator',
+  REPORTING_MANAGER: '/careers/evaluator',
   EXECUTIVE: '/careers/executive',
   SUPER_ADMIN: '/careers/admin',
 };
@@ -25,6 +26,7 @@ const ROLE_LANDING_PRIORITY: UserRole[] = [
   'OPERATIONS',
   'HR_COMPLIANCE',
   'TECHNICAL_SUPERVISOR',
+  'REPORTING_MANAGER',
   'INTERN',
   'APPLICANT',
 ];
