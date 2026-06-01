@@ -193,6 +193,8 @@ public class CandidateNavService {
                     "/careers/intern/work", "primary", null, seen));
             items.add(item("projects", "Projects",
                     "/careers/candidate/projects", "primary", null, seen));
+            items.add(item("playground", "Playground",
+                    "/careers/playground", "primary", null, seen));
             items.add(item("evaluations", "Evaluations",
                     "/careers/candidate/evaluations", "primary", null, seen));
         }
