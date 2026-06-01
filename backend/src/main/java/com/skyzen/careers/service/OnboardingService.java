@@ -61,6 +61,7 @@ public class OnboardingService {
     private final I983PlanRepository i983PlanRepository;
     private final EVerifyCaseRepository everifyCaseRepository;
     private final ObjectMapper objectMapper;
+    private final EngagementAutoAdvancer engagementAutoAdvancer;
 
     // ── Templates ───────────────────────────────────────────────────────────
 
@@ -565,6 +566,18 @@ public class OnboardingService {
         writeAudit("OnboardingTask", task.getId(), "STATUS_CHANGE",
                 actor != null ? actor.getId() : null,
                 beforeSnap, snapshot(task));
+
+        // The CPT I-20 task is the last compliance item for CPT engagements;
+        // completing any task could be the unblock. Idempotent + never throws.
+        if (next == OnboardingTaskStatus.COMPLETED
+                && task.getCandidate() != null) {
+            try {
+                engagementAutoAdvancer.tryAdvanceForCandidate(task.getCandidate().getId());
+            } catch (Exception e) {
+                log.warn("Onboarding-task auto-advance lookup failed for task {} (non-fatal): {}",
+                        task.getId(), e.getMessage());
+            }
+        }
         return toResponse(task);
     }
 

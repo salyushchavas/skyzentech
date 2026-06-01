@@ -115,6 +115,7 @@ public class CandidateDashboardService {
     private final TimesheetRepository timesheetRepository;
     private final ProjectRepository projectRepository;
     private final com.skyzen.careers.repository.EvaluationRepository evaluationRepository;
+    private final ComplianceRoutingService complianceRoutingService;
 
     @Transactional(readOnly = true)
     public CandidateDashboardResponse build(User caller) {
@@ -1122,6 +1123,28 @@ public class CandidateDashboardService {
                         .build();
             }
             if (es == EngagementStatus.PENDING_COMPLIANCE) {
+                // All compliance items may already be in their done-state but
+                // the engagement hasn't auto-advanced yet (legacy stuck rows
+                // pre-date EngagementAutoAdvancer + the backfill, or a race
+                // window before the advance commits). Render a friendlier
+                // "finalizing" hero — no false claim that HR still has work.
+                boolean complianceDone = false;
+                try {
+                    complianceDone = complianceRoutingService.requirementsSatisfied(engagement);
+                } catch (Exception ignored) {
+                    // Defensive — never crash the dashboard on a check failure.
+                }
+                if (complianceDone) {
+                    return CandidateDashboardResponse.NextStep.builder()
+                            .type("FINALIZING_ONBOARDING")
+                            .title("Finalizing your onboarding…")
+                            .subtitle("All compliance items are complete — your engagement is being activated.")
+                            .ctaLabel(null)
+                            .ctaHref(null)
+                            .isWaiting(true)
+                            .waitingFor("Engagement activation")
+                            .build();
+                }
                 // Compliance items pending after candidate has done their part.
                 // The Onboarding sub-step list above already shows what — here
                 // we just frame the hero as "waiting on HR" so the candidate
