@@ -136,6 +136,21 @@ public class SchemaFixupRunner implements CommandLineRunner {
             log.warn("i9_forms.status widen failed (non-fatal): {}", e.getMessage(), e);
         }
 
+        // i9_forms.citizenship_status — the @Column had no explicit length so
+        // the legacy schema created it as varchar(20). Two CitizenshipStatus
+        // values exceed that: LAWFUL_PERMANENT_RESIDENT (25 chars) and
+        // ALIEN_AUTHORIZED_TO_WORK (24 chars). Writing either triggers
+        // "value too long for type character varying(20)" on the I-9 Section 1
+        // commit, marking the transaction rollback-only. Widen to varchar(32).
+        try {
+            jdbcTemplate.execute(
+                    "ALTER TABLE i9_forms ALTER COLUMN citizenship_status TYPE varchar(32)");
+            log.info("Ensured i9_forms.citizenship_status is varchar(32).");
+        } catch (Exception e) {
+            log.warn("i9_forms.citizenship_status widen failed (non-fatal): {}",
+                    e.getMessage(), e);
+        }
+
         try {
             // Adds the `users.active` column on existing databases. Hibernate's
             // ddl-auto=update can't add a NOT NULL column to a table with rows
