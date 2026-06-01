@@ -10,11 +10,14 @@ import {
   Bell,
   CalendarClock,
   CheckCircle,
+  CheckCircle2,
   ClipboardList,
   FileSignature,
   ShieldCheck,
   TrendingUp,
+  Users,
 } from 'lucide-react';
+import toast from 'react-hot-toast';
 import api from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
 import { formatRelative, formatDueDate } from '@/lib/format-date';
@@ -154,6 +157,8 @@ function HrDashboardBody() {
       />
 
       <NeedsAttention items={data.needsAttention} />
+
+      <AwaitingActivationCard />
 
       <ComplianceStatusBoardCard board={data.statusBoard} />
 
@@ -558,5 +563,111 @@ function DashboardSkeleton() {
       </div>
       <div className="h-40 animate-pulse rounded-lg border border-gray-100 bg-gray-50" />
     </div>
+  );
+}
+
+// ── Awaiting activation ─────────────────────────────────────────────────────
+//
+// Engagements that have cleared every compliance item but still sit at
+// PENDING_COMPLIANCE — HR clicks "Activate" to flip them to READY_TO_START
+// via the existing markReady endpoint. Empty state hides the card so the
+// landing doesn't carry an empty box on steady-state days.
+
+interface AwaitingActivationRow {
+  engagementId: Uuid;
+  candidateId: Uuid | null;
+  candidateName: string | null;
+  position: string | null;
+}
+
+function AwaitingActivationCard() {
+  const [rows, setRows] = useState<AwaitingActivationRow[] | null>(null);
+  const [activating, setActivating] = useState<Uuid | null>(null);
+
+  const load = useCallback(async () => {
+    try {
+      const res = await api.get<AwaitingActivationRow[]>(
+        '/api/v1/engagements/awaiting-activation',
+      );
+      setRows(res.data ?? []);
+    } catch {
+      setRows([]);
+    }
+  }, []);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  async function activate(engagementId: Uuid) {
+    if (activating) return;
+    setActivating(engagementId);
+    try {
+      await api.post(`/api/v1/engagements/${engagementId}/mark-ready`);
+      toast.success('Engagement activated.');
+      await load();
+    } catch (err: any) {
+      toast.error(
+        err?.response?.data?.error ?? "Couldn't activate the engagement.",
+      );
+    } finally {
+      setActivating(null);
+    }
+  }
+
+  if (rows === null) return null;
+  if (rows.length === 0) return null;
+
+  return (
+    <section className="rounded-lg border border-emerald-200 bg-emerald-50/40 p-5">
+      <div className="mb-3 flex items-center gap-2">
+        <CheckCircle2 className="h-4 w-4 text-emerald-700" strokeWidth={2} />
+        <h2 className="text-sm font-semibold text-gray-900">
+          Awaiting activation ({rows.length})
+        </h2>
+      </div>
+      <p className="mb-3 text-xs text-gray-600">
+        Every compliance item is signed off — click activate to start the
+        engagement.
+      </p>
+      <ul className="space-y-2">
+        {rows.map((row) => (
+          <li
+            key={row.engagementId}
+            className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-emerald-100 bg-white px-3 py-2"
+          >
+            <div className="flex min-w-0 items-center gap-2">
+              <Users className="h-3.5 w-3.5 shrink-0 text-emerald-700" strokeWidth={2} />
+              <div className="min-w-0">
+                <Link
+                  href={
+                    row.candidateId
+                      ? `/careers/supervised/${row.candidateId}`
+                      : '#'
+                  }
+                  className="block truncate text-sm font-medium text-gray-900 hover:text-accent-dark hover:underline"
+                >
+                  {row.candidateName ?? '—'}
+                </Link>
+                <div className="truncate text-xs text-gray-500">
+                  {row.position ?? '—'}
+                </div>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => void activate(row.engagementId)}
+              disabled={activating !== null}
+              className="inline-flex items-center gap-1 rounded-md bg-emerald-600 px-2.5 py-1 text-[11px] font-semibold text-white hover:bg-emerald-700 disabled:opacity-60"
+            >
+              <CheckCircle2 className="h-3 w-3" strokeWidth={2.5} />
+              {activating === row.engagementId
+                ? 'Activating…'
+                : 'Activate Engagement'}
+            </button>
+          </li>
+        ))}
+      </ul>
+    </section>
   );
 }

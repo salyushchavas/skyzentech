@@ -3,8 +3,8 @@ package com.skyzen.careers.bootstrap;
 import com.skyzen.careers.entity.Engagement;
 import com.skyzen.careers.enums.EngagementStatus;
 import com.skyzen.careers.repository.EngagementRepository;
-import com.skyzen.careers.service.ComplianceRoutingService;
 import com.skyzen.careers.service.EngagementActivationService;
+import com.skyzen.careers.service.EngagementService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.CommandLineRunner;
@@ -30,10 +30,9 @@ import java.util.List;
  * → {@code POST /api/v1/engagements/{id}/mark-ready}. Nothing auto-flips
  * on a compliance write.</p>
  *
- * <p>Each row is delegated to
- * {@link EngagementActivationService#tryAdvance(Engagement, String)} with
- * the audit-action string {@code RECOVERY_BACKFILL_UNSTICK} so the audit
- * trail records exactly which path advanced the row.</p>
+ * <p>Audit row stamps the action {@code RECOVERY_BACKFILL_UNSTICK} so
+ * backfilled rows are distinguishable from HR-driven activations
+ * (which stamp {@code MARK_READY}).</p>
  */
 @Component
 @Order(20)
@@ -44,18 +43,18 @@ public class UnstickOnboardingRunner implements CommandLineRunner {
 
     private final boolean enabled;
     private final EngagementRepository engagementRepository;
-    private final ComplianceRoutingService complianceRoutingService;
     private final EngagementActivationService engagementActivationService;
+    private final EngagementService engagementService;
 
     public UnstickOnboardingRunner(
             @Value("${app.backfill.unstuck-onboarding-enabled:false}") boolean enabled,
             EngagementRepository engagementRepository,
-            ComplianceRoutingService complianceRoutingService,
-            EngagementActivationService engagementActivationService) {
+            EngagementActivationService engagementActivationService,
+            EngagementService engagementService) {
         this.enabled = enabled;
         this.engagementRepository = engagementRepository;
-        this.complianceRoutingService = complianceRoutingService;
         this.engagementActivationService = engagementActivationService;
+        this.engagementService = engagementService;
     }
 
     @Override
@@ -65,37 +64,42 @@ public class UnstickOnboardingRunner implements CommandLineRunner {
                     + "(set app.backfill.unstuck-onboarding-enabled=true to enable).");
             return;
         }
+        int scanned = 0;
+        int advanced = 0;
+        int skipped = 0;
+        int failed = 0;
         try {
             List<Engagement> pending = engagementRepository
                     .findByStatus(EngagementStatus.PENDING_COMPLIANCE);
-            int scanned = pending.size();
-            int advanced = 0;
-            int stillBlocked = 0;
-            int failed = 0;
+            scanned = pending.size();
             for (Engagement e : pending) {
                 try {
-                    if (complianceRoutingService.requirementsSatisfied(e)) {
-                        engagementActivationService.tryAdvance(e, AUDIT_ACTION);
-                        log.info("[UnstickOnboardingRunner] advanced engagement {} "
-                                + "(candidate {})",
-                                e.getId(),
-                                e.getCandidate() != null ? e.getCandidate().getId() : null);
-                        advanced++;
-                    } else {
-                        stillBlocked++;
+                    if (!engagementActivationService.isReady(e)) {
+                        skipped++;
+                        continue;
                     }
+                    engagementService.transitionToSystem(
+                            e,
+                            EngagementStatus.READY_TO_START,
+                            AUDIT_ACTION,
+                            null);
+                    log.info("[UnstickOnboardingRunner] advanced engagement {} "
+                            + "(candidate {})",
+                            e.getId(),
+                            e.getCandidate() != null ? e.getCandidate().getId() : null);
+                    advanced++;
                 } catch (Exception ex) {
                     failed++;
                     log.warn("[UnstickOnboardingRunner] failed to advance engagement {} "
                             + "(non-fatal): {}", e.getId(), ex.getMessage());
                 }
             }
-            log.info("[UnstickOnboardingRunner] summary: scanned={}, advanced={}, "
-                    + "still-blocked={}, failed={}",
-                    scanned, advanced, stillBlocked, failed);
         } catch (Exception e) {
             log.warn("[UnstickOnboardingRunner] sweep failed (non-fatal): {}",
                     e.getMessage(), e);
         }
+        log.info("[UnstickOnboardingRunner] summary: scanned={}, advanced={}, "
+                + "skipped={}, failed={}",
+                scanned, advanced, skipped, failed);
     }
 }

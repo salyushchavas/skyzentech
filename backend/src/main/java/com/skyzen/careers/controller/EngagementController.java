@@ -46,6 +46,7 @@ public class EngagementController {
     private final EngagementService engagementService;
     private final ComplianceRoutingService complianceRoutingService;
     private final UserRepository userRepository;
+    private final com.skyzen.careers.service.EngagementActivationService engagementActivationService;
 
     @GetMapping("/{id}")
     @PreAuthorize("hasAnyRole('OPERATIONS', 'HR_COMPLIANCE')")
@@ -63,20 +64,56 @@ public class EngagementController {
      * {@code POST /mark-ready} on this controller.
      */
     @GetMapping("/{id}/activation-readiness")
-    @PreAuthorize("hasAnyRole('OPERATIONS', 'HR_COMPLIANCE', 'SUPER_ADMIN')")
+    @PreAuthorize("hasAnyRole('HR_COMPLIANCE', 'OPERATIONS', 'SUPER_ADMIN')")
     @Transactional(readOnly = true)
     public ActivationReadinessResponse activationReadiness(@PathVariable UUID id) {
         Engagement engagement = engagementRepository.findByIdWithGraph(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Engagement not found: " + id));
+        boolean ready = engagementActivationService.isReady(engagement);
         var missing = complianceRoutingService.missingRequirements(engagement);
-        boolean ready = missing.isEmpty();
         return new ActivationReadinessResponse(ready, missing);
+    }
+
+    /**
+     * List of PENDING_COMPLIANCE engagements that are READY to activate,
+     * scoped for HR's landing dashboard. Pure read — every row carries
+     * the same minimal payload the operations onboarding queue uses so the
+     * frontend can render the inline "Activate Engagement" button.
+     */
+    @GetMapping("/awaiting-activation")
+    @PreAuthorize("hasAnyRole('HR_COMPLIANCE', 'OPERATIONS', 'SUPER_ADMIN')")
+    @Transactional(readOnly = true)
+    public java.util.List<AwaitingActivationRow> awaitingActivation() {
+        java.util.List<Engagement> pending = engagementRepository
+                .findByStatus(com.skyzen.careers.enums.EngagementStatus.PENDING_COMPLIANCE);
+        java.util.List<AwaitingActivationRow> rows = new java.util.ArrayList<>();
+        for (Engagement e : pending) {
+            if (!engagementActivationService.isReady(e)) continue;
+            var candidate = e.getCandidate();
+            var candidateUser = candidate != null ? candidate.getUser() : null;
+            var application = e.getApplication();
+            var posting = application != null ? application.getJobPosting() : null;
+            rows.add(new AwaitingActivationRow(
+                    e.getId(),
+                    candidate != null ? candidate.getId() : null,
+                    candidateUser != null ? candidateUser.getFullName() : null,
+                    posting != null ? posting.getTitle() : null
+            ));
+        }
+        return rows;
     }
 
     /** Lightweight readiness DTO inlined here — no other surface needs it. */
     public record ActivationReadinessResponse(
             boolean ready,
             java.util.List<String> missing) {}
+
+    /** Minimal row payload for the HR / Ops awaiting-activation list. */
+    public record AwaitingActivationRow(
+            UUID engagementId,
+            UUID candidateId,
+            String candidateName,
+            String position) {}
 
     @PostMapping("/{id}/mark-ready")
     @PreAuthorize("hasAnyRole('OPERATIONS', 'HR_COMPLIANCE')")
