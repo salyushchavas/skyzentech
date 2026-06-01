@@ -313,44 +313,48 @@ public class EvaluationService {
                         Comparator.nullsLast(Comparator.naturalOrder())));
     }
 
+    // Role-based gates — per-engagement supervisor FK is informational
+    // metadata, not a permission boundary.
     private void ensureSupervisorOwnsEngagement(Engagement engagement, User actor) {
-        if (actor == null) throw new ForbiddenException("Authentication required.");
-        if (isSuperAdmin(actor)) return;
-        User supervisor = engagement.getSupervisor();
-        if (supervisor == null || !supervisor.getId().equals(actor.getId())) {
-            throw new ForbiddenException(
-                    "Only the engagement's supervisor (or SUPER_ADMIN) may author evaluations here.");
-        }
+        ensureTechnicalSupervisorRole(actor);
     }
 
     private void ensureWriter(Evaluation evaluation, User actor) {
         if (actor == null) throw new ForbiddenException("Authentication required.");
         if (isSuperAdmin(actor)) return;
-        // The original evaluator OR the engagement's current supervisor can write.
+        // The original evaluator OR any TECHNICAL_SUPERVISOR can write.
         if (evaluation.getEvaluator() != null
                 && evaluation.getEvaluator().getId().equals(actor.getId())) {
             return;
         }
-        ensureSupervisorOwnsEngagement(evaluation.getEngagement(), actor);
+        ensureTechnicalSupervisorRole(actor);
     }
 
     private void ensureCanRead(Candidate intern, User actor) {
         if (actor == null) throw new ForbiddenException("Authentication required.");
         if (isSuperAdmin(actor)) return;
-        // HR_COMPLIANCE may read (incl. I-983 types).
-        if (actor.getRoles() != null
-                && actor.getRoles().contains(UserRole.HR_COMPLIANCE)) {
+        if (actor.getRoles() == null) {
+            throw new ForbiddenException(
+                    "Only this intern's evaluator, HR, or SUPER_ADMIN may view their evaluations.");
+        }
+        if (actor.getRoles().contains(UserRole.HR_COMPLIANCE)
+                || actor.getRoles().contains(UserRole.TECHNICAL_SUPERVISOR)
+                || actor.getRoles().contains(UserRole.REPORTING_MANAGER)) {
             return;
         }
-        // Otherwise the actor must supervise one of the candidate's engagements.
-        List<Engagement> engagements = engagementRepository.findByCandidateId(intern.getId());
-        boolean supervises = engagements.stream().anyMatch(e ->
-                e.getSupervisor() != null
-                        && e.getSupervisor().getId().equals(actor.getId()));
-        if (!supervises) {
-            throw new ForbiddenException(
-                    "Only this intern's supervisor, HR, or SUPER_ADMIN may view their evaluations.");
+        throw new ForbiddenException(
+                "Only this intern's evaluator, HR, or SUPER_ADMIN may view their evaluations.");
+    }
+
+    private static void ensureTechnicalSupervisorRole(User actor) {
+        if (actor == null) throw new ForbiddenException("Authentication required.");
+        if (isSuperAdmin(actor)) return;
+        if (actor.getRoles() != null
+                && actor.getRoles().contains(UserRole.TECHNICAL_SUPERVISOR)) {
+            return;
         }
+        throw new ForbiddenException(
+                "Only TECHNICAL_SUPERVISOR or SUPER_ADMIN may perform this action.");
     }
 
     private static boolean isSuperAdmin(User u) {

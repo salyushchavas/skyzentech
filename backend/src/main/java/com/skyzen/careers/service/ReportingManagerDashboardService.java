@@ -36,20 +36,20 @@ public class ReportingManagerDashboardService {
 
     @Transactional(readOnly = true)
     public ReportingManagerDashboardResponse build(User caller) {
-        long pendingQa = projectRepository.countByReportingManagerAndStatus(
-                caller.getId(), ProjectStatus.TECH_APPROVED);
-        long inProgress = projectRepository.countByReportingManagerAndStatus(
-                caller.getId(), ProjectStatus.PENDING_VIVA);
+        // Role-based scope — any REPORTING_MANAGER sees every RM-eligible
+        // project / session / timesheet across all engagements. The
+        // per-engagement RM FK is no longer the filter.
+        long pendingQa = projectRepository.countByStatus(ProjectStatus.TECH_APPROVED);
+        long inProgress = projectRepository.countByStatus(ProjectStatus.PENDING_VIVA);
 
         Instant monthStart = LocalDate.now()
                 .withDayOfMonth(1)
                 .atStartOfDay()
                 .toInstant(ZoneOffset.UTC);
-        long completedThisMonth = projectRepository
-                .countCompletedSinceForReportingManager(caller.getId(), monthStart);
+        long completedThisMonth = projectRepository.countCompletedSince(monthStart);
 
-        List<Project> awaiting = projectRepository.findForReportingManager(
-                caller.getId(), List.of(ProjectStatus.TECH_APPROVED));
+        List<Project> awaiting = projectRepository.findAllByStatusInWithGraph(
+                List.of(ProjectStatus.TECH_APPROVED));
         List<ProjectAwaitingQa> awaitingDtos = new ArrayList<>();
         for (Project p : awaiting) {
             var intern = p.getIntern();
@@ -63,8 +63,7 @@ public class ReportingManagerDashboardService {
             ));
         }
 
-        List<QaSession> activeSessions = qaSessionRepository.findActiveForRm(
-                caller.getId(),
+        List<QaSession> activeSessions = qaSessionRepository.findAllByStatusInWithGraph(
                 List.of(QaSessionStatus.SCHEDULED, QaSessionStatus.CONDUCTED));
         List<QaSessionResponse> activeSessionDtos = activeSessions.stream()
                 .map(qaSessionService::toResponse)

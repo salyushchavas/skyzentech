@@ -221,6 +221,18 @@ function Body({ userId }: { userId: string }) {
     <section className="space-y-6">
       <BackLink />
 
+      {/* Supervision model has shifted to pure role-based access. Assignment
+          via this page is now optional — kept for special-case overrides. */}
+      <div className="rounded-md border border-sky-200 bg-sky-50 p-3 text-xs text-sky-900">
+        <p className="font-medium">Assignment is optional.</p>
+        <p className="mt-0.5">
+          By default, any Technical Evaluator sees every hired intern and any
+          Reporting Manager sees every RM-eligible item across all engagements.
+          Use this page only for special-case overrides — the assignments
+          recorded here are informational metadata, not a permission boundary.
+        </p>
+      </div>
+
       {/* 1. Profile header */}
       <ProfileCard profile={data.profile} />
 

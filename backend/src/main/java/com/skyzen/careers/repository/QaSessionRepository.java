@@ -52,4 +52,19 @@ public interface QaSessionRepository extends JpaRepository<QaSession, UUID> {
             + "ORDER BY s.scheduledAt ASC")
     List<QaSession> findActiveForRm(@Param("rmUserId") UUID rmUserId,
                                     @Param("statuses") List<QaSessionStatus> statuses);
+
+    /**
+     * Role-based variant — every active session across all engagements.
+     * The post-refactor RM dashboard uses this so any REPORTING_MANAGER
+     * sees the full queue, not just sessions for engagements where they
+     * are the assigned RM.
+     */
+    @Query("SELECT s FROM QaSession s "
+            + "JOIN FETCH s.project p "
+            + "JOIN FETCH p.engagement e "
+            + "JOIN FETCH p.intern i "
+            + "JOIN FETCH i.user iu "
+            + "WHERE s.status IN :statuses "
+            + "ORDER BY s.scheduledAt ASC")
+    List<QaSession> findAllByStatusInWithGraph(@Param("statuses") List<QaSessionStatus> statuses);
 }

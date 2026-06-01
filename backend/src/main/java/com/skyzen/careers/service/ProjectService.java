@@ -412,31 +412,30 @@ public class ProjectService {
         return project;
     }
 
+    // Role-based gates — any TECHNICAL_SUPERVISOR (or SUPER_ADMIN) may
+    // allocate / review / mutate any project. Per-engagement supervisor FK
+    // is informational metadata, not a permission boundary.
     private void ensureSupervisorOwnsEngagement(Engagement engagement, User actor) {
-        if (actor == null) throw new ForbiddenException("Authentication required.");
-        if (isSuperAdmin(actor)) return;
-        User supervisor = engagement.getSupervisor();
-        if (supervisor == null || !supervisor.getId().equals(actor.getId())) {
-            throw new ForbiddenException(
-                    "Only the engagement's supervisor (or SUPER_ADMIN) may allocate projects here.");
-        }
+        ensureTechnicalSupervisorRole(actor);
     }
 
     private void ensureSupervisorOwnsProject(Project project, User actor) {
-        ensureSupervisorOwnsEngagement(project.getEngagement(), actor);
+        ensureTechnicalSupervisorRole(actor);
     }
 
     private void ensureSupervisorCanReview(Candidate candidate, User actor) {
+        ensureTechnicalSupervisorRole(actor);
+    }
+
+    private static void ensureTechnicalSupervisorRole(User actor) {
         if (actor == null) throw new ForbiddenException("Authentication required.");
         if (isSuperAdmin(actor)) return;
-        List<Engagement> engagements = engagementRepository.findByCandidateId(candidate.getId());
-        boolean owns = engagements.stream()
-                .anyMatch(e -> e.getSupervisor() != null
-                        && e.getSupervisor().getId().equals(actor.getId()));
-        if (!owns) {
-            throw new ForbiddenException(
-                    "Only this intern's supervisor (or SUPER_ADMIN) may view their projects.");
+        if (actor.getRoles() != null
+                && actor.getRoles().contains(UserRole.TECHNICAL_SUPERVISOR)) {
+            return;
         }
+        throw new ForbiddenException(
+                "Only TECHNICAL_SUPERVISOR or SUPER_ADMIN may perform this action.");
     }
 
     private static boolean isSuperAdmin(User u) {

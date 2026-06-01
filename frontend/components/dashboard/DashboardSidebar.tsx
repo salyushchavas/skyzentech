@@ -69,7 +69,7 @@ const STAFF_ROLE_LINKS: Partial<Record<UserRole, StaffLink[]>> = {
   ],
   TECHNICAL_SUPERVISOR: [
     { icon: LayoutDashboard, label: 'Dashboard', href: '/careers/evaluator' },
-    { icon: Users, label: 'My Interns', href: '/careers/evaluator/interns' },
+    { icon: Users, label: 'Active Interns', href: '/careers/evaluator/interns' },
     { icon: CalendarClock, label: 'Sessions', href: '/careers/evaluator/sessions' },
     { icon: ClipboardList, label: 'Assignments', href: '/careers/evaluator/assignments' },
     { icon: BookOpen, label: 'Weekly Materials', href: '/careers/evaluator/weekly-materials' },

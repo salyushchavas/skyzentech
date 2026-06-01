@@ -294,23 +294,28 @@ public class TimesheetService {
         return toWeekResponse(t);
     }
 
-    /** RM-scoped queue of SUBMITTED timesheets. SUPER_ADMIN bypasses scope. */
+    /**
+     * Queue of SUBMITTED timesheets — any REPORTING_MANAGER (or SUPER_ADMIN)
+     * sees the full queue across all engagements. Per-engagement RM FK is
+     * no longer the filter.
+     */
     @Transactional(readOnly = true)
     public List<TimesheetWeekResponse> listPendingApproval(User caller) {
         if (caller == null) throw new ForbiddenException("Authentication required.");
-        List<Timesheet> rows;
-        if (isSuperAdmin(caller)) {
-            rows = timesheetRepository.findAllSubmitted();
-        } else if (hasRole(caller, UserRole.REPORTING_MANAGER)) {
-            rows = timesheetRepository.findSubmittedForReportingManager(caller.getId());
-        } else {
+        if (!isSuperAdmin(caller) && !hasRole(caller, UserRole.REPORTING_MANAGER)) {
             throw new ForbiddenException(
                     "Only REPORTING_MANAGER or SUPER_ADMIN can view the approval queue.");
         }
-        return rows.stream().map(this::toWeekResponse).toList();
+        return timesheetRepository.findAllSubmitted().stream()
+                .map(this::toWeekResponse)
+                .toList();
     }
 
-    /** Detail view for the RM approval page. Same scope rules as the queue. */
+    /**
+     * Detail view for the RM approval page. Role-based: the intern who owns
+     * the row, any TECHNICAL_SUPERVISOR / REPORTING_MANAGER / OPERATIONS /
+     * HR_COMPLIANCE / SUPER_ADMIN. No per-engagement FK match.
+     */
     @Transactional(readOnly = true)
     public TimesheetWeekResponse getWeek(UUID timesheetId, User caller) {
         Timesheet t = timesheetRepository.findByIdWithGraph(timesheetId)
@@ -321,13 +326,10 @@ public class TimesheetService {
         boolean isOwner = t.getIntern() != null
                 && t.getIntern().getUser() != null
                 && t.getIntern().getUser().getId().equals(callerId);
-        boolean isRm = t.getEngagement() != null
-                && t.getEngagement().getReportingManager() != null
-                && t.getEngagement().getReportingManager().getId().equals(callerId);
-        boolean isSupervisor = t.getEngagement() != null
-                && t.getEngagement().getSupervisor() != null
-                && t.getEngagement().getSupervisor().getId().equals(callerId);
-        if (!isOwner && !isRm && !isSupervisor && !isSuperAdmin(caller)
+        if (!isOwner
+                && !isSuperAdmin(caller)
+                && !hasRole(caller, UserRole.REPORTING_MANAGER)
+                && !hasRole(caller, UserRole.TECHNICAL_SUPERVISOR)
                 && !hasRole(caller, UserRole.OPERATIONS)
                 && !hasRole(caller, UserRole.HR_COMPLIANCE)) {
             throw new ForbiddenException("Not authorised to view this timesheet.");

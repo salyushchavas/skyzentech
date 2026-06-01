@@ -50,8 +50,10 @@ public class EvaluatorListsService {
     @Transactional(readOnly = true)
     public List<EvaluatorInternResponse> listInterns(User evaluator) {
         if (evaluator == null) return List.of();
-        return dedupeByCandidate(
-                applicationRepository.findHiredInternsForEvaluator(evaluator.getId()));
+        // Role-based scope — any TECHNICAL_SUPERVISOR sees every hired intern.
+        // The previous Candidate.assignedEvaluator FK filter is no longer the
+        // boundary.
+        return dedupeByCandidate(applicationRepository.findHiredInterns(null, null));
     }
 
     @Transactional(readOnly = true)
@@ -78,7 +80,7 @@ public class EvaluatorListsService {
         UUID evalId = evaluator.getId();
 
         List<EvaluatorInternResponse> interns = dedupeByCandidate(
-                applicationRepository.findHiredInternsForEvaluator(evalId));
+                applicationRepository.findHiredInterns(null, null));
 
         List<EvaluationSession> allSessions =
                 evaluationSessionRepository.findForEvaluatorUser(evalId);

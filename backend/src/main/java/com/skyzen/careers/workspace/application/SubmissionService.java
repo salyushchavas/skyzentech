@@ -273,12 +273,16 @@ public class SubmissionService {
         if (caller == null) throw new ForbiddenException("Authentication required.");
         if (caller.getRoles() != null
                 && caller.getRoles().contains(UserRole.SUPER_ADMIN)) return;
+        // Role-based — any TECHNICAL_SUPERVISOR / REPORTING_MANAGER can read
+        // any submission. Per-engagement FKs are no longer the boundary.
+        if (caller.getRoles() != null
+                && (caller.getRoles().contains(UserRole.TECHNICAL_SUPERVISOR)
+                    || caller.getRoles().contains(UserRole.REPORTING_MANAGER))) {
+            return;
+        }
         Candidate intern = project.getIntern();
         User internUser = intern != null ? intern.getUser() : null;
         if (internUser != null && internUser.getId().equals(caller.getId())) return;
-        Engagement eng = project.getEngagement();
-        User sv = eng != null ? eng.getSupervisor() : null;
-        if (sv != null && sv.getId().equals(caller.getId())) return;
         throw new ForbiddenException(
                 "Only this project's intern, evaluator, or SUPER_ADMIN may view this submission.");
     }

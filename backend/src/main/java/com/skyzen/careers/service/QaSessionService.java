@@ -202,30 +202,30 @@ public class QaSessionService {
                         "Q&A session not found: " + sessionId));
     }
 
+    // Role-based gates — per-engagement RM/supervisor FKs are not the
+    // boundary. Any REPORTING_MANAGER acts on any Q&A; reads also allow
+    // TECHNICAL_SUPERVISOR and the project's own intern.
     private static void ensureRmOrSuperAdmin(Project project, User caller) {
         if (caller == null) throw new ForbiddenException("Authentication required.");
         if (isSuperAdmin(caller)) return;
-        Engagement eng = project.getEngagement();
-        User rm = eng != null ? eng.getReportingManager() : null;
-        if (rm == null || !rm.getId().equals(caller.getId())) {
-            throw new ForbiddenException(
-                    "Only the engagement's Reporting Manager (or SUPER_ADMIN) may act on this Q&A.");
+        if (caller.getRoles() != null
+                && caller.getRoles().contains(UserRole.REPORTING_MANAGER)) {
+            return;
         }
+        throw new ForbiddenException(
+                "Only REPORTING_MANAGER or SUPER_ADMIN may act on this Q&A.");
     }
 
     private static void ensureCanRead(Project project, User caller) {
         if (caller == null) throw new ForbiddenException("Authentication required.");
         if (isSuperAdmin(caller)) return;
-        Engagement eng = project.getEngagement();
-        User rm = eng != null ? eng.getReportingManager() : null;
-        User supervisor = eng != null ? eng.getSupervisor() : null;
         var intern = project.getIntern();
         User internUser = intern != null ? intern.getUser() : null;
-        UUID callerId = caller.getId();
-        boolean isRm = rm != null && rm.getId().equals(callerId);
-        boolean isSupervisor = supervisor != null && supervisor.getId().equals(callerId);
-        boolean isIntern = internUser != null && internUser.getId().equals(callerId);
-        if (!isRm && !isSupervisor && !isIntern) {
+        boolean isIntern = internUser != null && internUser.getId().equals(caller.getId());
+        boolean hasReviewerRole = caller.getRoles() != null
+                && (caller.getRoles().contains(UserRole.REPORTING_MANAGER)
+                    || caller.getRoles().contains(UserRole.TECHNICAL_SUPERVISOR));
+        if (!isIntern && !hasReviewerRole) {
             throw new ForbiddenException("Not authorised to view this Q&A session.");
         }
     }

@@ -212,26 +212,29 @@ public class ProjectWorkflowService {
         }
     }
 
+    // Role-based gates — per-engagement FKs are no longer permission
+    // boundaries. Any TECHNICAL_SUPERVISOR / REPORTING_MANAGER (or
+    // SUPER_ADMIN) may act on any project at the appropriate stage.
     private static void ensureTechnicalReviewer(Project project, User actor) {
         if (actor == null) throw new ForbiddenException("Authentication required.");
         if (isSuperAdmin(actor)) return;
-        Engagement eng = project.getEngagement();
-        User supervisor = eng != null ? eng.getSupervisor() : null;
-        if (supervisor == null || !supervisor.getId().equals(actor.getId())) {
-            throw new ForbiddenException(
-                    "Only the engagement's technical supervisor (or SUPER_ADMIN) may act here.");
+        if (actor.getRoles() != null
+                && actor.getRoles().contains(UserRole.TECHNICAL_SUPERVISOR)) {
+            return;
         }
+        throw new ForbiddenException(
+                "Only TECHNICAL_SUPERVISOR or SUPER_ADMIN may act here.");
     }
 
     private static void ensureReportingManagerOrSuperAdmin(Project project, User actor) {
         if (actor == null) throw new ForbiddenException("Authentication required.");
         if (isSuperAdmin(actor)) return;
-        Engagement eng = project.getEngagement();
-        User rm = eng != null ? eng.getReportingManager() : null;
-        if (rm == null || !rm.getId().equals(actor.getId())) {
-            throw new ForbiddenException(
-                    "Only the engagement's Reporting Manager (or SUPER_ADMIN) may act here.");
+        if (actor.getRoles() != null
+                && actor.getRoles().contains(UserRole.REPORTING_MANAGER)) {
+            return;
         }
+        throw new ForbiddenException(
+                "Only REPORTING_MANAGER or SUPER_ADMIN may act here.");
     }
 
     private static boolean isSuperAdmin(User u) {

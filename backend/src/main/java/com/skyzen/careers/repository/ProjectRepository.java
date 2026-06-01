@@ -96,4 +96,29 @@ public interface ProjectRepository extends JpaRepository<Project, UUID> {
     long countCompletedSinceForReportingManager(
             @Param("rmUserId") UUID rmUserId,
             @Param("since") java.time.Instant since);
+
+    // ── Role-based queries (no per-engagement RM/supervisor FK filter) ──────
+    //
+    // The post-refactor supervision model treats any TECHNICAL_SUPERVISOR /
+    // REPORTING_MANAGER as authoritative for every relevant row. The
+    // findFor*-style queries above are retained for special-case scopes but
+    // are no longer the default the dashboards consult.
+
+    @Query("SELECT p FROM Project p " +
+            "JOIN FETCH p.engagement e " +
+            "LEFT JOIN FETCH e.reportingManager rm " +
+            "LEFT JOIN FETCH e.supervisor sv " +
+            "JOIN FETCH p.intern i " +
+            "JOIN FETCH i.user iu " +
+            "JOIN FETCH p.assignedBy ab " +
+            "WHERE p.status IN :statuses " +
+            "ORDER BY p.updatedAt DESC")
+    List<Project> findAllByStatusInWithGraph(@Param("statuses") List<ProjectStatus> statuses);
+
+    long countByStatus(ProjectStatus status);
+
+    @Query("SELECT COUNT(p) FROM Project p " +
+            "WHERE p.status = com.skyzen.careers.enums.ProjectStatus.COMPLETED " +
+            "  AND p.completedAt >= :since")
+    long countCompletedSince(@Param("since") java.time.Instant since);
 }
