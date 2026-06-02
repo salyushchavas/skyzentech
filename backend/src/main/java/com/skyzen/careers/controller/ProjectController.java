@@ -55,6 +55,46 @@ public class ProjectController {
 
     private final ProjectService service;
     private final ProjectWorkflowService workflowService;
+    private final com.skyzen.careers.service.ProjectCatalogService catalogService;
+
+    // ── Project Catalog (Project Assignment module) ─────────────────────────
+    //
+    // Subpath /catalog/* — kept off the controller root so the existing
+    // POST /api/v1/projects (legacy single-allocate flow used by the
+    // workspace + 957-LOC evaluator page) is not redefined. The new
+    // catalog flow is purely additive.
+
+    @org.springframework.web.bind.annotation.PostMapping("/catalog")
+    @PreAuthorize("hasAnyRole('TECHNICAL_SUPERVISOR', 'SUPER_ADMIN')")
+    public com.skyzen.careers.dto.project.catalog.CatalogProjectResponse createCatalog(
+            @jakarta.validation.Valid @org.springframework.web.bind.annotation.RequestBody
+            com.skyzen.careers.dto.project.catalog.CreateCatalogProjectRequest req,
+            @AuthenticationPrincipal User caller) {
+        return catalogService.createCatalogProject(req, caller);
+    }
+
+    @GetMapping("/catalog/{id}")
+    @PreAuthorize("hasAnyRole('TECHNICAL_SUPERVISOR', 'SUPER_ADMIN', 'INTERN')")
+    public com.skyzen.careers.dto.project.catalog.CatalogProjectResponse getCatalog(
+            @PathVariable UUID id) {
+        return catalogService.getCatalogProject(id);
+    }
+
+    @GetMapping("/catalog")
+    @PreAuthorize("hasAnyRole('TECHNICAL_SUPERVISOR', 'SUPER_ADMIN')")
+    public java.util.List<com.skyzen.careers.dto.project.catalog.CatalogProjectResponse> listCatalog(
+            @org.springframework.web.bind.annotation.RequestParam(name = "createdByMe", defaultValue = "false")
+            boolean createdByMe,
+            @AuthenticationPrincipal User caller) {
+        if (createdByMe) return catalogService.listCreatedBy(caller.getId());
+        return catalogService.listAllCatalog();
+    }
+
+    @GetMapping("/catalog/all")
+    @PreAuthorize("hasRole('SUPER_ADMIN')")
+    public java.util.List<com.skyzen.careers.dto.project.catalog.CatalogProjectResponse> listAllCatalog() {
+        return catalogService.listAllCatalog();
+    }
 
     // ── Supervisor commands ─────────────────────────────────────────────────
 

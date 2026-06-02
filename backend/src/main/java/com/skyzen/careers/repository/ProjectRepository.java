@@ -97,6 +97,20 @@ public interface ProjectRepository extends JpaRepository<Project, UUID> {
             @Param("rmUserId") UUID rmUserId,
             @Param("since") java.time.Instant since);
 
+    // ── Catalog queries (new Project Catalog + Assignment module) ──────────
+    //
+    // Catalog projects are the rows with created_by_id set; legacy
+    // single-allocation rows leave it null. We don't filter the legacy
+    // queries on created_by_id IS NULL — they still show every project so
+    // existing views are unchanged.
+
+    List<Project> findByCreatedByIdOrderByCreatedAtDesc(UUID createdById);
+
+    @org.springframework.data.jpa.repository.Query(
+            "SELECT p FROM Project p WHERE p.createdById IS NOT NULL "
+                    + "ORDER BY p.createdAt DESC")
+    List<Project> findByCreatedByIdNotNullOrderByCreatedAtDesc();
+
     // ── Role-based queries (no per-engagement RM/supervisor FK filter) ──────
     //
     // The post-refactor supervision model treats any TECHNICAL_SUPERVISOR /

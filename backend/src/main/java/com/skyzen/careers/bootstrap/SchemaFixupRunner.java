@@ -151,6 +151,98 @@ public class SchemaFixupRunner implements CommandLineRunner {
                     e.getMessage(), e);
         }
 
+        // ── Project Catalog + Assignment module ────────────────────────────
+        //
+        // Additive — the new Project Catalog model adds catalog columns to
+        // the existing projects table and a new project_assignments table.
+        // Legacy intern_id/status/due_date columns on projects are LEFT IN
+        // PLACE so the workspace + submission + project-workflow paths keep
+        // working unchanged.
+
+        try {
+            jdbcTemplate.execute(
+                    "ALTER TABLE projects ADD COLUMN IF NOT EXISTS name VARCHAR(200)");
+            jdbcTemplate.execute(
+                    "ALTER TABLE projects ADD COLUMN IF NOT EXISTS tech_stack VARCHAR(500)");
+            jdbcTemplate.execute(
+                    "ALTER TABLE projects ADD COLUMN IF NOT EXISTS difficulty VARCHAR(20)");
+            jdbcTemplate.execute(
+                    "ALTER TABLE projects ADD COLUMN IF NOT EXISTS expected_duration_days INTEGER");
+            jdbcTemplate.execute(
+                    "ALTER TABLE projects ADD COLUMN IF NOT EXISTS instructions TEXT");
+            jdbcTemplate.execute(
+                    "ALTER TABLE projects ADD COLUMN IF NOT EXISTS created_by_id UUID");
+            log.info("Ensured projects catalog columns exist (name, tech_stack, "
+                    + "difficulty, expected_duration_days, instructions, created_by_id).");
+        } catch (Exception e) {
+            log.warn("projects catalog-columns ensure failed (non-fatal): {}",
+                    e.getMessage(), e);
+        }
+
+        try {
+            jdbcTemplate.execute(
+                    "CREATE TABLE IF NOT EXISTS project_assignments ("
+                            + "  id UUID PRIMARY KEY,"
+                            + "  project_id UUID NOT NULL,"
+                            + "  intern_id UUID NOT NULL,"
+                            + "  assigned_by_id UUID NOT NULL,"
+                            + "  assignment_date DATE NOT NULL,"
+                            + "  due_date DATE,"
+                            + "  notes TEXT,"
+                            + "  status VARCHAR(40) NOT NULL DEFAULT 'ASSIGNED',"
+                            + "  created_at TIMESTAMP NOT NULL DEFAULT NOW(),"
+                            + "  updated_at TIMESTAMP NOT NULL DEFAULT NOW()"
+                            + ")");
+            jdbcTemplate.execute(
+                    "CREATE INDEX IF NOT EXISTS idx_pa_intern "
+                            + "ON project_assignments(intern_id)");
+            jdbcTemplate.execute(
+                    "CREATE INDEX IF NOT EXISTS idx_pa_project "
+                            + "ON project_assignments(project_id)");
+            jdbcTemplate.execute(
+                    "CREATE INDEX IF NOT EXISTS idx_pa_assigned_by "
+                            + "ON project_assignments(assigned_by_id)");
+            log.info("Ensured project_assignments table + indexes exist.");
+        } catch (Exception e) {
+            log.warn("project_assignments table ensure failed (non-fatal): {}",
+                    e.getMessage(), e);
+        }
+
+        // Backfill — for each legacy projects row that has an intern_id but
+        // no matching project_assignments row, mint one. Idempotent via the
+        // NOT EXISTS guard. Translates the legacy ProjectStatus values to
+        // the equivalent ProjectAssignmentStatus enum names (the assignment
+        // enum was deliberately defined with the same upstream values).
+        try {
+            int inserted = jdbcTemplate.update(
+                    "INSERT INTO project_assignments "
+                            + "  (id, project_id, intern_id, assigned_by_id, "
+                            + "   assignment_date, due_date, notes, status, "
+                            + "   created_at, updated_at) "
+                            + "SELECT gen_random_uuid(), p.id, c.user_id, p.assigned_by, "
+                            + "       COALESCE(p.start_date, CURRENT_DATE), "
+                            + "       p.due_date, NULL, "
+                            + "       COALESCE(p.status, 'ASSIGNED'), "
+                            + "       COALESCE(p.created_at, NOW()), "
+                            + "       COALESCE(p.updated_at, NOW()) "
+                            + "FROM projects p "
+                            + "JOIN candidates c ON c.id = p.intern_id "
+                            + "WHERE p.intern_id IS NOT NULL "
+                            + "  AND c.user_id IS NOT NULL "
+                            + "  AND p.assigned_by IS NOT NULL "
+                            + "  AND NOT EXISTS ("
+                            + "    SELECT 1 FROM project_assignments pa "
+                            + "    WHERE pa.project_id = p.id AND pa.intern_id = c.user_id"
+                            + "  )");
+            if (inserted > 0) {
+                log.info("Backfilled {} legacy projects → project_assignments rows.",
+                        inserted);
+            }
+        } catch (Exception e) {
+            log.warn("project_assignments backfill failed (non-fatal): {}",
+                    e.getMessage(), e);
+        }
+
         try {
             // Adds the `users.active` column on existing databases. Hibernate's
             // ddl-auto=update can't add a NOT NULL column to a table with rows
