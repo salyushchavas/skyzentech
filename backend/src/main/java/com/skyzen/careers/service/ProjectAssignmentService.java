@@ -205,6 +205,120 @@ public class ProjectAssignmentService {
         return mapWithGraph(List.of(a)).get(0);
     }
 
+    // ── Reviewer lifecycle (TE + RM on ProjectAssignment) ──────────────────
+    //
+    // Mirrors the legacy ProjectWorkflowService state machine on the
+    // assignment row. Status transitions:
+    //   SUBMITTED      → TECH_APPROVED   (TECHNICAL_SUPERVISOR)
+    //   SUBMITTED      → IN_PROGRESS     (return for revisions; TE)
+    //   TECH_APPROVED  → PENDING_VIVA    (REPORTING_MANAGER)
+    //   TECH_APPROVED  → COMPLETED       (RM viva-skip close)
+    //   TECH_APPROVED  → IN_PROGRESS     (RM return)
+    //   PENDING_VIVA   → COMPLETED       (RM sign-off)
+    //   PENDING_VIVA   → IN_PROGRESS     (RM return)
+    // Each transition writes a structured info log; dedicated audit-row
+    // unification with the legacy ProjectWorkflowService trail is deferred.
+
+    @Transactional
+    public ProjectAssignmentResponse techApprove(UUID assignmentId, User actor) {
+        ensureStaff(actor);
+        ProjectAssignment a = loadAssignment(assignmentId);
+        if (a.getStatus() == ProjectAssignmentStatus.TECH_APPROVED) {
+            return mapWithGraph(List.of(a)).get(0);
+        }
+        if (a.getStatus() != ProjectAssignmentStatus.SUBMITTED) {
+            throw new BadRequestException(
+                    "Tech approval requires a SUBMITTED assignment (current: "
+                            + a.getStatus() + ")");
+        }
+        a.setStatus(ProjectAssignmentStatus.TECH_APPROVED);
+        projectAssignmentRepository.save(a);
+        log.info("[ProjectAssignmentService] tech-approved assignment={} by={}",
+                assignmentId, actor.getId());
+        return mapWithGraph(List.of(a)).get(0);
+    }
+
+    @Transactional
+    public ProjectAssignmentResponse returnForRevisions(
+            UUID assignmentId, String reason, User actor) {
+        ensureReviewerForReturn(actor);
+        ProjectAssignment a = loadAssignment(assignmentId);
+        ProjectAssignmentStatus from = a.getStatus();
+        if (from != ProjectAssignmentStatus.SUBMITTED
+                && from != ProjectAssignmentStatus.TECH_APPROVED
+                && from != ProjectAssignmentStatus.PENDING_VIVA) {
+            throw new BadRequestException(
+                    "Can't return an assignment in status " + from);
+        }
+        if (reason == null || reason.trim().length() < 10) {
+            throw new BadRequestException(
+                    "A reason of at least 10 characters is required.");
+        }
+        a.setStatus(ProjectAssignmentStatus.IN_PROGRESS);
+        String prior = a.getSubmissionNotes();
+        String stamp = "[Returned by " + (actor.getFullName() != null
+                ? actor.getFullName() : actor.getEmail()) + "] " + reason.trim();
+        a.setSubmissionNotes(prior == null || prior.isBlank()
+                ? stamp
+                : prior + "\n\n" + stamp);
+        projectAssignmentRepository.save(a);
+        log.info("[ProjectAssignmentService] returned assignment={} from={} by={}",
+                assignmentId, from, actor.getId());
+        return mapWithGraph(List.of(a)).get(0);
+    }
+
+    @Transactional
+    public ProjectAssignmentResponse markPendingViva(UUID assignmentId, User actor) {
+        ensureReportingManager(actor);
+        ProjectAssignment a = loadAssignment(assignmentId);
+        if (a.getStatus() == ProjectAssignmentStatus.PENDING_VIVA) {
+            return mapWithGraph(List.of(a)).get(0);
+        }
+        if (a.getStatus() != ProjectAssignmentStatus.TECH_APPROVED) {
+            throw new BadRequestException(
+                    "Mark-pending-viva requires TECH_APPROVED (current: "
+                            + a.getStatus() + ")");
+        }
+        a.setStatus(ProjectAssignmentStatus.PENDING_VIVA);
+        projectAssignmentRepository.save(a);
+        log.info("[ProjectAssignmentService] marked-pending-viva assignment={} by={}",
+                assignmentId, actor.getId());
+        return mapWithGraph(List.of(a)).get(0);
+    }
+
+    @Transactional
+    public ProjectAssignmentResponse completeAfterViva(UUID assignmentId, User actor) {
+        ensureReportingManager(actor);
+        ProjectAssignment a = loadAssignment(assignmentId);
+        if (a.getStatus() == ProjectAssignmentStatus.COMPLETED) {
+            return mapWithGraph(List.of(a)).get(0);
+        }
+        if (a.getStatus() != ProjectAssignmentStatus.PENDING_VIVA
+                && a.getStatus() != ProjectAssignmentStatus.TECH_APPROVED) {
+            throw new BadRequestException(
+                    "Complete-after-viva requires PENDING_VIVA or TECH_APPROVED (current: "
+                            + a.getStatus() + ")");
+        }
+        a.setStatus(ProjectAssignmentStatus.COMPLETED);
+        projectAssignmentRepository.save(a);
+        log.info("[ProjectAssignmentService] completed-after-viva assignment={} by={}",
+                assignmentId, actor.getId());
+        return mapWithGraph(List.of(a)).get(0);
+    }
+
+    /**
+     * Status-filtered list for the TE submitted queue + the RM viva queue.
+     * Pure read; role check happens on the controller endpoints.
+     */
+    @Transactional(readOnly = true)
+    public List<ProjectAssignmentResponse> listByStatuses(
+            List<ProjectAssignmentStatus> statuses) {
+        if (statuses == null || statuses.isEmpty()) return List.of();
+        List<ProjectAssignment> rows = projectAssignmentRepository
+                .findByStatusInOrderByUpdatedAtDesc(statuses);
+        return mapWithGraph(rows);
+    }
+
     private ProjectAssignment loadAssignment(UUID id) {
         return projectAssignmentRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException(
@@ -218,6 +332,28 @@ public class ProjectAssignmentService {
                     && !actor.getRoles().contains(UserRole.SUPER_ADMIN))) {
             throw new ForbiddenException(
                     "Only TECHNICAL_SUPERVISOR or SUPER_ADMIN may perform this action.");
+        }
+    }
+
+    private static void ensureReportingManager(User actor) {
+        if (actor == null) throw new ForbiddenException("Authentication required");
+        if (actor.getRoles() == null
+                || (!actor.getRoles().contains(UserRole.REPORTING_MANAGER)
+                    && !actor.getRoles().contains(UserRole.SUPER_ADMIN))) {
+            throw new ForbiddenException(
+                    "Only REPORTING_MANAGER or SUPER_ADMIN may perform this action.");
+        }
+    }
+
+    private static void ensureReviewerForReturn(User actor) {
+        if (actor == null) throw new ForbiddenException("Authentication required");
+        if (actor.getRoles() == null
+                || (!actor.getRoles().contains(UserRole.TECHNICAL_SUPERVISOR)
+                    && !actor.getRoles().contains(UserRole.REPORTING_MANAGER)
+                    && !actor.getRoles().contains(UserRole.SUPER_ADMIN))) {
+            throw new ForbiddenException(
+                    "Only TECHNICAL_SUPERVISOR / REPORTING_MANAGER / SUPER_ADMIN "
+                            + "may return an assignment for revisions.");
         }
     }
 

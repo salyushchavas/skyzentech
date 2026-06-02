@@ -160,6 +160,39 @@ function Body() {
     }
   }
 
+  async function techApprove(assignmentId: Uuid) {
+    if (!confirm('Mark this submission tech-approved? It will move to the Reporting Manager queue.'))
+      return;
+    try {
+      await api.post(`/api/v1/project-assignments/${assignmentId}/tech-approve`);
+      toast.success('Tech-approved. Sent to the Reporting Manager.');
+      await load();
+    } catch (err: any) {
+      toast.error(err?.response?.data?.error ?? "Couldn't approve.");
+    }
+  }
+
+  async function returnForRevisions(assignmentId: Uuid) {
+    const reason = window.prompt(
+      'Reason for returning (10+ characters; visible to the intern):',
+      '',
+    );
+    if (reason == null) return;
+    if (reason.trim().length < 10) {
+      toast.error('Please give a reason of at least 10 characters.');
+      return;
+    }
+    try {
+      await api.post(`/api/v1/project-assignments/${assignmentId}/return-revisions`, {
+        reason: reason.trim(),
+      });
+      toast.success('Returned for revisions.');
+      await load();
+    } catch (err: any) {
+      toast.error(err?.response?.data?.error ?? "Couldn't return.");
+    }
+  }
+
   if (error)
     return (
       <div className="rounded border border-red-200 bg-red-50 p-4 text-sm text-red-700">
@@ -422,27 +455,67 @@ function Body() {
                     <td className="px-3 py-2 text-xs text-gray-700">
                       {a.submittedAt ? formatRelative(a.submittedAt) : '—'}
                     </td>
-                    <td className="px-3 py-2 text-right">
-                      {a.accessGranted ? (
-                        <button
-                          type="button"
-                          onClick={() => void revokeAccessGranted(a.id)}
-                          className="text-[11px] text-gray-500 hover:text-gray-800 hover:underline"
-                          title="Revoke access flag (informational)"
-                        >
-                          revoke
-                        </button>
-                      ) : (
-                        <button
-                          type="button"
-                          onClick={() => void markAccessGranted(a.id)}
-                          className="inline-flex items-center gap-1 rounded-md bg-emerald-600 px-2.5 py-1 text-[11px] font-semibold text-white hover:bg-emerald-700"
-                          title="Mark access granted after inviting the intern on GitHub"
-                        >
-                          <ShieldCheck className="h-3 w-3" strokeWidth={2.5} />
-                          Mark access granted
-                        </button>
-                      )}
+                    <td className="px-3 py-2">
+                      <div className="flex flex-col items-end gap-1.5">
+                        {a.status === 'SUBMITTED' && (
+                          <div className="flex items-center gap-1.5">
+                            <button
+                              type="button"
+                              onClick={() => void techApprove(a.id)}
+                              className="inline-flex items-center gap-1 rounded-md bg-violet-600 px-2.5 py-1 text-[11px] font-semibold text-white hover:bg-violet-700"
+                              title="Approve this submission and forward to Reporting Manager"
+                            >
+                              <CheckCircle2 className="h-3 w-3" strokeWidth={2.5} />
+                              Tech Approve
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => void returnForRevisions(a.id)}
+                              className="inline-flex items-center gap-1 rounded-md border border-orange-300 bg-white px-2.5 py-1 text-[11px] font-semibold text-orange-700 hover:bg-orange-50"
+                              title="Send back to the intern with a reason"
+                            >
+                              <AlertTriangle className="h-3 w-3" strokeWidth={2.5} />
+                              Return
+                            </button>
+                          </div>
+                        )}
+                        {a.status === 'TECH_APPROVED' && (
+                          <span className="text-[11px] text-violet-700">
+                            Awaiting RM viva
+                          </span>
+                        )}
+                        {a.status === 'PENDING_VIVA' && (
+                          <span className="text-[11px] text-violet-700">
+                            Viva scheduled
+                          </span>
+                        )}
+                        {a.status === 'COMPLETED' && (
+                          <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-700">
+                            <CheckCircle2 className="h-3 w-3" strokeWidth={2.5} />
+                            Completed
+                          </span>
+                        )}
+                        {a.accessGranted ? (
+                          <button
+                            type="button"
+                            onClick={() => void revokeAccessGranted(a.id)}
+                            className="text-[11px] text-gray-500 hover:text-gray-800 hover:underline"
+                            title="Revoke access flag (informational)"
+                          >
+                            revoke access
+                          </button>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => void markAccessGranted(a.id)}
+                            className="inline-flex items-center gap-1 rounded-md bg-emerald-600 px-2.5 py-1 text-[11px] font-semibold text-white hover:bg-emerald-700"
+                            title="Mark access granted after inviting the intern on GitHub"
+                          >
+                            <ShieldCheck className="h-3 w-3" strokeWidth={2.5} />
+                            Mark access granted
+                          </button>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 ))}

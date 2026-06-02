@@ -1,9 +1,11 @@
 package com.skyzen.careers.repository;
 
 import com.skyzen.careers.entity.ProjectAssignment;
+import com.skyzen.careers.enums.ProjectAssignmentStatus;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.UUID;
 
@@ -19,6 +21,13 @@ public interface ProjectAssignmentRepository
 
     /** TE view — every assignment this user created. */
     List<ProjectAssignment> findByAssignedByIdOrderByAssignmentDateDescCreatedAtDesc(UUID assignedById);
+
+    /**
+     * Status-filtered roster for reviewer queues (TE Submitted, RM viva).
+     * Ordered by updatedAt so freshly-transitioned rows surface first.
+     */
+    List<ProjectAssignment> findByStatusInOrderByUpdatedAtDesc(
+            Collection<ProjectAssignmentStatus> statuses);
 
     long countByProjectId(UUID projectId);
 }
