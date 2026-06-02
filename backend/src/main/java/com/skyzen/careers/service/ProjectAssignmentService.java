@@ -54,6 +54,8 @@ public class ProjectAssignmentService {
     private final ProjectRepository projectRepository;
     private final UserRepository userRepository;
     private final EngagementRepository engagementRepository;
+    private final com.skyzen.careers.repository.ProjectRepositoryLinkRepository
+            repositoryLinkRepository;
 
     @Transactional
     public AssignProjectResultResponse assignToInterns(
@@ -61,6 +63,12 @@ public class ProjectAssignmentService {
         Project project = projectRepository.findById(req.projectId())
                 .orElseThrow(() -> new ResourceNotFoundException(
                         "Project not found: " + req.projectId()));
+        // Repository must be linked before the TE can assign — interns
+        // need a place to push code on day one.
+        if (!repositoryLinkRepository.existsByProjectId(project.getId())) {
+            throw new BadRequestException(
+                    "Project must have a repository linked before assigning.");
+        }
         if (req.assignmentDate() == null) {
             throw new BadRequestException("assignmentDate is required");
         }
@@ -99,8 +107,9 @@ public class ProjectAssignmentService {
                         .assignedById(actor.getId())
                         .assignmentDate(req.assignmentDate())
                         .dueDate(req.dueDate())
-                        .notes(req.notes())
+                        .remarks(req.remarks())
                         .status(ProjectAssignmentStatus.ASSIGNED)
+                        .accessGranted(Boolean.FALSE)
                         .build();
                 a = projectAssignmentRepository.save(a);
                 created.add(new AssignProjectResultResponse.Created(
@@ -115,6 +124,109 @@ public class ProjectAssignmentService {
             }
         }
         return new AssignProjectResultResponse(created, failures);
+    }
+
+    // ── Out-of-band access tracking + lifecycle transitions ────────────────
+
+    @Transactional
+    public ProjectAssignmentResponse markAccessGranted(UUID assignmentId, User actor) {
+        ensureStaff(actor);
+        ProjectAssignment a = loadAssignment(assignmentId);
+        if (Boolean.TRUE.equals(a.getAccessGranted())) {
+            return mapWithGraph(List.of(a)).get(0);
+        }
+        a.setAccessGranted(Boolean.TRUE);
+        a.setAccessGrantedAt(java.time.Instant.now());
+        a.setAccessGrantedById(actor.getId());
+        projectAssignmentRepository.save(a);
+        log.info("[ProjectAssignmentService] access granted assignment={} by={}",
+                assignmentId, actor.getId());
+        return mapWithGraph(List.of(a)).get(0);
+    }
+
+    @Transactional
+    public ProjectAssignmentResponse revokeAccessGranted(UUID assignmentId, User actor) {
+        ensureStaff(actor);
+        ProjectAssignment a = loadAssignment(assignmentId);
+        a.setAccessGranted(Boolean.FALSE);
+        a.setAccessGrantedAt(null);
+        a.setAccessGrantedById(null);
+        projectAssignmentRepository.save(a);
+        log.info("[ProjectAssignmentService] access revoked assignment={} by={}",
+                assignmentId, actor.getId());
+        return mapWithGraph(List.of(a)).get(0);
+    }
+
+    @Transactional
+    public ProjectAssignmentResponse startAssignment(UUID assignmentId, User actor) {
+        ProjectAssignment a = loadAssignment(assignmentId);
+        ensureOwningIntern(a, actor);
+        if (a.getStatus() != ProjectAssignmentStatus.ASSIGNED) {
+            throw new BadRequestException(
+                    "Cannot start assignment in status " + a.getStatus());
+        }
+        User self = userRepository.findById(actor.getId()).orElse(actor);
+        if (self.getGithubUsername() == null || self.getGithubUsername().isBlank()) {
+            throw new BadRequestException(
+                    "Please provide your GitHub username first.");
+        }
+        if (!Boolean.TRUE.equals(a.getAccessGranted())) {
+            throw new BadRequestException(
+                    "Repository access has not been granted yet. "
+                            + "The Technical Evaluator will invite you on GitHub.");
+        }
+        a.setStatus(ProjectAssignmentStatus.IN_PROGRESS);
+        a.setStartedAt(java.time.Instant.now());
+        projectAssignmentRepository.save(a);
+        log.info("[ProjectAssignmentService] assignment={} intern={} started",
+                assignmentId, actor.getId());
+        return mapWithGraph(List.of(a)).get(0);
+    }
+
+    @Transactional
+    public ProjectAssignmentResponse submitAssignment(
+            UUID assignmentId, String submissionNotes, User actor) {
+        ProjectAssignment a = loadAssignment(assignmentId);
+        ensureOwningIntern(a, actor);
+        if (a.getStatus() == ProjectAssignmentStatus.SUBMITTED) {
+            throw new BadRequestException("Project is already submitted.");
+        }
+        if (a.getStatus() != ProjectAssignmentStatus.IN_PROGRESS) {
+            throw new BadRequestException("Project has not been started.");
+        }
+        a.setStatus(ProjectAssignmentStatus.SUBMITTED);
+        a.setSubmittedAt(java.time.Instant.now());
+        if (submissionNotes != null && !submissionNotes.isBlank()) {
+            a.setSubmissionNotes(submissionNotes.trim());
+        }
+        projectAssignmentRepository.save(a);
+        log.info("[ProjectAssignmentService] assignment={} intern={} submitted",
+                assignmentId, actor.getId());
+        return mapWithGraph(List.of(a)).get(0);
+    }
+
+    private ProjectAssignment loadAssignment(UUID id) {
+        return projectAssignmentRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "Assignment not found: " + id));
+    }
+
+    private static void ensureStaff(User actor) {
+        if (actor == null) throw new ForbiddenException("Authentication required");
+        if (actor.getRoles() == null
+                || (!actor.getRoles().contains(UserRole.TECHNICAL_SUPERVISOR)
+                    && !actor.getRoles().contains(UserRole.SUPER_ADMIN))) {
+            throw new ForbiddenException(
+                    "Only TECHNICAL_SUPERVISOR or SUPER_ADMIN may perform this action.");
+        }
+    }
+
+    private static void ensureOwningIntern(ProjectAssignment a, User actor) {
+        if (actor == null) throw new ForbiddenException("Authentication required");
+        if (!a.getInternId().equals(actor.getId())) {
+            throw new ForbiddenException(
+                    "Only the assigned intern may perform this action.");
+        }
     }
 
     @Transactional(readOnly = true)
@@ -164,6 +276,7 @@ public class ProjectAssignmentService {
                     u.getId(),
                     u.getFullName(),
                     u.getEmail(),
+                    u.getGithubUsername(),
                     e.getActualStartDate() != null ? e.getActualStartDate()
                             : e.getPlannedStartDate()));
         }
@@ -201,16 +314,35 @@ public class ProjectAssignmentService {
         for (ProjectAssignment r : rows) {
             userIds.add(r.getInternId());
             userIds.add(r.getAssignedById());
+            if (r.getAccessGrantedById() != null) userIds.add(r.getAccessGrantedById());
         }
         Map<UUID, Project> projects = projectRepository.findAllById(projectIds).stream()
                 .collect(Collectors.toMap(Project::getId, p -> p));
         Map<UUID, User> users = userRepository.findAllById(userIds).stream()
                 .collect(Collectors.toMap(User::getId, u -> u));
+        // Bulk-fetch repository links so per-row mapping doesn't N+1.
+        Map<UUID, com.skyzen.careers.entity.ProjectRepositoryLink> repos = new HashMap<>();
+        for (UUID pid : projectIds) {
+            repositoryLinkRepository.findByProjectId(pid)
+                    .ifPresent(l -> repos.put(pid, l));
+        }
 
         return rows.stream().map(r -> {
             Project p = projects.get(r.getProjectId());
             User intern = users.get(r.getInternId());
             User assignedBy = users.get(r.getAssignedById());
+            User accessGrantedBy = r.getAccessGrantedById() != null
+                    ? users.get(r.getAccessGrantedById()) : null;
+            com.skyzen.careers.entity.ProjectRepositoryLink link = p != null
+                    ? repos.get(p.getId()) : null;
+            ProjectAssignmentResponse.RepositorySummary repoSummary = link == null
+                    ? null
+                    : new ProjectAssignmentResponse.RepositorySummary(
+                            link.getRepositoryName(), link.getRepositoryUrl());
+            // Read remarks from new column, falling back to legacy `notes`
+            // for rows persisted before the column was added.
+            String remarks = r.getRemarks() != null && !r.getRemarks().isBlank()
+                    ? r.getRemarks() : r.getNotes();
             return new ProjectAssignmentResponse(
                     r.getId(),
                     p == null ? null : new ProjectAssignmentResponse.ProjectRef(
@@ -219,17 +351,26 @@ public class ProjectAssignmentService {
                             p.getTechStack(),
                             p.getDifficulty(),
                             p.getDescription(),
+                            p.getRequirements(),
+                            p.getObjectives(),
                             p.getDeliverables(),
                             p.getInstructions(),
                             p.getExpectedDurationDays(),
                             p.getStartDate(),
-                            p.getDueDate()),
+                            p.getDueDate(),
+                            repoSummary),
                     userRef(intern),
                     userRef(assignedBy),
                     r.getAssignmentDate(),
                     r.getDueDate(),
-                    r.getNotes(),
+                    remarks,
                     r.getStatus(),
+                    r.getAccessGranted(),
+                    r.getAccessGrantedAt(),
+                    userRef(accessGrantedBy),
+                    r.getStartedAt(),
+                    r.getSubmittedAt(),
+                    r.getSubmissionNotes(),
                     r.getCreatedAt(),
                     r.getUpdatedAt()
             );
@@ -239,7 +380,7 @@ public class ProjectAssignmentService {
     private static ProjectAssignmentResponse.UserRef userRef(User u) {
         if (u == null) return null;
         return new ProjectAssignmentResponse.UserRef(
-                u.getId(), u.getFullName(), u.getEmail());
+                u.getId(), u.getFullName(), u.getEmail(), u.getGithubUsername());
     }
 
     @SuppressWarnings("unused")

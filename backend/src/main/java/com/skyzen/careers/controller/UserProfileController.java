@@ -58,4 +58,19 @@ public class UserProfileController {
         userProfileService.changePassword(caller, req, currentSessionId);
         return ResponseEntity.noContent().build();
     }
+
+    /**
+     * Self-service GitHub username — the intern types it once on their
+     * assignment page so the TE can invite them as a repository collaborator
+     * out-of-band on GitHub. Validated against GitHub's username rules via
+     * the request DTO's @Pattern.
+     */
+    @PutMapping("/me/github-username")
+    @PreAuthorize("isAuthenticated()")
+    public java.util.Map<String, Object> setGithubUsername(
+            @Valid @RequestBody
+            com.skyzen.careers.dto.user.SetGithubUsernameRequest req,
+            @AuthenticationPrincipal User caller) {
+        return userProfileService.setGithubUsername(caller, req.githubUsername());
+    }
 }

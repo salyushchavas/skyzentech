@@ -23,6 +23,8 @@ interface CatalogProject {
   id: Uuid;
   name: string;
   description?: string;
+  requirements?: string;
+  objectives?: string;
   techStack?: string;
   expectedDurationDays?: number;
   deliverables?: string;
@@ -32,6 +34,7 @@ interface CatalogProject {
   endDate?: string;
   createdBy?: { id: Uuid; fullName: string };
   assignmentCount?: number;
+  repository?: { id: Uuid; repositoryName: string; repositoryUrl: string };
   createdAt?: string;
   updatedAt?: string;
 }
@@ -136,6 +139,15 @@ function Body() {
                         {p.difficulty}
                       </span>
                     )}
+                    {p.repository ? (
+                      <span className="inline-block rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-emerald-800">
+                        Repo linked
+                      </span>
+                    ) : (
+                      <span className="inline-block rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-800">
+                        No repo
+                      </span>
+                    )}
                   </div>
                   {p.techStack && (
                     <div className="mt-1 flex flex-wrap gap-1">
@@ -207,6 +219,8 @@ function CreateProjectModal({
 }) {
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
+  const [requirements, setRequirements] = useState('');
+  const [objectives, setObjectives] = useState('');
   const [techStack, setTechStack] = useState('');
   const [expectedDurationDays, setExpectedDurationDays] = useState<string>('');
   const [deliverables, setDeliverables] = useState('');
@@ -231,6 +245,8 @@ function CreateProjectModal({
         {
           name: name.trim(),
           description: description || undefined,
+          requirements: requirements || undefined,
+          objectives: objectives || undefined,
           techStack: techStack || undefined,
           expectedDurationDays:
             expectedDurationDays.trim().length > 0
@@ -281,6 +297,24 @@ function CreateProjectModal({
               rows={3}
               value={description}
               onChange={(e) => setDescription(e.target.value)}
+              className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
+            />
+          </Field>
+          <Field label="Requirements">
+            <textarea
+              rows={3}
+              value={requirements}
+              onChange={(e) => setRequirements(e.target.value)}
+              placeholder="Hard constraints the project must satisfy"
+              className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
+            />
+          </Field>
+          <Field label="Objectives">
+            <textarea
+              rows={3}
+              value={objectives}
+              onChange={(e) => setObjectives(e.target.value)}
+              placeholder="What the intern should learn or accomplish"
               className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
             />
           </Field>

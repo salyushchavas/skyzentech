@@ -10,5 +10,6 @@ public record EligibleInternResponse(
         UUID id,
         String fullName,
         String email,
+        String githubUsername,
         LocalDate engagementStartDate
 ) {}

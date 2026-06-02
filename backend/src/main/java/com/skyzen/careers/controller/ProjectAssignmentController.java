@@ -4,6 +4,7 @@ import com.skyzen.careers.dto.project.catalog.AssignProjectRequest;
 import com.skyzen.careers.dto.project.catalog.AssignProjectResultResponse;
 import com.skyzen.careers.dto.project.catalog.EligibleInternResponse;
 import com.skyzen.careers.dto.project.catalog.ProjectAssignmentResponse;
+import com.skyzen.careers.dto.project.catalog.SubmitAssignmentRequest;
 import com.skyzen.careers.entity.User;
 import com.skyzen.careers.service.ProjectAssignmentService;
 import jakarta.validation.Valid;
@@ -28,6 +29,37 @@ public class ProjectAssignmentController {
             @Valid @RequestBody AssignProjectRequest req,
             @AuthenticationPrincipal User caller) {
         return service.assignToInterns(req, caller);
+    }
+
+    @PostMapping("/{id}/access-granted")
+    @PreAuthorize("hasAnyRole('TECHNICAL_SUPERVISOR', 'SUPER_ADMIN')")
+    public ProjectAssignmentResponse markAccessGranted(
+            @PathVariable UUID id, @AuthenticationPrincipal User caller) {
+        return service.markAccessGranted(id, caller);
+    }
+
+    @DeleteMapping("/{id}/access-granted")
+    @PreAuthorize("hasAnyRole('TECHNICAL_SUPERVISOR', 'SUPER_ADMIN')")
+    public ProjectAssignmentResponse revokeAccessGranted(
+            @PathVariable UUID id, @AuthenticationPrincipal User caller) {
+        return service.revokeAccessGranted(id, caller);
+    }
+
+    @PostMapping("/{id}/start")
+    @PreAuthorize("hasAnyRole('INTERN', 'APPLICANT')")
+    public ProjectAssignmentResponse start(
+            @PathVariable UUID id, @AuthenticationPrincipal User caller) {
+        return service.startAssignment(id, caller);
+    }
+
+    @PostMapping("/{id}/submit")
+    @PreAuthorize("hasAnyRole('INTERN', 'APPLICANT')")
+    public ProjectAssignmentResponse submit(
+            @PathVariable UUID id,
+            @Valid @RequestBody(required = false) SubmitAssignmentRequest req,
+            @AuthenticationPrincipal User caller) {
+        String notes = req != null ? req.submissionNotes() : null;
+        return service.submitAssignment(id, notes, caller);
     }
 
     @GetMapping("/mine")

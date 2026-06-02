@@ -96,6 +96,26 @@ public class ProjectController {
         return catalogService.listAllCatalog();
     }
 
+    @org.springframework.web.bind.annotation.PostMapping("/catalog/{id}/repository")
+    @PreAuthorize("hasAnyRole('TECHNICAL_SUPERVISOR', 'SUPER_ADMIN')")
+    public com.skyzen.careers.dto.project.catalog.CatalogProjectResponse linkRepository(
+            @PathVariable UUID id,
+            @jakarta.validation.Valid @org.springframework.web.bind.annotation.RequestBody
+            com.skyzen.careers.dto.project.catalog.LinkRepositoryRequest req,
+            @AuthenticationPrincipal User caller) {
+        return catalogService.linkRepository(id, req.repositoryName(), req.repositoryUrl(), caller);
+    }
+
+    @org.springframework.web.bind.annotation.PutMapping("/catalog/{id}/repository")
+    @PreAuthorize("hasAnyRole('TECHNICAL_SUPERVISOR', 'SUPER_ADMIN')")
+    public com.skyzen.careers.dto.project.catalog.CatalogProjectResponse updateRepository(
+            @PathVariable UUID id,
+            @jakarta.validation.Valid @org.springframework.web.bind.annotation.RequestBody
+            com.skyzen.careers.dto.project.catalog.LinkRepositoryRequest req,
+            @AuthenticationPrincipal User caller) {
+        return catalogService.updateRepository(id, req.repositoryName(), req.repositoryUrl(), caller);
+    }
+
     // ── Supervisor commands ─────────────────────────────────────────────────
 
     @PostMapping

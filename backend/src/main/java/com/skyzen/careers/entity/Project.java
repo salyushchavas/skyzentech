@@ -138,6 +138,14 @@ public class Project {
     @Column(name = "name", length = 200)
     private String name;
 
+    /** Hard requirements — text block listing the must-haves. */
+    @Column(name = "requirements", columnDefinition = "TEXT")
+    private String requirements;
+
+    /** Project objectives / learning goals. */
+    @Column(name = "objectives", columnDefinition = "TEXT")
+    private String objectives;
+
     /** Free-text tech stack — comma-separated tokens or short summary. */
     @Column(name = "tech_stack", length = 500)
     private String techStack;

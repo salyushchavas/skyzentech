@@ -243,6 +243,88 @@ public class SchemaFixupRunner implements CommandLineRunner {
                     e.getMessage(), e);
         }
 
+        // ── Project Catalog + Assignment module — repository link table ────
+        //
+        // Company-owned-repository model: one GitHub repo per Project,
+        // shared by every assigned intern. Schema is additive — no impact
+        // on the legacy single-allocation paths or workspace.
+        try {
+            jdbcTemplate.execute(
+                    "CREATE TABLE IF NOT EXISTS project_repositories ("
+                            + "  id UUID PRIMARY KEY,"
+                            + "  project_id UUID NOT NULL UNIQUE,"
+                            + "  repository_name VARCHAR(200) NOT NULL,"
+                            + "  repository_url VARCHAR(500) NOT NULL,"
+                            + "  github_repository_id VARCHAR(100),"
+                            + "  linked_by_id UUID NOT NULL,"
+                            + "  created_at TIMESTAMP NOT NULL DEFAULT NOW(),"
+                            + "  updated_at TIMESTAMP NOT NULL DEFAULT NOW()"
+                            + ")");
+            jdbcTemplate.execute(
+                    "CREATE INDEX IF NOT EXISTS idx_pr_project "
+                            + "ON project_repositories(project_id)");
+            log.info("Ensured project_repositories table + index exist.");
+        } catch (Exception e) {
+            log.warn("project_repositories table ensure failed (non-fatal): {}",
+                    e.getMessage(), e);
+        }
+
+        // Project catalog text fields the repository-owned-by-project model
+        // adds on top of the prior catalog migration.
+        try {
+            jdbcTemplate.execute(
+                    "ALTER TABLE projects ADD COLUMN IF NOT EXISTS requirements TEXT");
+            jdbcTemplate.execute(
+                    "ALTER TABLE projects ADD COLUMN IF NOT EXISTS objectives TEXT");
+            log.info("Ensured projects.requirements + projects.objectives columns exist.");
+        } catch (Exception e) {
+            log.warn("projects requirements/objectives ensure failed (non-fatal): {}",
+                    e.getMessage(), e);
+        }
+
+        // Assignment lifecycle columns — access-granted tracking + start /
+        // submit timestamps + the renamed `remarks` column (the legacy
+        // `notes` column is left in place for back-compat reads).
+        try {
+            jdbcTemplate.execute(
+                    "ALTER TABLE project_assignments "
+                            + "ADD COLUMN IF NOT EXISTS remarks TEXT");
+            jdbcTemplate.execute(
+                    "ALTER TABLE project_assignments "
+                            + "ADD COLUMN IF NOT EXISTS access_granted BOOLEAN "
+                            + "NOT NULL DEFAULT FALSE");
+            jdbcTemplate.execute(
+                    "ALTER TABLE project_assignments "
+                            + "ADD COLUMN IF NOT EXISTS access_granted_at TIMESTAMP");
+            jdbcTemplate.execute(
+                    "ALTER TABLE project_assignments "
+                            + "ADD COLUMN IF NOT EXISTS access_granted_by_id UUID");
+            jdbcTemplate.execute(
+                    "ALTER TABLE project_assignments "
+                            + "ADD COLUMN IF NOT EXISTS started_at TIMESTAMP");
+            jdbcTemplate.execute(
+                    "ALTER TABLE project_assignments "
+                            + "ADD COLUMN IF NOT EXISTS submitted_at TIMESTAMP");
+            jdbcTemplate.execute(
+                    "ALTER TABLE project_assignments "
+                            + "ADD COLUMN IF NOT EXISTS submission_notes TEXT");
+            log.info("Ensured project_assignments lifecycle columns exist.");
+        } catch (Exception e) {
+            log.warn("project_assignments lifecycle-columns ensure failed (non-fatal): {}",
+                    e.getMessage(), e);
+        }
+
+        // Intern's self-provided GitHub username (used by the assignment
+        // module so the TE can invite them as a collaborator out-of-band).
+        try {
+            jdbcTemplate.execute(
+                    "ALTER TABLE users ADD COLUMN IF NOT EXISTS github_username VARCHAR(100)");
+            log.info("Ensured users.github_username column exists.");
+        } catch (Exception e) {
+            log.warn("users.github_username ensure failed (non-fatal): {}",
+                    e.getMessage(), e);
+        }
+
         try {
             // Adds the `users.active` column on existing databases. Hibernate's
             // ddl-auto=update can't add a NOT NULL column to a table with rows

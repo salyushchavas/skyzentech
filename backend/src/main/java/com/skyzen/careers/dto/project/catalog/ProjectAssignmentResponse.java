@@ -16,8 +16,19 @@ public record ProjectAssignmentResponse(
         UserRef assignedBy,
         LocalDate assignmentDate,
         LocalDate dueDate,
-        String notes,
+        String remarks,
         ProjectAssignmentStatus status,
+
+        // ── Out-of-band GitHub-access tracking ──
+        Boolean accessGranted,
+        Instant accessGrantedAt,
+        UserRef accessGrantedBy,
+
+        // ── Status-transition timestamps ──
+        Instant startedAt,
+        Instant submittedAt,
+        String submissionNotes,
+
         Instant createdAt,
         Instant updatedAt
 ) {
@@ -27,12 +38,25 @@ public record ProjectAssignmentResponse(
             String techStack,
             Difficulty difficulty,
             String description,
+            String requirements,
+            String objectives,
             String deliverables,
             String instructions,
             Integer expectedDurationDays,
             LocalDate startDate,
-            LocalDate endDate
+            LocalDate endDate,
+            RepositorySummary repository
     ) {}
 
-    public record UserRef(UUID id, String fullName, String email) {}
+    public record RepositorySummary(
+            String repositoryName,
+            String repositoryUrl
+    ) {}
+
+    public record UserRef(
+            UUID id,
+            String fullName,
+            String email,
+            String githubUsername
+    ) {}
 }

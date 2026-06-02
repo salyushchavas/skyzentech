@@ -12,6 +12,8 @@ public record CatalogProjectResponse(
         UUID id,
         String name,
         String description,
+        String requirements,
+        String objectives,
         String techStack,
         Integer expectedDurationDays,
         String deliverables,
@@ -21,8 +23,17 @@ public record CatalogProjectResponse(
         LocalDate endDate,
         UserRef createdBy,
         Long assignmentCount,
+        RepositoryRef repository,
         Instant createdAt,
         Instant updatedAt
 ) {
     public record UserRef(UUID id, String fullName) {}
+
+    public record RepositoryRef(
+            UUID id,
+            String repositoryName,
+            String repositoryUrl,
+            UserRef linkedBy,
+            Instant linkedAt
+    ) {}
 }

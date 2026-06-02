@@ -65,6 +65,15 @@ public class ProjectAssignment {
     @Column(name = "due_date")
     private LocalDate dueDate;
 
+    /**
+     * Free-text remarks the TE attached at assignment time. Stored under the
+     * {@code remarks} column going forward; the legacy {@code notes} column
+     * is kept for back-compat read on rows written before the rename.
+     */
+    @Column(name = "remarks", columnDefinition = "TEXT")
+    private String remarks;
+
+    /** Legacy column — read for back-compat, no new writes. */
     @Column(name = "notes", columnDefinition = "TEXT")
     private String notes;
 
@@ -72,6 +81,33 @@ public class ProjectAssignment {
     @Column(name = "status", nullable = false, length = 40)
     @Builder.Default
     private ProjectAssignmentStatus status = ProjectAssignmentStatus.ASSIGNED;
+
+    // ── Out-of-band GitHub-access tracking ─────────────────────────────────
+    // accessGranted is the TE's platform-internal acknowledgement that they
+    // invited the intern as a collaborator ON GITHUB. Platform does not call
+    // the GitHub API — this flag just gates the intern's "Start project"
+    // button so they don't try to push to a repo they can't access yet.
+
+    @Column(name = "access_granted", nullable = false)
+    @Builder.Default
+    private Boolean accessGranted = Boolean.FALSE;
+
+    @Column(name = "access_granted_at")
+    private Instant accessGrantedAt;
+
+    @Column(name = "access_granted_by_id")
+    private UUID accessGrantedById;
+
+    // ── Status-transition timestamps ───────────────────────────────────────
+
+    @Column(name = "started_at")
+    private Instant startedAt;
+
+    @Column(name = "submitted_at")
+    private Instant submittedAt;
+
+    @Column(name = "submission_notes", columnDefinition = "TEXT")
+    private String submissionNotes;
 
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)

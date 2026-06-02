@@ -9,6 +9,8 @@ import java.time.LocalDate;
 public record CreateCatalogProjectRequest(
         @NotBlank @Size(max = 200) String name,
         @Size(max = 5000) String description,
+        @Size(max = 5000) String requirements,
+        @Size(max = 5000) String objectives,
         @Size(max = 500) String techStack,
         Integer expectedDurationDays,
         @Size(max = 5000) String deliverables,

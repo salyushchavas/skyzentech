@@ -95,6 +95,15 @@ public class User {
     private String seenNavItemsJson;
 
     /**
+     * Intern's self-provided GitHub username. Used by the project-assignment
+     * module: the TE invites this GitHub user as a collaborator on the
+     * project repository out-of-band (no GitHub API call from the platform).
+     * Stored as a plain string; no token / OAuth state ever stored.
+     */
+    @Column(name = "github_username", length = 100)
+    private String githubUsername;
+
+    /**
      * Email notification opt-outs. Both default TRUE (opt-in) — transactional
      * emails ignore these flags entirely (per CAN-SPAM + sensibility). Set to
      * FALSE in the user's preferences page to silence reminders / engagement

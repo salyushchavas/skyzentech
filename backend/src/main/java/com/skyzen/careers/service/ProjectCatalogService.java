@@ -36,6 +36,8 @@ public class ProjectCatalogService {
     private final ProjectRepository projectRepository;
     private final ProjectAssignmentRepository projectAssignmentRepository;
     private final UserRepository userRepository;
+    private final com.skyzen.careers.repository.ProjectRepositoryLinkRepository
+            repositoryLinkRepository;
 
     @Transactional
     public CatalogProjectResponse createCatalogProject(
@@ -51,6 +53,8 @@ public class ProjectCatalogService {
         Project project = new Project();
         project.setName(req.name().trim());
         project.setDescription(req.description());
+        project.setRequirements(req.requirements());
+        project.setObjectives(req.objectives());
         project.setTechStack(req.techStack());
         project.setExpectedDurationDays(req.expectedDurationDays());
         project.setDeliverables(req.deliverables());
@@ -115,11 +119,72 @@ public class ProjectCatalogService {
                 .toList();
     }
 
+    // ── Repository link / update ────────────────────────────────────────────
+
+    @Transactional
+    public CatalogProjectResponse linkRepository(
+            UUID projectId, String repositoryName, String repositoryUrl, User actor) {
+        Project project = projectRepository.findById(projectId)
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "Project not found: " + projectId));
+        if (repositoryLinkRepository.existsByProjectId(projectId)) {
+            throw new BadRequestException(
+                    "Project already has a repository linked. Use PUT to update.");
+        }
+        com.skyzen.careers.entity.ProjectRepositoryLink link =
+                com.skyzen.careers.entity.ProjectRepositoryLink.builder()
+                .projectId(projectId)
+                .repositoryName(trim(repositoryName))
+                .repositoryUrl(normaliseUrl(repositoryUrl))
+                .linkedById(actor.getId())
+                .build();
+        repositoryLinkRepository.save(link);
+        log.info("[ProjectCatalogService] repository linked to project={} url={} by={}",
+                projectId, link.getRepositoryUrl(), actor.getId());
+        return toResponseWithCount(project, resolveCreator(project.getCreatedById()));
+    }
+
+    @Transactional
+    public CatalogProjectResponse updateRepository(
+            UUID projectId, String repositoryName, String repositoryUrl, User actor) {
+        Project project = projectRepository.findById(projectId)
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "Project not found: " + projectId));
+        com.skyzen.careers.entity.ProjectRepositoryLink link =
+                repositoryLinkRepository.findByProjectId(projectId)
+                        .orElseThrow(() -> new ResourceNotFoundException(
+                                "No repository is linked to this project."));
+        link.setRepositoryName(trim(repositoryName));
+        link.setRepositoryUrl(normaliseUrl(repositoryUrl));
+        link.setLinkedById(actor.getId());
+        repositoryLinkRepository.save(link);
+        log.info("[ProjectCatalogService] repository updated for project={} url={} by={}",
+                projectId, link.getRepositoryUrl(), actor.getId());
+        return toResponseWithCount(project, resolveCreator(project.getCreatedById()));
+    }
+
+    private static String trim(String s) {
+        if (s == null) return null;
+        String t = s.trim();
+        return t.isEmpty() ? null : t;
+    }
+
+    private static String normaliseUrl(String url) {
+        if (url == null) return null;
+        String t = url.trim();
+        if (t.endsWith("/")) t = t.substring(0, t.length() - 1);
+        return t;
+    }
+
+    // ── Mapping ─────────────────────────────────────────────────────────────
+
     private CatalogProjectResponse toResponse(Project p, User creator) {
         return new CatalogProjectResponse(
                 p.getId(),
                 p.getName() != null ? p.getName() : p.getTitle(),
                 p.getDescription(),
+                p.getRequirements(),
+                p.getObjectives(),
                 p.getTechStack(),
                 p.getExpectedDurationDays(),
                 p.getDeliverables(),
@@ -131,6 +196,7 @@ public class ProjectCatalogService {
                         ? new CatalogProjectResponse.UserRef(creator.getId(), creator.getFullName())
                         : null,
                 0L,
+                null,
                 p.getCreatedAt(),
                 p.getUpdatedAt()
         );
@@ -138,11 +204,29 @@ public class ProjectCatalogService {
 
     private CatalogProjectResponse toResponseWithCount(Project p, User creator) {
         long count = projectAssignmentRepository.countByProjectId(p.getId());
+        CatalogProjectResponse.RepositoryRef repoRef = repositoryLinkRepository
+                .findByProjectId(p.getId())
+                .map(link -> {
+                    User linkedBy = resolveCreator(link.getLinkedById());
+                    CatalogProjectResponse.UserRef linkedByRef = linkedBy == null
+                            ? null
+                            : new CatalogProjectResponse.UserRef(
+                                    linkedBy.getId(), linkedBy.getFullName());
+                    return new CatalogProjectResponse.RepositoryRef(
+                            link.getId(),
+                            link.getRepositoryName(),
+                            link.getRepositoryUrl(),
+                            linkedByRef,
+                            link.getCreatedAt());
+                })
+                .orElse(null);
         CatalogProjectResponse base = toResponse(p, creator);
         return new CatalogProjectResponse(
                 base.id(),
                 base.name(),
                 base.description(),
+                base.requirements(),
+                base.objectives(),
                 base.techStack(),
                 base.expectedDurationDays(),
                 base.deliverables(),
@@ -152,6 +236,7 @@ public class ProjectCatalogService {
                 base.endDate(),
                 base.createdBy(),
                 count,
+                repoRef,
                 base.createdAt(),
                 base.updatedAt()
         );

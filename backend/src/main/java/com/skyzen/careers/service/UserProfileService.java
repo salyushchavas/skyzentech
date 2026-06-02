@@ -56,6 +56,26 @@ public class UserProfileService {
         return toResponse(user, candidate.orElse(null));
     }
 
+    /**
+     * Self-service GitHub username write. Validated on the DTO via @Pattern;
+     * this method just trims and saves under the authenticated user's id.
+     * Returns the new value so the frontend can refresh without a re-fetch.
+     */
+    @Transactional
+    public java.util.Map<String, Object> setGithubUsername(User caller, String username) {
+        if (caller == null || caller.getId() == null) {
+            throw new BadRequestException("Authentication required");
+        }
+        User user = userRepository.findById(caller.getId())
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+        user.setGithubUsername(username == null ? null : username.trim());
+        userRepository.save(user);
+        java.util.Map<String, Object> out = new java.util.LinkedHashMap<>();
+        out.put("userId", user.getId());
+        out.put("githubUsername", user.getGithubUsername());
+        return out;
+    }
+
     @Transactional
     public UserProfileResponse updateProfile(User caller, UpdateProfileRequest req) {
         if (caller == null || caller.getId() == null) {

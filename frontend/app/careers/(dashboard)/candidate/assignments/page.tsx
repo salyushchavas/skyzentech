@@ -31,7 +31,7 @@ interface AssignmentRow {
   assignedBy: { id: Uuid; fullName: string };
   assignmentDate: string;
   dueDate?: string;
-  notes?: string;
+  remarks?: string;
   status: AssignmentStatus;
   createdAt?: string;
 }
@@ -160,9 +160,9 @@ function Body() {
                       <> · {formatDateOnly(r.assignmentDate)}</>
                       {r.dueDate && <> · due {formatDateOnly(r.dueDate)}</>}
                     </div>
-                    {r.notes && (
+                    {r.remarks && (
                       <p className="mt-2 line-clamp-2 text-xs text-gray-700">
-                        {r.notes}
+                        {r.remarks}
                       </p>
                     )}
                   </div>
