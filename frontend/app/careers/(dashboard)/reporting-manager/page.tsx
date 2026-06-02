@@ -3,44 +3,16 @@
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import {
-  AlertTriangle,
   CalendarClock,
   CheckCircle2,
   ClipboardCheck,
   ClipboardList,
-  ExternalLink,
-  Github,
-  Video,
 } from 'lucide-react';
-import toast from 'react-hot-toast';
 import api from '@/lib/api';
 import DashboardLayout from '@/components/dashboard/DashboardLayout';
 import ProtectedRoute from '@/components/ProtectedRoute';
 import { formatRelative } from '@/lib/format-date';
-import type { ReportingManagerDashboard, Uuid } from '@/types';
-
-type CatalogAssignmentStatus =
-  | 'ASSIGNED'
-  | 'IN_PROGRESS'
-  | 'SUBMITTED'
-  | 'RETURNED'
-  | 'TECH_APPROVED'
-  | 'PENDING_VIVA'
-  | 'COMPLETED';
-
-interface CatalogAssignmentRow {
-  id: Uuid;
-  project: {
-    id: Uuid;
-    name: string;
-    repository?: { repositoryName: string; repositoryUrl: string } | null;
-  };
-  intern: { id: Uuid; fullName: string; email: string; githubUsername?: string };
-  status: CatalogAssignmentStatus;
-  submittedAt?: string;
-  submissionNotes?: string;
-  updatedAt?: string;
-}
+import type { ReportingManagerDashboard } from '@/types';
 
 export default function ReportingManagerDashboardPage() {
   return (
@@ -54,71 +26,22 @@ export default function ReportingManagerDashboardPage() {
 
 function Body() {
   const [data, setData] = useState<ReportingManagerDashboard | null>(null);
-  const [catalogQueue, setCatalogQueue] = useState<CatalogAssignmentRow[] | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setError(null);
     try {
-      const [res, q] = await Promise.all([
-        api.get<ReportingManagerDashboard>('/api/v1/reporting-manager/dashboard'),
-        // Catalog-flow assignments awaiting RM action. ?status=X&status=Y is the
-        // axios serialisation for List<ProjectAssignmentStatus> on the backend.
-        api.get<CatalogAssignmentRow[]>(
-          '/api/v1/project-assignments/by-status?status=TECH_APPROVED&status=PENDING_VIVA',
-        ),
-      ]);
+      const res = await api.get<ReportingManagerDashboard>(
+        '/api/v1/reporting-manager/dashboard',
+      );
       setData(res.data);
-      setCatalogQueue(q.data ?? []);
     } catch (err: any) {
       setError(err?.response?.data?.error ?? "Couldn't load the dashboard.");
     } finally {
       setLoading(false);
     }
   }, []);
-
-  async function markPendingViva(assignmentId: Uuid) {
-    try {
-      await api.post(`/api/v1/project-assignments/${assignmentId}/mark-pending-viva`);
-      toast.success('Marked as pending viva.');
-      await load();
-    } catch (err: any) {
-      toast.error(err?.response?.data?.error ?? "Couldn't update.");
-    }
-  }
-
-  async function completeAfterViva(assignmentId: Uuid) {
-    if (!confirm('Mark this assignment COMPLETED after the viva? This is final.')) return;
-    try {
-      await api.post(`/api/v1/project-assignments/${assignmentId}/complete-after-viva`);
-      toast.success('Assignment completed.');
-      await load();
-    } catch (err: any) {
-      toast.error(err?.response?.data?.error ?? "Couldn't complete.");
-    }
-  }
-
-  async function returnForRevisions(assignmentId: Uuid) {
-    const reason = window.prompt(
-      'Reason for returning to the intern (10+ characters):',
-      '',
-    );
-    if (reason == null) return;
-    if (reason.trim().length < 10) {
-      toast.error('Please give a reason of at least 10 characters.');
-      return;
-    }
-    try {
-      await api.post(`/api/v1/project-assignments/${assignmentId}/return-revisions`, {
-        reason: reason.trim(),
-      });
-      toast.success('Returned for revisions.');
-      await load();
-    } catch (err: any) {
-      toast.error(err?.response?.data?.error ?? "Couldn't return.");
-    }
-  }
 
   useEffect(() => {
     void load();
@@ -243,115 +166,6 @@ function Body() {
                 >
                   Open →
                 </Link>
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
-
-      {/* Catalog-flow assignments awaiting viva */}
-      <section>
-        <h2 className="mb-2 text-sm font-semibold text-gray-900">
-          Project assignments awaiting viva
-        </h2>
-        <p className="mb-2 text-xs text-gray-500">
-          Tech-approved assignments from the new catalog flow. Run the viva offline
-          (call, screen-share, walkthrough) and sign off here.
-        </p>
-        {catalogQueue === null ? (
-          <div className="h-24 animate-pulse rounded-lg bg-gray-100" />
-        ) : catalogQueue.length === 0 ? (
-          <EmptyRow>No catalog-flow assignments waiting on you.</EmptyRow>
-        ) : (
-          <ul className="space-y-2">
-            {catalogQueue.map((a) => (
-              <li
-                key={a.id}
-                className="rounded-lg border border-gray-200 bg-white p-3"
-              >
-                <div className="flex flex-wrap items-start justify-between gap-3">
-                  <div className="min-w-0">
-                    <div className="text-sm font-medium text-gray-900">
-                      {a.project.name}
-                    </div>
-                    <div className="text-xs text-gray-500">
-                      {a.intern.fullName}
-                      {a.intern.githubUsername && (
-                        <span className="ml-1 font-mono text-gray-600">
-                          (@{a.intern.githubUsername})
-                        </span>
-                      )}
-                      {a.submittedAt && (
-                        <> · submitted {formatRelative(a.submittedAt)}</>
-                      )}
-                    </div>
-                    <div className="mt-1 flex flex-wrap items-center gap-2">
-                      <span
-                        className={
-                          'rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide '
-                          + (a.status === 'PENDING_VIVA'
-                            ? 'bg-violet-100 text-violet-800'
-                            : 'bg-indigo-100 text-indigo-800')
-                        }
-                      >
-                        {a.status.replaceAll('_', ' ')}
-                      </span>
-                      {a.project.repository?.repositoryUrl && (
-                        <a
-                          href={a.project.repository.repositoryUrl}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="inline-flex items-center gap-1 text-[11px] font-medium text-accent-dark hover:underline"
-                        >
-                          <Github className="h-3 w-3" strokeWidth={2.5} />
-                          {a.project.repository.repositoryName}
-                          <ExternalLink className="h-3 w-3" strokeWidth={2} />
-                        </a>
-                      )}
-                    </div>
-                  </div>
-                  <div className="flex flex-wrap items-center gap-1.5">
-                    {a.status === 'TECH_APPROVED' && (
-                      <button
-                        type="button"
-                        onClick={() => void markPendingViva(a.id)}
-                        className="inline-flex items-center gap-1 rounded-md border border-indigo-300 bg-white px-2.5 py-1 text-[11px] font-semibold text-indigo-700 hover:bg-indigo-50"
-                        title="Mark as pending viva once you've scheduled it"
-                      >
-                        <Video className="h-3 w-3" strokeWidth={2.5} />
-                        Mark pending viva
-                      </button>
-                    )}
-                    <button
-                      type="button"
-                      onClick={() => void completeAfterViva(a.id)}
-                      className="inline-flex items-center gap-1 rounded-md bg-emerald-600 px-2.5 py-1 text-[11px] font-semibold text-white hover:bg-emerald-700"
-                      title="Sign off and mark COMPLETED"
-                    >
-                      <CheckCircle2 className="h-3 w-3" strokeWidth={2.5} />
-                      Complete
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => void returnForRevisions(a.id)}
-                      className="inline-flex items-center gap-1 rounded-md border border-orange-300 bg-white px-2.5 py-1 text-[11px] font-semibold text-orange-700 hover:bg-orange-50"
-                      title="Bounce back to the intern with a reason"
-                    >
-                      <AlertTriangle className="h-3 w-3" strokeWidth={2.5} />
-                      Return
-                    </button>
-                  </div>
-                </div>
-                {a.submissionNotes && (
-                  <details className="mt-2">
-                    <summary className="cursor-pointer text-[11px] font-medium text-gray-600 hover:text-gray-800">
-                      Submission notes
-                    </summary>
-                    <pre className="mt-1 whitespace-pre-wrap rounded bg-gray-50 p-2 text-[11px] text-gray-700">
-                      {a.submissionNotes}
-                    </pre>
-                  </details>
-                )}
               </li>
             ))}
           </ul>

@@ -76,7 +76,6 @@ const STAFF_ROLE_LINKS: Partial<Record<UserRole, StaffLink[]>> = {
     { icon: BookOpen, label: 'Weekly Materials', href: '/careers/evaluator/weekly-materials' },
     { icon: FileText, label: 'Weekly Reports', href: '/careers/evaluator/weekly-reports' },
     { icon: ClipboardList, label: 'Projects', href: '/careers/evaluator/projects' },
-    { icon: FolderArchive, label: 'Project Catalog', href: '/careers/evaluator/projects/catalog' },
     { icon: Star, label: 'Evaluations', href: '/careers/evaluator/evaluations' },
     { icon: Code2, label: 'Playground', href: '/careers/playground' },
     { icon: Users, label: 'Supervised', href: '/careers/supervised' },
