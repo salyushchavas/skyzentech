@@ -71,8 +71,12 @@ public class ReportingManagerDashboardService {
 
         // Top 5 pending timesheets (oldest first by weekStart asc). The full
         // queue page calls /api/v1/timesheets/pending-approval directly.
-        List<TimesheetWeekResponse> pendingTimesheets = timesheetService
-                .listPendingApproval(caller).stream()
+        // Single fetch — derive both the slice and the total count from one
+        // call. Calling listPendingApproval twice scans + maps every
+        // submitted row twice on every dashboard load.
+        List<TimesheetWeekResponse> allPending = timesheetService.listPendingApproval(caller);
+        long pendingTimesheetCount = allPending.size();
+        List<TimesheetWeekResponse> pendingTimesheets = allPending.stream()
                 .sorted((a, b) -> {
                     if (a.weekStart() == null && b.weekStart() == null) return 0;
                     if (a.weekStart() == null) return 1;
@@ -81,8 +85,6 @@ public class ReportingManagerDashboardService {
                 })
                 .limit(5)
                 .toList();
-
-        long pendingTimesheetCount = timesheetService.listPendingApproval(caller).size();
 
         return new ReportingManagerDashboardResponse(
                 pendingQa,
