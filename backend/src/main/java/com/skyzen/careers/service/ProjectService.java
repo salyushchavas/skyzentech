@@ -15,10 +15,12 @@ import com.skyzen.careers.entity.AuditLog;
 import com.skyzen.careers.entity.Candidate;
 import com.skyzen.careers.entity.Engagement;
 import com.skyzen.careers.entity.Project;
+import com.skyzen.careers.entity.ProjectAssignment;
 import com.skyzen.careers.entity.ProjectSubmission;
 import com.skyzen.careers.entity.ProjectTask;
 import com.skyzen.careers.entity.User;
 import com.skyzen.careers.enums.EngagementStatus;
+import com.skyzen.careers.enums.ProjectAssignmentStatus;
 import com.skyzen.careers.enums.ProjectStatus;
 import com.skyzen.careers.enums.UserRole;
 import com.skyzen.careers.exception.BadRequestException;
@@ -28,6 +30,7 @@ import com.skyzen.careers.exception.ResourceNotFoundException;
 import com.skyzen.careers.repository.AuditLogRepository;
 import com.skyzen.careers.repository.CandidateRepository;
 import com.skyzen.careers.repository.EngagementRepository;
+import com.skyzen.careers.repository.ProjectAssignmentRepository;
 import com.skyzen.careers.repository.ProjectRepository;
 import com.skyzen.careers.repository.ProjectSubmissionRepository;
 import com.skyzen.careers.repository.ProjectTaskRepository;
@@ -78,6 +81,7 @@ public class ProjectService {
             new TypeReference<>() {};
 
     private final ProjectRepository projectRepository;
+    private final ProjectAssignmentRepository projectAssignmentRepository;
     private final ProjectTaskRepository projectTaskRepository;
     private final ProjectSubmissionRepository projectSubmissionRepository;
     private final CandidateRepository candidateRepository;
@@ -122,6 +126,14 @@ public class ProjectService {
                 .build();
         project = projectRepository.save(project);
         replaceTasks(project, req.getTaskTitles());
+
+        // Forward-migration mirror: write a project_assignments row for the
+        // new-module read path so the intern UI (which now consumes
+        // /api/v1/project-assignments/mine exclusively) sees this allocation
+        // immediately, without waiting for the boot-time backfill in
+        // SchemaFixupRunner. Failure is non-fatal — the legacy write is the
+        // primary effect, and the backfill is the safety net.
+        mirrorToProjectAssignments(project, intern, actor);
 
         writeAudit(project.getId(), "PROJECT_ASSIGNED", actor.getId(), Map.of(
                 "title", project.getTitle(),
@@ -464,6 +476,98 @@ public class ProjectService {
                     .sortOrder(order++)
                     .build();
             projectTaskRepository.save(task);
+        }
+    }
+
+    /**
+     * Forward-migration helper. The intern UI now reads exclusively from
+     * {@code /api/v1/project-assignments/mine}, but the TE allocation surface
+     * still writes legacy {@code projects} rows via {@link #create}. This
+     * method mirrors the legacy write into a {@code project_assignments} row
+     * so the intern sees the allocation on the very next 30s poll — without
+     * waiting for the boot-time backfill in {@code SchemaFixupRunner}.
+     *
+     * <p>Important: the new module keys assignments on {@code users.id}, while
+     * the legacy {@code Project.intern} FK points at {@code candidates.id}.
+     * We resolve the candidate's owning user here.</p>
+     *
+     * <p>Idempotency: silently skip if an active assignment row already exists
+     * for this (project_id, intern_user_id) — the boot backfill may have
+     * created one before this code ran. Re-mirroring on every TE click
+     * would otherwise pile up duplicate rows.</p>
+     *
+     * <p>Failure posture: every exception is caught and logged. The legacy
+     * write has already committed; the mirror is a downstream signal, and
+     * the reconciliation backfill is the safety net.</p>
+     */
+    private void mirrorToProjectAssignments(Project project, Candidate intern, User actor) {
+        try {
+            if (project == null || intern == null || actor == null) return;
+            User internUser = intern.getUser();
+            if (internUser == null) {
+                log.warn("Mirror to project_assignments skipped — candidate {} has no user row",
+                        intern.getId());
+                return;
+            }
+            UUID internUserId = internUser.getId();
+            UUID projectId = project.getId();
+
+            // Skip if an active assignment row already exists for this pair.
+            // Re-assignments deliberately keep history, but the legacy /create
+            // is one-to-one with a Project row, so duplicating from a mirror
+            // would be noise.
+            boolean exists = projectAssignmentRepository
+                    .findByProjectIdOrderByAssignmentDateDescCreatedAtDesc(projectId)
+                    .stream()
+                    .anyMatch(a -> internUserId.equals(a.getInternId()));
+            if (exists) {
+                log.debug("Mirror to project_assignments skipped — row already exists for "
+                        + "project={} intern={}", projectId, internUserId);
+                return;
+            }
+
+            java.time.LocalDate assignmentDate = project.getStartDate() != null
+                    ? project.getStartDate()
+                    : java.time.LocalDate.now();
+
+            ProjectAssignment mirror = ProjectAssignment.builder()
+                    .projectId(projectId)
+                    .internId(internUserId)
+                    .assignedById(actor.getId())
+                    .assignmentDate(assignmentDate)
+                    .dueDate(project.getDueDate())
+                    .remarks(null)
+                    .status(ProjectAssignmentStatus.ASSIGNED)
+                    .accessGranted(Boolean.FALSE)
+                    .build();
+            ProjectAssignment saved = projectAssignmentRepository.save(mirror);
+
+            // Audit row makes the bridge visible. Same Project audit table —
+            // entityType=PROJECT_ASSIGNMENT distinguishes from the legacy
+            // PROJECT_ASSIGNED row written by writeAudit() below.
+            try {
+                Map<String, Object> meta = new LinkedHashMap<>();
+                meta.put("legacyProjectId", projectId.toString());
+                meta.put("internUserId", internUserId.toString());
+                meta.put("trigger", "LEGACY_CREATE_MIRROR");
+                AuditLog audit = AuditLog.builder()
+                        .entityType("PROJECT_ASSIGNMENT")
+                        .entityId(saved.getId())
+                        .action("PROJECT_ASSIGNMENT_MIRRORED_FROM_LEGACY")
+                        .userId(actor.getId())
+                        .afterJson(serializeJson(meta))
+                        .build();
+                auditLogRepository.save(audit);
+            } catch (Exception auditErr) {
+                log.warn("Mirror audit-row write failed (non-fatal) for assignment {}: {}",
+                        saved.getId(), auditErr.getMessage());
+            }
+            log.info("Mirrored legacy project {} into project_assignments row {} for intern {}",
+                    projectId, saved.getId(), internUserId);
+        } catch (Exception e) {
+            log.error("mirrorToProjectAssignments failed (non-fatal — legacy create committed) "
+                    + "for project {}: {}",
+                    project != null ? project.getId() : "<null>", e.getMessage(), e);
         }
     }
 

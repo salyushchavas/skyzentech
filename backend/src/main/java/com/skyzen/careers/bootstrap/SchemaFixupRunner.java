@@ -330,6 +330,26 @@ public class SchemaFixupRunner implements CommandLineRunner {
                     e.getMessage(), e);
         }
 
+        // Catalog-readers (ProjectAssignmentService.mapWithGraph, ProjectCatalogService)
+        // read project.name with a fall-back to project.title. The legacy
+        // ProjectService.create path only writes title — leaving name NULL.
+        // The intern detail page is now driven by the catalog DTO; mirroring
+        // title → name once means every legacy row has a meaningful `name`
+        // immediately, even before its first PUT. Idempotent: the NULL guard
+        // short-circuits on subsequent boots.
+        try {
+            int updated = jdbcTemplate.update(
+                    "UPDATE projects SET name = title "
+                            + "WHERE name IS NULL AND title IS NOT NULL");
+            if (updated > 0) {
+                log.info("[SchemaFixupRunner] backfilled projects.name from title for {} row(s).",
+                        updated);
+            }
+        } catch (Exception e) {
+            log.warn("projects.name <- title backfill failed (non-fatal): {}",
+                    e.getMessage(), e);
+        }
+
         // Assignment lifecycle columns — access-granted tracking + start /
         // submit timestamps + the renamed `remarks` column (the legacy
         // `notes` column is left in place for back-compat reads).
