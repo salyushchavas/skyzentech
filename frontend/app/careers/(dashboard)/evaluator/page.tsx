@@ -18,6 +18,7 @@ import {
 import api from '@/lib/api';
 import DashboardLayout from '@/components/dashboard/DashboardLayout';
 import ProtectedRoute from '@/components/ProtectedRoute';
+import DSPageHeader from '@/components/ui/PageHeader';
 import { formatRelative } from '@/lib/format-date';
 import { useAuth } from '@/lib/auth-context';
 import type { Uuid } from '@/types';
@@ -181,42 +182,30 @@ function Header({
   rosterSize: number;
 }) {
   return (
-    <header className="flex flex-wrap items-start justify-between gap-3">
-      <div>
-        <h1 className="text-2xl font-semibold text-gray-900">
-          Welcome back{supervisorName ? `, ${supervisorName}` : ''}.
-        </h1>
-        <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
-          <span
-            className="rounded-full bg-amber-100 px-2.5 py-1 font-medium text-amber-800"
-            title="You're signed in as Technical Evaluator"
-          >
+    <DSPageHeader
+      title={`Evaluator${supervisorName ? ` · ${supervisorName}` : ''}`}
+      subtitle="Review projects, score assignments, and steer your active interns."
+      meta={
+        <>
+          <span className="inline-flex items-center rounded-full bg-amber-50 px-2.5 py-0.5 text-xs font-medium text-amber-800 ring-1 ring-amber-200">
             Technical Evaluator
           </span>
           {isSuperAdminView && (
-            <span className="rounded-full bg-indigo-100 px-2.5 py-1 font-medium text-indigo-800">
-              Super-admin view — all active engagements
+            <span className="inline-flex items-center rounded-full bg-indigo-50 px-2.5 py-0.5 text-xs font-medium text-indigo-800 ring-1 ring-indigo-200">
+              Super-admin view
             </span>
           )}
-          <span className="rounded-full bg-accent/10 px-2.5 py-1 font-medium text-accent-dark">
+          <span className="inline-flex items-center rounded-full bg-brand-50 px-2.5 py-0.5 text-xs font-medium text-brand-700 ring-1 ring-brand-200">
             {rosterSize} active intern{rosterSize === 1 ? '' : 's'}
           </span>
           {totalActions > 0 && (
-            <span className="rounded-full bg-amber-100 px-2.5 py-1 font-medium text-amber-800">
-              {totalActions} action{totalActions === 1 ? '' : 's'} pending
+            <span className="inline-flex items-center rounded-full bg-amber-50 px-2.5 py-0.5 text-xs font-medium text-amber-800 ring-1 ring-amber-200">
+              {totalActions} pending
             </span>
           )}
-        </div>
-      </div>
-      <button
-        type="button"
-        aria-label="Notifications (coming soon)"
-        title="Notifications — coming soon"
-        className="relative rounded-full border border-gray-200 bg-white p-2 text-gray-500 hover:bg-gray-50"
-      >
-        <Bell className="h-4 w-4" strokeWidth={2} />
-      </button>
-    </header>
+        </>
+      }
+    />
   );
 }
 

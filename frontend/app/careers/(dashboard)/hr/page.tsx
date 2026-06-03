@@ -23,6 +23,7 @@ import { useAuth } from '@/lib/auth-context';
 import { formatRelative, formatDueDate } from '@/lib/format-date';
 import ProtectedRoute from '@/components/ProtectedRoute';
 import DashboardLayout from '@/components/dashboard/DashboardLayout';
+import DSPageHeader from '@/components/ui/PageHeader';
 import type { Uuid } from '@/types';
 
 /**
@@ -189,39 +190,27 @@ function Header({
   urgentExpiry: number;
 }) {
   return (
-    <header className="flex flex-wrap items-start justify-between gap-3">
-      <div>
-        <h1 className="text-2xl font-semibold text-gray-900">
-          Welcome back{operatorName ? `, ${operatorName}` : ''}.
-        </h1>
-        <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
-          <span
-            className="rounded-full bg-emerald-100 px-2.5 py-1 font-medium text-emerald-800"
-            title="You're signed in as HR / Compliance"
-          >
+    <DSPageHeader
+      title={`Engagements${operatorName ? ` · ${operatorName}` : ''}`}
+      subtitle="HR & Compliance — activate engagements, finalize compliance, and stay ahead of expiries."
+      meta={
+        <>
+          <span className="inline-flex items-center rounded-full bg-emerald-50 px-2.5 py-0.5 text-xs font-medium text-emerald-800 ring-1 ring-emerald-200">
             HR / Compliance
           </span>
           {totalActions > 0 && (
-            <span className="rounded-full bg-amber-100 px-2.5 py-1 font-medium text-amber-800">
-              {totalActions} action{totalActions === 1 ? '' : 's'} pending
+            <span className="inline-flex items-center rounded-full bg-amber-50 px-2.5 py-0.5 text-xs font-medium text-amber-800 ring-1 ring-amber-200">
+              {totalActions} pending
             </span>
           )}
           {urgentExpiry > 0 && (
-            <span className="rounded-full bg-red-100 px-2.5 py-1 font-medium text-red-800">
-              {urgentExpiry} expiring ≤30d
+            <span className="inline-flex items-center rounded-full bg-red-50 px-2.5 py-0.5 text-xs font-medium text-red-700 ring-1 ring-red-200">
+              {urgentExpiry} expiring ≤ 30d
             </span>
           )}
-        </div>
-      </div>
-      <button
-        type="button"
-        aria-label="Notifications (coming soon)"
-        title="Notifications — coming soon"
-        className="relative rounded-full border border-gray-200 bg-white p-2 text-gray-500 hover:bg-gray-50"
-      >
-        <Bell className="h-4 w-4" strokeWidth={2} />
-      </button>
-    </header>
+        </>
+      }
+    />
   );
 }
 

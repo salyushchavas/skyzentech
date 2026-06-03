@@ -13,6 +13,8 @@ import {
 import api from '@/lib/api';
 import DashboardLayout from '@/components/dashboard/DashboardLayout';
 import ProtectedRoute from '@/components/ProtectedRoute';
+import DSPageHeader from '@/components/ui/PageHeader';
+import { Button as DSButton } from '@/components/ui/Button';
 import { formatDateOnly, formatRelative } from '@/lib/format-date';
 import type {
   CreateProjectRequest,
@@ -128,24 +130,19 @@ function Body() {
   }, [projects]);
 
   return (
-    <section className="space-y-6">
-      <header className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-semibold text-gray-900">Projects</h1>
-          <p className="mt-1 text-sm text-gray-600">
-            Allocate a project to your interns, review submissions, and mark them
-            completed when done.
-          </p>
-        </div>
-        <button
-          type="button"
-          onClick={() => setShowAllocate(true)}
-          className="inline-flex items-center gap-1.5 rounded-md bg-accent px-3 py-1.5 text-sm font-medium text-white hover:bg-accent/90"
-        >
-          <Plus className="h-4 w-4" strokeWidth={2} />
-          Allocate project
-        </button>
-      </header>
+    <section className="space-y-8">
+      <DSPageHeader
+        title="Projects"
+        subtitle="Allocate work to your interns, review submissions, and mark projects complete."
+        primaryAction={
+          <DSButton
+            onClick={() => setShowAllocate(true)}
+            leftIcon={<Plus className="h-4 w-4" strokeWidth={2} />}
+          >
+            Allocate project
+          </DSButton>
+        }
+      />
 
       {toast && (
         <div className="rounded-md border border-emerald-200 bg-emerald-50 px-4 py-2 text-sm text-emerald-800">

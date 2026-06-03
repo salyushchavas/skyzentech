@@ -26,6 +26,7 @@ import DashboardLayout from '@/components/dashboard/DashboardLayout';
 import ProtectedRoute from '@/components/ProtectedRoute';
 import JourneyBar from '@/components/dashboard/JourneyBar';
 import YourJourneyPanel from '@/components/candidate/YourJourneyPanel';
+import DSPageHeader from '@/components/ui/PageHeader';
 import type {
   CandidateJourney,
   CandidateResumeInfo,
@@ -251,26 +252,22 @@ function CandidateDashboardBody() {
     data.engagement?.status === 'ACTIVE' && data.weeklyCockpit != null;
 
   return (
-    <section className="space-y-6">
-      {/* Header: greeting, applicant ID, stage pill, bell */}
-      <Header
-        candidateName={data.candidateName ?? user?.fullName ?? null}
-        applicantId={user?.applicantId ?? null}
-        stagePill={stagePill}
-        stageIsExited={journey?.isExited ?? false}
+    <section className="space-y-8">
+      {/* Welcome row — design-system PageHeader. The "Your Journey" panel below
+          owns the next-step / stage pill / timeline — we no longer surface a
+          separate horizontal bar or a duplicate next-step banner here. */}
+      <DSPageHeader
+        title={`Hi, ${(data.candidateName ?? user?.fullName ?? '').split(' ')[0] || 'there'}`}
+        subtitle={
+          user?.applicantId
+            ? `Applicant ID ${user.applicantId} · ${stagePill ?? ''}`.trim()
+            : (stagePill ? `Current stage: ${stagePill}` : undefined)
+        }
       />
 
-      {/* Change 2 — full-width "Your Journey" panel: stage pill, next step,
-          timeline, and recent activity feed. Polls every 30s. Replaces the
-          older standalone onboarding tile so HR/Operations actions surface
-          on the intern side without a refresh. */}
+      {/* Full-width "Your Journey" panel: stage pill, next-step hero, full
+          vertical timeline, recent activity. Polls every 30s. */}
       <YourJourneyPanel />
-
-      {/* Journey bar — same component, Phase-2 stages on the intern face */}
-      {journey && <JourneyBar journey={journey} />}
-
-      {/* Next-step hero (or waiting variant) */}
-      {next && <NextStepHero step={next} />}
 
       {isInternFace ? (
         <>

@@ -18,6 +18,7 @@ import DashboardLayout from '@/components/dashboard/DashboardLayout';
 import ProtectedRoute from '@/components/ProtectedRoute';
 import { useAuth } from '@/lib/auth-context';
 import type { Uuid } from '@/types';
+import DSPageHeader from '@/components/ui/PageHeader';
 
 /**
  * Executive (leadership) dashboard. Strictly read-only oversight — counts,
@@ -180,27 +181,25 @@ function Header({
   isSuperAdminView: boolean;
 }) {
   return (
-    <header>
-      <h1 className="text-2xl font-semibold text-gray-900">
-        Welcome back{operatorName ? `, ${operatorName}` : ''}.
-      </h1>
-      <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
-        <span
-          className="rounded-full bg-violet-100 px-2.5 py-1 font-medium text-violet-800"
-          title="You're signed in as Executive"
-        >
-          Executive
-        </span>
-        {isSuperAdminView && (
-          <span className="rounded-full bg-indigo-100 px-2.5 py-1 font-medium text-indigo-800">
-            Super-admin
+    <DSPageHeader
+      title={`Overview${operatorName ? ` · ${operatorName}` : ''}`}
+      subtitle="Leadership oversight — counts, rates, funnel and program health."
+      meta={
+        <>
+          <span className="inline-flex items-center rounded-full bg-violet-50 px-2.5 py-0.5 text-xs font-medium text-violet-800 ring-1 ring-violet-200">
+            Executive
           </span>
-        )}
-        <span className="rounded-full bg-gray-100 px-2.5 py-1 font-medium text-gray-700">
-          Read-only oversight
-        </span>
-      </div>
-    </header>
+          {isSuperAdminView && (
+            <span className="inline-flex items-center rounded-full bg-indigo-50 px-2.5 py-0.5 text-xs font-medium text-indigo-800 ring-1 ring-indigo-200">
+              Super-admin
+            </span>
+          )}
+          <span className="inline-flex items-center rounded-full bg-slate-50 px-2.5 py-0.5 text-xs font-medium text-slate-700 ring-1 ring-slate-200">
+            Read-only
+          </span>
+        </>
+      }
+    />
   );
 }
 

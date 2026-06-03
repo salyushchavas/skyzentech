@@ -1,5 +1,5 @@
 import type { Metadata } from 'next';
-import { Poppins } from 'next/font/google';
+import { Inter, Poppins } from 'next/font/google';
 import { Toaster } from 'react-hot-toast';
 import { AuthProvider } from '@/lib/auth-context';
 import './globals.css';
@@ -8,6 +8,16 @@ const poppins = Poppins({
   subsets: ['latin'],
   weight: ['300', '400', '500', '600', '700', '800'],
   variable: '--font-poppins',
+  display: 'swap',
+});
+
+// Inter is the dashboard typeface. Marketing pages keep Poppins via the
+// font-poppins utility; everything inside DashboardLayout opts into Inter
+// through the `ds` class on its root.
+const inter = Inter({
+  subsets: ['latin'],
+  weight: ['400', '500', '600', '700'],
+  variable: '--font-inter',
   display: 'swap',
 });
 
@@ -26,7 +36,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en" className={poppins.variable}>
+    <html lang="en" className={`${poppins.variable} ${inter.variable}`}>
       <head>
         {/* icofont — used by SiteHeader / SiteFooter / ported home page. */}
         <link rel="stylesheet" href="/plugins/icofont/icofont.min.css" />

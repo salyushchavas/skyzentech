@@ -1,13 +1,56 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { RefreshCw } from 'lucide-react';
+import { ChevronDown, ChevronUp, History, RefreshCw } from 'lucide-react';
 import api from '@/lib/api';
-import JourneyTimeline, { type TimelineStep } from './JourneyTimeline';
-import NextStepCard, { type NextStepData } from './NextStepCard';
-import RecentActivityFeed, { type RecentUpdate } from './RecentActivityFeed';
+import { cn } from '@/lib/cn';
+import { statusSemantic, statusLabel, type Semantic } from '@/lib/status';
+import {
+  Card,
+  StatusPill,
+  Stepper,
+  type TimelineStep,
+  Button,
+  Skeleton,
+} from '@/components/ui';
 
 const POLL_INTERVAL_MS = 30_000;
+
+interface NextStepData {
+  type?: string | null;
+  title?: string | null;
+  subtitle?: string | null;
+  ctaLabel?: string | null;
+  ctaHref?: string | null;
+  isWaiting?: boolean;
+  waitingFor?: string | null;
+}
+
+interface RecentUpdate {
+  timestamp?: string | null;
+  kind?: string | null;
+  message?: string | null;
+  source?: string | null;
+}
+
+interface DashboardStatus {
+  overallStage: string;
+  nextStep: NextStepData | null;
+  timeline: TimelineStep[];
+  recentUpdates: RecentUpdate[];
+}
+
+const STAGE_TONE: Record<string, Semantic> = {
+  APPLIED: 'neutral',
+  SCREENING: 'info',
+  INTERVIEW: 'info',
+  OFFER: 'info',
+  ONBOARDING: 'warning',
+  HIRED: 'success',
+  ACTIVE: 'success',
+  COMPLETED: 'success',
+  REJECTED: 'danger',
+};
 
 const STAGE_LABEL: Record<string, string> = {
   APPLIED: 'Applied',
@@ -21,19 +64,17 @@ const STAGE_LABEL: Record<string, string> = {
   REJECTED: 'Closed',
 };
 
-interface DashboardStatus {
-  overallStage: string;
-  nextStep: NextStepData | null;
-  timeline: TimelineStep[];
-  recentUpdates: RecentUpdate[];
-}
-
 /**
- * "Your Journey" panel — polls /api/v1/candidate/dashboard-status every 30s,
- * surfaces a stage pill + next-step card + full timeline + recent activity.
- * The panel pauses polling while the tab is hidden (visibilitychange) and
- * resumes on focus. Network blips are swallowed and the last-cached data
- * stays visible with a small "Reconnecting…" pill.
+ * Intern / applicant "Your Journey" panel.
+ *
+ * - Polls `/api/v1/candidate/dashboard-status` every 30s; pauses while the
+ *   tab is hidden (visibilitychange) and resumes on focus.
+ * - Network blips swallow into a small "Reconnecting…" pill; last-cached
+ *   data stays visible.
+ * - The next-step card is the visually dominant surface (Card variant=accent
+ *   colored by tone). The vertical Stepper below renders every applicable
+ *   step including SKIPPED ones, so the intern sees what isn't required.
+ * - Recent activity is collapsed by default unless today has fresh updates.
  */
 export default function YourJourneyPanel() {
   const [data, setData] = useState<DashboardStatus | null>(null);
@@ -49,7 +90,7 @@ export default function YourJourneyPanel() {
       setReconnecting(false);
     } catch (err: any) {
       if (data == null) {
-        setError(err?.response?.data?.error ?? "Couldn't load your timeline.");
+        setError(err?.response?.data?.error ?? "Couldn't load your journey.");
       } else {
         setReconnecting(true);
       }
@@ -59,9 +100,7 @@ export default function YourJourneyPanel() {
 
   const startPolling = useCallback(() => {
     if (intervalRef.current != null) return;
-    intervalRef.current = window.setInterval(() => {
-      void load();
-    }, POLL_INTERVAL_MS);
+    intervalRef.current = window.setInterval(() => void load(), POLL_INTERVAL_MS);
   }, [load]);
 
   const stopPolling = useCallback(() => {
@@ -73,91 +112,208 @@ export default function YourJourneyPanel() {
 
   useEffect(() => {
     void load();
-    if (!document.hidden) startPolling();
-    const onVisibility = () => {
-      if (document.hidden) {
-        stopPolling();
-      } else {
+    if (typeof document !== 'undefined' && !document.hidden) startPolling();
+    const onVis = () => {
+      if (document.hidden) stopPolling();
+      else {
         void load();
         startPolling();
       }
     };
-    document.addEventListener('visibilitychange', onVisibility);
+    document.addEventListener('visibilitychange', onVis);
     return () => {
-      document.removeEventListener('visibilitychange', onVisibility);
+      document.removeEventListener('visibilitychange', onVis);
       stopPolling();
     };
   }, [load, startPolling, stopPolling]);
 
   if (error && data == null) {
     return (
-      <section className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
-        <p className="mb-2">{error}</p>
-        <button
-          type="button"
-          onClick={() => void load()}
-          className="rounded border border-red-300 px-3 py-1 font-medium hover:bg-red-100"
-        >
+      <Card className="bg-red-50 border-red-200">
+        <p className="mb-3 text-sm text-red-700">{error}</p>
+        <Button variant="secondary" size="sm" onClick={() => void load()}>
           Retry
-        </button>
-      </section>
+        </Button>
+      </Card>
     );
   }
 
   if (data == null) {
     return (
-      <section className="rounded-xl border border-slate-200 bg-white p-5">
-        <div className="h-5 w-32 animate-pulse rounded bg-slate-100" />
-        <div className="mt-3 h-14 animate-pulse rounded bg-slate-100" />
-        <div className="mt-3 h-40 animate-pulse rounded bg-slate-100" />
-      </section>
+      <Card>
+        <Skeleton className="mb-3 h-5 w-32" />
+        <Skeleton className="mb-3 h-16 w-full rounded-md" />
+        <Skeleton className="h-48 w-full rounded-md" />
+      </Card>
     );
   }
 
-  const stageLabel = STAGE_LABEL[data.overallStage] ?? data.overallStage;
-  const stageContext = data.nextStep?.isWaiting
-    ? `Awaiting ${data.nextStep.waitingFor ?? 'a response'}`
-    : null;
+  const stageTone = STAGE_TONE[data.overallStage] ?? 'neutral';
 
   return (
-    <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-      <header className="mb-4 flex flex-wrap items-center justify-between gap-2">
+    <Card>
+      <header className="mb-5 flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h2 className="text-base font-semibold text-slate-900">Your Journey</h2>
-          <p className="mt-0.5 text-xs text-slate-500">
-            Every step from application to active intern — automatically updated.
+          <p className="mb-1 text-xs font-semibold uppercase tracking-wider text-slate-500">
+            Your journey
           </p>
+          <h2 className="text-lg font-semibold tracking-tight text-slate-900">
+            Where you are right now
+          </h2>
         </div>
         <div className="flex items-center gap-2">
           {reconnecting && (
-            <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-medium text-amber-800">
+            <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2 py-0.5 text-[11px] font-medium text-amber-800">
               <RefreshCw className="h-3 w-3 animate-spin" strokeWidth={2.5} />
               Reconnecting…
             </span>
           )}
-          <span className="inline-flex items-center gap-1 rounded-full bg-accent/15 px-2.5 py-1 text-xs font-medium text-accent-dark ring-1 ring-accent/30">
-            {stageLabel}
-            {stageContext && (
-              <>
-                <span className="text-accent-dark/50">•</span>
-                <span className="font-normal text-accent-dark/80">{stageContext}</span>
-              </>
-            )}
-          </span>
+          <StatusPill
+            status={data.overallStage}
+            label={STAGE_LABEL[data.overallStage] ?? statusLabel(data.overallStage)}
+            tone={stageTone}
+            size="md"
+          />
         </div>
       </header>
 
-      {data.nextStep && (
-        <div className="mb-4">
-          <NextStepCard step={data.nextStep} />
+      {data.nextStep && <NextStepHero step={data.nextStep} tone={stageTone} />}
+
+      <div className="mt-6">
+        <Stepper steps={data.timeline ?? []} />
+      </div>
+
+      <RecentActivity items={data.recentUpdates ?? []} />
+    </Card>
+  );
+}
+
+function NextStepHero({ step, tone }: { step: NextStepData; tone: Semantic }) {
+  if (!step.title) return null;
+  const accent: Semantic = step.isWaiting ? 'warning' : tone === 'success' ? 'success' : 'info';
+  const bg =
+    accent === 'warning'
+      ? 'bg-amber-50 border-amber-200'
+      : accent === 'success'
+        ? 'bg-emerald-50 border-emerald-200'
+        : 'bg-blue-50 border-blue-200';
+  const titleColor =
+    accent === 'warning'
+      ? 'text-amber-900'
+      : accent === 'success'
+        ? 'text-emerald-900'
+        : 'text-blue-900';
+  return (
+    <div
+      className={cn(
+        'rounded-lg border border-l-4 p-4',
+        bg,
+        accent === 'warning' && 'border-l-amber-500',
+        accent === 'success' && 'border-l-emerald-500',
+        accent === 'info' && 'border-l-blue-500',
+      )}
+    >
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0 flex-1">
+          <p className={cn('text-sm font-semibold', titleColor)}>{step.title}</p>
+          {step.subtitle && (
+            <p className="mt-0.5 text-xs text-slate-700">{step.subtitle}</p>
+          )}
+          {step.isWaiting && step.waitingFor && (
+            <p className="mt-1 text-xs text-amber-800">Waiting on {step.waitingFor}</p>
+          )}
+        </div>
+        {!step.isWaiting && step.ctaHref && step.ctaLabel && (
+          <Button size="sm" onClick={() => (window.location.href = step.ctaHref!)}>
+            {step.ctaLabel}
+          </Button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+const SOURCE_PILL: Record<string, string> = {
+  HR: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+  OPERATIONS: 'bg-blue-50 text-blue-700 border-blue-200',
+  TE: 'bg-amber-50 text-amber-800 border-amber-200',
+  RM: 'bg-purple-50 text-purple-700 border-purple-200',
+  SYSTEM: 'bg-slate-50 text-slate-700 border-slate-200',
+};
+
+function relative(iso?: string | null): string {
+  if (!iso) return '';
+  try {
+    const then = new Date(iso).getTime();
+    const diff = Date.now() - then;
+    const m = Math.floor(diff / 60000);
+    if (m < 1) return 'just now';
+    if (m < 60) return `${m}m ago`;
+    const h = Math.floor(m / 60);
+    if (h < 24) return `${h}h ago`;
+    const d = Math.floor(h / 24);
+    if (d < 7) return `${d}d ago`;
+    return new Date(iso).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+  } catch {
+    return iso;
+  }
+}
+
+function RecentActivity({ items }: { items: RecentUpdate[] }) {
+  const todayCount = items.filter((it) => {
+    if (!it.timestamp) return false;
+    return Date.now() - new Date(it.timestamp).getTime() < 24 * 60 * 60 * 1000;
+  }).length;
+  const [open, setOpen] = useState(todayCount > 0);
+  return (
+    <div className="mt-6">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
+        className="flex w-full items-center justify-between rounded-md px-1 py-1 text-left transition-colors hover:bg-slate-50"
+      >
+        <span className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-slate-500">
+          <History className="h-3.5 w-3.5" strokeWidth={2.5} />
+          Recent activity {items.length > 0 && <span className="text-slate-400">({items.length})</span>}
+        </span>
+        {open ? (
+          <ChevronUp className="h-4 w-4 text-slate-500" />
+        ) : (
+          <ChevronDown className="h-4 w-4 text-slate-500" />
+        )}
+      </button>
+      {open && (
+        <div className="mt-2 rounded-md border border-slate-200 bg-slate-50 px-3 py-2.5">
+          {items.length === 0 ? (
+            <p className="text-sm text-slate-500">No updates yet.</p>
+          ) : (
+            <ul className="space-y-2">
+              {items.map((it, i) => {
+                const src = it.source ?? 'SYSTEM';
+                return (
+                  <li key={i} className="flex items-start gap-2.5">
+                    <span
+                      className={cn(
+                        'mt-0.5 inline-flex items-center rounded-full border px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide',
+                        SOURCE_PILL[src] ?? SOURCE_PILL.SYSTEM,
+                      )}
+                    >
+                      {src}
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm text-slate-800">{it.message ?? '—'}</p>
+                      {it.timestamp && (
+                        <p className="text-[11px] text-slate-500">{relative(it.timestamp)}</p>
+                      )}
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
         </div>
       )}
-
-      <JourneyTimeline steps={data.timeline} />
-
-      <div className="mt-4">
-        <RecentActivityFeed items={data.recentUpdates ?? []} />
-      </div>
-    </section>
+    </div>
   );
 }

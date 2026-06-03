@@ -163,15 +163,16 @@ export default function DashboardSidebar({ onNavigate }: Props) {
   }, [user?.roles]);
 
   return (
-    <nav className="flex h-full w-64 shrink-0 flex-col border-r border-gray-200 bg-white">
+    <nav className="flex h-full w-60 shrink-0 flex-col border-r border-slate-200 bg-white">
       {/* Logo area */}
       <Link
         href="/careers"
         onClick={onNavigate}
-        className="flex h-16 shrink-0 items-center gap-2 border-b border-gray-200 px-4"
+        className="flex h-14 shrink-0 items-center gap-2 border-b border-slate-200 px-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2"
       >
-        <img src="/images/skyzen-logo.png" alt="Skyzen" className="h-8 w-auto" />
-        <span className="text-base font-semibold text-gray-900">Careers</span>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src="/images/skyzen-logo.png" alt="Skyzen" className="h-7 w-auto" />
+        <span className="text-sm font-semibold text-slate-900">Careers</span>
       </Link>
 
       <div className="flex-1 overflow-y-auto px-3 py-4">
@@ -191,13 +192,13 @@ export default function DashboardSidebar({ onNavigate }: Props) {
       </div>
 
       {/* Footer */}
-      <div className="border-t border-gray-200 px-3 py-3">
+      <div className="border-t border-slate-200 px-3 py-3">
         <Link
           href="/"
           onClick={onNavigate}
-          className="block px-3 py-2 text-xs text-gray-500 transition-colors hover:text-gray-700"
+          className="block rounded-md px-3 py-2 text-xs text-slate-500 transition-colors hover:bg-slate-50 hover:text-slate-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2"
         >
-          &larr; Back to main site
+          ← Back to main site
         </Link>
       </div>
     </nav>
@@ -230,10 +231,10 @@ function StaffNav({
               href={link.href}
               onClick={onNavigate}
               className={
-                'flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors duration-150 ' +
-                (active
-                  ? 'bg-accent/10 text-primary-700'
-                  : 'text-gray-700 hover:bg-gray-100 hover:text-gray-900')
+                'relative flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2 '
+                + (active
+                  ? 'bg-slate-100 text-slate-900 before:absolute before:left-0 before:top-1/2 before:h-5 before:w-0.5 before:-translate-y-1/2 before:rounded-r before:bg-brand-700'
+                  : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900')
               }
               aria-current={active ? 'page' : undefined}
             >
@@ -326,7 +327,7 @@ function CandidateNav({
 
       {hasGroups && (
         <div>
-          <div className="mb-1 px-3 text-[10px] font-semibold uppercase tracking-wider text-gray-400">
+          <div className="mb-1 px-3 text-[10px] font-semibold uppercase tracking-wider text-slate-400">
             Hiring history
           </div>
           <ul className="space-y-1">
@@ -370,24 +371,24 @@ function CandidateNavRow({
         // Tailwind's animate-in works without extra config; if a fade is
         // unsupported by the build's tailwind version the row still renders.
         className={
-          'group flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors duration-150 motion-safe:animate-in motion-safe:fade-in motion-safe:duration-300 ' +
-          (active
-            ? 'bg-accent/10 text-primary-700'
+          'group relative flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2 '
+          + (active
+            ? 'bg-slate-100 text-slate-900 before:absolute before:left-0 before:top-1/2 before:h-5 before:w-0.5 before:-translate-y-1/2 before:rounded-r before:bg-brand-700'
             : muted
-              ? 'text-gray-500 hover:bg-gray-100 hover:text-gray-700'
-              : 'text-gray-700 hover:bg-gray-100 hover:text-gray-900')
+              ? 'text-slate-400 hover:bg-slate-50 hover:text-slate-600'
+              : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900')
         }
         aria-current={active ? 'page' : undefined}
       >
         <Icon className="h-[18px] w-[18px]" strokeWidth={2} />
         <span className="flex-1 truncate">{item.label}</span>
         {item.badge?.type === 'count' && (
-          <span className="ml-auto inline-flex min-w-[20px] items-center justify-center rounded-full bg-accent/15 px-1.5 text-[11px] font-semibold leading-5 text-accent-dark">
+          <span className="ml-auto inline-flex min-w-[20px] items-center justify-center rounded-full bg-slate-100 px-1.5 text-[11px] font-semibold leading-5 text-slate-700">
             {item.badge.value}
           </span>
         )}
         {item.badge?.type === 'new' && (
-          <span className="ml-auto rounded-full bg-accent px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white">
+          <span className="ml-auto rounded-full bg-brand-700 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white">
             New
           </span>
         )}
@@ -402,7 +403,7 @@ function SidebarSkeleton({ rows }: { rows: number }) {
       {Array.from({ length: rows }).map((_, i) => (
         <li
           key={i}
-          className="h-10 animate-pulse rounded-lg bg-gray-100"
+          className="h-9 animate-pulse rounded-md bg-slate-100"
           aria-hidden
         />
       ))}
