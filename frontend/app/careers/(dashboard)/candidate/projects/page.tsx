@@ -14,6 +14,9 @@ import {
 import api from '@/lib/api';
 import DashboardLayout from '@/components/dashboard/DashboardLayout';
 import ProtectedRoute from '@/components/ProtectedRoute';
+import StageLockedEmpty from '@/components/candidate/StageLockedEmpty';
+import { useAuth } from '@/lib/auth-context';
+import { Briefcase } from 'lucide-react';
 import { formatDateOnly, formatRelative } from '@/lib/format-date';
 import type {
   ProjectResponse,
@@ -30,12 +33,37 @@ import type {
  * gate: INTERN role + ACTIVE engagement. APPLICANT cannot reach this surface.
  */
 export default function CandidateProjectsPage() {
+  // Both APPLICANT and INTERN can land here. The page itself branches on
+  // role: INTERNs see their assignment list, APPLICANTs see a stage-locked
+  // empty state explaining what unlocks the page. ProtectedRoute redirects
+  // anyone outside this set; the prior INTERN-only gate is what was bouncing
+  // pre-hire users (and any user whose role cache hadn't been flipped yet).
   return (
-    <ProtectedRoute requiredRoles={['INTERN']}>
+    <ProtectedRoute requiredRoles={['INTERN', 'APPLICANT']}>
       <DashboardLayout title="My Projects">
         <Body />
       </DashboardLayout>
     </ProtectedRoute>
+  );
+}
+
+function ApplicantLockedView() {
+  return (
+    <section className="space-y-6">
+      <header>
+        <h1 className="text-2xl font-semibold text-slate-900">Projects</h1>
+        <p className="mt-1 text-sm text-slate-600">
+          Where your assigned work lives once your internship is active.
+        </p>
+      </header>
+      <StageLockedEmpty
+        icon={Briefcase}
+        title="Projects unlock after hiring"
+        body="Your Technical Evaluator will assign your first project once HR activates your engagement. Until then, focus on completing your onboarding tasks."
+        ctaHref="/careers/candidate/onboarding"
+        ctaLabel="Continue onboarding"
+      />
+    </section>
   );
 }
 
@@ -60,6 +88,18 @@ const STATUS_LABEL: Record<ProjectStatus, string> = {
 };
 
 function Body() {
+  const { user } = useAuth();
+  const isIntern = !!user?.roles?.includes('INTERN');
+  // APPLICANTs land here too (post role-gate widening) — show the stage-locked
+  // empty state without firing any data fetches. They have no assignments yet.
+  if (user && !isIntern) {
+    return <ApplicantLockedView />;
+  }
+
+  return <InternBody />;
+}
+
+function InternBody() {
   const [projects, setProjects] = useState<ProjectResponse[] | null>(null);
   const [needsActiveEngagement, setNeedsActiveEngagement] = useState(false);
   const [error, setError] = useState<string | null>(null);

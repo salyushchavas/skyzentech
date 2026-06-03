@@ -58,6 +58,7 @@ public class EngagementService {
     private final EngagementRepository engagementRepository;
     private final AuditLogRepository auditLogRepository;
     private final UserRepository userRepository;
+    private final UserService userService;
     private final ObjectMapper objectMapper;
     private final NotificationService notificationService;
     private final I9FormRepository i9FormRepository;
@@ -268,12 +269,21 @@ public class EngagementService {
         Engagement saved = engagementRepository.save(engagement);
         writeStatusAudit(saved.getId(), auditAction, actorId, from, target);
 
-        // Role flip on hire — the canonical "engagement goes ACTIVE" moment.
-        // APPLICANT becomes INTERN. We don't unwind on COMPLETED/TERMINATED:
-        // once someone has been an intern, they keep INTERN until an admin
-        // explicitly changes the role (audit / forensic posture).
+        // Role flip on any hired-or-later phase. The promotion is atomic with
+        // the engagement save (same @Transactional). Once a user has been an
+        // intern, INTERN sticks — we don't unwind on COMPLETED/TERMINATED.
+        //
+        // Triggers: PENDING_COMPLIANCE → READY_TO_START (compliance complete,
+        // intern's role unlocks the cycle pages), READY_TO_START → ACTIVE
+        // (no-op if already INTERN), and any path landing on COMPLETED.
+        // Other transitions are skipped — failure here is logged but never
+        // rolls back the transition; the reconciliation runner catches drift.
+        if (target == EngagementStatus.READY_TO_START
+                || target == EngagementStatus.ACTIVE
+                || target == EngagementStatus.COMPLETED) {
+            ensureInternRoleSafely(saved);
+        }
         if (target == EngagementStatus.ACTIVE) {
-            promoteApplicantToIntern(saved, actorId);
             // Batch-1 — onboarding welcome to the new intern. Idempotent per
             // engagement; best-effort: a send failure must NOT block activation.
             try {
@@ -322,44 +332,26 @@ public class EngagementService {
     }
 
     /**
-     * Promote the engaged candidate's user from APPLICANT → INTERN. Idempotent:
-     * if the user is already INTERN, no-op. Wrapped in a defensive try so a
-     * stray missing user / null candidate cannot derail the ACTIVE transition.
-     * Writes a USER_ROLE_FLIP audit row so the change is forensically visible.
+     * Atomic-with-transition role flip. Delegates to {@link UserService} so
+     * the audit row + invariant guards live in one place. Any failure is
+     * logged loudly but never rethrown — the engagement transition is the
+     * primary effect; the role flip is a downstream cache update, and the
+     * {@code UserRoleReconciliationRunner} catches any drift on next boot.
      */
-    private void promoteApplicantToIntern(Engagement engagement, UUID actorId) {
+    private void ensureInternRoleSafely(Engagement engagement) {
         try {
-            if (engagement.getCandidate() == null
+            if (engagement == null
+                    || engagement.getCandidate() == null
                     || engagement.getCandidate().getUser() == null) {
                 return;
             }
             UUID userId = engagement.getCandidate().getUser().getId();
             User user = userRepository.findById(userId).orElse(null);
-            if (user == null || user.getRoles() == null) return;
-            Set<UserRole> roles = user.getRoles();
-            boolean wasApplicant = roles.remove(UserRole.APPLICANT);
-            boolean alreadyIntern = roles.contains(UserRole.INTERN);
-            if (alreadyIntern && !wasApplicant) {
-                return; // already promoted on a previous boot / activation
-            }
-            roles.add(UserRole.INTERN);
-            user.setRoles(roles);
-            userRepository.save(user);
-            AuditLog entry = AuditLog.builder()
-                    .entityType("User")
-                    .entityId(user.getId())
-                    .action("USER_ROLE_FLIP")
-                    .userId(actorId)
-                    .afterJson("{\"from\":\"APPLICANT\",\"to\":\"INTERN\","
-                            + "\"engagementId\":\"" + engagement.getId() + "\"}")
-                    .build();
-            auditLogRepository.save(entry);
-            log.info("Role flip APPLICANT→INTERN on engagement ACTIVE: user {}",
-                    user.getEmail());
+            if (user == null) return;
+            userService.ensureInternRole(user, "ENGAGEMENT_TRANSITION", engagement.getId());
         } catch (Exception e) {
-            // Non-fatal — the engagement transition still committed. Log + move on.
-            log.warn("Role flip APPLICANT→INTERN failed for engagement {}: {}",
-                    engagement.getId(), e.getMessage(), e);
+            log.error("ensureInternRoleSafely failed for engagement {} (non-fatal — transition continues): {}",
+                    engagement != null ? engagement.getId() : "<null>", e.getMessage(), e);
         }
     }
 

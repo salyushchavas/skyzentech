@@ -39,8 +39,12 @@ const AUTO_SAVE_MS = 1500;
 const MAX_PATH_LENGTH = 512;
 
 export default function CandidateWorkspacePage() {
+  // Widened to APPLICANT + INTERN so a pre-hire user navigating to a
+  // shared workspace link doesn't get bounced. The data fetch returns 404
+  // for APPLICANTs (no project owned by them); the page renders its own
+  // "Not accessible" state with a link back to /careers/candidate/projects.
   return (
-    <ProtectedRoute requiredRoles={['INTERN']}>
+    <ProtectedRoute requiredRoles={['INTERN', 'APPLICANT']}>
       <DashboardLayout title="Workspace">
         <Body />
       </DashboardLayout>

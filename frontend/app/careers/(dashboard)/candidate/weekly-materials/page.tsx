@@ -6,6 +6,8 @@ import { BookOpen, CheckCircle2, Clock, ExternalLink } from 'lucide-react';
 import api from '@/lib/api';
 import DashboardLayout from '@/components/dashboard/DashboardLayout';
 import ProtectedRoute from '@/components/ProtectedRoute';
+import StageLockedEmpty from '@/components/candidate/StageLockedEmpty';
+import { useAuth } from '@/lib/auth-context';
 import { formatDateOnly } from '@/lib/format-date';
 import type { WeeklyMaterialResponse } from '@/types';
 
@@ -16,8 +18,10 @@ import type { WeeklyMaterialResponse } from '@/types';
  * reach the endpoint by design (weekly materials are post-hire training).
  */
 export default function CandidateWeeklyMaterialsPage() {
+  // Widened: APPLICANT lands here too and sees a stage-locked empty state.
+  // INTERN sees the real materials list.
   return (
-    <ProtectedRoute requiredRoles={['INTERN']}>
+    <ProtectedRoute requiredRoles={['INTERN', 'APPLICANT']}>
       <DashboardLayout title="Weekly Materials">
         <Body />
       </DashboardLayout>
@@ -26,6 +30,30 @@ export default function CandidateWeeklyMaterialsPage() {
 }
 
 function Body() {
+  const { user } = useAuth();
+  if (user && !user.roles?.includes('INTERN')) {
+    return (
+      <section className="space-y-6">
+        <header>
+          <h1 className="text-2xl font-semibold text-slate-900">Weekly materials</h1>
+          <p className="mt-1 text-sm text-slate-600">
+            Training material your Technical Evaluator publishes each week.
+          </p>
+        </header>
+        <StageLockedEmpty
+          icon={BookOpen}
+          title="Weekly materials unlock after hiring"
+          body="You'll receive weekly training material once your internship begins."
+          ctaHref="/careers/candidate/onboarding"
+          ctaLabel="Continue onboarding"
+        />
+      </section>
+    );
+  }
+  return <InternBody />;
+}
+
+function InternBody() {
   const [materials, setMaterials] = useState<WeeklyMaterialResponse[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   // Backend may return 403 when the candidate has no ACTIVE engagement —

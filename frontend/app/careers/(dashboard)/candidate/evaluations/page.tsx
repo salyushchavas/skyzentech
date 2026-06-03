@@ -11,6 +11,8 @@ import {
 import api from '@/lib/api';
 import DashboardLayout from '@/components/dashboard/DashboardLayout';
 import ProtectedRoute from '@/components/ProtectedRoute';
+import StageLockedEmpty from '@/components/candidate/StageLockedEmpty';
+import { useAuth } from '@/lib/auth-context';
 import { formatDateOnly, formatRelative } from '@/lib/format-date';
 import type {
   EvaluationRecommendation,
@@ -32,12 +34,33 @@ import type {
  * the Candidate-row requirement in the service.
  */
 export default function CandidateEvaluationsPage() {
+  // Widened so APPLICANTs land here and see the stage-locked empty state.
   return (
-    <ProtectedRoute requiredRoles={['INTERN']}>
+    <ProtectedRoute requiredRoles={['INTERN', 'APPLICANT']}>
       <DashboardLayout title="Evaluations">
         <Body />
       </DashboardLayout>
     </ProtectedRoute>
+  );
+}
+
+function ApplicantLockedEvaluations() {
+  return (
+    <section className="space-y-6">
+      <header>
+        <h1 className="text-2xl font-semibold text-slate-900">Evaluations</h1>
+        <p className="mt-1 text-sm text-slate-600">
+          Milestone reviews from your Technical Evaluator during your internship.
+        </p>
+      </header>
+      <StageLockedEmpty
+        icon={Star}
+        title="Evaluations unlock after hiring"
+        body="Your Technical Evaluator will schedule milestone evaluations during your internship."
+        ctaHref="/careers/candidate/onboarding"
+        ctaLabel="Continue onboarding"
+      />
+    </section>
   );
 }
 
@@ -66,6 +89,14 @@ const CRITERIA_LABEL: Record<RubricCriterion, string> = {
 };
 
 function Body() {
+  const { user } = useAuth();
+  if (user && !user.roles?.includes('INTERN')) {
+    return <ApplicantLockedEvaluations />;
+  }
+  return <InternEvaluationsBody />;
+}
+
+function InternEvaluationsBody() {
   const [finalized, setFinalized] = useState<EvaluationResponse[] | null>(null);
   const [drafts, setDrafts] = useState<EvaluationResponse[] | null>(null);
   const [error, setError] = useState<string | null>(null);

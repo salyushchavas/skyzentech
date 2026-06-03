@@ -12,6 +12,8 @@ import {
 import api from '@/lib/api';
 import DashboardLayout from '@/components/dashboard/DashboardLayout';
 import ProtectedRoute from '@/components/ProtectedRoute';
+import StageLockedEmpty from '@/components/candidate/StageLockedEmpty';
+import { useAuth } from '@/lib/auth-context';
 import { formatDateOnly, formatRelative } from '@/lib/format-date';
 import type {
   CreateWeeklyReportRequest,
@@ -30,12 +32,34 @@ import type {
  * banner. RETURNED reports surface the reviewer's notes at the top.
  */
 export default function CandidateWeeklyReportsPage() {
+  // Widened so APPLICANTs land here and see the stage-locked empty state
+  // instead of bouncing back to /careers/candidate.
   return (
-    <ProtectedRoute requiredRoles={['INTERN']}>
+    <ProtectedRoute requiredRoles={['INTERN', 'APPLICANT']}>
       <DashboardLayout title="Weekly Reports">
         <Body />
       </DashboardLayout>
     </ProtectedRoute>
+  );
+}
+
+function ApplicantLockedReports() {
+  return (
+    <section className="space-y-6">
+      <header>
+        <h1 className="text-2xl font-semibold text-slate-900">Weekly reports</h1>
+        <p className="mt-1 text-sm text-slate-600">
+          Where you'll summarise your week's work once your internship is active.
+        </p>
+      </header>
+      <StageLockedEmpty
+        icon={FileText}
+        title="Weekly reports unlock after hiring"
+        body="Once active, you'll submit a weekly report summarizing your work."
+        ctaHref="/careers/candidate/onboarding"
+        ctaLabel="Continue onboarding"
+      />
+    </section>
   );
 }
 
@@ -47,6 +71,14 @@ const STATUS_PILL: Record<WeeklyReportStatus, string> = {
 };
 
 function Body() {
+  const { user } = useAuth();
+  if (user && !user.roles?.includes('INTERN')) {
+    return <ApplicantLockedReports />;
+  }
+  return <InternReportsBody />;
+}
+
+function InternReportsBody() {
   const [reports, setReports] = useState<WeeklyReportResponse[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [needsActiveEngagement, setNeedsActiveEngagement] = useState(false);
