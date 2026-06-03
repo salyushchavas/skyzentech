@@ -16,6 +16,7 @@ import com.skyzen.careers.entity.Candidate;
 import com.skyzen.careers.entity.Engagement;
 import com.skyzen.careers.entity.Project;
 import com.skyzen.careers.entity.ProjectAssignment;
+import com.skyzen.careers.entity.ProjectRepositoryLink;
 import com.skyzen.careers.entity.ProjectSubmission;
 import com.skyzen.careers.entity.ProjectTask;
 import com.skyzen.careers.entity.User;
@@ -32,6 +33,7 @@ import com.skyzen.careers.repository.CandidateRepository;
 import com.skyzen.careers.repository.EngagementRepository;
 import com.skyzen.careers.repository.ProjectAssignmentRepository;
 import com.skyzen.careers.repository.ProjectRepository;
+import com.skyzen.careers.repository.ProjectRepositoryLinkRepository;
 import com.skyzen.careers.repository.ProjectSubmissionRepository;
 import com.skyzen.careers.repository.ProjectTaskRepository;
 import lombok.RequiredArgsConstructor;
@@ -82,6 +84,7 @@ public class ProjectService {
 
     private final ProjectRepository projectRepository;
     private final ProjectAssignmentRepository projectAssignmentRepository;
+    private final ProjectRepositoryLinkRepository projectRepositoryLinkRepository;
     private final ProjectTaskRepository projectTaskRepository;
     private final ProjectSubmissionRepository projectSubmissionRepository;
     private final CandidateRepository candidateRepository;
@@ -134,6 +137,12 @@ public class ProjectService {
         // SchemaFixupRunner. Failure is non-fatal — the legacy write is the
         // primary effect, and the backfill is the safety net.
         mirrorToProjectAssignments(project, intern, actor);
+
+        // Second mirror: if any of the TE's resource links is a GitHub repo
+        // URL, also upsert a project_repositories row so the intern detail
+        // page's Repository card populates without manual link-up via the
+        // catalog API. Same non-fatal posture as the assignment mirror.
+        mirrorRepositoryFromResourceLinks(project, actor);
 
         writeAudit(project.getId(), "PROJECT_ASSIGNED", actor.getId(), Map.of(
                 "title", project.getTitle(),
@@ -566,6 +575,139 @@ public class ProjectService {
                     projectId, saved.getId(), internUserId);
         } catch (Exception e) {
             log.error("mirrorToProjectAssignments failed (non-fatal — legacy create committed) "
+                    + "for project {}: {}",
+                    project != null ? project.getId() : "<null>", e.getMessage(), e);
+        }
+    }
+
+    /**
+     * Recognises a GitHub repo browse URL — {@code https://github.com/{owner}/{name}}
+     * with optional {@code .git} suffix and trailing slash. Gists, GitLab,
+     * Bitbucket, and any non-conforming string return no match. The {@code name}
+     * capture is the bare repo name with the {@code .git} suffix stripped.
+     */
+    private static final java.util.regex.Pattern GITHUB_REPO_URL = java.util.regex.Pattern
+            .compile("^https?://github\\.com/([\\w.-]+)/([\\w.-]+?)(\\.git)?/?$");
+
+    /**
+     * Parsed GitHub URL — kept locally so the helper has a clean return type
+     * without leaking regex bookkeeping to callers.
+     */
+    record ParsedGitHubUrl(String owner, String name, String url) {}
+
+    /**
+     * Picks the first GitHub repo URL out of an arbitrary URL list. Non-GitHub
+     * entries (Gist, GitLab, blog posts, docs) are skipped. Returns null when
+     * no entry matches the GitHub repo pattern.
+     */
+    static ParsedGitHubUrl extractGithubRepoUrl(List<String> urls) {
+        if (urls == null) return null;
+        for (String raw : urls) {
+            if (raw == null) continue;
+            String url = raw.trim();
+            if (url.isEmpty()) continue;
+            java.util.regex.Matcher m = GITHUB_REPO_URL.matcher(url);
+            if (m.matches()) {
+                String owner = m.group(1);
+                String name = m.group(2); // no .git — group(3) is the optional suffix
+                return new ParsedGitHubUrl(owner, name, url);
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Forward-migration mirror, part 2 — if any of the legacy resource links
+     * is a GitHub repo URL, upsert a {@link ProjectRepositoryLink} row so the
+     * intern detail page renders the Repository card without manual link-up.
+     *
+     * <p>Behaviour:</p>
+     * <ul>
+     *   <li>No resource links / no GitHub URL → no-op.</li>
+     *   <li>Existing {@code project_repositories} row for this project →
+     *       update {@code repository_name} + {@code repository_url} +
+     *       {@code linked_by_id}; {@code @UpdateTimestamp} bumps
+     *       {@code updated_at} on save. TEs re-allocating with a new URL
+     *       are reflected immediately.</li>
+     *   <li>No existing row → insert with {@code linked_by_id} = the TE
+     *       performing the allocation.</li>
+     * </ul>
+     *
+     * <p>Failure posture matches the assignment mirror: every exception is
+     * caught and logged; the legacy create + assignment mirror have already
+     * committed, and the {@code SchemaFixupRunner} backfill is the safety
+     * net for retroactive repair.</p>
+     */
+    private void mirrorRepositoryFromResourceLinks(Project project, User actor) {
+        try {
+            if (project == null || project.getResourceLinksJson() == null) return;
+            List<String> urls = deserializeList(project.getResourceLinksJson());
+            ParsedGitHubUrl parsed = extractGithubRepoUrl(urls);
+            if (parsed == null) {
+                log.debug("No GitHub URL in resource links for project {} — repository mirror skipped",
+                        project.getId());
+                return;
+            }
+
+            UUID projectId = project.getId();
+            ProjectRepositoryLink existing = projectRepositoryLinkRepository
+                    .findByProjectId(projectId).orElse(null);
+
+            ProjectRepositoryLink saved;
+            boolean inserted;
+            if (existing != null) {
+                existing.setRepositoryName(parsed.name());
+                existing.setRepositoryUrl(parsed.url());
+                existing.setLinkedById(actor != null ? actor.getId() : existing.getLinkedById());
+                saved = projectRepositoryLinkRepository.save(existing);
+                inserted = false;
+            } else {
+                ProjectRepositoryLink fresh = ProjectRepositoryLink.builder()
+                        .projectId(projectId)
+                        .repositoryName(parsed.name())
+                        .repositoryUrl(parsed.url())
+                        .linkedById(actor != null ? actor.getId() : null)
+                        .build();
+                saved = projectRepositoryLinkRepository.save(fresh);
+                inserted = true;
+            }
+
+            // Note the runners-up so a TE who entered multiple GitHub URLs can
+            // see in the logs that only the first was auto-linked.
+            if (urls != null) {
+                int countGh = 0;
+                for (String u : urls) {
+                    if (u != null && GITHUB_REPO_URL.matcher(u.trim()).matches()) countGh++;
+                }
+                if (countGh > 1) {
+                    log.info("Project {} resource links carried {} GitHub URLs — only the first ({}) was auto-linked.",
+                            projectId, countGh, parsed.url());
+                }
+            }
+
+            try {
+                Map<String, Object> meta = new LinkedHashMap<>();
+                meta.put("projectId", projectId.toString());
+                meta.put("url", parsed.url());
+                meta.put("trigger", "LEGACY_CREATE_MIRROR");
+                meta.put("op", inserted ? "INSERT" : "UPDATE");
+                AuditLog audit = AuditLog.builder()
+                        .entityType("PROJECT_REPOSITORY")
+                        .entityId(saved.getId())
+                        .action("PROJECT_REPOSITORY_MIRRORED_FROM_LEGACY")
+                        .userId(actor != null ? actor.getId() : null)
+                        .afterJson(serializeJson(meta))
+                        .build();
+                auditLogRepository.save(audit);
+            } catch (Exception auditErr) {
+                log.warn("Repository-mirror audit write failed (non-fatal) for project {}: {}",
+                        projectId, auditErr.getMessage());
+            }
+
+            log.info("Mirrored GitHub URL from resource links into project_repositories for project {} ({} → {})",
+                    projectId, inserted ? "INSERT" : "UPDATE", parsed.url());
+        } catch (Exception e) {
+            log.warn("mirrorRepositoryFromResourceLinks failed (non-fatal — legacy create committed) "
                     + "for project {}: {}",
                     project != null ? project.getId() : "<null>", e.getMessage(), e);
         }

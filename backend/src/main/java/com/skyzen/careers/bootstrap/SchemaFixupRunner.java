@@ -1,5 +1,7 @@
 package com.skyzen.careers.bootstrap;
 
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.CommandLineRunner;
@@ -7,6 +9,12 @@ import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
+
+import java.util.List;
+import java.util.Map;
+import java.util.UUID;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * Runs before every other runner and drops Hibernate's auto-generated check
@@ -24,7 +32,19 @@ import org.springframework.stereotype.Component;
 @Slf4j
 public class SchemaFixupRunner implements CommandLineRunner {
 
+    /**
+     * GitHub repo URL pattern shared with {@code ProjectService.GITHUB_REPO_URL}.
+     * Matches {@code https://github.com/{owner}/{name}} with optional
+     * {@code .git} suffix and trailing slash. Compiled once at class load.
+     */
+    private static final Pattern GITHUB_REPO_URL =
+            Pattern.compile("^https?://github\\.com/([\\w.-]+)/([\\w.-]+?)(\\.git)?/?$");
+
+    private static final TypeReference<List<String>> STRING_LIST_TYPE =
+            new TypeReference<>() {};
+
     private final JdbcTemplate jdbcTemplate;
+    private final ObjectMapper objectMapper;
 
     @Override
     public void run(String... args) {
@@ -350,6 +370,27 @@ public class SchemaFixupRunner implements CommandLineRunner {
                     e.getMessage(), e);
         }
 
+        // ── Legacy resource-link → project_repositories backfill ───────────
+        //
+        // Many existing legacy `projects` rows carry a GitHub URL inside
+        // resource_links_json (the TE typed it in the "resource links" field
+        // of the legacy allocation modal) but have no matching
+        // project_repositories row. The intern detail page's Repository card
+        // reads from project_repositories, so those projects render
+        // "Repository not yet linked" even though the URL is sitting one
+        // column away. This block bridges the gap once, on boot, idempotently.
+        //
+        // Per-row try/catch so a single malformed JSON or DB error doesn't
+        // stop the batch. ON CONFLICT DO NOTHING on project_id makes the
+        // INSERT a no-op if a row already exists for the project — re-runs
+        // are safe.
+        try {
+            backfillProjectRepositoriesFromResourceLinks();
+        } catch (Exception e) {
+            log.warn("project_repositories backfill from resource_links failed (non-fatal): {}",
+                    e.getMessage(), e);
+        }
+
         // Assignment lifecycle columns — access-granted tracking + start /
         // submit timestamps + the renamed `remarks` column (the legacy
         // `notes` column is left in place for back-compat reads).
@@ -484,5 +525,127 @@ public class SchemaFixupRunner implements CommandLineRunner {
         } catch (Exception e) {
             log.warn("i9_forms PII column widening failed (non-fatal): {}", e.getMessage(), e);
         }
+    }
+
+    /**
+     * Backfill {@code project_repositories} from every legacy {@code projects}
+     * row whose {@code resource_links_json} contains a GitHub repo URL but
+     * has no matching {@code project_repositories} row. Idempotent via
+     * {@code ON CONFLICT (project_id) DO NOTHING}.
+     */
+    private void backfillProjectRepositoriesFromResourceLinks() {
+        List<Map<String, Object>> rows;
+        try {
+            rows = jdbcTemplate.queryForList(
+                    "SELECT p.id AS id, p.resource_links_json AS rl, p.assigned_by AS assigned_by "
+                            + "FROM projects p "
+                            + "WHERE p.resource_links_json IS NOT NULL "
+                            + "  AND length(p.resource_links_json) > 2 "
+                            + "  AND NOT EXISTS ("
+                            + "    SELECT 1 FROM project_repositories pr "
+                            + "    WHERE pr.project_id = p.id"
+                            + "  )");
+        } catch (Exception e) {
+            log.warn("[SchemaFixupRunner] repo-backfill select failed (non-fatal): {}",
+                    e.getMessage());
+            return;
+        }
+        if (rows.isEmpty()) return;
+
+        int scanned = 0;
+        int created = 0;
+        int skippedNoGithub = 0;
+        int skippedFailed = 0;
+
+        for (Map<String, Object> row : rows) {
+            scanned++;
+            UUID projectId;
+            try {
+                Object idObj = row.get("id");
+                projectId = idObj instanceof UUID ? (UUID) idObj
+                        : UUID.fromString(idObj.toString());
+            } catch (Exception e) {
+                skippedFailed++;
+                log.debug("[SchemaFixupRunner] repo-backfill skipped row with unparseable id: {}",
+                        e.getMessage());
+                continue;
+            }
+
+            String rl = row.get("rl") == null ? null : row.get("rl").toString();
+            List<String> urls;
+            try {
+                urls = objectMapper.readValue(rl, STRING_LIST_TYPE);
+            } catch (Exception e) {
+                skippedFailed++;
+                log.debug("[SchemaFixupRunner] repo-backfill skipped project {} — unparseable resource_links_json",
+                        projectId);
+                continue;
+            }
+            if (urls == null || urls.isEmpty()) {
+                skippedNoGithub++;
+                continue;
+            }
+
+            String matchedUrl = null;
+            String repoName = null;
+            for (String u : urls) {
+                if (u == null) continue;
+                String trimmed = u.trim();
+                if (trimmed.isEmpty()) continue;
+                Matcher m = GITHUB_REPO_URL.matcher(trimmed);
+                if (m.matches()) {
+                    matchedUrl = trimmed;
+                    repoName = m.group(2); // no .git
+                    break;
+                }
+            }
+            if (matchedUrl == null) {
+                skippedNoGithub++;
+                continue;
+            }
+
+            // linked_by_id is NOT NULL on the table; fall back to a system
+            // sentinel via the project's assigned_by — the TE who allocated.
+            UUID linkedBy;
+            try {
+                Object assignedByObj = row.get("assigned_by");
+                linkedBy = assignedByObj == null ? null
+                        : (assignedByObj instanceof UUID ? (UUID) assignedByObj
+                                : UUID.fromString(assignedByObj.toString()));
+            } catch (Exception ignored) {
+                linkedBy = null;
+            }
+            if (linkedBy == null) {
+                // No reasonable fallback — the NOT NULL constraint would
+                // reject the insert. Skip silently with a debug note; the
+                // TE can link this row later via the catalog API.
+                skippedFailed++;
+                log.debug("[SchemaFixupRunner] repo-backfill skipped project {} — no assigned_by to attribute the link",
+                        projectId);
+                continue;
+            }
+
+            try {
+                int inserted = jdbcTemplate.update(
+                        "INSERT INTO project_repositories "
+                                + "  (id, project_id, repository_name, repository_url, "
+                                + "   linked_by_id, created_at, updated_at) "
+                                + "VALUES (gen_random_uuid(), ?, ?, ?, ?, NOW(), NOW()) "
+                                + "ON CONFLICT (project_id) DO NOTHING",
+                        projectId, repoName, matchedUrl, linkedBy);
+                if (inserted > 0) {
+                    created++;
+                    log.info("[SchemaFixupRunner] repo-backfill linked project {} → {}",
+                            projectId, matchedUrl);
+                }
+            } catch (Exception e) {
+                skippedFailed++;
+                log.warn("[SchemaFixupRunner] repo-backfill insert failed for project {}: {}",
+                        projectId, e.getMessage());
+            }
+        }
+
+        log.info("[SchemaFixupRunner] repo-backfill done. scanned={} created={} no-github-url={} failed={}",
+                scanned, created, skippedNoGithub, skippedFailed);
     }
 }

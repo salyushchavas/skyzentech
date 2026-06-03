@@ -412,10 +412,15 @@ function AllocateProjectModal({
               rows={2}
               value={resourceLinks}
               onChange={(e) => setResourceLinks(e.target.value)}
-              placeholder="https://repo.example.com/seed-app
+              placeholder="https://github.com/your-org/your-repo.git
 https://docs.example.com/spec"
               className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
             />
+            <p className="mt-1.5 text-xs text-slate-500">
+              Tip: include a GitHub repository URL (e.g.{' '}
+              <span className="font-mono">https://github.com/your-org/your-repo.git</span>) and
+              we&apos;ll auto-link it as the project&apos;s repository in the intern&apos;s view.
+            </p>
           </FieldRow>
           <div className="grid grid-cols-2 gap-3">
             <FieldRow label="Start date">
