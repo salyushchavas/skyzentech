@@ -276,23 +276,52 @@ public class SchemaFixupRunner implements CommandLineRunner {
                     e.getMessage(), e);
         }
 
+        // access_granted was created via Hibernate's @Column(nullable=false)
+        // which does NOT emit a DB-level DEFAULT. The CREATE TABLE block above
+        // declares "NOT NULL DEFAULT FALSE" for fresh schemas, but on existing
+        // deployments the column already existed without a default — so the
+        // backfill INSERT below (which doesn't list access_granted) crashed on
+        // every boot with a not-null violation. Set the default explicitly so
+        // any future INSERT that omits the column also succeeds. Idempotent:
+        // SET DEFAULT FALSE on a column that already has it is a no-op.
+        try {
+            jdbcTemplate.execute(
+                    "ALTER TABLE project_assignments "
+                            + "ALTER COLUMN access_granted SET DEFAULT FALSE");
+            log.info("Ensured project_assignments.access_granted has DB-level DEFAULT FALSE.");
+        } catch (Exception e) {
+            log.warn("project_assignments.access_granted default set failed (non-fatal): {}",
+                    e.getMessage(), e);
+        }
+
         // Backfill — for each legacy projects row that has an intern_id but
         // no matching project_assignments row, mint one. Idempotent via the
         // NOT EXISTS guard. Translates the legacy ProjectStatus values to
         // the equivalent ProjectAssignmentStatus enum names (the assignment
         // enum was deliberately defined with the same upstream values).
+        //
+        // Two hardenings vs. the original block:
+        //   * Includes access_granted in the column list with value FALSE.
+        //     The DB-level default above also covers this, but listing it
+        //     explicitly keeps the INSERT readable and survives any future
+        //     deployment that drops the default.
+        //   * Status mapping: legacy NOT_STARTED isn't a member of
+        //     ProjectAssignmentStatus, so map it to ASSIGNED. All other
+        //     legacy statuses overlap by name with the assignment enum.
         try {
             int inserted = jdbcTemplate.update(
                     "INSERT INTO project_assignments "
                             + "  (id, project_id, intern_id, assigned_by_id, "
                             + "   assignment_date, due_date, notes, status, "
-                            + "   created_at, updated_at) "
+                            + "   created_at, updated_at, access_granted) "
                             + "SELECT gen_random_uuid(), p.id, c.user_id, p.assigned_by, "
                             + "       COALESCE(p.start_date, CURRENT_DATE), "
                             + "       p.due_date, NULL, "
-                            + "       COALESCE(p.status, 'ASSIGNED'), "
+                            + "       CASE WHEN p.status = 'NOT_STARTED' THEN 'ASSIGNED' "
+                            + "            ELSE COALESCE(p.status, 'ASSIGNED') END, "
                             + "       COALESCE(p.created_at, NOW()), "
-                            + "       COALESCE(p.updated_at, NOW()) "
+                            + "       COALESCE(p.updated_at, NOW()), "
+                            + "       FALSE "
                             + "FROM projects p "
                             + "JOIN candidates c ON c.id = p.intern_id "
                             + "WHERE p.intern_id IS NOT NULL "
@@ -303,8 +332,10 @@ public class SchemaFixupRunner implements CommandLineRunner {
                             + "    WHERE pa.project_id = p.id AND pa.intern_id = c.user_id"
                             + "  )");
             if (inserted > 0) {
-                log.info("Backfilled {} legacy projects → project_assignments rows.",
+                log.info("[SchemaFixupRunner] backfilled {} project_assignments from legacy projects",
                         inserted);
+            } else {
+                log.info("[SchemaFixupRunner] legacy project_assignments backfill: 0 rows (already up-to-date)");
             }
         } catch (Exception e) {
             log.warn("project_assignments backfill failed (non-fatal): {}",
