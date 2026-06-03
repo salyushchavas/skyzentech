@@ -42,6 +42,22 @@ public class GlobalExceptionHandler {
     }
 
     /**
+     * GitHub upstream failure (auth / scope / network). 502 Bad Gateway with
+     * a top-level {@code code = "github_call_failed"} so the TE UI can render
+     * a dedicated toast instead of treating it as a generic 500. The
+     * exception's message is the operator-readable reason — the token is
+     * never included.
+     */
+    @ExceptionHandler(com.skyzen.careers.github.GitHubIntegrationException.class)
+    public ResponseEntity<Map<String, Object>> handleGithubIntegration(
+            com.skyzen.careers.github.GitHubIntegrationException ex) {
+        Map<String, Object> body = new java.util.LinkedHashMap<>();
+        body.put("error", ex.getMessage());
+        body.put("code", "github_call_failed");
+        return ResponseEntity.status(HttpStatus.BAD_GATEWAY).body(body);
+    }
+
+    /**
      * Email-verification gate (phase 1.3). Returns 403 with a top-level
      * {@code code} field so the frontend can distinguish this from generic
      * forbidden responses and render the verify-email prompt instead of a raw

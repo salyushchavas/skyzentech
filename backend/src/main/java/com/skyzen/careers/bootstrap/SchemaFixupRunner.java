@@ -417,6 +417,12 @@ public class SchemaFixupRunner implements CommandLineRunner {
             jdbcTemplate.execute(
                     "ALTER TABLE project_assignments "
                             + "ADD COLUMN IF NOT EXISTS submission_notes TEXT");
+            // GitHub invitation id captured by GitHubService.addCollaborator on
+            // a successful grant. Null when the App is unconfigured (out-of-band
+            // grants) or when we haven't called GitHub for this assignment yet.
+            jdbcTemplate.execute(
+                    "ALTER TABLE project_assignments "
+                            + "ADD COLUMN IF NOT EXISTS github_invitation_id BIGINT");
             log.info("Ensured project_assignments lifecycle columns exist.");
         } catch (Exception e) {
             log.warn("project_assignments lifecycle-columns ensure failed (non-fatal): {}",

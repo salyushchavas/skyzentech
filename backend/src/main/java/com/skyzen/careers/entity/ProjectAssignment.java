@@ -98,6 +98,15 @@ public class ProjectAssignment {
     @Column(name = "access_granted_by_id")
     private UUID accessGrantedById;
 
+    /**
+     * GitHub invitation id returned by the collaborator-add API at the time
+     * we last granted access. Captured for future revocation and audit. Null
+     * until the first successful GitHub call; remains null when the App is
+     * unconfigured and the grant is purely an out-of-band acknowledgement.
+     */
+    @Column(name = "github_invitation_id")
+    private Long githubInvitationId;
+
     // ── Status-transition timestamps ───────────────────────────────────────
 
     @Column(name = "started_at")

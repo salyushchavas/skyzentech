@@ -3,6 +3,7 @@ package com.skyzen.careers.github;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.jsonwebtoken.Jwts;
+import jakarta.annotation.PostConstruct;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -19,6 +20,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.Base64;
 import java.util.Date;
+import java.util.Optional;
 import java.util.concurrent.locks.ReentrantLock;
 
 /**
@@ -98,6 +100,57 @@ public class GitHubService {
         return orgName;
     }
 
+    // ── Startup validation ─────────────────────────────────────────────────
+
+    /**
+     * Once the bean is fully constructed, probe GitHub with the configured
+     * credentials so the operator sees the auth status in startup logs.
+     *
+     * <p>For a GitHub App the right probe is {@code GET /installation/repositories}
+     * (an installation token doesn't have a {@code /user} representation —
+     * the App is the actor, not a person). The probe also surfaces the rate
+     * limit so misconfigured / throttled tokens are visible immediately.</p>
+     *
+     * <p>Non-blocking — any failure logs at ERROR and boot continues.</p>
+     */
+    @PostConstruct
+    void validateOnStartup() {
+        if (!isConfigured()) {
+            log.info("[GitHub] integration disabled (App not configured). Collaborator calls will no-op.");
+            return;
+        }
+        try {
+            String token = getInstallationToken();
+            HttpRequest req = HttpRequest.newBuilder(
+                            URI.create("https://api.github.com/installation/repositories?per_page=1"))
+                    .timeout(Duration.ofSeconds(10))
+                    .header("Authorization", "Bearer " + token)
+                    .header("Accept", "application/vnd.github+json")
+                    .header("X-GitHub-Api-Version", "2022-11-28")
+                    .GET()
+                    .build();
+            HttpResponse<String> res = http.send(req, HttpResponse.BodyHandlers.ofString());
+            if (res.statusCode() / 100 != 2) {
+                log.error("[GitHub] TOKEN VALIDATION FAILED — collaborator API calls will fail. "
+                                + "Status {}, body: {}",
+                        res.statusCode(), truncate(res.body(), 300));
+                return;
+            }
+            JsonNode root = objectMapper.readTree(res.body());
+            int totalCount = root.path("total_count").asInt(-1);
+            String remaining = res.headers().firstValue("X-RateLimit-Remaining").orElse("?");
+            log.info("[GitHub] authenticated for installation {} (org={}) — {} repos accessible, rate-limit remaining={}",
+                    installationId, orgName, totalCount, remaining);
+        } catch (Exception e) {
+            // Token mint can throw IllegalStateException on bad key / wrong
+            // installation id; the network call can throw IOException. Treat
+            // both as auth-broken and surface to the operator without
+            // blocking boot.
+            log.error("[GitHub] TOKEN VALIDATION FAILED — collaborator API calls will fail. Reason: {}",
+                    e.getMessage());
+        }
+    }
+
     /**
      * Returns a non-expired installation access token, minting a new one if
      * the cache is empty or near expiry. Thread-safe.
@@ -171,6 +224,178 @@ public class GitHubService {
             throw ise;
         } catch (Exception e) {
             throw new IllegalStateException("Failed to mint GitHub installation token", e);
+        }
+    }
+
+    // ── Collaborator API ───────────────────────────────────────────────────
+
+    /**
+     * Outcome of a collaborator-add call. {@code invitationId} is present for
+     * fresh invites (201 + body with an {@code id}) and absent for 204
+     * (already-collaborator) or 422 (already-added) responses where the
+     * desired end-state already holds. {@code op} carries an enum-friendly
+     * label for logging / DB persistence.
+     */
+    public record AddCollaboratorResult(Op op, Long invitationId) {
+        public enum Op { INVITED, ALREADY_COLLABORATOR, ALREADY_ADDED }
+        public boolean isSuccess() {
+            return op != null;
+        }
+    }
+
+    /**
+     * Add a GitHub user as a collaborator on {@code owner/repo}. Idempotent:
+     * if the user is already a direct collaborator GitHub returns 204 (we
+     * treat as {@link AddCollaboratorResult.Op#ALREADY_COLLABORATOR}); if a
+     * pending invitation already exists GitHub returns 422 (we treat as
+     * {@link AddCollaboratorResult.Op#ALREADY_ADDED}). Both are success in
+     * the sense that the desired end-state holds.
+     *
+     * <p>Throws {@link GitHubIntegrationException} on 403 (insufficient
+     * scope), 404 (user not found OR repo not in the installation's scope),
+     * or any other non-success status. The message is safe to surface to a
+     * TE: it never contains the token.</p>
+     *
+     * <p>Caller is responsible for the precondition that {@link #isConfigured()}
+     * is true — this method assumes the App is wired and will throw if the
+     * token mint fails.</p>
+     */
+    public AddCollaboratorResult addCollaborator(String owner, String repo, String githubUsername) {
+        String safeOwner = trimToNull(owner);
+        String safeRepo = trimToNull(repo);
+        String safeUser = trimToNull(githubUsername);
+        if (safeOwner == null || safeRepo == null || safeUser == null) {
+            throw new GitHubIntegrationException(
+                    "owner, repo, and githubUsername are all required");
+        }
+
+        log.info("[GitHub] adding collaborator {} to {}/{}", safeUser, safeOwner, safeRepo);
+
+        String token;
+        try {
+            token = getInstallationToken();
+        } catch (Exception e) {
+            log.error("[GitHub] token mint failed before collaborator call for {}/{}: {}",
+                    safeOwner, safeRepo, e.getMessage());
+            throw new GitHubIntegrationException(
+                    "GitHub App authentication failed — check installation id and private key");
+        }
+
+        String url = "https://api.github.com/repos/" + safeOwner + "/" + safeRepo
+                + "/collaborators/" + safeUser;
+        HttpRequest req = HttpRequest.newBuilder(URI.create(url))
+                .timeout(Duration.ofSeconds(10))
+                .header("Authorization", "Bearer " + token)
+                .header("Accept", "application/vnd.github+json")
+                .header("X-GitHub-Api-Version", "2022-11-28")
+                .header("Content-Type", "application/json")
+                // Default permission is "push" — interns get write access on
+                // their own working repository. Other values (pull, admin)
+                // would need a per-project knob; the current model is one
+                // repo per project so push is the right baseline.
+                .PUT(HttpRequest.BodyPublishers.ofString("{\"permission\":\"push\"}"))
+                .build();
+        HttpResponse<String> res;
+        try {
+            res = http.send(req, HttpResponse.BodyHandlers.ofString());
+        } catch (Exception e) {
+            log.error("[GitHub] call failed: network error adding {} to {}/{}: {}",
+                    safeUser, safeOwner, safeRepo, e.getMessage());
+            throw new GitHubIntegrationException(
+                    "GitHub API call failed: " + e.getMessage());
+        }
+        int status = res.statusCode();
+        String body = res.body();
+
+        if (status == 201) {
+            Long invitationId = readInvitationId(body);
+            log.info("[GitHub] collaborator invited: {} -> {}/{}, invitation id {}",
+                    safeUser, safeOwner, safeRepo, invitationId);
+            return new AddCollaboratorResult(AddCollaboratorResult.Op.INVITED, invitationId);
+        }
+        if (status == 204) {
+            log.info("[GitHub] collaborator already added (204 no-content): {} -> {}/{}",
+                    safeUser, safeOwner, safeRepo);
+            return new AddCollaboratorResult(AddCollaboratorResult.Op.ALREADY_COLLABORATOR, null);
+        }
+        if (status == 422) {
+            log.warn("[GitHub] collaborator {} already added to {}/{} (422) — treating as success",
+                    safeUser, safeOwner, safeRepo);
+            return new AddCollaboratorResult(AddCollaboratorResult.Op.ALREADY_ADDED, null);
+        }
+        if (status == 404) {
+            log.warn("[GitHub] user {} not found OR repo {}/{} not accessible to this installation (404)",
+                    safeUser, safeOwner, safeRepo);
+            throw new GitHubIntegrationException(
+                    "GitHub user '" + safeUser + "' not found, or repository '"
+                            + safeOwner + "/" + safeRepo + "' is not in this App's installation scope.");
+        }
+        if (status == 403) {
+            log.warn("[GitHub] insufficient permissions for {}/{} — check App scopes / installation",
+                    safeOwner, safeRepo);
+            throw new GitHubIntegrationException(
+                    "GitHub App lacks permission for '" + safeOwner + "/" + safeRepo
+                            + "' — confirm the installation includes this repo and has Members: write.");
+        }
+        log.error("[GitHub] call failed: {} {}", status, truncate(body, 300));
+        throw new GitHubIntegrationException(
+                "GitHub returned " + status + " when adding collaborator");
+    }
+
+    private Long readInvitationId(String body) {
+        if (body == null || body.isBlank()) return null;
+        try {
+            JsonNode root = objectMapper.readTree(body);
+            JsonNode id = root.path("id");
+            return id.isNumber() ? id.asLong() : null;
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    // ── Rate-limit probe (for admin health endpoint) ───────────────────────
+
+    /**
+     * Snapshot of GitHub rate-limit state for the configured App installation.
+     * Drives the admin health endpoint without leaking the token.
+     */
+    public record HealthSnapshot(
+            boolean enabled,
+            boolean authenticated,
+            String orgName,
+            String installationId,
+            Integer rateLimitRemaining,
+            Long rateLimitResetAtEpochSeconds,
+            String error
+    ) {}
+
+    public HealthSnapshot probeHealth() {
+        if (!isConfigured()) {
+            return new HealthSnapshot(false, false, null, null, null, null,
+                    "GitHub App not configured");
+        }
+        try {
+            String token = getInstallationToken();
+            HttpRequest req = HttpRequest.newBuilder(URI.create("https://api.github.com/rate_limit"))
+                    .timeout(Duration.ofSeconds(10))
+                    .header("Authorization", "Bearer " + token)
+                    .header("Accept", "application/vnd.github+json")
+                    .header("X-GitHub-Api-Version", "2022-11-28")
+                    .GET()
+                    .build();
+            HttpResponse<String> res = http.send(req, HttpResponse.BodyHandlers.ofString());
+            if (res.statusCode() / 100 != 2) {
+                return new HealthSnapshot(true, false, orgName, installationId, null, null,
+                        "GitHub /rate_limit returned " + res.statusCode());
+            }
+            JsonNode root = objectMapper.readTree(res.body());
+            JsonNode core = root.path("resources").path("core");
+            Integer remaining = core.has("remaining") ? core.get("remaining").asInt() : null;
+            Long reset = core.has("reset") ? core.get("reset").asLong() : null;
+            return new HealthSnapshot(true, true, orgName, installationId, remaining, reset, null);
+        } catch (Exception e) {
+            return new HealthSnapshot(true, false, orgName, installationId, null, null,
+                    "probe failed: " + e.getMessage());
         }
     }
 

@@ -15,6 +15,8 @@ import com.skyzen.careers.enums.UserRole;
 import com.skyzen.careers.exception.BadRequestException;
 import com.skyzen.careers.exception.ForbiddenException;
 import com.skyzen.careers.exception.ResourceNotFoundException;
+import com.skyzen.careers.github.GitHubIntegrationException;
+import com.skyzen.careers.github.GitHubService;
 import com.skyzen.careers.repository.EngagementRepository;
 import com.skyzen.careers.repository.ProjectAssignmentRepository;
 import com.skyzen.careers.repository.ProjectRepository;
@@ -56,6 +58,15 @@ public class ProjectAssignmentService {
     private final EngagementRepository engagementRepository;
     private final com.skyzen.careers.repository.ProjectRepositoryLinkRepository
             repositoryLinkRepository;
+    private final GitHubService gitHubService;
+
+    /**
+     * GitHub repo URL parsing — same shape as the legacy resource-link mirror
+     * in ProjectService. Used to derive {@code owner / repo} from the link
+     * row before calling the collaborator API.
+     */
+    private static final java.util.regex.Pattern GITHUB_REPO_URL =
+            java.util.regex.Pattern.compile("^https?://github\\.com/([\\w.-]+)/([\\w.-]+?)(\\.git)?/?$");
 
     @Transactional
     public AssignProjectResultResponse assignToInterns(
@@ -135,12 +146,58 @@ public class ProjectAssignmentService {
         if (Boolean.TRUE.equals(a.getAccessGranted())) {
             return mapWithGraph(List.of(a)).get(0);
         }
+
+        // When the GitHub App is configured we actually invite the user as a
+        // repo collaborator. When it isn't, the flag flip remains a purely
+        // platform-internal acknowledgement (the TE invited them on GitHub
+        // manually) — same semantics as before. Both paths share the
+        // precondition that we know which repo + which GitHub user.
+        Long invitationId = null;
+        if (gitHubService.isConfigured()) {
+            // Resolve intern GitHub username from the user row.
+            User internUser = userRepository.findById(a.getInternId())
+                    .orElseThrow(() -> new BadRequestException(
+                            "Intern user not found for this assignment."));
+            String ghUsername = internUser.getGithubUsername();
+            if (ghUsername == null || ghUsername.isBlank()) {
+                throw new BadRequestException(
+                        "Intern has not set a GitHub username yet. They must add it on "
+                                + "their assignment page before access can be granted.");
+            }
+
+            // Resolve owner / repo from the project's linked repository.
+            com.skyzen.careers.entity.ProjectRepositoryLink link = repositoryLinkRepository
+                    .findByProjectId(a.getProjectId())
+                    .orElseThrow(() -> new BadRequestException(
+                            "No repository is linked to this project. Link one before granting access."));
+            java.util.regex.Matcher m = GITHUB_REPO_URL.matcher(
+                    link.getRepositoryUrl() == null ? "" : link.getRepositoryUrl().trim());
+            if (!m.matches()) {
+                throw new BadRequestException(
+                        "Linked repository URL is not a GitHub repo URL — can't grant access automatically.");
+            }
+            String owner = m.group(1);
+            String repo = m.group(2);
+
+            GitHubService.AddCollaboratorResult result =
+                    gitHubService.addCollaborator(owner, repo, ghUsername);
+            invitationId = result.invitationId();
+            log.info("[ProjectAssignmentService] GitHub collaborator-add op={} invitationId={} for assignment={}",
+                    result.op(), invitationId, assignmentId);
+        } else {
+            log.info("[ProjectAssignmentService] GitHub App not configured — recording out-of-band grant "
+                    + "for assignment={}", assignmentId);
+        }
+
         a.setAccessGranted(Boolean.TRUE);
         a.setAccessGrantedAt(java.time.Instant.now());
         a.setAccessGrantedById(actor.getId());
+        if (invitationId != null) {
+            a.setGithubInvitationId(invitationId);
+        }
         projectAssignmentRepository.save(a);
-        log.info("[ProjectAssignmentService] access granted assignment={} by={}",
-                assignmentId, actor.getId());
+        log.info("[ProjectAssignmentService] access granted assignment={} by={} invitationId={}",
+                assignmentId, actor.getId(), invitationId);
         return mapWithGraph(List.of(a)).get(0);
     }
 
