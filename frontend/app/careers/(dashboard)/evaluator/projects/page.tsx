@@ -206,19 +206,19 @@ function Body() {
                   </span>
                   <span className="text-xs text-gray-500">{rows.length}</span>
                 </div>
-                <ul className="space-y-2">
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
                   {rows.map((p) => (
-                    <li
+                    <div
                       key={p.id}
-                      className="rounded-lg border border-gray-200 bg-white p-4 transition-shadow hover:shadow-sm"
+                      className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm transition hover:border-accent/40 hover:shadow-md"
                     >
                       <ProjectRow
                         project={p}
                         onReview={() => setReviewing(p)}
                       />
-                    </li>
+                    </div>
                   ))}
-                </ul>
+                </div>
               </section>
             );
           })}

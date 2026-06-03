@@ -26,6 +26,7 @@ public enum NotificationEventType {
     APPLICATION_REJECTED,        // status flipped to REJECTED
     INTERVIEW_SCHEDULED,         // a new Interview row exists
     INTERVIEW_REMINDER,          // 24h before, scheduled job
+    INTERVIEW_COMPLETED,         // Change 4: scorecard finalized → applicant ack
     OFFER_EXTENDED,              // Offer.status SENT
     OFFER_ACCEPTED,              // applicant confirmation
     OFFER_ACCEPTED_OPS,          // notification to Operations

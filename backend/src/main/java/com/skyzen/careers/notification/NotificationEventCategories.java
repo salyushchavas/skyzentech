@@ -38,6 +38,8 @@ final class NotificationEventCategories {
 
         // Interview reminder — categorised as a reminder, opt-outable.
         MAP.put(NotificationEventType.INTERVIEW_REMINDER, NotificationCategory.REMINDERS);
+        // Interview completion ack — applicant should always be told.
+        MAP.put(NotificationEventType.INTERVIEW_COMPLETED, NotificationCategory.TRANSACTIONAL);
 
         // ── Compliance / onboarding — mix of transactional + reminders. ──────
         // First-time I-9 §1 reminder fires at engagement activation; classify

@@ -1,6 +1,7 @@
 package com.skyzen.careers.controller;
 
 import com.skyzen.careers.dto.candidate.CandidateDashboardResponse;
+import com.skyzen.careers.dto.candidate.DashboardStatusDTO;
 import com.skyzen.careers.entity.User;
 import com.skyzen.careers.service.CandidateDashboardService;
 import lombok.RequiredArgsConstructor;
@@ -26,5 +27,17 @@ public class CandidateDashboardController {
     @PreAuthorize("hasAnyRole('APPLICANT', 'INTERN')")
     public CandidateDashboardResponse dashboard(@AuthenticationPrincipal User caller) {
         return candidateDashboardService.build(caller);
+    }
+
+    /**
+     * Change 2 — rich status payload for the "Your Journey" panel: overall
+     * stage, the same next-step card, the full ordered timeline (with skipped
+     * steps marked, not omitted), and the last-10 recent updates feed. The
+     * frontend polls this every 30s while the dashboard is visible.
+     */
+    @GetMapping("/dashboard-status")
+    @PreAuthorize("hasAnyRole('APPLICANT', 'INTERN')")
+    public DashboardStatusDTO dashboardStatus(@AuthenticationPrincipal User caller) {
+        return candidateDashboardService.getDashboardStatus(caller);
     }
 }

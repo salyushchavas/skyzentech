@@ -22,7 +22,9 @@ import com.skyzen.careers.enums.UserRole;
 import com.skyzen.careers.exception.BadRequestException;
 import com.skyzen.careers.exception.ForbiddenException;
 import com.skyzen.careers.exception.ResourceNotFoundException;
+import com.skyzen.careers.event.InterviewCompletedEvent;
 import com.skyzen.careers.notification.NotificationService;
+import org.springframework.context.ApplicationEventPublisher;
 import com.skyzen.careers.repository.ApplicationRepository;
 import com.skyzen.careers.repository.AuditLogRepository;
 import com.skyzen.careers.repository.InterviewRepository;
@@ -57,6 +59,7 @@ public class InterviewService {
     private final ObjectMapper objectMapper;
     private final ApplicationService applicationService;
     private final NotificationService notificationService;
+    private final ApplicationEventPublisher eventPublisher;
 
     // ── Commands ────────────────────────────────────────────────────────────
 
@@ -243,6 +246,22 @@ public class InterviewService {
 
         writeAudit("Interview", interview.getId(), "SUBMIT_SCORECARD", submitter.getId(),
                 before, snapshot(interview));
+
+        // Change 4 — fire applicant acknowledgment AFTER_COMMIT. Listener
+        // writes a sent_notifications row and is best-effort: listener failure
+        // never rolls back the scorecard write above.
+        Candidate cand = application.getCandidate();
+        UUID candUserId = (cand != null && cand.getUser() != null) ? cand.getUser().getId() : null;
+        String candEmail = (cand != null && cand.getUser() != null) ? cand.getUser().getEmail() : null;
+        eventPublisher.publishEvent(new InterviewCompletedEvent(
+                interview.getId(),
+                application.getId(),
+                candUserId,
+                candEmail,
+                interview.getFeedbackRecommendation(),
+                interview.getFeedbackSubmittedAt(),
+                submitter.getId()));
+
         return toResponse(interview);
     }
 

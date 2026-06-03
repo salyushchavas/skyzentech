@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import api from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
-import JobPostingCard from '@/components/JobPostingCard';
+import JobCard from '@/components/jobs/JobCard';
 import AppliedJobPostingCard from '@/components/careers/AppliedJobPostingCard';
 import type { JobPostingResponse, Page } from '@/types';
 
@@ -83,7 +83,19 @@ export default function OpeningsSplit({ initialPostings }: Props) {
     return (
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {postings.map((p) => (
-          <JobPostingCard key={p.id} posting={p} />
+          <JobCard
+            key={p.id}
+            posting={p}
+            onApplied={(jobPostingId, applicationId) => {
+              setPostings((prev) =>
+                prev.map((row) =>
+                  row.id === jobPostingId
+                    ? { ...row, applied: true, applicationId, applicationStatus: 'APPLIED' }
+                    : row,
+                ),
+              );
+            }}
+          />
         ))}
       </div>
     );
@@ -137,7 +149,19 @@ export default function OpeningsSplit({ initialPostings }: Props) {
         ) : (
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {available.map((p) => (
-              <JobPostingCard key={p.id} posting={p} />
+              <JobCard
+            key={p.id}
+            posting={p}
+            onApplied={(jobPostingId, applicationId) => {
+              setPostings((prev) =>
+                prev.map((row) =>
+                  row.id === jobPostingId
+                    ? { ...row, applied: true, applicationId, applicationStatus: 'APPLIED' }
+                    : row,
+                ),
+              );
+            }}
+          />
             ))}
           </div>
         )}

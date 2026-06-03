@@ -25,6 +25,7 @@ import { useAuth } from '@/lib/auth-context';
 import DashboardLayout from '@/components/dashboard/DashboardLayout';
 import ProtectedRoute from '@/components/ProtectedRoute';
 import JourneyBar from '@/components/dashboard/JourneyBar';
+import YourJourneyPanel from '@/components/candidate/YourJourneyPanel';
 import type {
   CandidateJourney,
   CandidateResumeInfo,
@@ -258,6 +259,12 @@ function CandidateDashboardBody() {
         stagePill={stagePill}
         stageIsExited={journey?.isExited ?? false}
       />
+
+      {/* Change 2 — full-width "Your Journey" panel: stage pill, next step,
+          timeline, and recent activity feed. Polls every 30s. Replaces the
+          older standalone onboarding tile so HR/Operations actions surface
+          on the intern side without a refresh. */}
+      <YourJourneyPanel />
 
       {/* Journey bar — same component, Phase-2 stages on the intern face */}
       {journey && <JourneyBar journey={journey} />}

@@ -2,6 +2,8 @@ package com.skyzen.careers.service;
 
 import com.skyzen.careers.application.ApplicationLifecycle;
 import com.skyzen.careers.dto.candidate.CandidateDashboardResponse;
+import com.skyzen.careers.dto.candidate.DashboardStatusDTO;
+import com.skyzen.careers.notification.NotificationEventType;
 import com.skyzen.careers.entity.Application;
 import com.skyzen.careers.entity.AuditLog;
 import com.skyzen.careers.entity.Candidate;
@@ -41,6 +43,7 @@ import com.skyzen.careers.entity.Project;
 import com.skyzen.careers.enums.ProjectStatus;
 import com.skyzen.careers.repository.ResumeRepository;
 import com.skyzen.careers.repository.ScreeningRepository;
+import com.skyzen.careers.repository.SentNotificationRepository;
 import com.skyzen.careers.repository.TimesheetRepository;
 import com.skyzen.careers.repository.UserRepository;
 import com.skyzen.careers.repository.WeeklyMaterialRepository;
@@ -116,6 +119,7 @@ public class CandidateDashboardService {
     private final ProjectRepository projectRepository;
     private final com.skyzen.careers.repository.EvaluationRepository evaluationRepository;
     private final ComplianceRoutingService complianceRoutingService;
+    private final SentNotificationRepository sentNotificationRepository;
 
     @Transactional(readOnly = true)
     public CandidateDashboardResponse build(User caller) {
@@ -1908,5 +1912,495 @@ public class CandidateDashboardService {
                 .ctaLabel(null)
                 .ctaHref(null)
                 .build();
+    }
+
+    // ── Change 2 — DashboardStatusDTO (rich timeline + recent updates) ──────
+
+    /**
+     * Build the richer "Your Journey" payload served by
+     * {@code GET /api/v1/candidate/dashboard-status}.
+     *
+     * <p>Derived purely on read — no denormalised timeline table; the timeline
+     * is computed fresh on each call from the candidate's application, offer,
+     * I-9, I-983, E-Verify, onboarding-task, and engagement rows. Non-applicable
+     * steps (e.g. I-983 for non-STEM-OPT tracks) are kept and tagged
+     * {@code SKIPPED} so the intern sees what is not required, not just what is
+     * done.</p>
+     */
+    @Transactional(readOnly = true)
+    public DashboardStatusDTO getDashboardStatus(User caller) {
+        if (caller == null || caller.getId() == null) {
+            return DashboardStatusDTO.builder()
+                    .overallStage("APPLIED")
+                    .timeline(Collections.emptyList())
+                    .recentUpdates(Collections.emptyList())
+                    .build();
+        }
+
+        // Reuse the existing aggregate so we don't duplicate the priority
+        // ladder for nextStep / journey resolution.
+        CandidateDashboardResponse base = build(caller);
+        Candidate candidate = candidateRepository.findByUserId(caller.getId()).orElse(null);
+
+        List<DashboardStatusDTO.TimelineStepDTO> timeline = candidate != null
+                ? buildTimeline(candidate)
+                : Collections.emptyList();
+
+        List<DashboardStatusDTO.RecentUpdateDTO> recent = buildRecentUpdates(caller);
+
+        String overallStage = resolveOverallStage(candidate, base);
+
+        return DashboardStatusDTO.builder()
+                .overallStage(overallStage)
+                .nextStep(base.getNextStep())
+                .timeline(timeline)
+                .recentUpdates(recent)
+                .build();
+    }
+
+    private String resolveOverallStage(Candidate candidate, CandidateDashboardResponse base) {
+        if (candidate == null) return "APPLIED";
+        if (base != null && base.getEngagement() != null
+                && "ACTIVE".equals(base.getEngagement().getStatus())) {
+            return "ACTIVE";
+        }
+        if (base != null && base.getEngagement() != null
+                && "COMPLETED".equals(base.getEngagement().getStatus())) {
+            return "COMPLETED";
+        }
+        if (base != null && base.getJourney() != null) {
+            String key = base.getJourney().getCurrentStageKey();
+            if (key != null && !key.equals("EXITED")) return key;
+            if (base.getJourney().isExited()) return "REJECTED";
+        }
+        return "APPLIED";
+    }
+
+    private List<DashboardStatusDTO.TimelineStepDTO> buildTimeline(Candidate candidate) {
+        UUID candidateId = candidate.getId();
+
+        List<Application> apps = applicationRepository
+                .findByCandidateIdWithPosting(candidateId);
+        Application anchor = apps.stream()
+                .filter(a -> !ApplicationLifecycle.isExited(a.getStatus()))
+                .max(Comparator.comparingInt(a -> ApplicationLifecycle.stageIndexOf(a.getStatus())))
+                .orElse(apps.isEmpty() ? null : apps.get(0));
+        ApplicationStatus appStatus = anchor != null ? anchor.getStatus() : null;
+
+        List<Interview> interviews = anchor != null
+                ? interviewRepository.findAllForCandidateUser(candidate.getUser().getId())
+                : Collections.emptyList();
+        Interview completedInterview = interviews.stream()
+                .filter(i -> i.getStatus() == InterviewStatus.COMPLETED)
+                .max(Comparator.comparing(Interview::getFeedbackSubmittedAt,
+                        Comparator.nullsLast(Comparator.naturalOrder())))
+                .orElse(null);
+        Interview scheduledInterview = interviews.stream()
+                .filter(i -> i.getStatus() == InterviewStatus.SCHEDULED)
+                .findFirst()
+                .orElse(null);
+
+        List<Offer> offers = offerRepository.findByCandidateUserIdWithGraph(candidate.getUser().getId());
+        Offer accepted = offers.stream()
+                .filter(o -> o.getStatus() == OfferStatus.ACCEPTED)
+                .findFirst()
+                .orElse(null);
+        Offer sent = offers.stream()
+                .filter(o -> o.getStatus() == OfferStatus.SENT)
+                .findFirst()
+                .orElse(null);
+
+        I9Form i9 = i9FormRepository.findByCandidateId(candidateId).orElse(null);
+        boolean isStemOpt = candidate.getExpectedTrack()
+                == com.skyzen.careers.enums.WorkAuthTrack.STEM_OPT;
+        I983Plan i983 = i983PlanRepository.findByCandidateIdOrderByCreatedAtDesc(candidateId).stream()
+                .findFirst().orElse(null);
+        EVerifyCase everifyCase = i9 != null
+                ? everifyCaseRepository.findByI9FormId(i9.getId()).orElse(null)
+                : null;
+        Engagement engagement = engagementRepository.findByCandidateId(candidateId).stream()
+                .filter(e -> e.getStatus() != EngagementStatus.TERMINATED)
+                .findFirst()
+                .orElse(null);
+        List<OnboardingTask> tasks = onboardingTaskRepository
+                .findByCandidateIdOrderBySortOrderAsc(candidateId);
+
+        List<DashboardStatusDTO.TimelineStepDTO> out = new ArrayList<>();
+
+        // APPLIED
+        out.add(step("APPLIED", "Applied",
+                anchor != null ? "DONE" : "NOT_STARTED",
+                anchor != null ? anchor.getAppliedAt() : null,
+                null,
+                "Your application has been received.",
+                false, null));
+
+        // SCREENING
+        boolean screeningRequired = appStatus == ApplicationStatus.SCREENING_SENT
+                || appStatus == ApplicationStatus.SCREENING_COMPLETED
+                || (anchor != null && screeningRepository
+                        .findByApplicationIdWithGraph(anchor.getId()).isPresent());
+        if (!screeningRequired) {
+            out.add(step("SCREENING", "Screening",
+                    "SKIPPED", null, null,
+                    "Screening not required for this role.",
+                    false, null));
+        } else if (appStatus == ApplicationStatus.SCREENING_COMPLETED
+                || isAtOrPast(appStatus, ApplicationStatus.SHORTLISTED)) {
+            out.add(step("SCREENING", "Screening",
+                    "DONE", null, null,
+                    "Recruiter screening completed.",
+                    false, null));
+        } else if (appStatus == ApplicationStatus.SCREENING_SENT) {
+            out.add(step("SCREENING", "Screening",
+                    "IN_PROGRESS", null, null,
+                    "Complete the screening questionnaire.",
+                    true, "/careers/candidate/applications"));
+        } else {
+            out.add(step("SCREENING", "Screening",
+                    "NOT_STARTED", null, null,
+                    "Screening not yet sent.",
+                    false, null));
+        }
+
+        // INTERVIEW
+        if (completedInterview != null) {
+            out.add(step("INTERVIEW", "Interview",
+                    "DONE",
+                    completedInterview.getFeedbackSubmittedAt(),
+                    null,
+                    interviewDoneDescription(completedInterview),
+                    true,
+                    "/careers/candidate/interviews/" + completedInterview.getId()));
+        } else if (scheduledInterview != null) {
+            out.add(step("INTERVIEW", "Interview",
+                    "IN_PROGRESS", null, null,
+                    "Interview scheduled — check your calendar.",
+                    false, "/careers/candidate/interviews"));
+        } else if (appStatus == ApplicationStatus.INTERVIEWED) {
+            out.add(step("INTERVIEW", "Interview",
+                    "DONE", null, null,
+                    "Interview completed.", false, null));
+        } else {
+            out.add(step("INTERVIEW", "Interview",
+                    "NOT_STARTED", null, null,
+                    "Awaiting interview scheduling.", false, null));
+        }
+
+        // OFFER_ACCEPTED
+        if (accepted != null) {
+            out.add(step("OFFER_ACCEPTED", "Offer accepted",
+                    "DONE",
+                    accepted.getRespondedAt() != null
+                            ? accepted.getRespondedAt()
+                            : accepted.getUpdatedAt(),
+                    null,
+                    "You accepted the offer.",
+                    false, null));
+        } else if (sent != null) {
+            out.add(step("OFFER_ACCEPTED", "Offer accepted",
+                    "IN_PROGRESS", null, null,
+                    "Respond to your offer.",
+                    true, "/careers/candidate/offers"));
+        } else {
+            out.add(step("OFFER_ACCEPTED", "Offer accepted",
+                    "NOT_STARTED", null, null,
+                    "An offer hasn't been issued yet.", false, null));
+        }
+
+        // I9_SECTION1
+        String i9s1Status; Instant i9s1At = null; boolean s1Action = false;
+        String i9s1Desc = "I-9 Section 1 — completed by the intern.";
+        if (i9 != null && i9.getSection1SignedAt() != null) {
+            i9s1Status = "DONE"; i9s1At = i9.getSection1SignedAt();
+        } else if (engagement != null
+                && (engagement.getStatus() == EngagementStatus.PENDING_COMPLIANCE
+                        || engagement.getStatus() == EngagementStatus.READY_TO_START)) {
+            i9s1Status = "IN_PROGRESS"; s1Action = true;
+            i9s1Desc = "Complete Section 1 of your I-9.";
+        } else {
+            i9s1Status = "NOT_STARTED";
+        }
+        out.add(step("I9_SECTION1", "I-9 Section 1",
+                i9s1Status, i9s1At, null,
+                i9s1Desc, s1Action, s1Action ? "/careers/candidate/i9" : null));
+
+        // I9_SECTION2
+        String i9s2Status; Instant i9s2At = null; String i9s2Wait = null;
+        if (i9 != null && i9.getStatus() == I9Status.COMPLETED && i9.getSection2SignedAt() != null) {
+            i9s2Status = "DONE"; i9s2At = i9.getSection2SignedAt();
+        } else if (i9 != null && i9.getSection1SignedAt() != null) {
+            i9s2Status = "WAITING"; i9s2Wait = "HR";
+        } else {
+            i9s2Status = "NOT_STARTED";
+        }
+        out.add(step("I9_SECTION2", "I-9 Section 2 (HR verification)",
+                i9s2Status, i9s2At, i9s2Wait,
+                "I-9 Section 2 — verified by HR.",
+                false, null));
+
+        // I983 (only when STEM OPT)
+        if (!isStemOpt) {
+            out.add(step("I983", "I-983 Training Plan",
+                    "SKIPPED", null, null,
+                    "Not applicable for your work-authorization track.",
+                    false, null));
+        } else if (i983 == null) {
+            out.add(step("I983", "I-983 Training Plan",
+                    "NOT_STARTED", null, null,
+                    "STEM OPT training plan to be drafted.",
+                    false, null));
+        } else {
+            switch (i983.getStatus()) {
+                case DSO_APPROVED -> out.add(step("I983", "I-983 Training Plan",
+                        "DONE", i983.getDsoRespondedAt(), null,
+                        "DSO approved your training plan.",
+                        false, "/careers/candidate/training-plans/" + i983.getId()));
+                case SUBMITTED_TO_DSO -> out.add(step("I983", "I-983 Training Plan",
+                        "WAITING", null, "DSO",
+                        "Submitted — DSO review pending.",
+                        false, "/careers/candidate/training-plans/" + i983.getId()));
+                case DSO_REJECTED, AMENDMENT_REQUESTED -> out.add(step("I983", "I-983 Training Plan",
+                        "BLOCKED", null, null,
+                        "DSO requested changes.",
+                        true, "/careers/candidate/training-plans/" + i983.getId()));
+                default -> out.add(step("I983", "I-983 Training Plan",
+                        "IN_PROGRESS", null, null,
+                        "Drafting your training plan.",
+                        true, "/careers/candidate/training-plans/" + i983.getId()));
+            }
+        }
+
+        // E_VERIFY
+        if (everifyCase == null) {
+            if (i9 != null && i9.getStatus() == I9Status.COMPLETED) {
+                out.add(step("E_VERIFY", "E-Verify",
+                        "WAITING", null, "HR",
+                        "HR will open your E-Verify case.",
+                        false, null));
+            } else {
+                out.add(step("E_VERIFY", "E-Verify",
+                        "NOT_STARTED", null, null,
+                        "Case opened by HR after I-9 completion.",
+                        false, null));
+            }
+        } else {
+            switch (everifyCase.getStatus()) {
+                case EMPLOYMENT_AUTHORIZED -> out.add(step("E_VERIFY", "E-Verify",
+                        "DONE", everifyCase.getClosedAt(), null,
+                        "Employment authorized.", false, null));
+                case CLOSED -> out.add(step("E_VERIFY", "E-Verify",
+                        "DONE", everifyCase.getClosedAt(), null,
+                        "Case closed.", false, null));
+                case TENTATIVE_NONCONFIRMATION, FINAL_NONCONFIRMATION -> out.add(step(
+                        "E_VERIFY", "E-Verify",
+                        "BLOCKED", null, null,
+                        "Action required to resolve E-Verify.",
+                        false, null));
+                default -> out.add(step("E_VERIFY", "E-Verify",
+                        "IN_PROGRESS", null, null,
+                        "E-Verify case in progress.", false, null));
+            }
+        }
+
+        // ONBOARDING_TASKS
+        long total = tasks.size();
+        long done = tasks.stream()
+                .filter(t -> t.getStatus() == OnboardingTaskStatus.COMPLETED)
+                .count();
+        String tasksStatus;
+        String tasksDesc;
+        boolean tasksAction = false;
+        if (total == 0) {
+            tasksStatus = engagement != null ? "NOT_STARTED" : "SKIPPED";
+            tasksDesc = engagement != null
+                    ? "No onboarding tasks yet."
+                    : "Onboarding tasks unlock after offer acceptance.";
+        } else if (done == total) {
+            tasksStatus = "DONE";
+            tasksDesc = total + " of " + total + " complete.";
+        } else {
+            tasksStatus = "IN_PROGRESS"; tasksAction = true;
+            tasksDesc = done + " of " + total + " complete.";
+        }
+        out.add(step("ONBOARDING_TASKS", "Onboarding tasks",
+                tasksStatus, null, null, tasksDesc,
+                tasksAction, tasksAction ? "/careers/candidate/onboarding" : null));
+
+        // HR_ACTIVATION
+        if (engagement == null) {
+            out.add(step("HR_ACTIVATION", "HR activation",
+                    "NOT_STARTED", null, null,
+                    "HR will activate your engagement once compliance is complete.",
+                    false, null));
+        } else if (engagement.getStatus() == EngagementStatus.PENDING_COMPLIANCE) {
+            out.add(step("HR_ACTIVATION", "HR activation",
+                    "WAITING", null, "HR",
+                    "Awaiting HR to activate your engagement.",
+                    false, null));
+        } else if (engagement.getStatus() == EngagementStatus.READY_TO_START
+                || engagement.getStatus() == EngagementStatus.ACTIVE
+                || engagement.getStatus() == EngagementStatus.COMPLETED) {
+            out.add(step("HR_ACTIVATION", "HR activation",
+                    "DONE",
+                    engagement.getUpdatedAt(),
+                    null,
+                    "HR activated your engagement.",
+                    false, null));
+        } else {
+            out.add(step("HR_ACTIVATION", "HR activation",
+                    "BLOCKED", null, null,
+                    "Engagement blocked — see compliance.",
+                    false, null));
+        }
+
+        // FIRST_DAY / ACTIVE
+        if (engagement != null && engagement.getStatus() == EngagementStatus.ACTIVE) {
+            out.add(step("FIRST_DAY", "First day",
+                    "DONE",
+                    engagement.getUpdatedAt(),
+                    null,
+                    "You're active — welcome aboard.", false, null));
+        } else if (engagement != null
+                && engagement.getStatus() == EngagementStatus.READY_TO_START) {
+            out.add(step("FIRST_DAY", "First day",
+                    "IN_PROGRESS", null, null,
+                    "Ready to start — first day is coming up.",
+                    false, null));
+        } else if (engagement != null
+                && engagement.getStatus() == EngagementStatus.COMPLETED) {
+            out.add(step("FIRST_DAY", "First day",
+                    "DONE",
+                    engagement.getUpdatedAt(),
+                    null,
+                    "Engagement completed.", false, null));
+        } else {
+            out.add(step("FIRST_DAY", "First day",
+                    "NOT_STARTED", null, null,
+                    "Unlocks after HR activation.", false, null));
+        }
+
+        return out;
+    }
+
+    private DashboardStatusDTO.TimelineStepDTO step(String key, String label,
+                                                    String status, Instant completedAt,
+                                                    String waitingFor, String description,
+                                                    boolean actionRequired, String actionHref) {
+        return DashboardStatusDTO.TimelineStepDTO.builder()
+                .key(key)
+                .label(label)
+                .status(status)
+                .completedAt(completedAt)
+                .waitingFor(waitingFor)
+                .description(description)
+                .actionRequired(actionRequired)
+                .actionHref(actionHref)
+                .build();
+    }
+
+    private String interviewDoneDescription(Interview interview) {
+        if (interview.getFeedbackRecommendation() != null) {
+            String rec = interview.getFeedbackRecommendation().name();
+            if ("HIRE".equals(rec) || "STRONG_HIRE".equals(rec)) {
+                return "Interview completed. Outcome: positive.";
+            }
+        }
+        return "Interview completed.";
+    }
+
+    private boolean isAtOrPast(ApplicationStatus s, ApplicationStatus min) {
+        if (s == null || min == null) return false;
+        return ApplicationLifecycle.stageIndexOf(s) >= ApplicationLifecycle.stageIndexOf(min);
+    }
+
+    private List<DashboardStatusDTO.RecentUpdateDTO> buildRecentUpdates(User caller) {
+        if (caller == null || caller.getEmail() == null) return Collections.emptyList();
+        List<com.skyzen.careers.entity.SentNotification> rows;
+        try {
+            rows = sentNotificationRepository.findByRecipientOrderBySentAtDesc(
+                    caller.getEmail(), PageRequest.of(0, 10));
+        } catch (Exception e) {
+            return Collections.emptyList();
+        }
+        List<DashboardStatusDTO.RecentUpdateDTO> out = new ArrayList<>(rows.size());
+        for (com.skyzen.careers.entity.SentNotification row : rows) {
+            out.add(DashboardStatusDTO.RecentUpdateDTO.builder()
+                    .timestamp(row.getSentAt())
+                    .kind(updateKindFor(row.getEventType()))
+                    .message(updateMessageFor(row.getEventType()))
+                    .source(updateSourceFor(row.getEventType()))
+                    .build());
+        }
+        return out;
+    }
+
+    private String updateKindFor(NotificationEventType type) {
+        if (type == null) return "SYSTEM";
+        return switch (type) {
+            case I9_SECTION1_REMINDER, I9_SECTION2_PENDING,
+                 I983_PLAN_NEEDED, I983_PLAN_READY,
+                 EVERIFY_CASE_OPENED, EVERIFY_TNC_ALERT, EVERIFY_CLEARED,
+                 WORKAUTH_EXPIRY_90, WORKAUTH_EXPIRY_60, WORKAUTH_EXPIRY_30,
+                 WORKAUTH_EXPIRY_14, WORKAUTH_EXPIRY_7,
+                 COMPLIANCE_TASK_REMINDER -> "COMPLIANCE";
+            case INTERVIEW_SCHEDULED, INTERVIEW_REMINDER, INTERVIEW_COMPLETED -> "INTERVIEW";
+            case APPLICATION_RECEIVED, APPLICATION_SHORTLISTED, APPLICATION_REJECTED,
+                 OFFER_EXTENDED, OFFER_ACCEPTED, ONBOARDING_WELCOME,
+                 CONDITIONAL_SELECT -> "STATUS_CHANGE";
+            default -> "SYSTEM";
+        };
+    }
+
+    private String updateMessageFor(NotificationEventType type) {
+        if (type == null) return "Status update";
+        return switch (type) {
+            case APPLICATION_RECEIVED -> "Your application has been received.";
+            case APPLICATION_SHORTLISTED -> "You've been shortlisted.";
+            case APPLICATION_REJECTED -> "Application update available.";
+            case INTERVIEW_SCHEDULED -> "Your interview has been scheduled.";
+            case INTERVIEW_REMINDER -> "Interview reminder — see your calendar.";
+            case INTERVIEW_COMPLETED -> "Your interview has been completed.";
+            case OFFER_EXTENDED -> "An offer has been extended.";
+            case OFFER_ACCEPTED -> "Offer acceptance confirmed.";
+            case ONBOARDING_WELCOME -> "HR activated your engagement — you're now Hired.";
+            case CONDITIONAL_SELECT -> "Conditional selection confirmed.";
+            case I9_SECTION1_REMINDER -> "Reminder: complete I-9 Section 1.";
+            case I9_SECTION2_PENDING -> "HR is preparing your I-9 Section 2.";
+            case I983_PLAN_NEEDED -> "Your I-983 training plan is required.";
+            case I983_PLAN_READY -> "Your I-983 training plan is ready for DSO review.";
+            case EVERIFY_CASE_OPENED -> "E-Verify case opened.";
+            case EVERIFY_TNC_ALERT -> "E-Verify needs your attention.";
+            case EVERIFY_CLEARED -> "E-Verify case closed: Employment Authorized.";
+            case WORKAUTH_EXPIRY_90 -> "Work authorization expires in 90 days.";
+            case WORKAUTH_EXPIRY_60 -> "Work authorization expires in 60 days.";
+            case WORKAUTH_EXPIRY_30 -> "Work authorization expires in 30 days.";
+            case WORKAUTH_EXPIRY_14 -> "Work authorization expires in 14 days.";
+            case WORKAUTH_EXPIRY_7 -> "Work authorization expires in 7 days.";
+            case COMPLIANCE_TASK_REMINDER -> "Onboarding task reminder.";
+            case PROJECT_ASSIGNED -> "You've been assigned a project.";
+            case PROJECT_RETURNED -> "Your project was returned with comments.";
+            case PROJECT_COMPLETED -> "Your project has been completed.";
+            case PROJECT_TECH_APPROVED -> "Your project was tech-approved.";
+            case PROJECT_RETURNED_FOR_REVISIONS -> "Project sent back for revisions.";
+            case PROJECT_PENDING_VIVA -> "Your project is pending viva.";
+            case EVALUATION_FINALIZED -> "Your evaluation is finalized.";
+            default -> "Status update";
+        };
+    }
+
+    private String updateSourceFor(NotificationEventType type) {
+        if (type == null) return "SYSTEM";
+        return switch (type) {
+            case I9_SECTION2_PENDING, EVERIFY_CASE_OPENED, EVERIFY_CLEARED,
+                 ONBOARDING_WELCOME, OFFER_EXTENDED -> "HR";
+            case INTERVIEW_SCHEDULED, INTERVIEW_REMINDER, INTERVIEW_COMPLETED,
+                 APPLICATION_RECEIVED, APPLICATION_SHORTLISTED, APPLICATION_REJECTED,
+                 CONDITIONAL_SELECT -> "OPERATIONS";
+            case PROJECT_TECH_APPROVED, PROJECT_RETURNED_FOR_REVISIONS,
+                 PROJECT_ASSIGNED, PROJECT_RETURNED -> "TE";
+            case PROJECT_PENDING_VIVA, PROJECT_COMPLETED -> "RM";
+            default -> "SYSTEM";
+        };
     }
 }
