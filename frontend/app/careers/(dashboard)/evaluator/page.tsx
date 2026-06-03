@@ -23,7 +23,7 @@ import { useAuth } from '@/lib/auth-context';
 import type { Uuid } from '@/types';
 
 /**
- * Technical Supervisor dashboard. Phase-2 weekly cockpit for the supervisor
+ * Technical Evaluator dashboard. Phase-2 weekly cockpit for the supervisor
  * side: action queue + assigned-interns roster + upcoming evaluations +
  * recent activity. Backed by GET /api/v1/supervisor/dashboard, scoped
  * server-side to ACTIVE engagements the caller supervises (SUPER_ADMIN
@@ -34,7 +34,7 @@ import type { Uuid } from '@/types';
  */
 export default function SupervisorDashboardPage() {
   return (
-    <ProtectedRoute requiredRoles={['TECHNICAL_SUPERVISOR', 'SUPER_ADMIN']}>
+    <ProtectedRoute requiredRoles={['TECHNICAL_EVALUATOR', 'SUPER_ADMIN']}>
       <DashboardLayout title="Supervisor Dashboard">
         <Body />
       </DashboardLayout>
@@ -189,9 +189,9 @@ function Header({
         <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
           <span
             className="rounded-full bg-amber-100 px-2.5 py-1 font-medium text-amber-800"
-            title="You're signed in as Technical Supervisor"
+            title="You're signed in as Technical Evaluator"
           >
-            Technical Supervisor
+            Technical Evaluator
           </span>
           {isSuperAdminView && (
             <span className="rounded-full bg-indigo-100 px-2.5 py-1 font-medium text-indigo-800">

@@ -330,7 +330,7 @@ public class ScreeningService {
         boolean allowed = caller.getRoles().contains(UserRole.OPERATIONS)
                 || caller.getRoles().contains(UserRole.OPERATIONS)
                 || caller.getRoles().contains(UserRole.OPERATIONS)
-                || caller.getRoles().contains(UserRole.HR_COMPLIANCE);
+                || caller.getRoles().contains(UserRole.HR);
         if (!allowed) {
             throw new ForbiddenException("Not allowed to view this screening");
         }

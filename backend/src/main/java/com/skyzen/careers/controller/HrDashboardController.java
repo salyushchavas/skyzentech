@@ -12,7 +12,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 /**
  * Aggregate read endpoint for the HR / Compliance dashboard. Gated strictly
- * to HR_COMPLIANCE + SUPER_ADMIN — OPERATIONS, TECHNICAL_SUPERVISOR,
+ * to HR + SUPER_ADMIN — OPERATIONS, TECHNICAL_EVALUATOR,
  * EXECUTIVE, APPLICANT, and INTERN cannot reach it. (The pre-existing
  * deeper compliance view at {@code /api/v1/compliance/overview} keeps its
  * own broader gate; this is the command-center dashboard, not that.)
@@ -30,7 +30,7 @@ public class HrDashboardController {
     private final HrDashboardService hrDashboardService;
 
     @GetMapping("/dashboard")
-    @PreAuthorize("hasAnyRole('HR_COMPLIANCE', 'SUPER_ADMIN')")
+    @PreAuthorize("hasAnyRole('HR', 'SUPER_ADMIN')")
     public HrDashboardResponse dashboard(@AuthenticationPrincipal User caller) {
         return hrDashboardService.build(caller);
     }

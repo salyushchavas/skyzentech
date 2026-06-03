@@ -42,7 +42,7 @@ const FILTER_OPTIONS: { key: Filter; label: string }[] = [
 
 export default function HrI9EverifyPage() {
   return (
-    <ProtectedRoute requiredRoles={['OPERATIONS', 'HR_COMPLIANCE']}>
+    <ProtectedRoute requiredRoles={['OPERATIONS', 'HR']}>
       <DashboardLayout title="I-9 & E-Verify">
         <Body />
       </DashboardLayout>

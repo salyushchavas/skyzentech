@@ -11,14 +11,14 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * Aggregate read endpoint for the Technical Supervisor dashboard.
+ * Aggregate read endpoint for the Technical Evaluator dashboard.
  *
  * <h2>Roles</h2>
- * Gated to {@code TECHNICAL_SUPERVISOR} and {@code SUPER_ADMIN}. Operations,
- * HR_COMPLIANCE, EXECUTIVE, APPLICANT, INTERN are all 403.
+ * Gated to {@code TECHNICAL_EVALUATOR} and {@code SUPER_ADMIN}. Operations,
+ * HR, EXECUTIVE, APPLICANT, INTERN are all 403.
  *
  * <h2>Scope</h2>
- * The service restricts a TECHNICAL_SUPERVISOR's view to ACTIVE engagements
+ * The service restricts a TECHNICAL_EVALUATOR's view to ACTIVE engagements
  * where they are the {@code Engagement.supervisor}. SUPER_ADMIN bypasses
  * the scope and sees every active engagement.
  *
@@ -34,7 +34,7 @@ public class SupervisorDashboardController {
     private final SupervisorDashboardService supervisorDashboardService;
 
     @GetMapping("/dashboard")
-    @PreAuthorize("hasAnyRole('TECHNICAL_SUPERVISOR', 'SUPER_ADMIN')")
+    @PreAuthorize("hasAnyRole('TECHNICAL_EVALUATOR', 'SUPER_ADMIN')")
     public SupervisorDashboardResponse dashboard(@AuthenticationPrincipal User caller) {
         return supervisorDashboardService.build(caller);
     }

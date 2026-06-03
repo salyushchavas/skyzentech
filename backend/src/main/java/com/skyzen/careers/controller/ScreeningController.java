@@ -61,7 +61,7 @@ public class ScreeningController {
     }
 
     @GetMapping("/applications/{applicationId}/screening")
-    @PreAuthorize("hasAnyRole('OPERATIONS', 'HR_COMPLIANCE')")
+    @PreAuthorize("hasAnyRole('OPERATIONS', 'HR')")
     public ScreeningStaffResponse getForStaff(
             @PathVariable UUID applicationId,
             @AuthenticationPrincipal User caller) {

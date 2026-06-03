@@ -412,7 +412,7 @@ public class ProjectService {
         return project;
     }
 
-    // Role-based gates — any TECHNICAL_SUPERVISOR (or SUPER_ADMIN) may
+    // Role-based gates — any TECHNICAL_EVALUATOR (or SUPER_ADMIN) may
     // allocate / review / mutate any project. Per-engagement supervisor FK
     // is informational metadata, not a permission boundary.
     private void ensureSupervisorOwnsEngagement(Engagement engagement, User actor) {
@@ -431,11 +431,11 @@ public class ProjectService {
         if (actor == null) throw new ForbiddenException("Authentication required.");
         if (isSuperAdmin(actor)) return;
         if (actor.getRoles() != null
-                && actor.getRoles().contains(UserRole.TECHNICAL_SUPERVISOR)) {
+                && actor.getRoles().contains(UserRole.TECHNICAL_EVALUATOR)) {
             return;
         }
         throw new ForbiddenException(
-                "Only TECHNICAL_SUPERVISOR or SUPER_ADMIN may perform this action.");
+                "Only TECHNICAL_EVALUATOR or SUPER_ADMIN may perform this action.");
     }
 
     private static boolean isSuperAdmin(User u) {

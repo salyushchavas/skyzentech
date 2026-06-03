@@ -22,9 +22,9 @@ export type ApiError = {
 export type UserRole =
   | 'APPLICANT'
   | 'INTERN'
-  | 'HR_COMPLIANCE'
+  | 'HR'
   | 'OPERATIONS'
-  | 'TECHNICAL_SUPERVISOR'
+  | 'TECHNICAL_EVALUATOR'
   | 'REPORTING_MANAGER'
   | 'EXECUTIVE'
   | 'SUPER_ADMIN';

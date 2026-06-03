@@ -17,7 +17,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 /**
  * Backend-driven sidebar for the APPLICANT / INTERN face. Staff sidebars
- * (HR_COMPLIANCE, OPERATIONS, TECHNICAL_SUPERVISOR, EXECUTIVE, SUPER_ADMIN)
+ * (HR, OPERATIONS, TECHNICAL_EVALUATOR, EXECUTIVE, SUPER_ADMIN)
  * remain frontend-hardcoded — this endpoint is candidate-only.
  *
  * <ul>

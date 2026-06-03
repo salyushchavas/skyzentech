@@ -16,8 +16,8 @@ import type { Uuid, UserRole } from '@/types';
 const STAFF_ROLES_FOR_FILTER: UserRole[] = [
   'SUPER_ADMIN',
   'OPERATIONS',
-  'HR_COMPLIANCE',
-  'TECHNICAL_SUPERVISOR',
+  'HR',
+  'TECHNICAL_EVALUATOR',
   'EXECUTIVE',
 ];
 
@@ -25,8 +25,8 @@ const ROLE_LABEL: Record<UserRole, string> = {
   APPLICANT: 'Applicant',
   INTERN: 'Intern',
   OPERATIONS: 'Operations',
-  HR_COMPLIANCE: 'HR / Compliance',
-  TECHNICAL_SUPERVISOR: 'Technical Supervisor',
+  HR: 'HR / Compliance',
+  TECHNICAL_EVALUATOR: 'Technical Evaluator',
   REPORTING_MANAGER: 'Reporting Manager',
   EXECUTIVE: 'Executive',
   SUPER_ADMIN: 'Super admin',

@@ -183,7 +183,7 @@ public class HrDashboardService {
                 .key("I983_AWAITING_EMPLOYER")
                 .label("I-983 plans awaiting employer signature")
                 .count(awaitingEmployerSig)
-                .href("/careers/erm/training-plans")
+                .href("/careers/operations/training-plans")
                 .build());
 
         long tncCases = everifys.stream()
@@ -302,7 +302,7 @@ public class HrDashboardService {
                     .authType("STEM OPT")
                     .expirationDate(d)
                     .daysUntilExpiry((int) ChronoUnit.DAYS.between(today, d))
-                    .linkUrl("/careers/erm/training-plans/" + p.getId())
+                    .linkUrl("/careers/operations/training-plans/" + p.getId())
                     .build());
         }
 
@@ -417,7 +417,7 @@ public class HrDashboardService {
         if (a.getEntityType() == null || a.getEntityId() == null) return null;
         return switch (a.getEntityType()) {
             case "I9Form" -> "/careers/hr/i9-everify/i9/" + a.getEntityId();
-            case "I983Plan" -> "/careers/erm/training-plans/" + a.getEntityId();
+            case "I983Plan" -> "/careers/operations/training-plans/" + a.getEntityId();
             case "Offer" -> "/careers/hr/offers/" + a.getEntityId();
             case "EVerifyCase" -> "/careers/hr/i9-everify/everify/" + a.getEntityId();
             default -> null;

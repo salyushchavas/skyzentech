@@ -98,8 +98,8 @@ const STATUS_STAGES: ReadonlyArray<{
 
 export default function HrDashboardPage() {
   return (
-    <ProtectedRoute requiredRoles={['HR_COMPLIANCE', 'SUPER_ADMIN']}>
-      <DashboardLayout title="HR Compliance Dashboard">
+    <ProtectedRoute requiredRoles={['HR', 'SUPER_ADMIN']}>
+      <DashboardLayout title="HR Dashboard">
         <HrDashboardBody />
       </DashboardLayout>
     </ProtectedRoute>

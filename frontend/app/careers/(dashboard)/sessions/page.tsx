@@ -26,9 +26,9 @@ export default function SessionsPage() {
   const allRoles: UserRole[] = [
     'APPLICANT',
     'INTERN',
-    'HR_COMPLIANCE',
+    'HR',
     'OPERATIONS',
-    'TECHNICAL_SUPERVISOR',
+    'TECHNICAL_EVALUATOR',
     'EXECUTIVE',
     'SUPER_ADMIN',
   ];

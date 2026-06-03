@@ -45,7 +45,7 @@ public class InterviewController {
     }
 
     @GetMapping
-    @PreAuthorize("hasAnyRole('OPERATIONS', 'HR_COMPLIANCE', 'TECHNICAL_SUPERVISOR')")
+    @PreAuthorize("hasAnyRole('OPERATIONS', 'HR', 'TECHNICAL_EVALUATOR')")
     public PagedResponse<InterviewSummaryResponse> list(
             @RequestParam(required = false) UUID applicationId,
             @RequestParam(required = false) InterviewStatus status,
@@ -71,7 +71,7 @@ public class InterviewController {
     }
 
     @GetMapping("/{id}")
-    @PreAuthorize("hasAnyRole('APPLICANT', 'INTERN', 'OPERATIONS', 'HR_COMPLIANCE', 'TECHNICAL_SUPERVISOR')")
+    @PreAuthorize("hasAnyRole('APPLICANT', 'INTERN', 'OPERATIONS', 'HR', 'TECHNICAL_EVALUATOR')")
     public InterviewResponse getOne(@PathVariable UUID id,
                                     @AuthenticationPrincipal User user) {
         // Service-side check enforces candidate ownership / interviewer / staff
@@ -88,7 +88,7 @@ public class InterviewController {
     }
 
     @PostMapping("/{id}/feedback")
-    @PreAuthorize("hasAnyRole('OPERATIONS', 'TECHNICAL_SUPERVISOR')")
+    @PreAuthorize("hasAnyRole('OPERATIONS', 'TECHNICAL_EVALUATOR')")
     public InterviewResponse submitFeedback(@PathVariable UUID id,
                                             @Valid @RequestBody SubmitFeedbackRequest req,
                                             @AuthenticationPrincipal User user) {
@@ -103,7 +103,7 @@ public class InterviewController {
      * bounds (1-5) on each dimension. Idempotent: same interviewer can resubmit.
      */
     @PostMapping("/{id}/scorecard")
-    @PreAuthorize("hasAnyRole('OPERATIONS', 'TECHNICAL_SUPERVISOR')")
+    @PreAuthorize("hasAnyRole('OPERATIONS', 'TECHNICAL_EVALUATOR')")
     public InterviewResponse submitScorecard(@PathVariable UUID id,
                                              @Valid @RequestBody SubmitScorecardRequest req,
                                              @AuthenticationPrincipal User user) {

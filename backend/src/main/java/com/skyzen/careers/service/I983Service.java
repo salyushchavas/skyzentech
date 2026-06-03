@@ -66,7 +66,7 @@ import java.util.UUID;
  *   DSO_REJECTED is terminal (a new plan must be created)
  *
  * Permission model:
- *   ERM / HR_COMPLIANCE / ADMIN: full read + write, employer signature, DSO ops
+ *   ERM / HR / ADMIN: full read + write, employer signature, DSO ops
  *   CANDIDATE: read their own + student signature only
  */
 @Service
@@ -75,7 +75,7 @@ import java.util.UUID;
 public class I983Service {
 
     /** Privileged roles for I-983 access. */
-    private static final Set<UserRole> STAFF_ROLES = EnumSet.of(UserRole.OPERATIONS, UserRole.HR_COMPLIANCE);
+    private static final Set<UserRole> STAFF_ROLES = EnumSet.of(UserRole.OPERATIONS, UserRole.HR);
 
     /** Statuses where field edits are allowed. */
     private static final Set<I983Status> EDITABLE_STATUSES = EnumSet.of(I983Status.DRAFT, I983Status.AMENDMENT_REQUESTED);
@@ -867,7 +867,7 @@ public class I983Service {
      * pre-date Engagement. Throws {@link StemOptRequiredException} (mapped to
      * 403 + code {@code STEM_OPT_REQUIRED}) when neither resolves to STEM_OPT.
      *
-     * Staff paths (ERM/HR_COMPLIANCE/ADMIN) never call this — they go through
+     * Staff paths (ERM/HR/ADMIN) never call this — they go through
      * the plain repository reads.
      */
     private void requireCandidateStemOptEligibility(Candidate candidate, User actor) {

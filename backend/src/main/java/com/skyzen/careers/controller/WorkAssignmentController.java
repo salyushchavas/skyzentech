@@ -30,7 +30,7 @@ public class WorkAssignmentController {
     private final WorkAssignmentService workAssignmentService;
 
     @PostMapping("/interns/{candidateId}/assignments")
-    @PreAuthorize("hasAnyRole('OPERATIONS', 'TECHNICAL_SUPERVISOR')")
+    @PreAuthorize("hasAnyRole('OPERATIONS', 'TECHNICAL_EVALUATOR')")
     public ResponseEntity<AssignmentResponse> create(
             @PathVariable UUID candidateId,
             @Valid @RequestBody CreateAssignmentRequest req,
@@ -41,7 +41,7 @@ public class WorkAssignmentController {
     }
 
     @GetMapping("/interns/{candidateId}/assignments")
-    @PreAuthorize("hasAnyRole('OPERATIONS', 'HR_COMPLIANCE', 'TECHNICAL_SUPERVISOR')")
+    @PreAuthorize("hasAnyRole('OPERATIONS', 'HR', 'TECHNICAL_EVALUATOR')")
     public List<AssignmentResponse> listForIntern(@PathVariable UUID candidateId) {
         return workAssignmentService.listForIntern(candidateId);
     }
@@ -68,7 +68,7 @@ public class WorkAssignmentController {
     }
 
     @PostMapping("/assignments/{id}/review")
-    @PreAuthorize("hasAnyRole('OPERATIONS', 'TECHNICAL_SUPERVISOR')")
+    @PreAuthorize("hasAnyRole('OPERATIONS', 'TECHNICAL_EVALUATOR')")
     public AssignmentResponse review(@PathVariable UUID id,
                                      @Valid @RequestBody ReviewAssignmentRequest req,
                                      @AuthenticationPrincipal User caller) {

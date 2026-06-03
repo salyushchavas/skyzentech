@@ -113,7 +113,7 @@ public interface ProjectRepository extends JpaRepository<Project, UUID> {
 
     // ── Role-based queries (no per-engagement RM/supervisor FK filter) ──────
     //
-    // The post-refactor supervision model treats any TECHNICAL_SUPERVISOR /
+    // The post-refactor supervision model treats any TECHNICAL_EVALUATOR /
     // REPORTING_MANAGER as authoritative for every relevant row. The
     // findFor*-style queries above are retained for special-case scopes but
     // are no longer the default the dashboards consult.

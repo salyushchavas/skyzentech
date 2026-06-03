@@ -32,7 +32,7 @@ public class EvaluationSessionController {
     private final EvaluationSessionService evaluationSessionService;
 
     @GetMapping("/evaluators")
-    @PreAuthorize("hasAnyRole('OPERATIONS', 'HR_COMPLIANCE', 'TECHNICAL_SUPERVISOR')")
+    @PreAuthorize("hasAnyRole('OPERATIONS', 'HR', 'TECHNICAL_EVALUATOR')")
     public List<EvaluatorOption> listEvaluators() {
         return evaluationSessionService.listEvaluators();
     }
@@ -46,7 +46,7 @@ public class EvaluationSessionController {
     }
 
     @PostMapping("/interns/{candidateId}/evaluations")
-    @PreAuthorize("hasAnyRole('OPERATIONS', 'TECHNICAL_SUPERVISOR')")
+    @PreAuthorize("hasAnyRole('OPERATIONS', 'TECHNICAL_EVALUATOR')")
     public ResponseEntity<EvaluationSessionResponse> schedule(
             @PathVariable UUID candidateId,
             @Valid @RequestBody ScheduleEvaluationRequest req) {
@@ -56,20 +56,20 @@ public class EvaluationSessionController {
     }
 
     @GetMapping("/interns/{candidateId}/evaluations")
-    @PreAuthorize("hasAnyRole('OPERATIONS', 'HR_COMPLIANCE', 'TECHNICAL_SUPERVISOR')")
+    @PreAuthorize("hasAnyRole('OPERATIONS', 'HR', 'TECHNICAL_EVALUATOR')")
     public List<EvaluationSessionResponse> listForIntern(@PathVariable UUID candidateId) {
         return evaluationSessionService.listForIntern(candidateId);
     }
 
     @PostMapping("/evaluations/{id}/complete")
-    @PreAuthorize("hasAnyRole('OPERATIONS', 'TECHNICAL_SUPERVISOR')")
+    @PreAuthorize("hasAnyRole('OPERATIONS', 'TECHNICAL_EVALUATOR')")
     public EvaluationSessionResponse complete(@PathVariable UUID id,
                                               @Valid @RequestBody CompleteEvaluationRequest req) {
         return evaluationSessionService.complete(id, req);
     }
 
     @PostMapping("/evaluations/{id}/miss")
-    @PreAuthorize("hasAnyRole('OPERATIONS', 'TECHNICAL_SUPERVISOR')")
+    @PreAuthorize("hasAnyRole('OPERATIONS', 'TECHNICAL_EVALUATOR')")
     public EvaluationSessionResponse miss(@PathVariable UUID id) {
         return evaluationSessionService.miss(id);
     }

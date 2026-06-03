@@ -60,14 +60,14 @@ import java.util.UUID;
 
 /**
  * Periodic intern evaluations. Supervisor authors; intern reads finalized
- * rows; HR_COMPLIANCE reads (any type, since I-983 is the legally-relevant
+ * rows; HR reads (any type, since I-983 is the legally-relevant
  * subset and the rest is HR-relevant too).
  *
  * <h2>Gates</h2>
  * <ul>
  *   <li>Write (create / update / finalize): the engagement's supervisor OR
  *       SUPER_ADMIN.</li>
- *   <li>Read /intern/{id}: that engagement's supervisor OR HR_COMPLIANCE
+ *   <li>Read /intern/{id}: that engagement's supervisor OR HR
  *       OR SUPER_ADMIN.</li>
  *   <li>Read /me (intern): only FINALIZED rows for the caller's own
  *       Candidate.</li>
@@ -322,7 +322,7 @@ public class EvaluationService {
     private void ensureWriter(Evaluation evaluation, User actor) {
         if (actor == null) throw new ForbiddenException("Authentication required.");
         if (isSuperAdmin(actor)) return;
-        // The original evaluator OR any TECHNICAL_SUPERVISOR can write.
+        // The original evaluator OR any TECHNICAL_EVALUATOR can write.
         if (evaluation.getEvaluator() != null
                 && evaluation.getEvaluator().getId().equals(actor.getId())) {
             return;
@@ -337,8 +337,8 @@ public class EvaluationService {
             throw new ForbiddenException(
                     "Only this intern's evaluator, HR, or SUPER_ADMIN may view their evaluations.");
         }
-        if (actor.getRoles().contains(UserRole.HR_COMPLIANCE)
-                || actor.getRoles().contains(UserRole.TECHNICAL_SUPERVISOR)
+        if (actor.getRoles().contains(UserRole.HR)
+                || actor.getRoles().contains(UserRole.TECHNICAL_EVALUATOR)
                 || actor.getRoles().contains(UserRole.REPORTING_MANAGER)) {
             return;
         }
@@ -350,11 +350,11 @@ public class EvaluationService {
         if (actor == null) throw new ForbiddenException("Authentication required.");
         if (isSuperAdmin(actor)) return;
         if (actor.getRoles() != null
-                && actor.getRoles().contains(UserRole.TECHNICAL_SUPERVISOR)) {
+                && actor.getRoles().contains(UserRole.TECHNICAL_EVALUATOR)) {
             return;
         }
         throw new ForbiddenException(
-                "Only TECHNICAL_SUPERVISOR or SUPER_ADMIN may perform this action.");
+                "Only TECHNICAL_EVALUATOR or SUPER_ADMIN may perform this action.");
     }
 
     private static boolean isSuperAdmin(User u) {

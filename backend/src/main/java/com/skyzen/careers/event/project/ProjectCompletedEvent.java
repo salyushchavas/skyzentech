@@ -17,7 +17,7 @@ import java.util.UUID;
  * </ul>
  *
  * <p>{@code closedByUserId} is the actor who triggered the transition
- * (Reporting Manager in the two-role case, Technical Supervisor in the
+ * (Reporting Manager in the two-role case, Technical Evaluator in the
  * legacy case).</p>
  */
 public final class ProjectCompletedEvent extends DomainEvent {

@@ -31,8 +31,8 @@ const LAST_SUPER_ADMIN_FRAGMENT = 'last active SUPER_ADMIN';
 const STAFF_ROLES: UserRole[] = [
   'SUPER_ADMIN',
   'OPERATIONS',
-  'HR_COMPLIANCE',
-  'TECHNICAL_SUPERVISOR',
+  'HR',
+  'TECHNICAL_EVALUATOR',
   'EXECUTIVE',
 ];
 
@@ -40,8 +40,8 @@ const ROLE_LABEL: Record<UserRole, string> = {
   APPLICANT: 'Applicant',
   INTERN: 'Intern',
   OPERATIONS: 'Operations',
-  HR_COMPLIANCE: 'HR / Compliance',
-  TECHNICAL_SUPERVISOR: 'Technical Supervisor',
+  HR: 'HR / Compliance',
+  TECHNICAL_EVALUATOR: 'Technical Evaluator',
   REPORTING_MANAGER: 'Reporting Manager',
   EXECUTIVE: 'Executive',
   SUPER_ADMIN: 'Super admin',
@@ -51,8 +51,8 @@ const ROLE_COLOR: Record<UserRole, string> = {
   APPLICANT: 'bg-gray-100 text-gray-700',
   INTERN: 'bg-sky-100 text-sky-800',
   OPERATIONS: 'bg-rose-100 text-rose-800',
-  HR_COMPLIANCE: 'bg-emerald-100 text-emerald-800',
-  TECHNICAL_SUPERVISOR: 'bg-amber-100 text-amber-800',
+  HR: 'bg-emerald-100 text-emerald-800',
+  TECHNICAL_EVALUATOR: 'bg-amber-100 text-amber-800',
   REPORTING_MANAGER: 'bg-violet-100 text-violet-800',
   EXECUTIVE: 'bg-violet-100 text-violet-800',
   SUPER_ADMIN: 'bg-indigo-100 text-indigo-800',

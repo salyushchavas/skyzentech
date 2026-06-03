@@ -15,7 +15,7 @@ import org.springframework.web.bind.annotation.RestController;
  *
  * <h2>Roles</h2>
  * Gated to {@code EXECUTIVE} and {@code SUPER_ADMIN}. Operations,
- * HR_COMPLIANCE, TECHNICAL_SUPERVISOR, APPLICANT, INTERN are all 403.
+ * HR, TECHNICAL_EVALUATOR, APPLICANT, INTERN are all 403.
  *
  * <h2>Privilege guarantee</h2>
  * This controller has NO companion write endpoints — no POST / PUT / DELETE

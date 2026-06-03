@@ -45,7 +45,7 @@ public class OnboardingController {
     }
 
     @GetMapping("/candidate/{candidateId}")
-    @PreAuthorize("hasAnyRole('OPERATIONS', 'HR_COMPLIANCE')")
+    @PreAuthorize("hasAnyRole('OPERATIONS', 'HR')")
     public List<OnboardingTaskResponse> tasksForCandidate(
             @PathVariable UUID candidateId,
             @AuthenticationPrincipal User user) {
@@ -53,13 +53,13 @@ public class OnboardingController {
     }
 
     @GetMapping("/candidate/{candidateId}/summary")
-    @PreAuthorize("hasAnyRole('OPERATIONS', 'HR_COMPLIANCE')")
+    @PreAuthorize("hasAnyRole('OPERATIONS', 'HR')")
     public OnboardingSummaryResponse summaryForCandidate(@PathVariable UUID candidateId) {
         return onboardingService.getSummaryForCandidate(candidateId);
     }
 
     @PatchMapping("/tasks/{taskId}")
-    @PreAuthorize("hasAnyRole('APPLICANT', 'INTERN', 'OPERATIONS', 'HR_COMPLIANCE')")
+    @PreAuthorize("hasAnyRole('APPLICANT', 'INTERN', 'OPERATIONS', 'HR')")
     public OnboardingTaskResponse updateStatus(
             @PathVariable UUID taskId,
             @Valid @RequestBody UpdateTaskStatusRequest req,
@@ -70,7 +70,7 @@ public class OnboardingController {
     }
 
     @PostMapping("/candidate/{candidateId}/seed")
-    @PreAuthorize("hasAnyRole('OPERATIONS', 'HR_COMPLIANCE')")
+    @PreAuthorize("hasAnyRole('OPERATIONS', 'HR')")
     public List<OnboardingTaskResponse> seedManual(
             @PathVariable UUID candidateId,
             @AuthenticationPrincipal User user) {

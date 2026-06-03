@@ -33,7 +33,7 @@ public class EVerifyController {
     private final EVerifyService service;
 
     @PostMapping
-    @PreAuthorize("hasAnyRole('OPERATIONS', 'HR_COMPLIANCE')")
+    @PreAuthorize("hasAnyRole('OPERATIONS', 'HR')")
     public ResponseEntity<EVerifyCaseResponse> create(
             @Valid @RequestBody CreateEVerifyCaseRequest req,
             @AuthenticationPrincipal User user) {
@@ -43,7 +43,7 @@ public class EVerifyController {
     }
 
     @GetMapping
-    @PreAuthorize("hasAnyRole('OPERATIONS', 'HR_COMPLIANCE')")
+    @PreAuthorize("hasAnyRole('OPERATIONS', 'HR')")
     public PagedResponse<EVerifyCaseSummaryResponse> list(
             @RequestParam(required = false) EVerifyStatus status,
             @RequestParam(defaultValue = "0") int page,
@@ -56,19 +56,19 @@ public class EVerifyController {
     }
 
     @GetMapping("/{id}")
-    @PreAuthorize("hasAnyRole('OPERATIONS', 'HR_COMPLIANCE')")
+    @PreAuthorize("hasAnyRole('OPERATIONS', 'HR')")
     public EVerifyCaseResponse getOne(@PathVariable UUID id) {
         return service.getById(id);
     }
 
     @GetMapping("/i9/{i9FormId}")
-    @PreAuthorize("hasAnyRole('OPERATIONS', 'HR_COMPLIANCE')")
+    @PreAuthorize("hasAnyRole('OPERATIONS', 'HR')")
     public EVerifyCaseResponse getByI9(@PathVariable UUID i9FormId) {
         return service.getByI9FormId(i9FormId);
     }
 
     @PatchMapping("/{id}")
-    @PreAuthorize("hasAnyRole('OPERATIONS', 'HR_COMPLIANCE')")
+    @PreAuthorize("hasAnyRole('OPERATIONS', 'HR')")
     public EVerifyCaseResponse updateFields(
             @PathVariable UUID id,
             @Valid @RequestBody UpdateCaseRequest req,
@@ -77,7 +77,7 @@ public class EVerifyController {
     }
 
     @PatchMapping("/{id}/status")
-    @PreAuthorize("hasAnyRole('OPERATIONS', 'HR_COMPLIANCE')")
+    @PreAuthorize("hasAnyRole('OPERATIONS', 'HR')")
     public EVerifyCaseResponse updateStatus(
             @PathVariable UUID id,
             @Valid @RequestBody UpdateStatusRequest req,
@@ -86,7 +86,7 @@ public class EVerifyController {
     }
 
     @PostMapping("/{id}/close")
-    @PreAuthorize("hasAnyRole('OPERATIONS', 'HR_COMPLIANCE')")
+    @PreAuthorize("hasAnyRole('OPERATIONS', 'HR')")
     public EVerifyCaseResponse close(
             @PathVariable UUID id,
             @Valid @RequestBody CloseCaseRequest req,
@@ -95,7 +95,7 @@ public class EVerifyController {
     }
 
     @GetMapping("/{id}/history")
-    @PreAuthorize("hasAnyRole('OPERATIONS', 'HR_COMPLIANCE')")
+    @PreAuthorize("hasAnyRole('OPERATIONS', 'HR')")
     public List<EVerifyHistoryEntryResponse> getHistory(@PathVariable UUID id) {
         return service.getHistory(id);
     }

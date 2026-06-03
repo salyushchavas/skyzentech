@@ -33,7 +33,7 @@ import type { ApplicationStatus, Uuid } from '@/types';
  * Backed by GET /api/v1/operations/dashboard.
  *
  * What this view DOESN'T show — by deliberate design:
- *   - No compliance state (I-9 / I-983 / E-Verify) — that's HR_COMPLIANCE.
+ *   - No compliance state (I-9 / I-983 / E-Verify) — that's HR.
  *   - No user/role/audit-log management — that's SUPER_ADMIN.
  *   - No comms log yet — the backend will surface it once one exists.
  */
@@ -441,7 +441,7 @@ function UpcomingInterviewsCard({
                   href={
                     iv.applicationId
                       ? `/careers/recruiter/applications/${iv.applicationId}`
-                      : '/careers/erm/interviews'
+                      : '/careers/operations/interviews'
                   }
                   className="block truncate text-sm font-medium text-gray-900 hover:text-accent-dark hover:underline"
                 >

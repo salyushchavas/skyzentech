@@ -39,7 +39,7 @@ export default function SubmissionReviewPage() {
   return (
     <ProtectedRoute
       requiredRoles={[
-        'TECHNICAL_SUPERVISOR',
+        'TECHNICAL_EVALUATOR',
         'REPORTING_MANAGER',
         'SUPER_ADMIN',
         'INTERN',
@@ -73,9 +73,9 @@ function Body() {
   const roles = user?.roles ?? [];
   const isIntern = roles.includes('INTERN');
   const canApprove =
-    roles.includes('TECHNICAL_SUPERVISOR') || roles.includes('SUPER_ADMIN');
+    roles.includes('TECHNICAL_EVALUATOR') || roles.includes('SUPER_ADMIN');
   const canReturn =
-    roles.includes('TECHNICAL_SUPERVISOR')
+    roles.includes('TECHNICAL_EVALUATOR')
     || roles.includes('REPORTING_MANAGER')
     || roles.includes('SUPER_ADMIN');
 

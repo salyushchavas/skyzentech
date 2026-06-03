@@ -33,7 +33,7 @@ public class I983Controller {
     private final I983Service service;
 
     @PostMapping
-    @PreAuthorize("hasAnyRole('OPERATIONS', 'HR_COMPLIANCE')")
+    @PreAuthorize("hasAnyRole('OPERATIONS', 'HR')")
     public ResponseEntity<I983PlanResponse> create(
             @Valid @RequestBody CreateI983Request req,
             @AuthenticationPrincipal User user) {
@@ -43,7 +43,7 @@ public class I983Controller {
     }
 
     @GetMapping
-    @PreAuthorize("hasAnyRole('OPERATIONS', 'HR_COMPLIANCE')")
+    @PreAuthorize("hasAnyRole('OPERATIONS', 'HR')")
     public PagedResponse<I983SummaryResponse> list(
             @RequestParam(required = false) I983Status status,
             @RequestParam(required = false) UUID candidateId,
@@ -64,13 +64,13 @@ public class I983Controller {
     }
 
     @GetMapping("/candidate/{candidateId}")
-    @PreAuthorize("hasAnyRole('OPERATIONS', 'HR_COMPLIANCE')")
+    @PreAuthorize("hasAnyRole('OPERATIONS', 'HR')")
     public List<I983PlanResponse> getForCandidate(@PathVariable UUID candidateId) {
         return service.getForCandidate(candidateId);
     }
 
     @GetMapping("/{id}")
-    @PreAuthorize("hasAnyRole('APPLICANT', 'INTERN', 'OPERATIONS', 'HR_COMPLIANCE')")
+    @PreAuthorize("hasAnyRole('APPLICANT', 'INTERN', 'OPERATIONS', 'HR')")
     public I983PlanResponse getOne(@PathVariable UUID id,
                                    @AuthenticationPrincipal User user) {
         // Service-side ownership check still gates candidate access.
@@ -78,7 +78,7 @@ public class I983Controller {
     }
 
     @PatchMapping("/{id}")
-    @PreAuthorize("hasAnyRole('OPERATIONS', 'HR_COMPLIANCE')")
+    @PreAuthorize("hasAnyRole('OPERATIONS', 'HR')")
     public I983PlanResponse update(@PathVariable UUID id,
                                    @Valid @RequestBody UpdateI983Request req,
                                    @AuthenticationPrincipal User user) {
@@ -86,7 +86,7 @@ public class I983Controller {
     }
 
     @PostMapping("/{id}/sign-employer")
-    @PreAuthorize("hasAnyRole('OPERATIONS', 'HR_COMPLIANCE')")
+    @PreAuthorize("hasAnyRole('OPERATIONS', 'HR')")
     public I983PlanResponse signEmployer(@PathVariable UUID id,
                                          @AuthenticationPrincipal User user) {
         return service.toResponse(service.signEmployer(id, user));
@@ -100,7 +100,7 @@ public class I983Controller {
     }
 
     @PostMapping("/{id}/submit-to-dso")
-    @PreAuthorize("hasAnyRole('OPERATIONS', 'HR_COMPLIANCE')")
+    @PreAuthorize("hasAnyRole('OPERATIONS', 'HR')")
     public I983PlanResponse submitToDso(
             @PathVariable UUID id,
             @Valid @RequestBody(required = false) SubmitToDsoRequest req,
@@ -109,7 +109,7 @@ public class I983Controller {
     }
 
     @PostMapping("/{id}/dso-response")
-    @PreAuthorize("hasAnyRole('OPERATIONS', 'HR_COMPLIANCE')")
+    @PreAuthorize("hasAnyRole('OPERATIONS', 'HR')")
     public I983PlanResponse recordDsoResponse(
             @PathVariable UUID id,
             @Valid @RequestBody DsoResponseRequest req,
@@ -118,7 +118,7 @@ public class I983Controller {
     }
 
     @GetMapping("/{id}/history")
-    @PreAuthorize("hasAnyRole('APPLICANT', 'INTERN', 'OPERATIONS', 'HR_COMPLIANCE')")
+    @PreAuthorize("hasAnyRole('APPLICANT', 'INTERN', 'OPERATIONS', 'HR')")
     public List<I983HistoryEntryResponse> getHistory(@PathVariable UUID id,
                                                      @AuthenticationPrincipal User user) {
         return service.getHistory(id, user);

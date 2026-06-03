@@ -204,7 +204,7 @@ public class QaSessionService {
 
     // Role-based gates — per-engagement RM/supervisor FKs are not the
     // boundary. Any REPORTING_MANAGER acts on any Q&A; reads also allow
-    // TECHNICAL_SUPERVISOR and the project's own intern.
+    // TECHNICAL_EVALUATOR and the project's own intern.
     private static void ensureRmOrSuperAdmin(Project project, User caller) {
         if (caller == null) throw new ForbiddenException("Authentication required.");
         if (isSuperAdmin(caller)) return;
@@ -224,7 +224,7 @@ public class QaSessionService {
         boolean isIntern = internUser != null && internUser.getId().equals(caller.getId());
         boolean hasReviewerRole = caller.getRoles() != null
                 && (caller.getRoles().contains(UserRole.REPORTING_MANAGER)
-                    || caller.getRoles().contains(UserRole.TECHNICAL_SUPERVISOR));
+                    || caller.getRoles().contains(UserRole.TECHNICAL_EVALUATOR));
         if (!isIntern && !hasReviewerRole) {
             throw new ForbiddenException("Not authorised to view this Q&A session.");
         }

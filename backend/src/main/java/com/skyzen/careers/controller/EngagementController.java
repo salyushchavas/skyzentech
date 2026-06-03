@@ -49,7 +49,7 @@ public class EngagementController {
     private final com.skyzen.careers.service.EngagementActivationService engagementActivationService;
 
     @GetMapping("/{id}")
-    @PreAuthorize("hasAnyRole('OPERATIONS', 'HR_COMPLIANCE')")
+    @PreAuthorize("hasAnyRole('OPERATIONS', 'HR')")
     @Transactional(readOnly = true)
     public EngagementResponse getOne(@PathVariable UUID id) {
         Engagement engagement = engagementRepository.findByIdWithGraph(id)
@@ -64,7 +64,7 @@ public class EngagementController {
      * {@code POST /mark-ready} on this controller.
      */
     @GetMapping("/{id}/activation-readiness")
-    @PreAuthorize("hasAnyRole('HR_COMPLIANCE', 'OPERATIONS', 'SUPER_ADMIN')")
+    @PreAuthorize("hasAnyRole('HR', 'OPERATIONS', 'SUPER_ADMIN')")
     @Transactional(readOnly = true)
     public ActivationReadinessResponse activationReadiness(@PathVariable UUID id) {
         Engagement engagement = engagementRepository.findByIdWithGraph(id)
@@ -81,7 +81,7 @@ public class EngagementController {
      * frontend can render the inline "Activate Engagement" button.
      */
     @GetMapping("/awaiting-activation")
-    @PreAuthorize("hasAnyRole('HR_COMPLIANCE', 'OPERATIONS', 'SUPER_ADMIN')")
+    @PreAuthorize("hasAnyRole('HR', 'OPERATIONS', 'SUPER_ADMIN')")
     @Transactional(readOnly = true)
     public java.util.List<AwaitingActivationRow> awaitingActivation() {
         java.util.List<Engagement> pending = engagementRepository
@@ -130,7 +130,7 @@ public class EngagementController {
      */
     // TEMP: remove after Bug #4 production fix verified
     @GetMapping("/pending-compliance")
-    @PreAuthorize("hasAnyRole('HR_COMPLIANCE', 'OPERATIONS', 'SUPER_ADMIN')")
+    @PreAuthorize("hasAnyRole('HR', 'OPERATIONS', 'SUPER_ADMIN')")
     @Transactional(readOnly = true)
     public java.util.List<PendingComplianceRow> pendingCompliance() {
         java.util.List<Engagement> pending = engagementRepository
@@ -170,7 +170,7 @@ public class EngagementController {
      */
     // TEMP: remove after Bug #4 production fix verified
     @PostMapping("/{id}/force-mark-hired")
-    @PreAuthorize("hasAnyRole('HR_COMPLIANCE', 'OPERATIONS', 'SUPER_ADMIN')")
+    @PreAuthorize("hasAnyRole('HR', 'OPERATIONS', 'SUPER_ADMIN')")
     @Transactional
     public ResponseEntity<EngagementResponse> forceMarkHired(
             @PathVariable UUID id,
@@ -199,7 +199,7 @@ public class EngagementController {
     // ── /TEMP ──────────────────────────────────────────────────────────────────
 
     @PostMapping("/{id}/mark-ready")
-    @PreAuthorize("hasAnyRole('OPERATIONS', 'HR_COMPLIANCE')")
+    @PreAuthorize("hasAnyRole('OPERATIONS', 'HR')")
     @Transactional
     public ResponseEntity<EngagementResponse> markReady(
             @PathVariable UUID id,
@@ -211,7 +211,7 @@ public class EngagementController {
     }
 
     @PostMapping("/{id}/start")
-    @PreAuthorize("hasAnyRole('OPERATIONS', 'HR_COMPLIANCE')")
+    @PreAuthorize("hasAnyRole('OPERATIONS', 'HR')")
     @Transactional
     public ResponseEntity<EngagementResponse> start(
             @PathVariable UUID id,

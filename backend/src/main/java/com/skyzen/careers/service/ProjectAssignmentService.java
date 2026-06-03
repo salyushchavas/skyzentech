@@ -209,7 +209,7 @@ public class ProjectAssignmentService {
     //
     // Mirrors the legacy ProjectWorkflowService state machine on the
     // assignment row. Status transitions:
-    //   SUBMITTED      → TECH_APPROVED   (TECHNICAL_SUPERVISOR)
+    //   SUBMITTED      → TECH_APPROVED   (TECHNICAL_EVALUATOR)
     //   SUBMITTED      → IN_PROGRESS     (return for revisions; TE)
     //   TECH_APPROVED  → PENDING_VIVA    (REPORTING_MANAGER)
     //   TECH_APPROVED  → COMPLETED       (RM viva-skip close)
@@ -328,10 +328,10 @@ public class ProjectAssignmentService {
     private static void ensureStaff(User actor) {
         if (actor == null) throw new ForbiddenException("Authentication required");
         if (actor.getRoles() == null
-                || (!actor.getRoles().contains(UserRole.TECHNICAL_SUPERVISOR)
+                || (!actor.getRoles().contains(UserRole.TECHNICAL_EVALUATOR)
                     && !actor.getRoles().contains(UserRole.SUPER_ADMIN))) {
             throw new ForbiddenException(
-                    "Only TECHNICAL_SUPERVISOR or SUPER_ADMIN may perform this action.");
+                    "Only TECHNICAL_EVALUATOR or SUPER_ADMIN may perform this action.");
         }
     }
 
@@ -348,11 +348,11 @@ public class ProjectAssignmentService {
     private static void ensureReviewerForReturn(User actor) {
         if (actor == null) throw new ForbiddenException("Authentication required");
         if (actor.getRoles() == null
-                || (!actor.getRoles().contains(UserRole.TECHNICAL_SUPERVISOR)
+                || (!actor.getRoles().contains(UserRole.TECHNICAL_EVALUATOR)
                     && !actor.getRoles().contains(UserRole.REPORTING_MANAGER)
                     && !actor.getRoles().contains(UserRole.SUPER_ADMIN))) {
             throw new ForbiddenException(
-                    "Only TECHNICAL_SUPERVISOR / REPORTING_MANAGER / SUPER_ADMIN "
+                    "Only TECHNICAL_EVALUATOR / REPORTING_MANAGER / SUPER_ADMIN "
                             + "may return an assignment for revisions.");
         }
     }
@@ -387,7 +387,7 @@ public class ProjectAssignmentService {
         if (caller == null) throw new ForbiddenException("Authentication required");
         boolean isOwner = a.getInternId().equals(caller.getId());
         boolean staffAccess = caller.getRoles() != null
-                && (caller.getRoles().contains(UserRole.TECHNICAL_SUPERVISOR)
+                && (caller.getRoles().contains(UserRole.TECHNICAL_EVALUATOR)
                     || caller.getRoles().contains(UserRole.SUPER_ADMIN));
         if (!isOwner && !staffAccess) {
             throw new ForbiddenException("Not authorised to view this assignment");

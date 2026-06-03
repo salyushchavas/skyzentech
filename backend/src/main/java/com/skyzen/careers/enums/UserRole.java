@@ -28,13 +28,13 @@ package com.skyzen.careers.enums;
 public enum UserRole {
     APPLICANT,
     INTERN,
-    HR_COMPLIANCE,
+    HR,
     OPERATIONS,
-    TECHNICAL_SUPERVISOR,
+    TECHNICAL_EVALUATOR,
     /**
      * Reporting Manager — second reviewer on a project after the technical
      * supervisor approves. Runs the post-merge viva and signs off on final
-     * completion. Distinct from TECHNICAL_SUPERVISOR so the same engagement
+     * completion. Distinct from TECHNICAL_EVALUATOR so the same engagement
      * can carry both reviewers and the workflow can enforce two sign-offs.
      */
     REPORTING_MANAGER,

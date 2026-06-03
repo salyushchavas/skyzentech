@@ -24,7 +24,7 @@ import java.util.Map;
  * SUPER_ADMIN L3 — per-user consolidated supervision view + per-user audit feed.
  *
  * <h2>Role gate</h2>
- * {@code SUPER_ADMIN} only. OPERATIONS, HR_COMPLIANCE, TECHNICAL_SUPERVISOR,
+ * {@code SUPER_ADMIN} only. OPERATIONS, HR, TECHNICAL_EVALUATOR,
  * EXECUTIVE, APPLICANT, INTERN all 403.
  *
  * <h2>Endpoints</h2>

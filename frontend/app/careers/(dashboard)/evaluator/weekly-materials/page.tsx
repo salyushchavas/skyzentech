@@ -22,11 +22,11 @@ import type {
  *   POST   /api/v1/weekly-materials/{id}/release
  *   GET    /api/v1/weekly-materials/{id}/acknowledgements
  *
- * Role gate matches the backend: TECHNICAL_SUPERVISOR or SUPER_ADMIN.
+ * Role gate matches the backend: TECHNICAL_EVALUATOR or SUPER_ADMIN.
  */
 export default function SupervisorWeeklyMaterialsPage() {
   return (
-    <ProtectedRoute requiredRoles={['TECHNICAL_SUPERVISOR', 'SUPER_ADMIN']}>
+    <ProtectedRoute requiredRoles={['TECHNICAL_EVALUATOR', 'SUPER_ADMIN']}>
       <DashboardLayout title="Weekly Materials">
         <Body />
       </DashboardLayout>

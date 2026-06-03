@@ -25,7 +25,7 @@ public class SupervisedInternsController {
     private final SupervisedOverviewService supervisedOverviewService;
 
     @GetMapping("/interns")
-    @PreAuthorize("hasAnyRole('OPERATIONS', 'HR_COMPLIANCE', 'TECHNICAL_SUPERVISOR')")
+    @PreAuthorize("hasAnyRole('OPERATIONS', 'HR', 'TECHNICAL_EVALUATOR')")
     public List<InternSummaryResponse> listInterns(
             @RequestParam(required = false) UUID entityId,
             @RequestParam(required = false) String search) {

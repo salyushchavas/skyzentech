@@ -82,7 +82,7 @@ public class OfferService {
             ApplicationStatus.OFFERED);
 
     /** Privileged staff roles that get the full OfferResponse view. */
-    private static final Set<UserRole> STAFF_ROLES = EnumSet.of(UserRole.OPERATIONS, UserRole.HR_COMPLIANCE);
+    private static final Set<UserRole> STAFF_ROLES = EnumSet.of(UserRole.OPERATIONS, UserRole.HR);
 
     private final OfferRepository offerRepository;
     private final ApplicationRepository applicationRepository;

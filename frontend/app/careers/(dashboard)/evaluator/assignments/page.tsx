@@ -52,7 +52,7 @@ const STATUS_OPTIONS: { value: 'ALL' | AssignmentStatus; label: string }[] = [
 
 export default function EvaluatorAssignmentsPage() {
   return (
-    <ProtectedRoute requiredRoles={['OPERATIONS', 'TECHNICAL_SUPERVISOR']}>
+    <ProtectedRoute requiredRoles={['OPERATIONS', 'TECHNICAL_EVALUATOR']}>
       <DashboardLayout title="Assignments">
         <Suspense fallback={<div className="py-10 text-center text-sm text-gray-500">Loading…</div>}>
           <AssignmentsList />

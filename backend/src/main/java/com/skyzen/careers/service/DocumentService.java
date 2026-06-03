@@ -193,7 +193,7 @@ public class DocumentService {
                 .createdAt(p.getCreatedAt())
                 .updatedAt(p.getUpdatedAt())
                 .retentionPolicyText(RETENTION_POLICIES.get(DocumentType.I983))
-                .linkUrl("/careers/erm/training-plans/" + p.getId())
+                .linkUrl("/careers/operations/training-plans/" + p.getId())
                 .immutable(s == I983Status.COMPLETE
                         || s == I983Status.SUBMITTED_TO_DSO
                         || s == I983Status.DSO_APPROVED)

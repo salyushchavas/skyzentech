@@ -273,10 +273,10 @@ public class SubmissionService {
         if (caller == null) throw new ForbiddenException("Authentication required.");
         if (caller.getRoles() != null
                 && caller.getRoles().contains(UserRole.SUPER_ADMIN)) return;
-        // Role-based — any TECHNICAL_SUPERVISOR / REPORTING_MANAGER can read
+        // Role-based — any TECHNICAL_EVALUATOR / REPORTING_MANAGER can read
         // any submission. Per-engagement FKs are no longer the boundary.
         if (caller.getRoles() != null
-                && (caller.getRoles().contains(UserRole.TECHNICAL_SUPERVISOR)
+                && (caller.getRoles().contains(UserRole.TECHNICAL_EVALUATOR)
                     || caller.getRoles().contains(UserRole.REPORTING_MANAGER))) {
             return;
         }

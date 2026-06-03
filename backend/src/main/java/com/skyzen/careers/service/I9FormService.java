@@ -58,7 +58,7 @@ import java.util.regex.Pattern;
  *
  * Permission model:
  *   - Candidate: Section 1 of their own form only
- *   - HR (HR_COMPLIANCE): Section 2 + read all
+ *   - HR (HR): Section 2 + read all
  *   - ERM / RECRUITER / TECHNICAL_EVALUATOR: read all (no write)
  *   - ADMIN: everything, including reopening completed forms
  */
@@ -71,7 +71,7 @@ public class I9FormService {
     private static final int SECTION_2_DEADLINE_BUSINESS_DAYS = 3;
 
     /** Privileged roles that bypass the candidate ownership check on reads. */
-    private static final Set<UserRole> READ_PRIVILEGED = EnumSet.of(UserRole.OPERATIONS, UserRole.HR_COMPLIANCE, UserRole.TECHNICAL_SUPERVISOR);
+    private static final Set<UserRole> READ_PRIVILEGED = EnumSet.of(UserRole.OPERATIONS, UserRole.HR, UserRole.TECHNICAL_EVALUATOR);
 
     private final I9FormRepository formRepository;
     private final CandidateRepository candidateRepository;

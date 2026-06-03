@@ -62,7 +62,7 @@ public class EvaluatorListsService {
         // source of truth for who's hired (Application.status = HIRED is
         // deprecated). Returns every intern whose engagement is in
         // READY_TO_START or ACTIVE, role-scoped via the controller's
-        // @PreAuthorize (any TECHNICAL_SUPERVISOR can see the full roster).
+        // @PreAuthorize (any TECHNICAL_EVALUATOR can see the full roster).
         return dedupeFromEngagements(
                 engagementRepository.findActiveRoster(ROSTER_STATUSES));
     }

@@ -204,7 +204,7 @@ public class ComplianceOverviewService {
                     .severity(AlertSeverity.WARNING)
                     .title("I-983 amendment requested for " + name)
                     .description("DSO requested changes — coordinate with ERM")
-                    .linkUrl("/careers/erm/training-plans/" + p.getId())
+                    .linkUrl("/careers/operations/training-plans/" + p.getId())
                     .build());
         }
 
@@ -220,7 +220,7 @@ public class ComplianceOverviewService {
                     .severity(AlertSeverity.WARNING)
                     .title("I-983 ready for DSO submission")
                     .description(name + "'s plan has been complete for " + days + " days")
-                    .linkUrl("/careers/erm/training-plans/" + p.getId())
+                    .linkUrl("/careers/operations/training-plans/" + p.getId())
                     .build());
         }
 
@@ -279,7 +279,7 @@ public class ComplianceOverviewService {
                     .dueDate(end)
                     .daysUntilDue(ChronoUnit.DAYS.between(today, end))
                     .candidateName(name)
-                    .linkUrl("/careers/erm/training-plans/" + p.getId())
+                    .linkUrl("/careers/operations/training-plans/" + p.getId())
                     .build());
         }
 
@@ -384,10 +384,10 @@ public class ComplianceOverviewService {
         if (a.getEntityType() == null || a.getEntityId() == null) return null;
         return switch (a.getEntityType()) {
             case "I9Form" -> "/careers/hr/i9-everify/i9/" + a.getEntityId();
-            case "I983Plan" -> "/careers/erm/training-plans/" + a.getEntityId();
+            case "I983Plan" -> "/careers/operations/training-plans/" + a.getEntityId();
             case "Offer" -> "/careers/hr/offers/" + a.getEntityId();
             case "EVerifyCase" -> "/careers/hr/i9-everify/everify/" + a.getEntityId();
-            case "Interview" -> "/careers/erm/interviews/" + a.getEntityId();
+            case "Interview" -> "/careers/operations/interviews/" + a.getEntityId();
             default -> null;
         };
     }

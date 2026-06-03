@@ -77,8 +77,8 @@ public class AdminAuditLogService {
             UserRole.SUPER_ADMIN,
             UserRole.EXECUTIVE,
             UserRole.OPERATIONS,
-            UserRole.HR_COMPLIANCE,
-            UserRole.TECHNICAL_SUPERVISOR,
+            UserRole.HR,
+            UserRole.TECHNICAL_EVALUATOR,
             UserRole.INTERN,
             UserRole.APPLICANT);
 

@@ -32,7 +32,7 @@ import type {
  */
 export default function SupervisorWeeklyReportsPage() {
   return (
-    <ProtectedRoute requiredRoles={['TECHNICAL_SUPERVISOR', 'SUPER_ADMIN']}>
+    <ProtectedRoute requiredRoles={['TECHNICAL_EVALUATOR', 'SUPER_ADMIN']}>
       <DashboardLayout title="Weekly Reports">
         <Body />
       </DashboardLayout>

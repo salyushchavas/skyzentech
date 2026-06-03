@@ -52,7 +52,7 @@ public class UserSupervisionResponse {
     /** Populated only when the target user is APPLICANT or INTERN. */
     private CandidateContext candidateContext;
 
-    /** Populated only when the target user is TECHNICAL_SUPERVISOR. */
+    /** Populated only when the target user is TECHNICAL_EVALUATOR. */
     private SupervisorContext supervisorContext;
 
     @Getter

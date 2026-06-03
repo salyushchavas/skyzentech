@@ -52,7 +52,7 @@ import java.util.UUID;
  * double-click on Approve doesn't 400).
  *
  * <h2>Supervisor ownership</h2>
- * The TECHNICAL_SUPERVISOR can only review reports for interns whose active
+ * The TECHNICAL_EVALUATOR can only review reports for interns whose active
  * engagement they own ({@code engagement.supervisor.id == actor.id}).
  * SUPER_ADMIN bypasses the ownership check.
  *

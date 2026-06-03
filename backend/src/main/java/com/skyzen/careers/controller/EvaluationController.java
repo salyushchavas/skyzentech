@@ -20,7 +20,7 @@ import java.util.UUID;
 /**
  * Periodic evaluation endpoints.
  *
- * <h2>Supervisor (TECHNICAL_SUPERVISOR, SUPER_ADMIN)</h2>
+ * <h2>Supervisor (TECHNICAL_EVALUATOR, SUPER_ADMIN)</h2>
  * <ul>
  *   <li>POST   /evaluations</li>
  *   <li>PUT    /evaluations/{id}                  — blocked when FINALIZED</li>
@@ -28,7 +28,7 @@ import java.util.UUID;
  *   <li>GET    /evaluations/authored              — my authored evaluations</li>
  * </ul>
  *
- * <h2>Read — supervisor / HR_COMPLIANCE / SUPER_ADMIN</h2>
+ * <h2>Read — supervisor / HR / SUPER_ADMIN</h2>
  * <ul>
  *   <li>GET    /evaluations/intern/{candidateId}</li>
  * </ul>
@@ -49,7 +49,7 @@ public class EvaluationController {
     // ── Supervisor write ────────────────────────────────────────────────────
 
     @PostMapping
-    @PreAuthorize("hasAnyRole('TECHNICAL_SUPERVISOR', 'SUPER_ADMIN')")
+    @PreAuthorize("hasAnyRole('TECHNICAL_EVALUATOR', 'SUPER_ADMIN')")
     public ResponseEntity<EvaluationResponse> create(
             @Valid @RequestBody CreateEvaluationRequest req,
             @AuthenticationPrincipal User user) {
@@ -59,7 +59,7 @@ public class EvaluationController {
     }
 
     @PutMapping("/{id}")
-    @PreAuthorize("hasAnyRole('TECHNICAL_SUPERVISOR', 'SUPER_ADMIN')")
+    @PreAuthorize("hasAnyRole('TECHNICAL_EVALUATOR', 'SUPER_ADMIN')")
     public EvaluationResponse update(
             @PathVariable UUID id,
             @Valid @RequestBody UpdateEvaluationRequest req,
@@ -68,7 +68,7 @@ public class EvaluationController {
     }
 
     @PostMapping("/{id}/finalize")
-    @PreAuthorize("hasAnyRole('TECHNICAL_SUPERVISOR', 'SUPER_ADMIN')")
+    @PreAuthorize("hasAnyRole('TECHNICAL_EVALUATOR', 'SUPER_ADMIN')")
     public EvaluationResponse finalizeEvaluation(
             @PathVariable UUID id,
             @AuthenticationPrincipal User user) {
@@ -77,7 +77,7 @@ public class EvaluationController {
 
     /** Author's board — all evaluations this supervisor has written. */
     @GetMapping("/authored")
-    @PreAuthorize("hasAnyRole('TECHNICAL_SUPERVISOR', 'SUPER_ADMIN')")
+    @PreAuthorize("hasAnyRole('TECHNICAL_EVALUATOR', 'SUPER_ADMIN')")
     public List<EvaluationResponse> listAuthored(@AuthenticationPrincipal User user) {
         return service.listAuthored(user);
     }
@@ -85,7 +85,7 @@ public class EvaluationController {
     // ── Read — supervisor / HR / SUPER_ADMIN ────────────────────────────────
 
     @GetMapping("/intern/{candidateId}")
-    @PreAuthorize("hasAnyRole('TECHNICAL_SUPERVISOR', 'HR_COMPLIANCE', 'SUPER_ADMIN')")
+    @PreAuthorize("hasAnyRole('TECHNICAL_EVALUATOR', 'HR', 'SUPER_ADMIN')")
     public List<EvaluationResponse> listForIntern(
             @PathVariable UUID candidateId,
             @AuthenticationPrincipal User user) {

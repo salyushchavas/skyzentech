@@ -313,8 +313,8 @@ public class TimesheetService {
 
     /**
      * Detail view for the RM approval page. Role-based: the intern who owns
-     * the row, any TECHNICAL_SUPERVISOR / REPORTING_MANAGER / OPERATIONS /
-     * HR_COMPLIANCE / SUPER_ADMIN. No per-engagement FK match.
+     * the row, any TECHNICAL_EVALUATOR / REPORTING_MANAGER / OPERATIONS /
+     * HR / SUPER_ADMIN. No per-engagement FK match.
      */
     @Transactional(readOnly = true)
     public TimesheetWeekResponse getWeek(UUID timesheetId, User caller) {
@@ -329,9 +329,9 @@ public class TimesheetService {
         if (!isOwner
                 && !isSuperAdmin(caller)
                 && !hasRole(caller, UserRole.REPORTING_MANAGER)
-                && !hasRole(caller, UserRole.TECHNICAL_SUPERVISOR)
+                && !hasRole(caller, UserRole.TECHNICAL_EVALUATOR)
                 && !hasRole(caller, UserRole.OPERATIONS)
-                && !hasRole(caller, UserRole.HR_COMPLIANCE)) {
+                && !hasRole(caller, UserRole.HR)) {
             throw new ForbiddenException("Not authorised to view this timesheet.");
         }
         return toWeekResponse(t);

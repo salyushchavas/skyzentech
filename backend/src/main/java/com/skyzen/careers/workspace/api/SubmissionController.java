@@ -94,7 +94,7 @@ public class SubmissionController {
     }
 
     @PostMapping("/api/v1/submissions/{submissionId}/approve")
-    @PreAuthorize("hasAnyRole('TECHNICAL_SUPERVISOR', 'SUPER_ADMIN')")
+    @PreAuthorize("hasAnyRole('TECHNICAL_EVALUATOR', 'SUPER_ADMIN')")
     public SubmissionResponse approve(
             @PathVariable UUID submissionId,
             @AuthenticationPrincipal User caller) {
@@ -102,7 +102,7 @@ public class SubmissionController {
     }
 
     @PostMapping("/api/v1/submissions/{submissionId}/return")
-    @PreAuthorize("hasAnyRole('TECHNICAL_SUPERVISOR', 'REPORTING_MANAGER', 'SUPER_ADMIN')")
+    @PreAuthorize("hasAnyRole('TECHNICAL_EVALUATOR', 'REPORTING_MANAGER', 'SUPER_ADMIN')")
     public SubmissionResponse returnForRevisions(
             @PathVariable UUID submissionId,
             @Valid @RequestBody ReturnSubmissionRequest body,

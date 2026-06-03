@@ -213,17 +213,17 @@ public class ProjectWorkflowService {
     }
 
     // Role-based gates — per-engagement FKs are no longer permission
-    // boundaries. Any TECHNICAL_SUPERVISOR / REPORTING_MANAGER (or
+    // boundaries. Any TECHNICAL_EVALUATOR / REPORTING_MANAGER (or
     // SUPER_ADMIN) may act on any project at the appropriate stage.
     private static void ensureTechnicalReviewer(Project project, User actor) {
         if (actor == null) throw new ForbiddenException("Authentication required.");
         if (isSuperAdmin(actor)) return;
         if (actor.getRoles() != null
-                && actor.getRoles().contains(UserRole.TECHNICAL_SUPERVISOR)) {
+                && actor.getRoles().contains(UserRole.TECHNICAL_EVALUATOR)) {
             return;
         }
         throw new ForbiddenException(
-                "Only TECHNICAL_SUPERVISOR or SUPER_ADMIN may act here.");
+                "Only TECHNICAL_EVALUATOR or SUPER_ADMIN may act here.");
     }
 
     private static void ensureReportingManagerOrSuperAdmin(Project project, User actor) {

@@ -37,12 +37,12 @@ import java.util.UUID;
 public class OfferController {
 
     /** Staff roles that get the full OfferResponse view. */
-    private static final Set<UserRole> STAFF_ROLES = EnumSet.of(UserRole.OPERATIONS, UserRole.HR_COMPLIANCE);
+    private static final Set<UserRole> STAFF_ROLES = EnumSet.of(UserRole.OPERATIONS, UserRole.HR);
 
     private final OfferService offerService;
 
     @PostMapping
-    @PreAuthorize("hasAnyRole('OPERATIONS', 'HR_COMPLIANCE')")
+    @PreAuthorize("hasAnyRole('OPERATIONS', 'HR')")
     public ResponseEntity<OfferResponse> create(
             @Valid @RequestBody CreateOfferRequest req,
             @AuthenticationPrincipal User user) {
@@ -52,7 +52,7 @@ public class OfferController {
     }
 
     @GetMapping
-    @PreAuthorize("hasAnyRole('OPERATIONS', 'HR_COMPLIANCE')")
+    @PreAuthorize("hasAnyRole('OPERATIONS', 'HR')")
     public PagedResponse<OfferSummaryResponse> list(
             @RequestParam(required = false) OfferStatus status,
             @RequestParam(required = false) UUID applicationId,
@@ -72,7 +72,7 @@ public class OfferController {
     }
 
     @GetMapping("/{id}")
-    @PreAuthorize("hasAnyRole('APPLICANT', 'INTERN', 'OPERATIONS', 'HR_COMPLIANCE')")
+    @PreAuthorize("hasAnyRole('APPLICANT', 'INTERN', 'OPERATIONS', 'HR')")
     public Object getOne(@PathVariable UUID id,
                          @AuthenticationPrincipal User user) {
         // Candidate path returns the redacted view + enforces ownership in the
@@ -85,7 +85,7 @@ public class OfferController {
     }
 
     @PutMapping("/{id}")
-    @PreAuthorize("hasAnyRole('OPERATIONS', 'HR_COMPLIANCE')")
+    @PreAuthorize("hasAnyRole('OPERATIONS', 'HR')")
     public OfferResponse update(@PathVariable UUID id,
                                 @Valid @RequestBody UpdateOfferRequest req,
                                 @AuthenticationPrincipal User user) {
@@ -93,7 +93,7 @@ public class OfferController {
     }
 
     @PostMapping("/{id}/send")
-    @PreAuthorize("hasAnyRole('OPERATIONS', 'HR_COMPLIANCE')")
+    @PreAuthorize("hasAnyRole('OPERATIONS', 'HR')")
     public OfferResponse send(@PathVariable UUID id,
                               @AuthenticationPrincipal User user) {
         return offerService.send(id, user);
@@ -117,14 +117,14 @@ public class OfferController {
     }
 
     @PostMapping("/{id}/revoke")
-    @PreAuthorize("hasAnyRole('OPERATIONS', 'HR_COMPLIANCE')")
+    @PreAuthorize("hasAnyRole('OPERATIONS', 'HR')")
     public OfferResponse revoke(@PathVariable UUID id,
                                 @AuthenticationPrincipal User user) {
         return offerService.revoke(id, user);
     }
 
     @DeleteMapping("/{id}")
-    @PreAuthorize("hasAnyRole('OPERATIONS', 'HR_COMPLIANCE')")
+    @PreAuthorize("hasAnyRole('OPERATIONS', 'HR')")
     public ResponseEntity<Void> delete(@PathVariable UUID id,
                                        @AuthenticationPrincipal User user) {
         offerService.delete(id, user);
@@ -139,7 +139,7 @@ public class OfferController {
      * @PreAuthorize roles mirror the getOne endpoint above.
      */
     @GetMapping("/{id}/download")
-    @PreAuthorize("hasAnyRole('APPLICANT', 'INTERN', 'OPERATIONS', 'HR_COMPLIANCE')")
+    @PreAuthorize("hasAnyRole('APPLICANT', 'INTERN', 'OPERATIONS', 'HR')")
     public ResponseEntity<byte[]> download(@PathVariable UUID id,
                                            @AuthenticationPrincipal User user) {
         OfferService.LetterDownload payload = offerService.buildDownload(id, user);

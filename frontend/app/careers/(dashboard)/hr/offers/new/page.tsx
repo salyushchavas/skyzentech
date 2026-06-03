@@ -34,7 +34,7 @@ const FREQ_OPTIONS: { value: CompensationFrequency; label: string }[] = [
 
 export default function NewOfferPage() {
   return (
-    <ProtectedRoute requiredRoles={['OPERATIONS', 'HR_COMPLIANCE']}>
+    <ProtectedRoute requiredRoles={['OPERATIONS', 'HR']}>
       <DashboardLayout title="Create Offer">
         <Suspense fallback={<Spinner />}>
           <Form />

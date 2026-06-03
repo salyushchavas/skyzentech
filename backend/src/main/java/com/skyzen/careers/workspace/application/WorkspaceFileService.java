@@ -241,11 +241,11 @@ public class WorkspaceFileService {
     }
 
     private static boolean isEngagementEvaluator(Project project, User caller) {
-        // Role-based — any TECHNICAL_SUPERVISOR can read the workspace.
+        // Role-based — any TECHNICAL_EVALUATOR can read the workspace.
         // Per-engagement supervisor FK is informational, not a boundary.
         return caller != null
                 && caller.getRoles() != null
-                && caller.getRoles().contains(UserRole.TECHNICAL_SUPERVISOR);
+                && caller.getRoles().contains(UserRole.TECHNICAL_EVALUATOR);
     }
 
     private static boolean isSuperAdmin(User u) {

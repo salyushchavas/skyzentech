@@ -43,12 +43,12 @@ interface StaffLink {
 
 // ── Staff sidebars — frontend-hardcoded (unchanged) ─────────────────────────
 //
-// HR_COMPLIANCE, OPERATIONS, TECHNICAL_SUPERVISOR, EXECUTIVE, SUPER_ADMIN all
+// HR, OPERATIONS, TECHNICAL_EVALUATOR, EXECUTIVE, SUPER_ADMIN all
 // remain frontend-driven. Only APPLICANT / INTERN moved to the backend-driven
 // /api/v1/candidate/nav read so the menu reflects the user's journey
 // progression (interviews appear when first one is scheduled, etc.).
 const STAFF_ROLE_LINKS: Partial<Record<UserRole, StaffLink[]>> = {
-  HR_COMPLIANCE: [
+  HR: [
     { icon: LayoutDashboard, label: 'Dashboard', href: '/careers/hr' },
     { icon: ShieldCheck, label: 'Compliance', href: '/careers/hr/compliance' },
     { icon: FileSignature, label: 'Offer Letters', href: '/careers/hr/offers' },
@@ -61,14 +61,14 @@ const STAFF_ROLE_LINKS: Partial<Record<UserRole, StaffLink[]>> = {
     { icon: LayoutDashboard, label: 'Dashboard', href: '/careers/operations' },
     { icon: KanbanSquare, label: 'Pipeline', href: '/careers/recruiter' },
     { icon: Users, label: 'Candidates', href: '/careers/recruiter/candidates' },
-    { icon: Video, label: 'Interviews', href: '/careers/erm/interviews' },
+    { icon: Video, label: 'Interviews', href: '/careers/operations/interviews' },
     { icon: FileSignature, label: 'Offer Letters', href: '/careers/hr/offers' },
-    { icon: FileBadge, label: 'I-983 Plans', href: '/careers/erm/training-plans' },
+    { icon: FileBadge, label: 'I-983 Plans', href: '/careers/operations/training-plans' },
     { icon: Briefcase, label: 'Postings', href: '/careers/admin/postings' },
     { icon: Users, label: 'Supervised', href: '/careers/supervised' },
     { icon: KeyRound, label: 'Sessions', href: '/careers/sessions' },
   ],
-  TECHNICAL_SUPERVISOR: [
+  TECHNICAL_EVALUATOR: [
     { icon: LayoutDashboard, label: 'Dashboard', href: '/careers/evaluator' },
     { icon: Users, label: 'Active Interns', href: '/careers/evaluator/interns' },
     { icon: CalendarClock, label: 'Sessions', href: '/careers/evaluator/sessions' },

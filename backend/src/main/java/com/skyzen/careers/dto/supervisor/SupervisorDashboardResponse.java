@@ -9,7 +9,7 @@ import lombok.Setter;
 import java.util.List;
 
 /**
- * Aggregate payload for the Technical Supervisor dashboard. Single read,
+ * Aggregate payload for the Technical Evaluator dashboard. Single read,
  * scoped server-side to engagements the caller supervises (SUPER_ADMIN
  * bypasses the scope and sees all).
  *

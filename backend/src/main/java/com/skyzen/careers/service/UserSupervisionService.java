@@ -141,7 +141,7 @@ public class UserSupervisionService {
         if (roles.contains(UserRole.APPLICANT) || roles.contains(UserRole.INTERN)) {
             candidateContext = buildCandidateContext(target);
         }
-        if (roles.contains(UserRole.TECHNICAL_SUPERVISOR)) {
+        if (roles.contains(UserRole.TECHNICAL_EVALUATOR)) {
             supervisorContext = buildSupervisorContext(target);
         }
 
@@ -342,7 +342,7 @@ public class UserSupervisionService {
         if (latestPlan != null) {
             b.i983Status(latestPlan.getStatus() != null ? latestPlan.getStatus().name() : null)
                     .i983OptEndDate(latestPlan.getOptEndDate())
-                    .i983DetailHref("/careers/erm/training-plans/" + latestPlan.getId());
+                    .i983DetailHref("/careers/operations/training-plans/" + latestPlan.getId());
         }
         return b.build();
     }

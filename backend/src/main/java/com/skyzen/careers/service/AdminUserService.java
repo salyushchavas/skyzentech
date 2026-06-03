@@ -40,12 +40,12 @@ public class AdminUserService {
     private static final Set<UserRole> STAFF_ROLES = EnumSet.of(
             UserRole.SUPER_ADMIN,
             UserRole.OPERATIONS,
-            UserRole.HR_COMPLIANCE,
-            UserRole.TECHNICAL_SUPERVISOR,
+            UserRole.HR,
+            UserRole.TECHNICAL_EVALUATOR,
             UserRole.EXECUTIVE);
 
     private static final String STAFF_ROLE_MSG =
-            "role must be a STAFF role (SUPER_ADMIN / OPERATIONS / HR_COMPLIANCE / TECHNICAL_SUPERVISOR / EXECUTIVE)";
+            "role must be a STAFF role (SUPER_ADMIN / OPERATIONS / HR / TECHNICAL_EVALUATOR / EXECUTIVE)";
 
     /**
      * Surfaced both to the API caller (as a 409) and as the message the

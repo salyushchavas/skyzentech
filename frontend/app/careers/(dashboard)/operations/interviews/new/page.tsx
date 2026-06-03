@@ -129,7 +129,7 @@ function Form() {
     try {
       await api.post<InterviewResponse>('/api/v1/interviews', body);
       toast.success('Interview scheduled');
-      router.push('/careers/erm/interviews');
+      router.push('/careers/operations/interviews');
     } catch (err: any) {
       const msg = err?.response?.data?.error ?? 'Could not schedule interview';
       setFormError(msg);

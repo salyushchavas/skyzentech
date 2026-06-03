@@ -27,7 +27,7 @@ type ActionKind = 'send' | 'revoke' | 'delete';
 
 export default function OfferDetailPage() {
   return (
-    <ProtectedRoute requiredRoles={['OPERATIONS', 'HR_COMPLIANCE']}>
+    <ProtectedRoute requiredRoles={['OPERATIONS', 'HR']}>
       <DashboardLayout title="Offer Details">
         <Body />
       </DashboardLayout>

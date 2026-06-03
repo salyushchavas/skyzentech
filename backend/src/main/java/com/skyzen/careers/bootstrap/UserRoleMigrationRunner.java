@@ -14,8 +14,8 @@ import org.springframework.stereotype.Component;
  *
  * <pre>
  *   RECRUITER, ERM, ADMIN            → OPERATIONS
- *   TECHNICAL_EVALUATOR              → TECHNICAL_SUPERVISOR
- *   HR_COMPLIANCE                    → HR_COMPLIANCE  (no change)
+ *   TECHNICAL_EVALUATOR              → TECHNICAL_EVALUATOR
+ *   HR                    → HR  (no change)
  *   CANDIDATE, when user has an ACTIVE engagement → INTERN
  *   CANDIDATE, otherwise             → APPLICANT
  *   EXECUTIVE                        → new; no auto-map from any old role
@@ -124,12 +124,13 @@ public class UserRoleMigrationRunner implements CommandLineRunner {
             log.info("Role migration: RECRUITER/ERM/ADMIN→OPERATIONS: {} rows promoted, "
                     + "duplicates collapsed", ops);
 
-            // 4. TECHNICAL_EVALUATOR → TECHNICAL_SUPERVISOR.
-            int sup = jdbcTemplate.update(
-                    "UPDATE user_roles SET role = 'TECHNICAL_SUPERVISOR' "
-                            + "WHERE role = 'TECHNICAL_EVALUATOR'");
-            total += sup;
-            log.info("Role migration: TECHNICAL_EVALUATOR→TECHNICAL_SUPERVISOR: {} rows", sup);
+            // 4. (Step retired.) The original PED-§7 line here renamed
+            //     TECHNICAL_EVALUATOR → TECHNICAL_SUPERVISOR. The
+            //     8-role-finalize commit reversed that name, so the
+            //     equivalent UPDATE now lives in SchemaFixupRunner
+            //     (TECHNICAL_SUPERVISOR → TECHNICAL_EVALUATOR + HR_COMPLIANCE
+            //     → HR). Keeping this as a no-op comment so the migration
+            //     trail is readable.
 
             // (The stale CHECK-constraint drop that used to live here was moved
             // to step 0 — see the comment there.)

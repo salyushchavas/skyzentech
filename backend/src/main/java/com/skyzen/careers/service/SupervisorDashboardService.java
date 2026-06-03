@@ -53,7 +53,7 @@ import java.util.Set;
 import java.util.UUID;
 
 /**
- * Aggregate read for the Technical Supervisor dashboard. Single read-only
+ * Aggregate read for the Technical Evaluator dashboard. Single read-only
  * transaction. Scope: ACTIVE engagements where the caller is the supervisor;
  * SUPER_ADMIN bypasses the scope and sees every active engagement.
  *
@@ -103,7 +103,7 @@ public class SupervisorDashboardService {
         boolean isSuperAdmin = caller.getRoles() != null
                 && caller.getRoles().contains(UserRole.SUPER_ADMIN);
 
-        // Scope: SUPER_ADMIN sees every ACTIVE engagement; TECHNICAL_SUPERVISOR
+        // Scope: SUPER_ADMIN sees every ACTIVE engagement; TECHNICAL_EVALUATOR
         // only sees engagements where they're listed as the supervisor.
         List<Engagement> engagements = isSuperAdmin
                 ? engagementRepository.findRosterByStatusIn(ACTIVE_ONLY, null, null)

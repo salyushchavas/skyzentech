@@ -184,7 +184,7 @@ public class OperationsDashboardService {
                 .key("INTERVIEWS_TO_SCHEDULE")
                 .label("Interviews to schedule")
                 .count(interviewsToSchedule)
-                .href("/careers/erm/interviews")
+                .href("/careers/operations/interviews")
                 .build());
 
         long pendingScorecards = countPendingScorecards();
@@ -192,7 +192,7 @@ public class OperationsDashboardService {
                 .key("SCORECARDS_TO_SUBMIT")
                 .label("Scorecards to submit")
                 .count(pendingScorecards)
-                .href("/careers/erm/interviews")
+                .href("/careers/operations/interviews")
                 .build());
 
         long onboardingToAction = countOnboardingTasksPending();

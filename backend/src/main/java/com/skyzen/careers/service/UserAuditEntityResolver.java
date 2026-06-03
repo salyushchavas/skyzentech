@@ -57,7 +57,7 @@ import java.util.stream.Collectors;
  * <h2>Coverage limits (honest)</h2>
  * <ul>
  *   <li>Resolution requires a Candidate row — staff-only users (OPERATIONS /
- *       HR_COMPLIANCE / TECHNICAL_SUPERVISOR / EXECUTIVE / SUPER_ADMIN)
+ *       HR / TECHNICAL_EVALUATOR / EXECUTIVE / SUPER_ADMIN)
  *       return an empty map; the audit feed for them is actor-side +
  *       User-entity-targeted rows only. That's the right answer — staff
  *       don't have personal cycle data to surface.</li>

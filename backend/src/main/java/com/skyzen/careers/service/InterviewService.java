@@ -324,8 +324,8 @@ public class InterviewService {
         boolean privileged = roles.contains(UserRole.OPERATIONS)
                 || roles.contains(UserRole.OPERATIONS)
                 || roles.contains(UserRole.OPERATIONS)
-                || roles.contains(UserRole.HR_COMPLIANCE)
-                || roles.contains(UserRole.TECHNICAL_SUPERVISOR);
+                || roles.contains(UserRole.HR)
+                || roles.contains(UserRole.TECHNICAL_EVALUATOR);
         boolean isInterviewer = interview.getInterviewer() != null
                 && caller.getId().equals(interview.getInterviewer().getId());
 
@@ -394,8 +394,8 @@ public class InterviewService {
         boolean allowed = caller.getRoles().contains(UserRole.OPERATIONS)
                 || caller.getRoles().contains(UserRole.OPERATIONS)
                 || caller.getRoles().contains(UserRole.OPERATIONS)
-                || caller.getRoles().contains(UserRole.HR_COMPLIANCE)
-                || caller.getRoles().contains(UserRole.TECHNICAL_SUPERVISOR);
+                || caller.getRoles().contains(UserRole.HR)
+                || caller.getRoles().contains(UserRole.TECHNICAL_EVALUATOR);
         if (!allowed) {
             throw new ForbiddenException("Not allowed to view interview scorecards");
         }

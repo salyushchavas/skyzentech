@@ -84,9 +84,11 @@ public class TestAccountSeeder implements CommandLineRunner {
     private static final String EVAL_EMAIL    = "test-eval@skyzen.test";
     private static final String RM_EMAIL      = "test-rm@skyzen.test";
     private static final String INTERN_EMAIL  = "test-intern@skyzen.test";
-    private static final String EVAL_PASSWORD   = "eval12345";
-    private static final String RM_PASSWORD     = "rm12345";
-    private static final String INTERN_PASSWORD = "intern12345";
+    // Aligned with the 8-role-finalize commit's TestRoleUserSeeder so logging
+    // in as test-eval / test-rm / test-intern works against either seeder.
+    private static final String EVAL_PASSWORD   = "Eval@1234";
+    private static final String RM_PASSWORD     = "Rm@1234";
+    private static final String INTERN_PASSWORD = "Intern@1";
 
     private static final String TEST_ENTITY_NAME = "Skyzen Test Entity (Seeder)";
     private static final String TEST_POSTING_SLUG = "skyzen-test-seeder-posting";
@@ -141,7 +143,7 @@ public class TestAccountSeeder implements CommandLineRunner {
         if (!enabled) return; // Silent no-op in production / default config.
         log.info("{} Seeding test accounts (app.seed.test-accounts-enabled=true)", LOG_TAG);
         try {
-            User evaluator = findOrCreateUser(EVAL_EMAIL,    "Test Evaluator",         EVAL_PASSWORD,   UserRole.TECHNICAL_SUPERVISOR);
+            User evaluator = findOrCreateUser(EVAL_EMAIL,    "Test Evaluator",         EVAL_PASSWORD,   UserRole.TECHNICAL_EVALUATOR);
             User rm        = findOrCreateUser(RM_EMAIL,      "Test Reporting Manager", RM_PASSWORD,     UserRole.REPORTING_MANAGER);
             User internU   = findOrCreateUser(INTERN_EMAIL,  "Test Intern",            INTERN_PASSWORD, UserRole.INTERN);
 
@@ -418,7 +420,7 @@ public class TestAccountSeeder implements CommandLineRunner {
                 .employerNaicsCode("541512") // Computer Systems Design Services
                 .employerNumberOfFullTimeEmployees(45)
                 .employerOfficialName(creator.getFullName())
-                .employerOfficialTitle("Technical Supervisor")
+                .employerOfficialTitle("Technical Evaluator")
                 .employerOfficialEmail(creator.getEmail())
                 .employerOfficialPhone("+1-415-555-0199")
 
@@ -431,7 +433,7 @@ public class TestAccountSeeder implements CommandLineRunner {
                 .compensationFrequency(CompensationFrequency.YEARLY)
                 .compensationCurrency("USD")
                 .supervisorName(creator.getFullName())
-                .supervisorTitle("Technical Supervisor")
+                .supervisorTitle("Technical Evaluator")
                 .supervisorEmail(creator.getEmail())
                 .supervisorPhone("+1-415-555-0199")
 
@@ -455,7 +457,7 @@ public class TestAccountSeeder implements CommandLineRunner {
                         + "4. Pass the biweekly evaluator rubric for code quality, "
                         + "communication, and ownership.")
                 .performanceEvaluationMethod(
-                        "Biweekly 1:1 evaluation sessions with the Technical Supervisor "
+                        "Biweekly 1:1 evaluation sessions with the Technical Evaluator "
                         + "covering code quality, delivery cadence, communication, and "
                         + "ownership. Mid-cycle and final written evaluations (12-month "
                         + "and 24-month per DHS guidance).")

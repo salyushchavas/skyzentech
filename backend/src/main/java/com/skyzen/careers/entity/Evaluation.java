@@ -27,7 +27,7 @@ import java.util.UUID;
  * dashboard can compute per-criterion averages across the program.
  *
  * <h2>HR read access</h2>
- * Read endpoints allow HR_COMPLIANCE alongside the engagement's supervisor
+ * Read endpoints allow HR alongside the engagement's supervisor
  * and SUPER_ADMIN. HR cannot author or edit. Write paths are gated to the
  * supervisor (or SUPER_ADMIN).
  */

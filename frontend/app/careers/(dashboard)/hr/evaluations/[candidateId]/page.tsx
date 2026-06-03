@@ -20,13 +20,13 @@ import type {
  * HR / Compliance read-only view of a candidate's evaluations.
  *
  * Backed by /api/v1/evaluations/intern/{candidateId} which authorizes
- * HR_COMPLIANCE (along with the engagement's supervisor and SUPER_ADMIN).
+ * HR (along with the engagement's supervisor and SUPER_ADMIN).
  * I-983 checkpoints are the primary HR-relevant subset, but other types are
  * still surfaced here since HR may need full history for performance reviews.
  */
 export default function HrCandidateEvaluationsPage() {
   return (
-    <ProtectedRoute requiredRoles={['HR_COMPLIANCE', 'OPERATIONS', 'SUPER_ADMIN']}>
+    <ProtectedRoute requiredRoles={['HR', 'OPERATIONS', 'SUPER_ADMIN']}>
       <DashboardLayout title="Candidate Evaluations">
         <Body />
       </DashboardLayout>

@@ -26,8 +26,8 @@ import java.util.UUID;
  *       {@code INTERN} only. APPLICANT can't satisfy the service-level
  *       active-engagement gate either way.</li>
  *   <li>Supervisor commands (read intern roster / return / approve):
- *       {@code TECHNICAL_SUPERVISOR} or {@code SUPER_ADMIN}. The service
- *       layer additionally checks that a TECHNICAL_SUPERVISOR owns the
+ *       {@code TECHNICAL_EVALUATOR} or {@code SUPER_ADMIN}. The service
+ *       layer additionally checks that a TECHNICAL_EVALUATOR owns the
  *       intern's engagement; SUPER_ADMIN bypasses ownership.</li>
  * </ul>
  *
@@ -79,7 +79,7 @@ public class WeeklyReportController {
 
     /** All reports for a candidate the caller supervises. */
     @GetMapping("/intern/{candidateId}")
-    @PreAuthorize("hasAnyRole('TECHNICAL_SUPERVISOR', 'SUPER_ADMIN')")
+    @PreAuthorize("hasAnyRole('TECHNICAL_EVALUATOR', 'SUPER_ADMIN')")
     public List<WeeklyReportResponse> listForIntern(
             @PathVariable UUID candidateId,
             @AuthenticationPrincipal User user) {
@@ -87,7 +87,7 @@ public class WeeklyReportController {
     }
 
     @PostMapping("/{id}/return")
-    @PreAuthorize("hasAnyRole('TECHNICAL_SUPERVISOR', 'SUPER_ADMIN')")
+    @PreAuthorize("hasAnyRole('TECHNICAL_EVALUATOR', 'SUPER_ADMIN')")
     public WeeklyReportResponse returnForCorrection(
             @PathVariable UUID id,
             @Valid @RequestBody ReviewWeeklyReportRequest req,
@@ -96,7 +96,7 @@ public class WeeklyReportController {
     }
 
     @PostMapping("/{id}/approve")
-    @PreAuthorize("hasAnyRole('TECHNICAL_SUPERVISOR', 'SUPER_ADMIN')")
+    @PreAuthorize("hasAnyRole('TECHNICAL_EVALUATOR', 'SUPER_ADMIN')")
     public WeeklyReportResponse approve(
             @PathVariable UUID id,
             @RequestBody(required = false) ReviewWeeklyReportRequest req,

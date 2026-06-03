@@ -30,7 +30,7 @@ import java.util.List;
  * <ul>
  *   <li>{@code overview} — SUPER_ADMIN or EXECUTIVE (leadership oversight).</li>
  *   <li>Audit-log endpoints (paged read, actions list, entity-types list,
- *       CSV export) — SUPER_ADMIN ONLY. EXECUTIVE and HR_COMPLIANCE are
+ *       CSV export) — SUPER_ADMIN ONLY. EXECUTIVE and HR are
  *       intentionally denied the full log; HR keeps its compliance-scoped
  *       feed via {@code /api/v1/hr/dashboard}.</li>
  * </ul>

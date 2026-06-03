@@ -35,7 +35,7 @@ const PAGE_SIZE = 500; // demo: fetch everything, paginate client-side stats
 
 export default function DocumentVaultPage() {
   return (
-    <ProtectedRoute requiredRoles={['OPERATIONS', 'HR_COMPLIANCE']}>
+    <ProtectedRoute requiredRoles={['OPERATIONS', 'HR']}>
       <DashboardLayout title="Document Vault">
         <Body />
       </DashboardLayout>

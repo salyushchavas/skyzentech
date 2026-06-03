@@ -23,8 +23,8 @@ const READ_ROLES: UserRole[] = [
   'OPERATIONS',
   'OPERATIONS',
   'OPERATIONS',
-  'HR_COMPLIANCE',
-  'TECHNICAL_SUPERVISOR',
+  'HR',
+  'TECHNICAL_EVALUATOR',
 ];
 const ADMIN_ERM: UserRole[] = ['OPERATIONS'];
 
@@ -155,7 +155,7 @@ function Body() {
   return (
     <>
       <Link
-        href="/careers/erm/interviews"
+        href="/careers/operations/interviews"
         className="mb-4 inline-flex items-center gap-1 text-sm text-gray-600 hover:text-gray-900"
       >
         <ArrowLeft className="h-4 w-4" strokeWidth={2} />

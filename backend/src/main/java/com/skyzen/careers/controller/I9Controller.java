@@ -37,7 +37,7 @@ public class I9Controller {
     }
 
     @GetMapping("/candidate/{candidateId}")
-    @PreAuthorize("hasAnyRole('OPERATIONS', 'HR_COMPLIANCE')")
+    @PreAuthorize("hasAnyRole('OPERATIONS', 'HR')")
     public I9FormResponse getForCandidate(@PathVariable UUID candidateId,
                                           @AuthenticationPrincipal User user) {
         I9Form form = service.getOrCreateForCandidate(candidateId, user);
@@ -45,7 +45,7 @@ public class I9Controller {
     }
 
     @GetMapping("/{id}")
-    @PreAuthorize("hasAnyRole('APPLICANT', 'INTERN', 'OPERATIONS', 'HR_COMPLIANCE', 'TECHNICAL_SUPERVISOR')")
+    @PreAuthorize("hasAnyRole('APPLICANT', 'INTERN', 'OPERATIONS', 'HR', 'TECHNICAL_EVALUATOR')")
     public I9FormResponse getOne(@PathVariable UUID id,
                                  @AuthenticationPrincipal User user) {
         // Service-side requireReadAccess enforces candidate ownership; the
@@ -54,7 +54,7 @@ public class I9Controller {
     }
 
     @GetMapping
-    @PreAuthorize("hasAnyRole('OPERATIONS', 'HR_COMPLIANCE')")
+    @PreAuthorize("hasAnyRole('OPERATIONS', 'HR')")
     public PagedResponse<I9SummaryResponse> list(
             @RequestParam(required = false) I9Status status,
             @RequestParam(defaultValue = "false") boolean overdueOnly,
@@ -80,7 +80,7 @@ public class I9Controller {
     }
 
     @PostMapping("/{id}/section2")
-    @PreAuthorize("hasAnyRole('OPERATIONS', 'HR_COMPLIANCE')")
+    @PreAuthorize("hasAnyRole('OPERATIONS', 'HR')")
     public I9FormResponse saveSection2(@PathVariable UUID id,
                                        @Valid @RequestBody Section2Request req,
                                        @AuthenticationPrincipal User user) {
@@ -98,7 +98,7 @@ public class I9Controller {
     }
 
     @GetMapping("/{id}/history")
-    @PreAuthorize("hasAnyRole('APPLICANT', 'INTERN', 'OPERATIONS', 'HR_COMPLIANCE', 'TECHNICAL_SUPERVISOR')")
+    @PreAuthorize("hasAnyRole('APPLICANT', 'INTERN', 'OPERATIONS', 'HR', 'TECHNICAL_EVALUATOR')")
     public List<I9HistoryEntryResponse> getHistory(@PathVariable UUID id,
                                                    @AuthenticationPrincipal User user) {
         return service.getHistory(id, user);

@@ -70,7 +70,7 @@ public class ApplicationController {
      *   - page / size (size capped at 100)
      */
     @GetMapping
-    @PreAuthorize("hasAnyRole('OPERATIONS', 'HR_COMPLIANCE')")
+    @PreAuthorize("hasAnyRole('OPERATIONS', 'HR')")
     public PagedResponse<ApplicationResponse> list(
             @RequestParam(required = false) String search,
             @RequestParam(required = false) List<ApplicationStatus> status,
@@ -114,7 +114,7 @@ public class ApplicationController {
     }
 
     @GetMapping("/{id}")
-    @PreAuthorize("hasAnyRole('APPLICANT', 'INTERN', 'OPERATIONS', 'HR_COMPLIANCE', 'TECHNICAL_SUPERVISOR')")
+    @PreAuthorize("hasAnyRole('APPLICANT', 'INTERN', 'OPERATIONS', 'HR', 'TECHNICAL_EVALUATOR')")
     public ApplicationResponse getOne(@PathVariable UUID id,
                                       @AuthenticationPrincipal User user) {
         // CANDIDATE is gated to their own application in ApplicationService.findById;

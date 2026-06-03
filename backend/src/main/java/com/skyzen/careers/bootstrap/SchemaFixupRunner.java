@@ -69,6 +69,54 @@ public class SchemaFixupRunner implements CommandLineRunner {
             log.warn("user_roles_role_check drop failed (non-fatal): {}", e.getMessage(), e);
         }
 
+        // ── 8-role finalize: rename HR_COMPLIANCE → HR and
+        //                    TECHNICAL_SUPERVISOR → TECHNICAL_EVALUATOR.
+        //
+        // Idempotent: subsequent boots find zero matching rows. The CHECK
+        // drop above must run first so the new values aren't rejected.
+        // Each UPDATE is wrapped in its own try/catch so a missing table /
+        // column on some deployment doesn't crash startup.
+        try {
+            int n = jdbcTemplate.update(
+                    "UPDATE user_roles SET role = 'HR' WHERE role = 'HR_COMPLIANCE'");
+            if (n > 0) log.info("[SchemaFixupRunner] role rename: {} user_roles rows updated "
+                    + "HR_COMPLIANCE → HR", n);
+        } catch (Exception e) {
+            log.warn("[SchemaFixupRunner] role rename UPDATE skipped (HR_COMPLIANCE → HR): {}",
+                    e.getMessage());
+        }
+        try {
+            int n = jdbcTemplate.update(
+                    "UPDATE user_roles SET role = 'TECHNICAL_EVALUATOR' "
+                            + "WHERE role = 'TECHNICAL_SUPERVISOR'");
+            if (n > 0) log.info("[SchemaFixupRunner] role rename: {} user_roles rows updated "
+                    + "TECHNICAL_SUPERVISOR → TECHNICAL_EVALUATOR", n);
+        } catch (Exception e) {
+            log.warn("[SchemaFixupRunner] role rename UPDATE skipped "
+                    + "(TECHNICAL_SUPERVISOR → TECHNICAL_EVALUATOR): {}", e.getMessage());
+        }
+        // Defensive: any deployment that stored roles on a single users.role
+        // column (rather than the join table) gets the same rename.
+        try {
+            int n = jdbcTemplate.update(
+                    "UPDATE users SET role = 'HR' WHERE role = 'HR_COMPLIANCE'");
+            if (n > 0) log.info("[SchemaFixupRunner] role rename: {} users.role rows updated "
+                    + "HR_COMPLIANCE → HR", n);
+        } catch (Exception e) {
+            // Expected on the join-table schema (no users.role column).
+            log.debug("[SchemaFixupRunner] users.role HR rename skipped: {}", e.getMessage());
+        }
+        try {
+            int n = jdbcTemplate.update(
+                    "UPDATE users SET role = 'TECHNICAL_EVALUATOR' "
+                            + "WHERE role = 'TECHNICAL_SUPERVISOR'");
+            if (n > 0) log.info("[SchemaFixupRunner] role rename: {} users.role rows updated "
+                    + "TECHNICAL_SUPERVISOR → TECHNICAL_EVALUATOR", n);
+        } catch (Exception e) {
+            log.debug("[SchemaFixupRunner] users.role TECHNICAL_EVALUATOR rename skipped: {}",
+                    e.getMessage());
+        }
+
         // Workspace submissions — drop the auto-generated CHECK on
         // review_outcome so future ReviewOutcome additions don't trip the
         // stale-CHECK trap. Idempotent.

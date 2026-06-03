@@ -323,8 +323,8 @@ public class NotificationService {
         String internName = candidateNameFromForm(form);
         List<String> hrRecipients = hrComplianceEmails();
         if (hrRecipients.isEmpty()) {
-            log.warn("I9_SECTION2_PENDING skipped — no HR_COMPLIANCE users to notify "
-                    + "(form {}). Add a user with HR_COMPLIANCE role.", targetId);
+            log.warn("I9_SECTION2_PENDING skipped — no HR users to notify "
+                    + "(form {}). Add a user with HR role.", targetId);
             return;
         }
         // Single ledger row keyed on the form; the email goes to all HR users
@@ -364,7 +364,7 @@ public class NotificationService {
 
         List<String> hrRecipients = hrComplianceEmails();
         if (hrRecipients.isEmpty()) {
-            log.warn("I983_PLAN_READY skipped — no HR_COMPLIANCE users (plan {})", targetId);
+            log.warn("I983_PLAN_READY skipped — no HR users (plan {})", targetId);
             return;
         }
         String to = String.join(", ", hrRecipients);
@@ -1003,13 +1003,13 @@ public class NotificationService {
     }
 
     /**
-     * Active recipients with the HR_COMPLIANCE role. Used for the HR-targeted
+     * Active recipients with the HR role. Used for the HR-targeted
      * batch-2 sends (I-9 §2 pending, I-983 ready). Filters out blanks/null
      * emails so a misconfigured user doesn't break the send.
      */
     private List<String> hrComplianceEmails() {
         try {
-            return userRepository.findByRole(UserRole.HR_COMPLIANCE).stream()
+            return userRepository.findByRole(UserRole.HR).stream()
                     .filter(u -> u != null && Boolean.TRUE.equals(u.getActive()))
                     .map(User::getEmail)
                     .filter(e -> e != null && !e.isBlank())
