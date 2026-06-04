@@ -1,8 +1,11 @@
 package com.skyzen.careers.service;
 
+import com.skyzen.careers.entity.InternLifecycle;
 import com.skyzen.careers.entity.SentNotification;
 import com.skyzen.careers.event.InterviewCompletedEvent;
 import com.skyzen.careers.notification.NotificationEventType;
+import com.skyzen.careers.notification.UserNotificationDispatcher;
+import com.skyzen.careers.repository.InternLifecycleRepository;
 import com.skyzen.careers.repository.SentNotificationRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -32,6 +35,8 @@ import java.util.UUID;
 public class InterviewAcknowledgmentService {
 
     private final SentNotificationRepository sentNotificationRepository;
+    private final UserNotificationDispatcher userNotificationDispatcher;
+    private final InternLifecycleRepository internLifecycleRepository;
 
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     @Transactional(propagation = Propagation.REQUIRES_NEW)
@@ -46,6 +51,57 @@ public class InterviewAcknowledgmentService {
             return;
         }
         recordAck(interviewId, recipient);
+        dispatchInApp(event, interviewId);
+    }
+
+    private void dispatchInApp(InterviewCompletedEvent event, UUID interviewId) {
+        UUID applicantUserId = event.getCandidateUserId();
+        if (applicantUserId == null) return;
+        try {
+            userNotificationDispatcher.dispatch(applicantUserId,
+                    NotificationEventType.INTERVIEW_COMPLETED.name(),
+                    applicantUserId,
+                    "Interview completed",
+                    "Thanks for completing your interview. We'll follow up with next steps soon.",
+                    "/careers/intern/interviews/" + interviewId, true);
+        } catch (Exception e) {
+            log.debug("[UserNotif] INTERVIEW_COMPLETED applicant dispatch failed: {}",
+                    e.getMessage());
+        }
+        InternLifecycle lc;
+        try {
+            lc = internLifecycleRepository.findByUserId(applicantUserId).orElse(null);
+        } catch (Exception e) {
+            log.debug("[UserNotif] lifecycle lookup failed for {}: {}",
+                    applicantUserId, e.getMessage());
+            return;
+        }
+        if (lc == null) {
+            log.debug("[UserNotif] no InternLifecycle for {} — staff INTERVIEW_COMPLETED skipped",
+                    applicantUserId);
+            return;
+        }
+        dispatchStaff(lc.getErmId(), applicantUserId, interviewId, "/careers/erm");
+        dispatchStaff(lc.getManagerId(), applicantUserId, interviewId, "/careers/manager");
+    }
+
+    private void dispatchStaff(UUID staffId, UUID applicantUserId, UUID interviewId, String url) {
+        if (staffId == null) {
+            log.debug("[UserNotif] INTERVIEW_COMPLETED staff slot null for applicant {} — skip",
+                    applicantUserId);
+            return;
+        }
+        try {
+            userNotificationDispatcher.dispatch(staffId,
+                    NotificationEventType.INTERVIEW_COMPLETED.name(),
+                    applicantUserId,
+                    "Interview completed",
+                    "An applicant's interview was completed; scorecard finalized.",
+                    url, true);
+        } catch (Exception e) {
+            log.debug("[UserNotif] INTERVIEW_COMPLETED staff dispatch failed: {}",
+                    e.getMessage());
+        }
     }
 
     /** Public for direct unit tests. */

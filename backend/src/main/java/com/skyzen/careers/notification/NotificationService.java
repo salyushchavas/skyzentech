@@ -11,6 +11,7 @@ import com.skyzen.careers.entity.Evaluation;
 import com.skyzen.careers.entity.I9Form;
 import com.skyzen.careers.entity.I983Plan;
 import com.skyzen.careers.entity.Interview;
+import com.skyzen.careers.entity.InternLifecycle;
 import com.skyzen.careers.entity.JobPosting;
 import com.skyzen.careers.entity.Offer;
 import com.skyzen.careers.entity.OnboardingTask;
@@ -22,6 +23,7 @@ import com.skyzen.careers.entity.WeeklyMaterial;
 import com.skyzen.careers.entity.WeeklyReport;
 import com.skyzen.careers.enums.UserRole;
 import com.skyzen.careers.repository.AuditLogRepository;
+import com.skyzen.careers.repository.InternLifecycleRepository;
 import com.skyzen.careers.repository.SentNotificationRepository;
 import com.skyzen.careers.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
@@ -34,9 +36,11 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
+import java.util.EnumSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 
 /**
@@ -72,6 +76,8 @@ public class NotificationService {
     private final AuditLogRepository auditLogRepository;
     private final ObjectMapper objectMapper;
     private final UserRepository userRepository;
+    private final UserNotificationDispatcher userNotificationDispatcher;
+    private final InternLifecycleRepository internLifecycleRepository;
 
     /**
      * Operations recipient for "offer accepted" notifications. Configure as a
@@ -119,6 +125,15 @@ public class NotificationService {
         String entityName = entityName(application);
         deliver(NotificationEventType.APPLICATION_RECEIVED, targetId, email,
                 () -> emailProvider.sendApplicationReceived(email, name, jobTitle, entityName));
+
+        dispatchInApp(applicantUserId(application),
+                NotificationEventType.APPLICATION_RECEIVED,
+                "Application received",
+                "We received your application for " + nz(jobTitle) + ". We'll be in touch.",
+                INTERN_DASH + "/applications",
+                EnumSet.of(StaffRole.ERM, StaffRole.MANAGER),
+                "New application: " + nz(jobTitle),
+                "Applicant " + nz(name) + " applied to " + nz(jobTitle) + ".");
     }
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
@@ -137,6 +152,16 @@ public class NotificationService {
         String entityName = entityName(application);
         deliver(NotificationEventType.APPLICATION_SHORTLISTED, targetId, email,
                 () -> emailProvider.sendApplicationShortlisted(email, name, jobTitle, entityName));
+
+        dispatchInApp(applicantUserId(application),
+                NotificationEventType.APPLICATION_SHORTLISTED,
+                "Your application was shortlisted",
+                "Your application for " + nz(jobTitle) + " moved to Shortlisted. "
+                        + "Watch for interview scheduling next.",
+                INTERN_DASH + "/applications",
+                EnumSet.of(StaffRole.MANAGER),
+                "Applicant shortlisted: " + nz(name),
+                nz(name) + " was shortlisted for " + nz(jobTitle) + ".");
     }
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
@@ -155,6 +180,14 @@ public class NotificationService {
         String entityName = entityName(application);
         deliver(NotificationEventType.APPLICATION_REJECTED, targetId, email,
                 () -> emailProvider.sendApplicationRejected(email, name, jobTitle, entityName));
+
+        dispatchInApp(applicantUserId(application),
+                NotificationEventType.APPLICATION_REJECTED,
+                "Application update",
+                "Your application for " + nz(jobTitle) + " was not advanced. "
+                        + "Thank you for applying.",
+                INTERN_DASH + "/applications",
+                null, null, null);
     }
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
@@ -181,6 +214,16 @@ public class NotificationService {
                         interview.getScheduledAt(), interview.getDurationMinutes(),
                         interviewType, interviewerName,
                         interview.getMeetingUrl(), interview.getCandidateNotes()));
+
+        dispatchInApp(applicantUserId(application),
+                NotificationEventType.INTERVIEW_SCHEDULED,
+                "Interview scheduled",
+                "Your interview for " + nz(jobTitle) + " is scheduled. "
+                        + "Open the Interviews page for details.",
+                INTERN_DASH + "/interviews/" + targetId,
+                EnumSet.of(StaffRole.ERM, StaffRole.MANAGER),
+                "Interview scheduled: " + nz(name),
+                "Interview for " + nz(name) + " (" + nz(jobTitle) + ") is on the calendar.");
     }
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
@@ -207,6 +250,13 @@ public class NotificationService {
                         interview.getScheduledAt(), interview.getDurationMinutes(),
                         interviewType, interviewerName,
                         interview.getMeetingUrl()));
+
+        dispatchInApp(applicantUserId(application),
+                NotificationEventType.INTERVIEW_REMINDER,
+                "Interview reminder",
+                "Your interview for " + nz(jobTitle) + " starts within 24 hours.",
+                INTERN_DASH + "/interviews/" + targetId,
+                null, null, null);
     }
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
@@ -233,6 +283,16 @@ public class NotificationService {
                         email, name, jobTitle, entityName,
                         offer.getCompensationAmount(), currency, frequency,
                         offer.getStartDate(), offer.getExpiresAt(), viewUrl));
+
+        dispatchInApp(applicantUserId(application),
+                NotificationEventType.OFFER_EXTENDED,
+                "Your offer is ready to view",
+                "We've extended an offer for " + nz(jobTitle) + ". "
+                        + "Open the Offer page to review and sign.",
+                INTERN_DASH + "/offer",
+                EnumSet.of(StaffRole.ERM, StaffRole.MANAGER),
+                "Offer sent: " + nz(name),
+                "Offer extended to " + nz(name) + " for " + nz(jobTitle) + ".");
     }
 
     /** Fires BOTH sends — applicant confirmation + ops heads-up. */
@@ -263,6 +323,20 @@ public class NotificationService {
                     + "(offer {}). Set OPS_NOTIFICATION_EMAIL to enable.", targetId);
             return;
         }
+        // In-app mirror — applicant gets the welcome, ERM (when lifecycle exists)
+        // gets the "offer signed" heads-up. Lifecycle exists by the time
+        // OfferSignedListener fires this for the signed path; for the legacy
+        // pre-sign acceptance path the lifecycle isn't yet created and the ERM
+        // dispatch is silently skipped per the standard rule.
+        dispatchInApp(applicantUserId(application),
+                NotificationEventType.OFFER_ACCEPTED,
+                "Welcome to " + nz(entityName) + "!",
+                "Your offer is signed. Onboarding instructions will follow shortly.",
+                INTERN_DASH,
+                EnumSet.of(StaffRole.ERM),
+                "Offer signed: " + nz(name),
+                nz(name) + " signed the offer for " + nz(jobTitle) + ".");
+
         if (alreadySent(NotificationEventType.OFFER_ACCEPTED_OPS, targetId)) return;
         deliver(NotificationEventType.OFFER_ACCEPTED_OPS, targetId, opsNotificationEmail,
                 () -> emailProvider.sendOfferAcceptedToOps(
@@ -290,6 +364,16 @@ public class NotificationService {
                 () -> emailProvider.sendOnboardingWelcome(
                         email, name, jobTitle, entityName,
                         engagement.getActualStartDate(), dashboardUrl));
+
+        dispatchInApp(applicantUserId(application),
+                NotificationEventType.ONBOARDING_WELCOME,
+                "Onboarding started",
+                "Your engagement with " + nz(entityName) + " is now active. "
+                        + "Complete onboarding items to begin.",
+                INTERN_DASH + "/onboarding",
+                EnumSet.of(StaffRole.ERM),
+                "Engagement active: " + nz(name),
+                nz(name) + " moved to ACTIVE for " + nz(jobTitle) + ".");
     }
 
     // ── Batch 2 — compliance / onboarding ───────────────────────────────────
@@ -312,6 +396,13 @@ public class NotificationService {
         deliver(NotificationEventType.I9_SECTION1_REMINDER, targetId, email,
                 () -> emailProvider.sendI9Section1Reminder(
                         email, name, form.getSection1DueDate(), dashboardUrl));
+
+        dispatchInApp(applicantUserIdFromForm(form),
+                NotificationEventType.I9_SECTION1_REMINDER,
+                "Complete your I-9 Section 1",
+                "Your I-9 Section 1 is due. Open the I-9 page to complete it.",
+                INTERN_DASH + "/onboarding",
+                null, null, null);
     }
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
@@ -333,6 +424,15 @@ public class NotificationService {
         deliver(NotificationEventType.I9_SECTION2_PENDING, targetId, to,
                 () -> emailProvider.sendI9Section2Pending(
                         to, internName, form.getSection2DueDate(), hrDashboardUrl));
+
+        // Staff-only event (no applicant in-app row). ERM slot on the intern's
+        // lifecycle drives the in-app fan-out; mirrors the HR To: list above.
+        dispatchInApp(applicantUserIdFromForm(form),
+                NotificationEventType.I9_SECTION2_PENDING,
+                null, null, null,
+                EnumSet.of(StaffRole.ERM),
+                "I-9 Section 2 pending: " + nz(internName),
+                nz(internName) + " completed Section 1; Section 2 awaits HR.");
     }
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
@@ -350,6 +450,13 @@ public class NotificationService {
 
         deliver(NotificationEventType.I983_PLAN_NEEDED, targetId, email,
                 () -> emailProvider.sendI983PlanNeeded(email, name, dashboardUrl));
+
+        dispatchInApp(applicantUserId(application),
+                NotificationEventType.I983_PLAN_NEEDED,
+                "Draft your I-983 Training Plan",
+                "Start your I-983 training plan to keep your STEM OPT on track.",
+                INTERN_DASH + "/onboarding",
+                null, null, null);
     }
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
@@ -370,6 +477,13 @@ public class NotificationService {
         String to = String.join(", ", hrRecipients);
         deliver(NotificationEventType.I983_PLAN_READY, targetId, to,
                 () -> emailProvider.sendI983PlanReady(to, internName, hrDashboardUrl));
+
+        dispatchInApp(applicantUserIdFromCandidate(c),
+                NotificationEventType.I983_PLAN_READY,
+                null, null, null,
+                EnumSet.of(StaffRole.ERM),
+                "I-983 plan ready: " + nz(internName),
+                nz(internName) + " signed the I-983; ready for DSO approval.");
     }
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
@@ -387,6 +501,13 @@ public class NotificationService {
 
         deliver(NotificationEventType.EVERIFY_CASE_OPENED, targetId, email,
                 () -> emailProvider.sendEVerifyCaseOpened(email, name, dashboardUrl));
+
+        dispatchInApp(applicantUserIdFromForm(form),
+                NotificationEventType.EVERIFY_CASE_OPENED,
+                "E-Verify case opened",
+                "Your E-Verify case is open. We'll let you know if any action is needed.",
+                INTERN_DASH + "/onboarding",
+                null, null, null);
     }
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
@@ -404,6 +525,14 @@ public class NotificationService {
 
         deliver(NotificationEventType.EVERIFY_TNC_ALERT, targetId, email,
                 () -> emailProvider.sendEVerifyTncAlert(email, name, dashboardUrl));
+
+        dispatchInApp(applicantUserIdFromForm(form),
+                NotificationEventType.EVERIFY_TNC_ALERT,
+                "E-Verify: action required",
+                "Your E-Verify case received a Tentative Nonconfirmation. "
+                        + "Open onboarding for next steps.",
+                INTERN_DASH + "/onboarding",
+                null, null, null);
     }
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
@@ -421,6 +550,13 @@ public class NotificationService {
 
         deliver(NotificationEventType.EVERIFY_CLEARED, targetId, email,
                 () -> emailProvider.sendEVerifyCleared(email, name, dashboardUrl));
+
+        dispatchInApp(applicantUserIdFromForm(form),
+                NotificationEventType.EVERIFY_CLEARED,
+                "E-Verify: employment authorized",
+                "Your E-Verify case cleared with Employment Authorized.",
+                INTERN_DASH + "/onboarding",
+                null, null, null);
     }
 
     /**
@@ -447,6 +583,14 @@ public class NotificationService {
         deliver(eventType, targetId, email,
                 () -> emailProvider.sendWorkAuthExpiryReminder(
                         email, name, daysUntilExpiry, expirationDate, authType, dashboardUrl));
+
+        dispatchInApp(applicantUserId(application),
+                eventType,
+                "Work authorization expires in " + daysUntilExpiry + " days",
+                "Your " + nz(authType) + " expires " + expirationDate
+                        + ". Coordinate with your ERM on next steps.",
+                INTERN_DASH + "/onboarding",
+                null, null, null);
     }
 
     /**
@@ -479,6 +623,16 @@ public class NotificationService {
                 () -> emailProvider.sendComplianceTaskReminder(
                         email, name, task.getTitle(), task.getDueDate(),
                         overdueFinal, dashboardUrl));
+
+        dispatchInApp(applicantUserIdFromCandidate(c),
+                NotificationEventType.COMPLIANCE_TASK_REMINDER,
+                "Action needed: " + nz(task.getTitle()),
+                (overdueFinal != null && overdueFinal > 0
+                        ? "Overdue by " + overdueFinal + " day(s). "
+                        : "Due " + task.getDueDate() + ". ")
+                        + "Open onboarding to complete it.",
+                INTERN_DASH + "/onboarding",
+                null, null, null);
     }
 
     // ── Batch 3 — intern weekly cycle ───────────────────────────────────────
@@ -505,6 +659,13 @@ public class NotificationService {
                 () -> emailProvider.sendWeeklyMaterialReleased(
                         email, name, material.getWeekNo(), material.getTitle(),
                         dashboardUrl));
+
+        dispatchInApp(applicantUserIdFromCandidate(intern),
+                NotificationEventType.WEEKLY_MATERIAL_RELEASED,
+                "New material: Week " + material.getWeekNo(),
+                nz(material.getTitle()) + " is now available.",
+                INTERN_DASH,
+                null, null, null);
     }
 
     /** Material still unread — fired by the daily scheduler. */
@@ -524,6 +685,13 @@ public class NotificationService {
                 () -> emailProvider.sendMaterialUnreadReminder(
                         email, name, material.getWeekNo(), material.getTitle(),
                         dashboardUrl));
+
+        dispatchInApp(applicantUserIdFromCandidate(intern),
+                NotificationEventType.MATERIAL_UNREAD_REMINDER,
+                "Reminder: Week " + material.getWeekNo() + " material unread",
+                nz(material.getTitle()) + " is still unread.",
+                INTERN_DASH,
+                null, null, null);
     }
 
     /** Weekly report due — fired by the daily scheduler late in the week. */
@@ -542,6 +710,13 @@ public class NotificationService {
 
         deliver(NotificationEventType.WEEKLY_REPORT_DUE, targetId, email,
                 () -> emailProvider.sendWeeklyReportDue(email, name, weekStart, dashboardUrl));
+
+        dispatchInApp(applicantUserIdFromCandidate(c),
+                NotificationEventType.WEEKLY_REPORT_DUE,
+                "Weekly report due",
+                "Submit your weekly report for the week of " + weekStart + ".",
+                INTERN_DASH + "/weekly-meetings",
+                null, null, null);
     }
 
     /** Weekly report returned for changes — event-triggered. */
@@ -563,6 +738,14 @@ public class NotificationService {
                 () -> emailProvider.sendWeeklyReportReturned(
                         email, name, report.getWeekStart(),
                         report.getReviewNotes(), dashboardUrl));
+
+        dispatchInApp(applicantUserIdFromCandidate(c),
+                NotificationEventType.WEEKLY_REPORT_RETURNED,
+                "Weekly report returned for changes",
+                "Your report for week of " + report.getWeekStart()
+                        + " needs revisions. Open it for review notes.",
+                INTERN_DASH + "/weekly-meetings",
+                null, null, null);
     }
 
     /** Weekly report approved — event-triggered. */
@@ -580,6 +763,13 @@ public class NotificationService {
         deliver(NotificationEventType.WEEKLY_REPORT_APPROVED, targetId, email,
                 () -> emailProvider.sendWeeklyReportApproved(
                         email, name, report.getWeekStart(), dashboardUrl));
+
+        dispatchInApp(applicantUserIdFromCandidate(c),
+                NotificationEventType.WEEKLY_REPORT_APPROVED,
+                "Weekly report approved",
+                "Your weekly report for " + report.getWeekStart() + " was approved.",
+                INTERN_DASH + "/weekly-meetings",
+                null, null, null);
     }
 
     /** Timesheet due — fired by the daily scheduler. */
@@ -598,6 +788,13 @@ public class NotificationService {
 
         deliver(NotificationEventType.TIMESHEET_DUE, targetId, email,
                 () -> emailProvider.sendTimesheetDue(email, name, weekStart, dashboardUrl));
+
+        dispatchInApp(applicantUserIdFromCandidate(c),
+                NotificationEventType.TIMESHEET_DUE,
+                "Timesheet due",
+                "Submit your timesheet for the week of " + weekStart + ".",
+                INTERN_DASH + "/timesheets",
+                null, null, null);
     }
 
     /** Project assigned — event-triggered, intern recipient. */
@@ -621,6 +818,18 @@ public class NotificationService {
                 () -> emailProvider.sendProjectAssigned(
                         email, name, project.getTitle(), project.getDueDate(),
                         by, dashboardUrl));
+
+        dispatchInApp(applicantUserIdFromCandidate(intern),
+                NotificationEventType.PROJECT_ASSIGNED,
+                "New project assigned: " + nz(project.getTitle()),
+                "Due " + project.getDueDate()
+                        + (by != null ? " · assigned by " + by : "") + ".",
+                INTERN_DASH + "/projects/" + targetId,
+                EnumSet.of(StaffRole.TRAINER, StaffRole.EVALUATOR,
+                        StaffRole.ERM, StaffRole.MANAGER),
+                "Project assigned to " + nz(name),
+                nz(name) + " was assigned \"" + nz(project.getTitle())
+                        + "\" (due " + project.getDueDate() + ").");
     }
 
     /** Project submitted — event-triggered, supervisor recipient. */
@@ -649,6 +858,15 @@ public class NotificationService {
                 () -> emailProvider.sendProjectSubmitted(
                         supervisorEmail, supervisorName, internName,
                         project.getTitle(), supervisorDashboardUrl));
+
+        dispatchInApp(applicantUserIdFromCandidate(intern),
+                NotificationEventType.PROJECT_SUBMITTED,
+                "Project submitted: " + nz(project.getTitle()),
+                "Your submission was received. The reviewer will be in touch.",
+                INTERN_DASH + "/projects/" + targetId,
+                EnumSet.of(StaffRole.TRAINER),
+                "Project ready to review: " + nz(internName),
+                nz(internName) + " submitted \"" + nz(project.getTitle()) + "\".");
     }
 
     /** Project returned for changes — event-triggered, intern recipient. */
@@ -667,6 +885,15 @@ public class NotificationService {
                 () -> emailProvider.sendProjectReturned(
                         email, name, project.getTitle(),
                         project.getReviewNotes(), dashboardUrl));
+
+        dispatchInApp(applicantUserIdFromCandidate(intern),
+                NotificationEventType.PROJECT_RETURNED,
+                "Project returned: " + nz(project.getTitle()),
+                "Open the project for review notes and resubmit when ready.",
+                INTERN_DASH + "/projects/" + targetId,
+                EnumSet.of(StaffRole.TRAINER),
+                "Project returned to intern",
+                "\"" + nz(project.getTitle()) + "\" was returned for changes.");
     }
 
     /** Project completed — event-triggered, intern recipient. */
@@ -684,6 +911,16 @@ public class NotificationService {
         deliver(NotificationEventType.PROJECT_COMPLETED, targetId, email,
                 () -> emailProvider.sendProjectCompleted(
                         email, name, project.getTitle(), dashboardUrl));
+
+        dispatchInApp(applicantUserIdFromCandidate(intern),
+                NotificationEventType.PROJECT_COMPLETED,
+                "Project completed: " + nz(project.getTitle()),
+                "Congratulations — your project was marked complete.",
+                INTERN_DASH + "/projects/" + targetId,
+                EnumSet.of(StaffRole.TRAINER, StaffRole.EVALUATOR,
+                        StaffRole.ERM, StaffRole.MANAGER),
+                "Project completed: " + nz(name),
+                nz(name) + " completed \"" + nz(project.getTitle()) + "\".");
     }
 
     /** Evaluation due — fired by the daily scheduler against DRAFT older than N days. */
@@ -710,6 +947,21 @@ public class NotificationService {
                 () -> emailProvider.sendEvaluationDue(
                         supervisorEmail, supervisorName, internName, type,
                         daysInDraft, supervisorDashboardUrl));
+
+        // Staff-only nudge to the assigned evaluator.
+        if (supervisor != null) {
+            try {
+                UUID internUserId = applicantUserIdFromCandidate(intern);
+                userNotificationDispatcher.dispatch(supervisor.getId(),
+                        NotificationEventType.EVALUATION_DUE.name(), internUserId,
+                        cap("Evaluation draft pending: " + nz(internName), 200),
+                        cap("Draft is " + daysInDraft + " day(s) old. Finalize when ready.", 400),
+                        cap(EVALUATOR_DASH, 500), true);
+            } catch (Exception e) {
+                log.debug("[UserNotif] EVALUATION_DUE supervisor dispatch failed: {}",
+                        e.getMessage());
+            }
+        }
     }
 
     /** Evaluation finalized — event-triggered, intern recipient. */
@@ -731,6 +983,16 @@ public class NotificationService {
                 () -> emailProvider.sendEvaluationFinalized(
                         email, name, type, supervisorName,
                         evaluation.getOverallRating(), dashboardUrl));
+
+        dispatchInApp(applicantUserIdFromCandidate(intern),
+                NotificationEventType.EVALUATION_FINALIZED,
+                "Evaluation feedback available",
+                "Your " + nz(type) + " evaluation was published"
+                        + (supervisorName != null ? " by " + supervisorName : "") + ".",
+                INTERN_DASH + "/evaluations/" + targetId,
+                EnumSet.of(StaffRole.TRAINER, StaffRole.ERM, StaffRole.MANAGER),
+                "Evaluation published: " + nz(name),
+                nz(type) + " evaluation for " + nz(name) + " was published.");
     }
 
     /** I-983 self-review due — fired by the daily scheduler. */
@@ -748,6 +1010,13 @@ public class NotificationService {
         String type = evaluation.getType() != null ? evaluation.getType().name() : null;
         deliver(NotificationEventType.I983_SELF_EVAL_DUE, targetId, email,
                 () -> emailProvider.sendI983SelfEvalDue(email, name, type, dashboardUrl));
+
+        dispatchInApp(applicantUserIdFromCandidate(intern),
+                NotificationEventType.I983_SELF_EVAL_DUE,
+                "I-983 self-evaluation due",
+                "Complete your " + nz(type) + " self-evaluation in the Evaluations page.",
+                INTERN_DASH + "/evaluations/" + targetId,
+                null, null, null);
     }
 
     // ── Two-role workflow (P1b) ─────────────────────────────────────────────
@@ -767,6 +1036,15 @@ public class NotificationService {
         deliver(NotificationEventType.PROJECT_TECH_APPROVED, targetId, email,
                 () -> emailProvider.sendProjectTechApproved(
                         email, name, project.getTitle(), dashboardUrl));
+
+        dispatchInApp(applicantUserIdFromCandidate(intern),
+                NotificationEventType.PROJECT_TECH_APPROVED,
+                "Project: technical approval granted",
+                "\"" + nz(project.getTitle()) + "\" passed technical review.",
+                INTERN_DASH + "/projects/" + targetId,
+                EnumSet.of(StaffRole.TRAINER),
+                "Project tech-approved",
+                "\"" + nz(project.getTitle()) + "\" cleared technical review.");
     }
 
     /** Intern email — reviewer returned the project for revisions. */
@@ -784,6 +1062,16 @@ public class NotificationService {
         deliver(NotificationEventType.PROJECT_RETURNED_FOR_REVISIONS, targetId, email,
                 () -> emailProvider.sendProjectReturnedForRevisions(
                         email, name, project.getTitle(), reason, dashboardUrl));
+
+        dispatchInApp(applicantUserIdFromCandidate(intern),
+                NotificationEventType.PROJECT_RETURNED_FOR_REVISIONS,
+                "Project returned for revisions",
+                "\"" + nz(project.getTitle()) + "\" needs changes"
+                        + (reason != null && !reason.isBlank() ? ": " + reason : "") + ".",
+                INTERN_DASH + "/projects/" + targetId,
+                EnumSet.of(StaffRole.TRAINER),
+                "Project returned for revisions",
+                "\"" + nz(project.getTitle()) + "\" returned for changes.");
     }
 
     /** Intern email — Reporting Manager scheduled the viva. */
@@ -801,6 +1089,13 @@ public class NotificationService {
         deliver(NotificationEventType.PROJECT_PENDING_VIVA, targetId, email,
                 () -> emailProvider.sendProjectPendingViva(
                         email, name, project.getTitle(), dashboardUrl));
+
+        dispatchInApp(applicantUserIdFromCandidate(intern),
+                NotificationEventType.PROJECT_PENDING_VIVA,
+                "Viva scheduled for " + nz(project.getTitle()),
+                "Your Reporting Manager scheduled the viva. Watch for calendar details.",
+                INTERN_DASH + "/projects/" + targetId,
+                null, null, null);
     }
 
     /**
@@ -1000,6 +1295,122 @@ public class NotificationService {
             log.warn("Failed to write NOTIFICATION_SKIPPED audit (non-fatal): {}",
                     e.getMessage());
         }
+    }
+
+    // ── Phase 7 sweep: parallel in-app dispatch ─────────────────────────────
+    //
+    // Every email/SentNotification send above is mirrored as a UserNotification
+    // row so the bell + Messages page surface the real lifecycle. Recipients
+    // resolved per the doc §9 matrix; staff slots come from intern_lifecycles
+    // (null slot → skip silently). Best-effort: failure here never affects the
+    // email path that already ran above.
+
+    enum StaffRole { ERM, TRAINER, EVALUATOR, MANAGER }
+
+    private static final String INTERN_DASH = "/careers/intern";
+    private static final String ERM_DASH = "/careers/erm";
+    private static final String TRAINER_DASH = "/careers/trainer";
+    private static final String EVALUATOR_DASH = "/careers/reporting-manager";
+    private static final String MANAGER_DASH = "/careers/manager";
+
+    /**
+     * Mirror an email send as an in-app row for the applicant + each
+     * resolved staff recipient. {@code staffTitle} / {@code staffBody}
+     * fall back to the intern strings when null.
+     */
+    private void dispatchInApp(UUID applicantUserId,
+                                NotificationEventType eventType,
+                                String internTitle, String internBody, String internActionUrl,
+                                Set<StaffRole> staffRoles,
+                                String staffTitle, String staffBody) {
+        if (applicantUserId != null && internTitle != null) {
+            try {
+                userNotificationDispatcher.dispatch(applicantUserId, eventType.name(),
+                        applicantUserId,
+                        cap(internTitle, 200), cap(internBody, 400),
+                        cap(internActionUrl, 500), true);
+            } catch (Exception e) {
+                log.debug("[UserNotif] applicant dispatch failed for {}: {}",
+                        eventType, e.getMessage());
+            }
+        }
+        if (applicantUserId == null || staffRoles == null || staffRoles.isEmpty()) return;
+        InternLifecycle lc;
+        try {
+            lc = internLifecycleRepository.findByUserId(applicantUserId).orElse(null);
+        } catch (Exception e) {
+            log.debug("[UserNotif] lifecycle lookup failed for {}: {}",
+                    applicantUserId, e.getMessage());
+            return;
+        }
+        if (lc == null) {
+            log.debug("[UserNotif] no InternLifecycle for {} — staff dispatches skipped "
+                    + "(pre-OFFER_SIGNED)", applicantUserId);
+            return;
+        }
+        String sTitle = staffTitle != null ? staffTitle : internTitle;
+        String sBody = staffBody != null ? staffBody : internBody;
+        for (StaffRole r : staffRoles) {
+            UUID staffId = switch (r) {
+                case ERM -> lc.getErmId();
+                case TRAINER -> lc.getTrainerId();
+                case EVALUATOR -> lc.getEvaluatorId();
+                case MANAGER -> lc.getManagerId();
+            };
+            if (staffId == null) {
+                log.debug("[UserNotif] {} slot null on lifecycle {} for event {} — skip",
+                        r, lc.getId(), eventType);
+                continue;
+            }
+            try {
+                userNotificationDispatcher.dispatch(staffId, eventType.name(), applicantUserId,
+                        cap(sTitle, 200), cap(sBody, 400),
+                        cap(staffActionUrl(r), 500), true);
+            } catch (Exception e) {
+                log.debug("[UserNotif] {} dispatch failed for {}: {}",
+                        r, eventType, e.getMessage());
+            }
+        }
+    }
+
+    private static String staffActionUrl(StaffRole r) {
+        return switch (r) {
+            case ERM -> ERM_DASH;
+            case TRAINER -> TRAINER_DASH;
+            case EVALUATOR -> EVALUATOR_DASH;
+            case MANAGER -> MANAGER_DASH;
+        };
+    }
+
+    private static String cap(String s, int max) {
+        if (s == null) return null;
+        return s.length() <= max ? s : s.substring(0, max);
+    }
+
+    private static String nz(String s) {
+        return s != null ? s : "";
+    }
+
+    private static UUID applicantUserId(Application application) {
+        if (application == null) return null;
+        Candidate c = application.getCandidate();
+        if (c == null) return null;
+        User u = c.getUser();
+        return u != null ? u.getId() : null;
+    }
+
+    private static UUID applicantUserIdFromForm(I9Form form) {
+        if (form == null) return null;
+        Candidate c = form.getCandidate();
+        if (c == null) return null;
+        User u = c.getUser();
+        return u != null ? u.getId() : null;
+    }
+
+    private static UUID applicantUserIdFromCandidate(Candidate c) {
+        if (c == null) return null;
+        User u = c.getUser();
+        return u != null ? u.getId() : null;
     }
 
     /**
