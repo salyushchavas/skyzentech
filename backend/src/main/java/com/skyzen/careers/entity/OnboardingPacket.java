@@ -7,22 +7,15 @@ import java.time.Instant;
 import java.util.UUID;
 
 /**
- * Skeletal placeholder entity for the onboarding packet ERM ships to a new
- * hire. Per the Applicant-to-Intern Lifecycle doc, this row is created at
- * the ONBOARDING_ASSIGNED transition and tracks completion of the document
- * requirements bundle before the intern flips to ACTIVE_INTERN.
- *
- * <p>Phase 0 creates the schema only; Phase 4 wires it into the
- * onboarding flow. Pure UUID references — no JPA relations yet, to keep
- * the blast radius zero until the surrounding services are rebuilt.</p>
- *
- * <p>{@code documentRequirementsJson} stores the requirement bundle as a
- * JSON array of {label, type, required, status} entries to avoid coupling
- * Phase 0 to a final schema design.</p>
+ * Phase 4 onboarding packet. One per user, created when ERM "assigns the
+ * packet" after EMPLOYEE_ID_CREATED. Five required items (W-4, I-9 Section 1,
+ * ACH, Emergency Contact, Handbook Acknowledgment) + I-983 when the
+ * candidate's expected work-auth track is STEM_OPT.
  */
 @Entity
 @Table(name = "onboarding_packets", indexes = {
-        @Index(name = "idx_onboarding_packets_employee_id", columnList = "employee_id")
+        @Index(name = "idx_onboarding_packets_user_id", columnList = "user_id", unique = true),
+        @Index(name = "idx_onboarding_packets_status", columnList = "status")
 })
 @Getter
 @Setter
@@ -35,21 +28,26 @@ public class OnboardingPacket {
     @GeneratedValue
     private UUID id;
 
-    @Column(name = "employee_id", nullable = false, length = 40)
-    private String employeeId;
+    @Column(name = "user_id", nullable = false, unique = true)
+    private UUID userId;
 
-    @Column(name = "document_requirements", columnDefinition = "TEXT")
-    private String documentRequirementsJson;
+    @Column(name = "intern_lifecycle_id", nullable = false, unique = true)
+    private UUID internLifecycleId;
 
-    @Column(name = "completion_status", nullable = false, length = 32,
-            columnDefinition = "varchar(32) not null default 'PENDING'")
+    /** ASSIGNED | IN_PROGRESS | IN_REVIEW | ACCEPTED | REJECTED. */
+    @Column(name = "status", nullable = false, length = 20,
+            columnDefinition = "varchar(20) not null default 'ASSIGNED'")
     @Builder.Default
-    private String completionStatus = "PENDING";
+    private String status = "ASSIGNED";
 
-    @Column(name = "erm_review_status", nullable = false, length = 32,
-            columnDefinition = "varchar(32) not null default 'AWAITING'")
-    @Builder.Default
-    private String ermReviewStatus = "AWAITING";
+    @Column(name = "assigned_by_id", nullable = false)
+    private UUID assignedById;
+
+    @Column(name = "assigned_at", nullable = false)
+    private Instant assignedAt;
+
+    @Column(name = "accepted_at")
+    private Instant acceptedAt;
 
     @Column(nullable = false, updatable = false)
     private Instant createdAt;
@@ -62,6 +60,7 @@ public class OnboardingPacket {
         Instant now = Instant.now();
         this.createdAt = now;
         this.updatedAt = now;
+        if (this.assignedAt == null) this.assignedAt = now;
     }
 
     @PreUpdate

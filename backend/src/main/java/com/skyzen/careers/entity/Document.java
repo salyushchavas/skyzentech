@@ -61,6 +61,19 @@ public class Document {
     @Column(name = "uploaded_by_id")
     private UUID uploadedById;
 
+    /**
+     * Phase 4 — AES-256-GCM envelope metadata (IV + tag) when the content
+     * bytes are encrypted at rest. Stored as JSON like
+     * {@code {"alg":"AES-256-GCM","iv":"...base64...","tag":"...base64..."}}
+     * Null for unencrypted documents (sensitivity=NORMAL).
+     */
+    @Column(name = "encryption_metadata_json", columnDefinition = "TEXT")
+    private String encryptionMetadataJson;
+
+    /** Phase 4 — soft delete marker. Reads filter this out by default. */
+    @Column(name = "deleted_at")
+    private Instant deletedAt;
+
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;

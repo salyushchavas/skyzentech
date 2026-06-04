@@ -11,4 +11,7 @@ public interface DocumentRepository extends JpaRepository<Document, UUID> {
     List<Document> findByOwnerUserIdOrderByCreatedAtDesc(UUID ownerUserId);
 
     List<Document> findByOwnerUserIdAndCategoryOrderByCreatedAtDesc(UUID ownerUserId, String category);
+
+    /** Phase 4 vault listing — non-soft-deleted, newest first. */
+    List<Document> findByOwnerUserIdAndDeletedAtIsNullOrderByCreatedAtDesc(UUID ownerUserId);
 }

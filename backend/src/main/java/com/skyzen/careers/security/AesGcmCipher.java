@@ -49,7 +49,13 @@ public class AesGcmCipher {
     private final SecureRandom rng = new SecureRandom();
 
     public AesGcmCipher(
-            @Value("${app.i9.encryption-key:${I9_ENCRYPTION_KEY:}}") String base64Key) {
+            // Resolution chain (first non-blank wins):
+            //   1. pii.encryption.key  (Phase 4 doc-spec name)
+            //   2. app.i9.encryption-key  (legacy property)
+            //   3. PII_ENCRYPTION_KEY env var
+            //   4. I9_ENCRYPTION_KEY env var
+            // Same 32-byte AES key, just multiple acceptable names for ops.
+            @Value("${pii.encryption.key:${app.i9.encryption-key:${PII_ENCRYPTION_KEY:${I9_ENCRYPTION_KEY:}}}}") String base64Key) {
         if (base64Key == null || base64Key.isBlank()) {
             throw new IllegalStateException(
                     "I9_ENCRYPTION_KEY is not set. Generate one with " +

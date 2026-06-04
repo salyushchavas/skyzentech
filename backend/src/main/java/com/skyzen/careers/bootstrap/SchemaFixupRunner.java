@@ -809,6 +809,77 @@ public class SchemaFixupRunner implements CommandLineRunner {
             log.warn("skyzen_employee_seq ensure failed (non-fatal): {}", e.getMessage(), e);
         }
 
+        // ── Phase 4 (onboarding packet + document vault) ───────────────────
+
+        // onboarding_packets — one per intern, created when ERM assigns.
+        try {
+            jdbcTemplate.execute(
+                    "CREATE TABLE IF NOT EXISTS onboarding_packets ("
+                            + "  id UUID PRIMARY KEY,"
+                            + "  user_id UUID NOT NULL UNIQUE,"
+                            + "  intern_lifecycle_id UUID NOT NULL UNIQUE,"
+                            + "  status VARCHAR(20) NOT NULL DEFAULT 'ASSIGNED',"
+                            + "  assigned_by_id UUID NOT NULL,"
+                            + "  assigned_at TIMESTAMP NOT NULL,"
+                            + "  accepted_at TIMESTAMP,"
+                            + "  created_at TIMESTAMP NOT NULL DEFAULT NOW(),"
+                            + "  updated_at TIMESTAMP NOT NULL DEFAULT NOW()"
+                            + ")");
+            jdbcTemplate.execute(
+                    "CREATE INDEX IF NOT EXISTS idx_onboarding_packets_status "
+                            + "ON onboarding_packets(status)");
+            log.info("Ensured onboarding_packets table + index exist.");
+        } catch (Exception e) {
+            log.warn("onboarding_packets table ensure failed (non-fatal): {}", e.getMessage(), e);
+        }
+
+        // onboarding_items — one per W4/I9/ACH/EMERGENCY_CONTACT/HANDBOOK_ACK/I983.
+        try {
+            jdbcTemplate.execute(
+                    "CREATE TABLE IF NOT EXISTS onboarding_items ("
+                            + "  id UUID PRIMARY KEY,"
+                            + "  packet_id UUID NOT NULL,"
+                            + "  category VARCHAR(40) NOT NULL,"
+                            + "  required BOOLEAN NOT NULL DEFAULT TRUE,"
+                            + "  status VARCHAR(20) NOT NULL DEFAULT 'PENDING',"
+                            + "  form_data_json TEXT,"
+                            + "  document_id UUID,"
+                            + "  submitted_at TIMESTAMP,"
+                            + "  reviewed_at TIMESTAMP,"
+                            + "  reviewed_by_id UUID,"
+                            + "  erm_comments TEXT,"
+                            + "  internal_notes TEXT,"
+                            + "  version INTEGER NOT NULL DEFAULT 1,"
+                            + "  created_at TIMESTAMP NOT NULL DEFAULT NOW(),"
+                            + "  updated_at TIMESTAMP NOT NULL DEFAULT NOW()"
+                            + ")");
+            jdbcTemplate.execute(
+                    "CREATE UNIQUE INDEX IF NOT EXISTS uk_onboarding_items_packet_category "
+                            + "ON onboarding_items(packet_id, category)");
+            jdbcTemplate.execute(
+                    "CREATE INDEX IF NOT EXISTS idx_onboarding_items_packet "
+                            + "ON onboarding_items(packet_id)");
+            jdbcTemplate.execute(
+                    "CREATE INDEX IF NOT EXISTS idx_onboarding_items_status "
+                            + "ON onboarding_items(status)");
+            log.info("Ensured onboarding_items table + indexes exist.");
+        } catch (Exception e) {
+            log.warn("onboarding_items table ensure failed (non-fatal): {}", e.getMessage(), e);
+        }
+
+        // documents Phase 4 additive columns — encryption envelope for the
+        // content bytes (PII / FINANCIAL / GOVERNMENT_ID sensitivities) and
+        // a soft-delete marker so deletes don't lose forensic trail.
+        try {
+            jdbcTemplate.execute(
+                    "ALTER TABLE documents ADD COLUMN IF NOT EXISTS encryption_metadata_json TEXT");
+            jdbcTemplate.execute(
+                    "ALTER TABLE documents ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMP");
+            log.info("Ensured documents Phase 4 columns exist (encryption_metadata_json, deleted_at).");
+        } catch (Exception e) {
+            log.warn("documents Phase 4 columns add failed (non-fatal): {}", e.getMessage(), e);
+        }
+
         // interviews doc-spec fields. zoom_start_url is HOST-ONLY — never
         // returned to applicants (enforced in the DTO mapper).
         try {
