@@ -1042,6 +1042,78 @@ public class SchemaFixupRunner implements CommandLineRunner {
             log.warn("evaluation_amendments table ensure failed (non-fatal): {}", e.getMessage(), e);
         }
 
+        // ── Phase 7 (cross-cutting: notifications inbox + support tickets) ─
+
+        try {
+            jdbcTemplate.execute(
+                    "CREATE TABLE IF NOT EXISTS user_notifications ("
+                            + "  id UUID PRIMARY KEY,"
+                            + "  recipient_user_id UUID NOT NULL,"
+                            + "  event_type VARCHAR(64) NOT NULL,"
+                            + "  subject_user_id UUID,"
+                            + "  title VARCHAR(200) NOT NULL,"
+                            + "  body TEXT NOT NULL,"
+                            + "  action_url VARCHAR(500),"
+                            + "  read_at TIMESTAMP,"
+                            + "  email_sent BOOLEAN NOT NULL DEFAULT FALSE,"
+                            + "  email_sent_at TIMESTAMP,"
+                            + "  created_at TIMESTAMP NOT NULL DEFAULT NOW()"
+                            + ")");
+            jdbcTemplate.execute(
+                    "CREATE INDEX IF NOT EXISTS idx_user_notifications_recipient_read "
+                            + "ON user_notifications(recipient_user_id, read_at)");
+            jdbcTemplate.execute(
+                    "CREATE INDEX IF NOT EXISTS idx_user_notifications_recipient_created "
+                            + "ON user_notifications(recipient_user_id, created_at)");
+            log.info("Ensured user_notifications table + indexes exist.");
+        } catch (Exception e) {
+            log.warn("user_notifications table ensure failed (non-fatal): {}", e.getMessage(), e);
+        }
+
+        try {
+            jdbcTemplate.execute(
+                    "CREATE TABLE IF NOT EXISTS support_tickets ("
+                            + "  id UUID PRIMARY KEY,"
+                            + "  opener_user_id UUID NOT NULL,"
+                            + "  subject VARCHAR(200) NOT NULL,"
+                            + "  body TEXT NOT NULL,"
+                            + "  category VARCHAR(30) NOT NULL,"
+                            + "  priority VARCHAR(20) NOT NULL DEFAULT 'NORMAL',"
+                            + "  status VARCHAR(20) NOT NULL DEFAULT 'OPEN',"
+                            + "  assigned_to_id UUID,"
+                            + "  resolved_at TIMESTAMP,"
+                            + "  created_at TIMESTAMP NOT NULL DEFAULT NOW(),"
+                            + "  updated_at TIMESTAMP NOT NULL DEFAULT NOW()"
+                            + ")");
+            jdbcTemplate.execute(
+                    "CREATE INDEX IF NOT EXISTS idx_support_tickets_opener_status "
+                            + "ON support_tickets(opener_user_id, status)");
+            jdbcTemplate.execute(
+                    "CREATE INDEX IF NOT EXISTS idx_support_tickets_status_created "
+                            + "ON support_tickets(status, created_at)");
+            log.info("Ensured support_tickets table + indexes exist.");
+        } catch (Exception e) {
+            log.warn("support_tickets table ensure failed (non-fatal): {}", e.getMessage(), e);
+        }
+
+        try {
+            jdbcTemplate.execute(
+                    "CREATE TABLE IF NOT EXISTS support_ticket_replies ("
+                            + "  id UUID PRIMARY KEY,"
+                            + "  ticket_id UUID NOT NULL,"
+                            + "  author_user_id UUID NOT NULL,"
+                            + "  body TEXT NOT NULL,"
+                            + "  internal_only BOOLEAN NOT NULL DEFAULT FALSE,"
+                            + "  created_at TIMESTAMP NOT NULL DEFAULT NOW()"
+                            + ")");
+            jdbcTemplate.execute(
+                    "CREATE INDEX IF NOT EXISTS idx_support_ticket_replies_ticket_created "
+                            + "ON support_ticket_replies(ticket_id, created_at)");
+            log.info("Ensured support_ticket_replies table + index exist.");
+        } catch (Exception e) {
+            log.warn("support_ticket_replies table ensure failed (non-fatal): {}", e.getMessage(), e);
+        }
+
         // interviews doc-spec fields. zoom_start_url is HOST-ONLY — never
         // returned to applicants (enforced in the DTO mapper).
         try {

@@ -1,6 +1,7 @@
 'use client';
 
-import { Bell, Menu } from 'lucide-react';
+import { Menu } from 'lucide-react';
+import TopBarBell from './TopBarBell';
 import UserMenuDropdown from './UserMenuDropdown';
 
 interface Props {
@@ -28,13 +29,7 @@ export default function DashboardTopbar({ title, onMenuClick }: Props) {
       </div>
 
       <div className="flex items-center gap-1">
-        <button
-          type="button"
-          aria-label="Notifications"
-          className="rounded-md p-2 text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2"
-        >
-          <Bell className="h-4 w-4" strokeWidth={2} />
-        </button>
+        <TopBarBell />
         <UserMenuDropdown />
       </div>
     </header>
