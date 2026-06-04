@@ -1296,6 +1296,51 @@ public class SchemaFixupRunner implements CommandLineRunner {
         // as the exit tables above; ddl-auto would also create this, but the
         // explicit CREATE keeps the contract visible in source.
         ensureCommunicationTemplatesTable();
+
+        // ERM Phase 1 — KPI/exception query indexes. These keep the dashboard
+        // call under 500ms p95 as the dataset grows. All IF NOT EXISTS.
+        ensureErmDashboardIndexes();
+    }
+
+    /**
+     * ERM Phase 1 — 8 indexes that back the dashboard KPI counts and the
+     * exception detection joins. All idempotent.
+     */
+    private void ensureErmDashboardIndexes() {
+        record IdxSpec(String name, String table, String cols) {}
+        List<IdxSpec> idxs = List.of(
+                new IdxSpec("idx_applications_status_erm",
+                        "applications", "status, erm_owner_id"),
+                new IdxSpec("idx_interviews_scheduled_status",
+                        "interviews", "scheduled_at, status"),
+                new IdxSpec("idx_offers_status_created_by",
+                        "offers", "status, created_by"),
+                new IdxSpec("idx_onboarding_packets_status_assigned",
+                        "onboarding_packets", "status, assigned_at, assigned_by_id"),
+                new IdxSpec("idx_intern_lifecycles_active_erm",
+                        "intern_lifecycles", "active_status, erm_id"),
+                new IdxSpec("idx_intern_evaluations_lifecycle_type_status",
+                        "intern_evaluations",
+                        "intern_lifecycle_id, evaluation_type, status, published_at DESC"),
+                new IdxSpec("idx_timesheets_status_intern",
+                        "timesheets", "status, intern_id"),
+                new IdxSpec("idx_audit_logs_subject_timestamp_desc",
+                        "audit_logs", "subject_user_id, timestamp DESC")
+        );
+        int created = 0;
+        for (IdxSpec spec : idxs) {
+            try {
+                jdbcTemplate.execute(
+                        "CREATE INDEX IF NOT EXISTS " + spec.name()
+                                + " ON " + spec.table()
+                                + " (" + spec.cols() + ")");
+                created++;
+            } catch (Exception e) {
+                log.warn("[SchemaFixupRunner] ERM index {} on {}({}) failed (non-fatal): {}",
+                        spec.name(), spec.table(), spec.cols(), e.getMessage());
+            }
+        }
+        log.info("[SchemaFixupRunner] ensured {} ERM dashboard indexes (idempotent)", created);
     }
 
     /**
