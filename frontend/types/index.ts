@@ -384,9 +384,12 @@ export type CompensationFrequency = 'HOURLY' | 'MONTHLY' | 'YEARLY';
 export type OfferStatus =
   | 'DRAFT'
   | 'SENT'
-  | 'ACCEPTED'
-  | 'DECLINED'
+  | 'SIGNED'
+  | 'VOIDED'
   | 'EXPIRED'
+  | 'DECLINED'
+  // Pre-DocuSign legacy values; retained so existing rows still deserialize.
+  | 'ACCEPTED'
   | 'REVOKED';
 
 export interface OfferResponse {
@@ -448,6 +451,20 @@ export interface CandidateOfferResponse {
   sentAt?: IsoDateTime;
   respondedAt?: IsoDateTime;
   expired: boolean;
+  // Phase 3 doc-spec fields (applicant-safe; voidedReason is null unless
+  // status=VOIDED and the caller owns the offer).
+  roleTitle?: string;
+  compensationSummary?: string;
+  worksite?: string;
+  expectedHoursPerWeek?: number;
+  docusignEnvelopeId?: string;
+  signedAt?: IsoDateTime;
+  voidedAt?: IsoDateTime;
+  voidedReason?: string;
+  signedPdfDocumentId?: Uuid;
+  employeeId?: string;
+  createdByName?: string;
+  createdByEmail?: string;
 }
 
 export interface CreateOfferRequest {

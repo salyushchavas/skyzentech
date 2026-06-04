@@ -82,6 +82,45 @@ public class Offer {
     @Column(name = "revoked_by")
     private UUID revokedBy;
 
+    // ── Phase 3 — DocuSign + offer-letter doc-spec fields ───────────────────
+
+    /** DocuSign envelope id; null while in DRAFT or in NO-OP mode. UNIQUE. */
+    @Column(name = "docusign_envelope_id", length = 80, unique = true)
+    private String docusignEnvelopeId;
+
+    /** DocuSign template id used (mirrors {@code docusign.template-id} at send time). */
+    @Column(name = "docusign_template_id", length = 80)
+    private String docusignTemplateId;
+
+    /** Set by the DocuSign webhook when status flips to SIGNED. */
+    @Column(name = "signed_at")
+    private Instant signedAt;
+
+    @Column(name = "voided_at")
+    private Instant voidedAt;
+
+    /** Min 10 chars at controller layer; staff-only in applicant DTOs. */
+    @Column(name = "voided_reason", columnDefinition = "TEXT")
+    private String voidedReason;
+
+    /** Role name shown in the letter. */
+    @Column(name = "role_title", length = 200)
+    private String roleTitle;
+
+    /** Free-text compensation summary that appears via the template merge. */
+    @Column(name = "compensation_summary", length = 500)
+    private String compensationSummary;
+
+    @Column(name = "worksite", length = 200)
+    private String worksite;
+
+    @Column(name = "expected_hours_per_week")
+    private Integer expectedHoursPerWeek;
+
+    /** Archive of the signed PDF in {@code documents} (category=SIGNED_OFFER). */
+    @Column(name = "signed_pdf_document_id")
+    private UUID signedPdfDocumentId;
+
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;

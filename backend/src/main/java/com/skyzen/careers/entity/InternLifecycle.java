@@ -19,7 +19,8 @@ import java.util.UUID;
  */
 @Entity
 @Table(name = "intern_lifecycles", indexes = {
-        @Index(name = "idx_intern_lifecycles_employee_id", columnList = "employee_id", unique = true)
+        @Index(name = "idx_intern_lifecycles_employee_id", columnList = "employee_id", unique = true),
+        @Index(name = "idx_intern_lifecycles_user_id", columnList = "user_id", unique = true)
 })
 @Getter
 @Setter
@@ -35,10 +36,17 @@ public class InternLifecycle {
     @Column(name = "employee_id", nullable = false, length = 40, unique = true)
     private String employeeId;
 
+    /**
+     * Phase 3 — the User this lifecycle row belongs to. UNIQUE per user;
+     * inserted once at the OFFER_SIGNED webhook moment and never reassigned.
+     */
+    @Column(name = "user_id", nullable = false, unique = true)
+    private UUID userId;
+
     @Column(name = "active_status", nullable = false, length = 24,
-            columnDefinition = "varchar(24) not null default 'ACTIVE'")
+            columnDefinition = "varchar(24) not null default 'PROSPECTIVE'")
     @Builder.Default
-    private String activeStatus = "ACTIVE";
+    private String activeStatus = "PROSPECTIVE";
 
     @Column(name = "trainer_id")
     private UUID trainerId;
@@ -52,6 +60,17 @@ public class InternLifecycle {
     @Column(name = "erm_id")
     private UUID ermId;
 
+    /** Phase 3 — moment OFFER_SIGNED webhook fired. */
+    @Column(name = "hired_at", nullable = false)
+    private Instant hiredAt;
+
+    /** Phase 4 — set when ERM marks onboarding accepted + start date reached. */
+    @Column(name = "started_at")
+    private Instant startedAt;
+
+    @Column(name = "ended_at")
+    private Instant endedAt;
+
     @Column(nullable = false, updatable = false)
     private Instant createdAt;
 
@@ -63,6 +82,7 @@ public class InternLifecycle {
         Instant now = Instant.now();
         this.createdAt = now;
         this.updatedAt = now;
+        if (this.hiredAt == null) this.hiredAt = now;
     }
 
     @PreUpdate

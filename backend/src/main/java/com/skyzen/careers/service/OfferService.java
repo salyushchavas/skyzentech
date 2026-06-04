@@ -627,6 +627,22 @@ public class OfferService {
         Application app = o.getApplication();
         JobPosting posting = app != null ? app.getJobPosting() : null;
         StaffingEntity entity = posting != null ? posting.getEntity() : null;
+        User candidateUser = app != null && app.getCandidate() != null
+                ? app.getCandidate().getUser() : null;
+        // Applicant-safe: only surface voided_reason if THIS offer is VOIDED
+        // and the caller is the owner (always true here — controller restricts).
+        String voidedReason = o.getStatus() == OfferStatus.VOIDED
+                ? o.getVoidedReason() : null;
+        // Look up the ERM contact who created the offer for the footer card.
+        String createdByName = null;
+        String createdByEmail = null;
+        if (o.getCreatedBy() != null) {
+            var creator = userRepository.findById(o.getCreatedBy()).orElse(null);
+            if (creator != null) {
+                createdByName = creator.getFullName();
+                createdByEmail = creator.getEmail();
+            }
+        }
         return CandidateOfferResponse.builder()
                 .id(o.getId())
                 .jobPostingTitle(posting != null ? posting.getTitle() : null)
@@ -645,6 +661,19 @@ public class OfferService {
                 .isExpired(o.getStatus() == OfferStatus.SENT
                         && o.getExpiresAt() != null
                         && o.getExpiresAt().isBefore(Instant.now()))
+                // Phase 3 doc-spec fields.
+                .roleTitle(o.getRoleTitle())
+                .compensationSummary(o.getCompensationSummary())
+                .worksite(o.getWorksite())
+                .expectedHoursPerWeek(o.getExpectedHoursPerWeek())
+                .docusignEnvelopeId(o.getDocusignEnvelopeId())
+                .signedAt(o.getSignedAt())
+                .voidedAt(o.getVoidedAt())
+                .voidedReason(voidedReason)
+                .signedPdfDocumentId(o.getSignedPdfDocumentId())
+                .employeeId(candidateUser != null ? candidateUser.getEmployeeId() : null)
+                .createdByName(createdByName)
+                .createdByEmail(createdByEmail)
                 .build();
     }
 

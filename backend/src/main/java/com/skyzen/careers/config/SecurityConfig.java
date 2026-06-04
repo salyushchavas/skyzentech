@@ -47,6 +47,13 @@ public class SecurityConfig {
                         .requestMatchers("/health", "/error").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/v1/job-postings").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/v1/job-postings/*").permitAll()
+                        // Phase 2 — public read of the doc-spec /jobs endpoints.
+                        .requestMatchers(HttpMethod.GET, "/api/v1/jobs").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/v1/jobs/*").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/v1/jobs/featured").permitAll()
+                        // Phase 3 — DocuSign Connect webhook. HMAC-verified
+                        // inside the controller; no Spring Security gate.
+                        .requestMatchers(HttpMethod.POST, "/api/v1/webhooks/docusign").permitAll()
                         .requestMatchers("/api/v1/**").authenticated()
                         .anyRequest().authenticated()
                 )

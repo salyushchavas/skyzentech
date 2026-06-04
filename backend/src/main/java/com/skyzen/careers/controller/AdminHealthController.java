@@ -34,6 +34,7 @@ public class AdminHealthController {
 
     private final GitHubService gitHubService;
     private final ZoomService zoomService;
+    private final com.skyzen.careers.integration.docusign.DocuSignService docuSignService;
 
     @GetMapping("/github")
     @PreAuthorize("hasRole('SUPER_ADMIN')")
@@ -73,6 +74,36 @@ public class AdminHealthController {
             String host = zoomService.probeUsersMe();
             body.put("authenticated", host != null);
             body.put("host", host);
+        } catch (Exception e) {
+            body.put("authenticated", false);
+            body.put("error", e.getMessage());
+        }
+        return body;
+    }
+
+    /**
+     * Live DocuSign probe — calls {@code GET /v2.1/accounts/{accountId}} with
+     * the JWT-grant access token. {@code authenticated=true} means the token
+     * works AND the account name is resolvable. {@code templateConfigured}
+     * surfaces whether {@code docusign.template-id} is set so the operator
+     * can spot mis-configured envs at a glance.
+     */
+    @GetMapping("/docusign")
+    @PreAuthorize("hasRole('SUPER_ADMIN')")
+    public Map<String, Object> docusign() {
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("enabled", docuSignService.isReady());
+        body.put("baseUrl", docuSignService.getBaseUrl());
+        body.put("templateConfigured", docuSignService.isTemplateConfigured());
+        if (!docuSignService.isReady()) {
+            body.put("authenticated", false);
+            body.put("error", "DocuSign integration disabled or credentials missing");
+            return body;
+        }
+        try {
+            String accountName = docuSignService.probeAccount();
+            body.put("authenticated", accountName != null);
+            body.put("accountName", accountName);
         } catch (Exception e) {
             body.put("authenticated", false);
             body.put("error", e.getMessage());

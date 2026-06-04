@@ -282,15 +282,19 @@ public class DocumentService {
         };
     }
 
+    @SuppressWarnings("deprecation")
     private static String colorForOffer(OfferStatus s) {
         if (s == null) return "gray";
         return switch (s) {
             case DRAFT -> "gray";
             case SENT -> "blue";
-            case ACCEPTED -> "green";
+            // SIGNED is the Phase 3 DocuSign-completed terminal; ACCEPTED is
+            // the legacy manual-accept equivalent.
+            case SIGNED, ACCEPTED -> "green";
             case DECLINED -> "orange";
             case EXPIRED -> "amber";
-            case REVOKED -> "red";
+            // VOIDED is the Phase 3 term; REVOKED is the pre-DocuSign alias.
+            case VOIDED, REVOKED -> "red";
         };
     }
 
@@ -317,14 +321,17 @@ public class DocumentService {
         };
     }
 
+    @SuppressWarnings("deprecation")
     private static String humanize(OfferStatus s) {
         if (s == null) return null;
         return switch (s) {
             case DRAFT -> "Draft";
             case SENT -> "Sent";
+            case SIGNED -> "Signed";
             case ACCEPTED -> "Accepted";
             case DECLINED -> "Declined";
             case EXPIRED -> "Expired";
+            case VOIDED -> "Voided";
             case REVOKED -> "Revoked";
         };
     }

@@ -702,6 +702,113 @@ public class SchemaFixupRunner implements CommandLineRunner {
             log.warn("applications Phase 2 columns add failed (non-fatal): {}", e.getMessage(), e);
         }
 
+        // ── Phase 3 (offer letter + DocuSign + employee id) ────────────────
+
+        // documents table — the document vault. Phase 3 writes SIGNED_OFFER
+        // rows on the DocuSign webhook; Phase 4 adds W4 / I9 / ACH / etc.
+        try {
+            jdbcTemplate.execute(
+                    "CREATE TABLE IF NOT EXISTS documents ("
+                            + "  id UUID PRIMARY KEY,"
+                            + "  owner_user_id UUID NOT NULL,"
+                            + "  file_name VARCHAR(255) NOT NULL,"
+                            + "  file_size BIGINT NOT NULL,"
+                            + "  mime_type VARCHAR(100) NOT NULL,"
+                            + "  storage_key VARCHAR(500) NOT NULL,"
+                            + "  category VARCHAR(40) NOT NULL,"
+                            + "  sensitivity VARCHAR(20) NOT NULL DEFAULT 'NORMAL',"
+                            + "  uploaded_by_id UUID,"
+                            + "  created_at TIMESTAMP NOT NULL DEFAULT NOW()"
+                            + ")");
+            jdbcTemplate.execute(
+                    "CREATE INDEX IF NOT EXISTS idx_documents_owner "
+                            + "ON documents(owner_user_id)");
+            jdbcTemplate.execute(
+                    "CREATE INDEX IF NOT EXISTS idx_documents_category "
+                            + "ON documents(category)");
+            log.info("Ensured documents table + indexes exist.");
+        } catch (Exception e) {
+            log.warn("documents table ensure failed (non-fatal): {}", e.getMessage(), e);
+        }
+
+        // offers Phase 3 columns. signed_pdf_file_id was the Phase 0 column;
+        // Phase 3 introduces signed_pdf_document_id pointing at documents.id.
+        // Both can coexist; the entity reads/writes signed_pdf_document_id.
+        try {
+            jdbcTemplate.execute(
+                    "ALTER TABLE offers ADD COLUMN IF NOT EXISTS docusign_template_id VARCHAR(80)");
+            jdbcTemplate.execute(
+                    "ALTER TABLE offers ADD COLUMN IF NOT EXISTS signed_at TIMESTAMP");
+            jdbcTemplate.execute(
+                    "ALTER TABLE offers ADD COLUMN IF NOT EXISTS voided_at TIMESTAMP");
+            jdbcTemplate.execute(
+                    "ALTER TABLE offers ADD COLUMN IF NOT EXISTS voided_reason TEXT");
+            jdbcTemplate.execute(
+                    "ALTER TABLE offers ADD COLUMN IF NOT EXISTS role_title VARCHAR(200)");
+            jdbcTemplate.execute(
+                    "ALTER TABLE offers ADD COLUMN IF NOT EXISTS compensation_summary VARCHAR(500)");
+            jdbcTemplate.execute(
+                    "ALTER TABLE offers ADD COLUMN IF NOT EXISTS worksite VARCHAR(200)");
+            jdbcTemplate.execute(
+                    "ALTER TABLE offers ADD COLUMN IF NOT EXISTS expected_hours_per_week INTEGER");
+            jdbcTemplate.execute(
+                    "ALTER TABLE offers ADD COLUMN IF NOT EXISTS signed_pdf_document_id UUID");
+            log.info("Ensured offers Phase 3 columns exist (docusign / signed / voided / etc.).");
+        } catch (Exception e) {
+            log.warn("offers Phase 3 columns add failed (non-fatal): {}", e.getMessage(), e);
+        }
+
+        // docusign_envelope_id was added in Phase 0 (varchar 64) — widen to 80
+        // to match DocuSign's id format and add the UNIQUE index defensively.
+        try {
+            jdbcTemplate.execute(
+                    "ALTER TABLE offers ALTER COLUMN docusign_envelope_id TYPE VARCHAR(80)");
+        } catch (Exception e) {
+            log.debug("offers.docusign_envelope_id widen skipped: {}", e.getMessage());
+        }
+        try {
+            jdbcTemplate.execute(
+                    "CREATE UNIQUE INDEX IF NOT EXISTS uk_offers_docusign_envelope_id "
+                            + "ON offers(docusign_envelope_id) "
+                            + "WHERE docusign_envelope_id IS NOT NULL");
+        } catch (Exception e) {
+            log.warn("uk_offers_docusign_envelope_id ensure failed (non-fatal): {}", e.getMessage());
+        }
+
+        // intern_lifecycles Phase 3 columns. user_id + hired_at are required
+        // for any new row Phase 3 writes; pre-existing skeletal rows (Phase 0)
+        // may have NULL for either. Hibernate enforces NOT NULL on new INSERTs
+        // via the entity; the ALTER below sets the column NOT NULL only when
+        // there are no NULLs left (safer no-op otherwise).
+        try {
+            jdbcTemplate.execute(
+                    "ALTER TABLE intern_lifecycles ADD COLUMN IF NOT EXISTS user_id UUID");
+            jdbcTemplate.execute(
+                    "ALTER TABLE intern_lifecycles ADD COLUMN IF NOT EXISTS hired_at TIMESTAMP");
+            jdbcTemplate.execute(
+                    "ALTER TABLE intern_lifecycles ADD COLUMN IF NOT EXISTS started_at TIMESTAMP");
+            jdbcTemplate.execute(
+                    "ALTER TABLE intern_lifecycles ADD COLUMN IF NOT EXISTS ended_at TIMESTAMP");
+            jdbcTemplate.execute(
+                    "CREATE UNIQUE INDEX IF NOT EXISTS uk_intern_lifecycles_user_id "
+                            + "ON intern_lifecycles(user_id) WHERE user_id IS NOT NULL");
+            log.info("Ensured intern_lifecycles Phase 3 columns exist (user_id, hired_at, ...).");
+        } catch (Exception e) {
+            log.warn("intern_lifecycles Phase 3 columns add failed (non-fatal): {}", e.getMessage(), e);
+        }
+
+        // skyzen_employee_seq — backs SKZ-EMP-YYYY-NNNNNN. CACHE 1 so the
+        // suffix is monotonic across boots even if pre-cached values would
+        // otherwise be skipped. Mirrors skyzen_applicant_seq.
+        try {
+            jdbcTemplate.execute(
+                    "CREATE SEQUENCE IF NOT EXISTS skyzen_employee_seq "
+                            + "START WITH 1000 INCREMENT BY 1 CACHE 1");
+            log.info("Ensured skyzen_employee_seq exists (START 1000).");
+        } catch (Exception e) {
+            log.warn("skyzen_employee_seq ensure failed (non-fatal): {}", e.getMessage(), e);
+        }
+
         // interviews doc-spec fields. zoom_start_url is HOST-ONLY — never
         // returned to applicants (enforced in the DTO mapper).
         try {
