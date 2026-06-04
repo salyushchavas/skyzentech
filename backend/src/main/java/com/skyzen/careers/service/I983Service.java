@@ -75,7 +75,7 @@ import java.util.UUID;
 public class I983Service {
 
     /** Privileged roles for I-983 access. */
-    private static final Set<UserRole> STAFF_ROLES = EnumSet.of(UserRole.OPERATIONS, UserRole.HR);
+    private static final Set<UserRole> STAFF_ROLES = EnumSet.of(UserRole.ERM, UserRole.ERM);
 
     /** Statuses where field edits are allowed. */
     private static final Set<I983Status> EDITABLE_STATUSES = EnumSet.of(I983Status.DRAFT, I983Status.AMENDMENT_REQUESTED);

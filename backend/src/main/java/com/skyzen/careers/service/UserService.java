@@ -90,7 +90,7 @@ public class UserService {
             }
 
             EnumSet<UserRole> next = EnumSet.copyOf(roles);
-            boolean wasApplicant = next.remove(UserRole.APPLICANT);
+            boolean wasApplicant = next.remove(UserRole.INTERN);
             next.add(UserRole.INTERN);
             user.setRoles(next);
             userRepository.save(user);
@@ -138,7 +138,7 @@ public class UserService {
     public boolean isStaff(Set<UserRole> roles) {
         if (roles == null || roles.isEmpty()) return false;
         for (UserRole r : roles) {
-            if (r == UserRole.APPLICANT || r == UserRole.INTERN) continue;
+            if (r == UserRole.INTERN || r == UserRole.INTERN) continue;
             return true;
         }
         return false;

@@ -35,13 +35,13 @@ public class CandidateNavController {
     private final CandidateNavService navService;
 
     @GetMapping
-    @PreAuthorize("hasAnyRole('APPLICANT', 'INTERN')")
+    @PreAuthorize("hasRole('INTERN')")
     public CandidateNavResponse getNav(@AuthenticationPrincipal User user) {
         return navService.build(user);
     }
 
     @PostMapping("/seen")
-    @PreAuthorize("hasAnyRole('APPLICANT', 'INTERN')")
+    @PreAuthorize("hasRole('INTERN')")
     public ResponseEntity<Void> markSeen(@Valid @RequestBody MarkNavSeenRequest req,
                                          @AuthenticationPrincipal User user) {
         navService.markSeen(user, req.key());

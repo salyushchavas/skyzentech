@@ -224,7 +224,7 @@ public class QaSessionService {
         boolean isIntern = internUser != null && internUser.getId().equals(caller.getId());
         boolean hasReviewerRole = caller.getRoles() != null
                 && (caller.getRoles().contains(UserRole.REPORTING_MANAGER)
-                    || caller.getRoles().contains(UserRole.TECHNICAL_EVALUATOR));
+                    || caller.getRoles().contains(UserRole.TRAINER));
         if (!isIntern && !hasReviewerRole) {
             throw new ForbiddenException("Not authorised to view this Q&A session.");
         }

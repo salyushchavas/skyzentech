@@ -157,7 +157,7 @@ public class ComplianceOverviewService {
                     .severity(AlertSeverity.CRITICAL)
                     .title("I-9 overdue for " + name)
                     .description("Section 2 was due " + due + " (" + daysOverdue + " days ago)")
-                    .linkUrl("/careers/hr/i9-everify/i9/" + f.getId())
+                    .linkUrl("/careers/erm/i9-everify/i9/" + f.getId())
                     .count(null)
                     .build());
         }
@@ -176,7 +176,7 @@ public class ComplianceOverviewService {
                     .title("E-Verify TNC needs resolution")
                     .description(name + " has had a TNC for " + days
                             + " days. Employee deadline is approaching.")
-                    .linkUrl("/careers/hr/i9-everify/everify/" + c.getId())
+                    .linkUrl("/careers/erm/i9-everify/everify/" + c.getId())
                     .build());
         }
 
@@ -192,7 +192,7 @@ public class ComplianceOverviewService {
                     .severity(AlertSeverity.WARNING)
                     .title("I-9 due soon for " + name)
                     .description("Section 2 due in " + daysUntil + " day(s) on " + due)
-                    .linkUrl("/careers/hr/i9-everify/i9/" + f.getId())
+                    .linkUrl("/careers/erm/i9-everify/i9/" + f.getId())
                     .build());
         }
 
@@ -204,7 +204,7 @@ public class ComplianceOverviewService {
                     .severity(AlertSeverity.WARNING)
                     .title("I-983 amendment requested for " + name)
                     .description("DSO requested changes — coordinate with ERM")
-                    .linkUrl("/careers/operations/training-plans/" + p.getId())
+                    .linkUrl("/careers/erm/training-plans/" + p.getId())
                     .build());
         }
 
@@ -220,7 +220,7 @@ public class ComplianceOverviewService {
                     .severity(AlertSeverity.WARNING)
                     .title("I-983 ready for DSO submission")
                     .description(name + "'s plan has been complete for " + days + " days")
-                    .linkUrl("/careers/operations/training-plans/" + p.getId())
+                    .linkUrl("/careers/erm/training-plans/" + p.getId())
                     .build());
         }
 
@@ -236,7 +236,7 @@ public class ComplianceOverviewService {
                     .severity(AlertSeverity.INFO)
                     .title("E-Verify case to submit")
                     .description(name + "'s case has been pending for " + days + " days")
-                    .linkUrl("/careers/hr/i9-everify/everify/" + c.getId())
+                    .linkUrl("/careers/erm/i9-everify/everify/" + c.getId())
                     .build());
         }
 
@@ -265,7 +265,7 @@ public class ComplianceOverviewService {
                     .dueDate(due)
                     .daysUntilDue(ChronoUnit.DAYS.between(today, due))
                     .candidateName(name)
-                    .linkUrl("/careers/hr/i9-everify/i9/" + f.getId())
+                    .linkUrl("/careers/erm/i9-everify/i9/" + f.getId())
                     .build());
         }
 
@@ -279,7 +279,7 @@ public class ComplianceOverviewService {
                     .dueDate(end)
                     .daysUntilDue(ChronoUnit.DAYS.between(today, end))
                     .candidateName(name)
-                    .linkUrl("/careers/operations/training-plans/" + p.getId())
+                    .linkUrl("/careers/erm/training-plans/" + p.getId())
                     .build());
         }
 
@@ -383,11 +383,11 @@ public class ComplianceOverviewService {
     private String linkFor(AuditLog a) {
         if (a.getEntityType() == null || a.getEntityId() == null) return null;
         return switch (a.getEntityType()) {
-            case "I9Form" -> "/careers/hr/i9-everify/i9/" + a.getEntityId();
-            case "I983Plan" -> "/careers/operations/training-plans/" + a.getEntityId();
-            case "Offer" -> "/careers/hr/offers/" + a.getEntityId();
-            case "EVerifyCase" -> "/careers/hr/i9-everify/everify/" + a.getEntityId();
-            case "Interview" -> "/careers/operations/interviews/" + a.getEntityId();
+            case "I9Form" -> "/careers/erm/i9-everify/i9/" + a.getEntityId();
+            case "I983Plan" -> "/careers/erm/training-plans/" + a.getEntityId();
+            case "Offer" -> "/careers/erm/offers/" + a.getEntityId();
+            case "EVerifyCase" -> "/careers/erm/i9-everify/everify/" + a.getEntityId();
+            case "Interview" -> "/careers/erm/interviews/" + a.getEntityId();
             default -> null;
         };
     }

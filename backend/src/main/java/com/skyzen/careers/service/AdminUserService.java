@@ -39,10 +39,10 @@ public class AdminUserService {
      */
     private static final Set<UserRole> STAFF_ROLES = EnumSet.of(
             UserRole.SUPER_ADMIN,
-            UserRole.OPERATIONS,
-            UserRole.HR,
-            UserRole.TECHNICAL_EVALUATOR,
-            UserRole.EXECUTIVE);
+            UserRole.ERM,
+            UserRole.ERM,
+            UserRole.TRAINER,
+            UserRole.MANAGER);
 
     private static final String STAFF_ROLE_MSG =
             "role must be a STAFF role (SUPER_ADMIN / OPERATIONS / HR / TECHNICAL_EVALUATOR / EXECUTIVE)";

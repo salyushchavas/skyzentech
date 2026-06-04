@@ -23,7 +23,7 @@ const FREQ_OPTIONS: { value: CompensationFrequency; label: string }[] = [
 
 export default function EditOfferPage() {
   return (
-    <ProtectedRoute requiredRoles={['OPERATIONS', 'HR']}>
+    <ProtectedRoute requiredRoles={['ERM']}>
       <DashboardLayout title="Edit Offer">
         <Body />
       </DashboardLayout>
@@ -153,7 +153,7 @@ function Body() {
       } else {
         toast.success('Changes saved');
       }
-      router.push(`/careers/hr/offers/${offer.id}`);
+      router.push(`/careers/erm/offers/${offer.id}`);
     } catch (err: any) {
       const msg = err?.response?.data?.error ?? 'Could not save offer';
       setFormError(msg);
@@ -170,7 +170,7 @@ function Body() {
       <div className="rounded-md border border-red-200 bg-red-50 p-4 text-sm text-red-700">
         <p className="mb-2">{error}</p>
         <Link
-          href="/careers/hr/offers"
+          href="/careers/erm/offers"
           className="rounded border border-red-300 px-3 py-1 text-xs font-medium hover:bg-red-100"
         >
           Back to offers
@@ -186,7 +186,7 @@ function Body() {
     return (
       <div className="mx-auto max-w-2xl">
         <Link
-          href={`/careers/hr/offers/${offer.id}`}
+          href={`/careers/erm/offers/${offer.id}`}
           className="mb-4 inline-flex items-center gap-1 text-sm text-gray-600 hover:text-gray-900"
         >
           <ArrowLeft className="h-4 w-4" strokeWidth={2} />
@@ -202,7 +202,7 @@ function Body() {
           </p>
           <div className="mt-4">
             <Link
-              href={`/careers/hr/offers/${offer.id}`}
+              href={`/careers/erm/offers/${offer.id}`}
               className="inline-flex items-center gap-1.5 rounded-md bg-accent px-3 py-1.5 text-sm font-semibold text-white hover:bg-accent-dark"
             >
               View offer
@@ -216,7 +216,7 @@ function Body() {
   return (
     <div className="mx-auto max-w-2xl">
       <Link
-        href={`/careers/hr/offers/${offer.id}`}
+        href={`/careers/erm/offers/${offer.id}`}
         className="mb-4 inline-flex items-center gap-1 text-sm text-gray-600 hover:text-gray-900"
       >
         <ArrowLeft className="h-4 w-4" strokeWidth={2} />
@@ -394,7 +394,7 @@ function Body() {
 
           <div className="flex flex-wrap items-center justify-end gap-2 pt-2">
             <Link
-              href={`/careers/hr/offers/${offer.id}`}
+              href={`/careers/erm/offers/${offer.id}`}
               className="rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
             >
               Cancel

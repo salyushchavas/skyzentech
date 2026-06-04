@@ -35,7 +35,7 @@ public class ApplicantInterviewController {
     private final InterviewRepository interviewRepository;
 
     @GetMapping("/{id}")
-    @PreAuthorize("hasAnyRole('APPLICANT', 'INTERN', 'SUPER_ADMIN')")
+    @PreAuthorize("hasAnyRole('INTERN', 'SUPER_ADMIN')")
     public ApplicantInterviewDetailDTO get(@PathVariable UUID id,
                                            @AuthenticationPrincipal User caller) {
         Interview interview = interviewRepository.findById(id)

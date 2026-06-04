@@ -18,13 +18,13 @@ import type {
 } from '@/types';
 
 const READ_ROLES: UserRole[] = [
-  'OPERATIONS',
-  'OPERATIONS',
-  'OPERATIONS',
-  'HR',
-  'TECHNICAL_EVALUATOR',
+  'ERM',
+  'ERM',
+  'ERM',
+  'ERM',
+  'TRAINER',
 ];
-const WRITE_ROLES: UserRole[] = ['OPERATIONS'];
+const WRITE_ROLES: UserRole[] = ['ERM'];
 
 type Tab = 'upcoming' | 'past' | 'all';
 
@@ -108,7 +108,7 @@ function Body() {
         <TabPills value={tab} onChange={setTab} />
         {canWrite && (
           <Link
-            href="/careers/operations/interviews/new"
+            href="/careers/erm/interviews/new"
             className="inline-flex items-center gap-1.5 rounded-md bg-accent px-4 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-accent-dark"
           >
             <Plus className="h-4 w-4" strokeWidth={2} />
@@ -180,7 +180,7 @@ function Body() {
                     <td className="px-4 py-3">
                       <div className="flex flex-wrap justify-end gap-2">
                         <Link
-                          href={`/careers/operations/interviews/${r.id}`}
+                          href={`/careers/erm/interviews/${r.id}`}
                           className="rounded-md bg-accent px-3 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-accent-dark"
                         >
                           {r.status === 'SCHEDULED' ? 'View / Feedback' : 'View'}
@@ -230,7 +230,7 @@ function Body() {
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
                   <Link
-                    href={`/careers/operations/interviews/${r.id}`}
+                    href={`/careers/erm/interviews/${r.id}`}
                     className="rounded-md bg-accent px-3 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-accent-dark"
                   >
                     {r.status === 'SCHEDULED' ? 'View / Feedback' : 'View'}
@@ -315,7 +315,7 @@ function EmptyState({ tab, canWrite }: { tab: Tab; canWrite: boolean }) {
       <p className="mb-4 text-base font-medium text-gray-700">{label}</p>
       {canWrite && (
         <Link
-          href="/careers/operations/interviews/new"
+          href="/careers/erm/interviews/new"
           className="inline-flex items-center gap-1.5 rounded-full bg-accent px-5 py-2 text-sm font-semibold text-white transition-colors hover:bg-accent-dark"
         >
           <Plus className="h-4 w-4" strokeWidth={2} />

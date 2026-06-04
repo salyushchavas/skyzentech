@@ -133,24 +133,20 @@ interface UserSupervisionResponse {
 }
 
 const ROLE_LABEL: Record<UserRole, string> = {
-  APPLICANT: 'Applicant',
   INTERN: 'Intern',
-  OPERATIONS: 'Operations',
-  HR: 'HR / Compliance',
-  TECHNICAL_EVALUATOR: 'Technical Evaluator',
+  TRAINER: 'Trainer',
   REPORTING_MANAGER: 'Reporting Manager',
-  EXECUTIVE: 'Executive',
+  MANAGER: 'Manager',
+  ERM: 'ERM',
   SUPER_ADMIN: 'Super admin',
 };
 
 const ROLE_COLOR: Record<UserRole, string> = {
-  APPLICANT: 'bg-gray-100 text-gray-700',
   INTERN: 'bg-sky-100 text-sky-800',
-  OPERATIONS: 'bg-rose-100 text-rose-800',
-  HR: 'bg-emerald-100 text-emerald-800',
-  TECHNICAL_EVALUATOR: 'bg-amber-100 text-amber-800',
+  TRAINER: 'bg-amber-100 text-amber-800',
   REPORTING_MANAGER: 'bg-violet-100 text-violet-800',
-  EXECUTIVE: 'bg-violet-100 text-violet-800',
+  MANAGER: 'bg-violet-100 text-violet-800',
+  ERM: 'bg-emerald-100 text-emerald-800',
   SUPER_ADMIN: 'bg-indigo-100 text-indigo-800',
 };
 

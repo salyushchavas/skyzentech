@@ -51,7 +51,7 @@ public class WeeklyMaterialController {
     // ── Supervisor commands ─────────────────────────────────────────────────
 
     @PostMapping
-    @PreAuthorize("hasAnyRole('TECHNICAL_EVALUATOR', 'SUPER_ADMIN')")
+    @PreAuthorize("hasAnyRole('TRAINER', 'SUPER_ADMIN')")
     public ResponseEntity<WeeklyMaterialResponse> create(
             @Valid @RequestBody CreateWeeklyMaterialRequest req,
             @AuthenticationPrincipal User user) {
@@ -61,7 +61,7 @@ public class WeeklyMaterialController {
     }
 
     @PutMapping("/{id}")
-    @PreAuthorize("hasAnyRole('TECHNICAL_EVALUATOR', 'SUPER_ADMIN')")
+    @PreAuthorize("hasAnyRole('TRAINER', 'SUPER_ADMIN')")
     public WeeklyMaterialResponse update(
             @PathVariable UUID id,
             @Valid @RequestBody UpdateWeeklyMaterialRequest req,
@@ -70,7 +70,7 @@ public class WeeklyMaterialController {
     }
 
     @PostMapping("/{id}/release")
-    @PreAuthorize("hasAnyRole('TECHNICAL_EVALUATOR', 'SUPER_ADMIN')")
+    @PreAuthorize("hasAnyRole('TRAINER', 'SUPER_ADMIN')")
     public WeeklyMaterialResponse release(@PathVariable UUID id,
                                           @AuthenticationPrincipal User user) {
         return service.release(id, user);
@@ -78,14 +78,14 @@ public class WeeklyMaterialController {
 
     /** Materials this supervisor has published (DRAFT + RELEASED). Newest first. */
     @GetMapping("/published")
-    @PreAuthorize("hasAnyRole('TECHNICAL_EVALUATOR', 'SUPER_ADMIN')")
+    @PreAuthorize("hasAnyRole('TRAINER', 'SUPER_ADMIN')")
     public List<WeeklyMaterialResponse> listMine(@AuthenticationPrincipal User user) {
         return service.listMine(user);
     }
 
     /** Per-material ack roster (which interns acknowledged + when). */
     @GetMapping("/{id}/acknowledgements")
-    @PreAuthorize("hasAnyRole('TECHNICAL_EVALUATOR', 'SUPER_ADMIN')")
+    @PreAuthorize("hasAnyRole('TRAINER', 'SUPER_ADMIN')")
     public List<MaterialAcknowledgementResponse> listAcks(@PathVariable UUID id,
                                                           @AuthenticationPrincipal User user) {
         return service.listAcksForMaterial(id, user);

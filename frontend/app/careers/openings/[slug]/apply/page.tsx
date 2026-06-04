@@ -12,7 +12,7 @@ import type { JobPostingResponse, ResumeResponse } from '@/types';
 
 export default function ApplyPage() {
   return (
-    <ProtectedRoute requiredRoles={['APPLICANT', 'INTERN']}>
+    <ProtectedRoute requiredRoles={['INTERN']}>
       <AdaptiveCareersLayout title="Apply">
         <ApplyFlow />
       </AdaptiveCareersLayout>
@@ -98,7 +98,7 @@ function ApplyFlow() {
         jobPostingId: posting.id,
         resumeId: selectedResumeId,
       });
-      router.replace('/careers/candidate/applications?just_applied=1');
+      router.replace('/careers/intern/applications?just_applied=1');
     } catch (err: any) {
       const status = err?.response?.status;
       const code = err?.response?.data?.code;
@@ -205,7 +205,7 @@ function ApplyFlow() {
           {submitError.includes('already applied') && (
             <>
               {' '}
-              <Link href="/careers/candidate/applications" className="font-medium underline">
+              <Link href="/careers/intern/applications" className="font-medium underline">
                 View applications
               </Link>
             </>

@@ -30,7 +30,7 @@ public class HrDashboardController {
     private final HrDashboardService hrDashboardService;
 
     @GetMapping("/dashboard")
-    @PreAuthorize("hasAnyRole('HR', 'SUPER_ADMIN')")
+    @PreAuthorize("hasAnyRole('ERM', 'SUPER_ADMIN')")
     public HrDashboardResponse dashboard(@AuthenticationPrincipal User caller) {
         return hrDashboardService.build(caller);
     }

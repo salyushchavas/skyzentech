@@ -26,17 +26,12 @@ import java.util.List;
 import java.util.UUID;
 
 /**
- * Submission lifecycle endpoints.
- *
- * <ul>
- *   <li>{@code POST /api/v1/projects/{id}/workspace/submit} — intern.</li>
- *   <li>{@code GET  /api/v1/projects/{id}/submissions} — list.</li>
- *   <li>{@code GET  /api/v1/submissions/{id}} — one submission's metadata + file
- *       paths.</li>
- *   <li>{@code GET  /api/v1/submissions/{id}/files/**} — one file's content
- *       (frozen).</li>
- *   <li>{@code POST /api/v1/submissions/{id}/approve} / {@code /return}.</li>
- * </ul>
+ * Submission lifecycle endpoints — staff-side only after the Phase-0
+ * intern-surface cleanup. The intern-callable {@code POST /workspace/submit}
+ * route is removed (Monaco editor + its submission flow retired); the
+ * remaining read endpoints are tightened to TRAINER / REPORTING_MANAGER /
+ * SUPER_ADMIN so reviewers can still open prior submissions during the
+ * deprecation window.
  */
 @RestController
 @RequiredArgsConstructor
@@ -45,17 +40,8 @@ public class SubmissionController {
     private final SubmissionService submissionService;
     private final WorkspaceSubmittedFileRepository submittedFileRepository;
 
-    @PostMapping("/api/v1/projects/{projectId}/workspace/submit")
-    @PreAuthorize("isAuthenticated()")
-    public SubmissionResponse submit(
-            @PathVariable UUID projectId,
-            @AuthenticationPrincipal User caller) {
-        WorkspaceSubmission s = submissionService.submit(projectId, caller);
-        return toResponse(s);
-    }
-
     @GetMapping("/api/v1/projects/{projectId}/submissions")
-    @PreAuthorize("isAuthenticated()")
+    @PreAuthorize("hasAnyRole('TRAINER', 'REPORTING_MANAGER', 'SUPER_ADMIN')")
     public List<SubmissionResponse> listForProject(
             @PathVariable UUID projectId,
             @AuthenticationPrincipal User caller) {
@@ -65,7 +51,7 @@ public class SubmissionController {
     }
 
     @GetMapping("/api/v1/submissions/{submissionId}")
-    @PreAuthorize("isAuthenticated()")
+    @PreAuthorize("hasAnyRole('TRAINER', 'REPORTING_MANAGER', 'SUPER_ADMIN')")
     public SubmissionDetailResponse get(
             @PathVariable UUID submissionId,
             @AuthenticationPrincipal User caller) {
@@ -81,7 +67,7 @@ public class SubmissionController {
     }
 
     @GetMapping("/api/v1/submissions/{submissionId}/files/**")
-    @PreAuthorize("isAuthenticated()")
+    @PreAuthorize("hasAnyRole('TRAINER', 'REPORTING_MANAGER', 'SUPER_ADMIN')")
     public WorkspaceFileResponse getFile(
             @PathVariable UUID submissionId,
             HttpServletRequest request,
@@ -94,7 +80,7 @@ public class SubmissionController {
     }
 
     @PostMapping("/api/v1/submissions/{submissionId}/approve")
-    @PreAuthorize("hasAnyRole('TECHNICAL_EVALUATOR', 'SUPER_ADMIN')")
+    @PreAuthorize("hasAnyRole('TRAINER', 'SUPER_ADMIN')")
     public SubmissionResponse approve(
             @PathVariable UUID submissionId,
             @AuthenticationPrincipal User caller) {
@@ -102,7 +88,7 @@ public class SubmissionController {
     }
 
     @PostMapping("/api/v1/submissions/{submissionId}/return")
-    @PreAuthorize("hasAnyRole('TECHNICAL_EVALUATOR', 'REPORTING_MANAGER', 'SUPER_ADMIN')")
+    @PreAuthorize("hasAnyRole('TRAINER', 'REPORTING_MANAGER', 'SUPER_ADMIN')")
     public SubmissionResponse returnForRevisions(
             @PathVariable UUID submissionId,
             @Valid @RequestBody ReturnSubmissionRequest body,

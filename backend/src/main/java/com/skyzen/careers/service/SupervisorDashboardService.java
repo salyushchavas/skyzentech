@@ -225,7 +225,7 @@ public class SupervisorDashboardService {
                     .reportStatus(reportStatus)
                     .timesheetStatus(timesheetStatus)
                     .lastActivityAt(lastActivity)
-                    .reviewHref("/careers/evaluator/weekly-reports?intern=" + candidateId)
+                    .reviewHref("/careers/trainer/weekly-reports?intern=" + candidateId)
                     .build());
         }
 
@@ -254,37 +254,37 @@ public class SupervisorDashboardService {
                         .key("REPORTS_TO_REVIEW")
                         .label("Weekly reports awaiting review")
                         .count(reportsToReview)
-                        .href("/careers/evaluator/weekly-reports")
+                        .href("/careers/trainer/weekly-reports")
                         .build(),
                 SupervisorActionItemResponse.builder()
                         .key("TIMESHEETS_TO_APPROVE")
                         .label("Timesheets pending approval")
                         .count(timesheetsPending)
-                        .href("/careers/evaluator/interns")
+                        .href("/careers/trainer/interns")
                         .build(),
                 SupervisorActionItemResponse.builder()
                         .key("PROJECTS_TO_REVIEW")
                         .label("Projects awaiting review")
                         .count(projectsToReview)
-                        .href("/careers/evaluator/projects")
+                        .href("/careers/trainer/projects")
                         .build(),
                 SupervisorActionItemResponse.builder()
                         .key("EVALUATIONS_TO_FINALIZE")
                         .label("Evaluations to finalize")
                         .count(evaluationsToFinalize)
-                        .href("/careers/evaluator/evaluations")
+                        .href("/careers/trainer/evaluations")
                         .build(),
                 SupervisorActionItemResponse.builder()
                         .key("EVALUATIONS_DUE")
                         .label("Evaluations due")
                         .count(evaluationsDue)
-                        .href("/careers/evaluator/sessions")
+                        .href("/careers/trainer/sessions")
                         .build(),
                 SupervisorActionItemResponse.builder()
                         .key("MATERIALS_TO_PUBLISH")
                         .label("This week's materials to publish")
                         .count(materialsNotPublished)
-                        .href("/careers/evaluator/weekly-materials")
+                        .href("/careers/trainer/weekly-materials")
                         .build()
         );
 
@@ -336,7 +336,7 @@ public class SupervisorDashboardService {
                     .title("Evaluation" + (name != null ? " — " + name : ""))
                     .subtitle("Scheduled checkpoint")
                     .at(at.toInstant(ZoneOffset.UTC))
-                    .href("/careers/evaluator/sessions")
+                    .href("/careers/trainer/sessions")
                     .build());
         }
         out.sort(Comparator.comparing(SupervisorUpcomingItemResponse::getAt,
@@ -393,10 +393,10 @@ public class SupervisorDashboardService {
             String href = null;
             if ("WeeklyReport".equals(a.getEntityType()) && a.getEntityId() != null) {
                 internName = internNameByReportId.get(a.getEntityId());
-                href = "/careers/evaluator/weekly-reports";
+                href = "/careers/trainer/weekly-reports";
             } else if ("Timesheet".equals(a.getEntityType()) && a.getEntityId() != null) {
                 internName = internNameByTimesheetId.get(a.getEntityId());
-                href = "/careers/evaluator/interns";
+                href = "/careers/trainer/interns";
             }
             out.add(SupervisorActivityItemResponse.builder()
                     .timestamp(a.getTimestamp())
@@ -455,37 +455,37 @@ public class SupervisorDashboardService {
                                 .key("REPORTS_TO_REVIEW")
                                 .label("Weekly reports awaiting review")
                                 .count(0L)
-                                .href("/careers/evaluator/weekly-reports")
+                                .href("/careers/trainer/weekly-reports")
                                 .build(),
                         SupervisorActionItemResponse.builder()
                                 .key("TIMESHEETS_TO_APPROVE")
                                 .label("Timesheets pending approval")
                                 .count(0L)
-                                .href("/careers/evaluator/interns")
+                                .href("/careers/trainer/interns")
                                 .build(),
                         SupervisorActionItemResponse.builder()
                                 .key("PROJECTS_TO_REVIEW")
                                 .label("Projects awaiting review")
                                 .count(0L)
-                                .href("/careers/evaluator/projects")
+                                .href("/careers/trainer/projects")
                                 .build(),
                         SupervisorActionItemResponse.builder()
                                 .key("EVALUATIONS_TO_FINALIZE")
                                 .label("Evaluations to finalize")
                                 .count(0L)
-                                .href("/careers/evaluator/evaluations")
+                                .href("/careers/trainer/evaluations")
                                 .build(),
                         SupervisorActionItemResponse.builder()
                                 .key("EVALUATIONS_DUE")
                                 .label("Evaluations due")
                                 .count(0L)
-                                .href("/careers/evaluator/sessions")
+                                .href("/careers/trainer/sessions")
                                 .build(),
                         SupervisorActionItemResponse.builder()
                                 .key("MATERIALS_TO_PUBLISH")
                                 .label("This week's materials to publish")
                                 .count(0L)
-                                .href("/careers/evaluator/weekly-materials")
+                                .href("/careers/trainer/weekly-materials")
                                 .build()
                 ))
                 .internRoster(Collections.emptyList())

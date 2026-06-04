@@ -75,12 +75,12 @@ public class AdminAuditLogService {
      */
     private static final List<UserRole> ROLE_PRIORITY = List.of(
             UserRole.SUPER_ADMIN,
-            UserRole.EXECUTIVE,
-            UserRole.OPERATIONS,
-            UserRole.HR,
-            UserRole.TECHNICAL_EVALUATOR,
+            UserRole.MANAGER,
+            UserRole.ERM,
+            UserRole.ERM,
+            UserRole.TRAINER,
             UserRole.INTERN,
-            UserRole.APPLICANT);
+            UserRole.INTERN);
 
     private final AuditLogRepository auditLogRepository;
     private final UserRepository userRepository;

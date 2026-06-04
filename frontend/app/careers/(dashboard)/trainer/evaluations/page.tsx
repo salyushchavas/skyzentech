@@ -34,7 +34,7 @@ import type {
  */
 export default function SupervisorEvaluationsPage() {
   return (
-    <ProtectedRoute requiredRoles={['TECHNICAL_EVALUATOR', 'SUPER_ADMIN']}>
+    <ProtectedRoute requiredRoles={['TRAINER', 'SUPER_ADMIN']}>
       <DashboardLayout title="Evaluations">
         <Body />
       </DashboardLayout>

@@ -29,7 +29,7 @@ public class OperationsDashboardController {
     private final OperationsDashboardService operationsDashboardService;
 
     @GetMapping("/dashboard")
-    @PreAuthorize("hasAnyRole('OPERATIONS', 'SUPER_ADMIN')")
+    @PreAuthorize("hasAnyRole('ERM', 'SUPER_ADMIN')")
     public OperationsDashboardResponse dashboard(@AuthenticationPrincipal User caller) {
         return operationsDashboardService.build(caller);
     }

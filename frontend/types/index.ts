@@ -10,23 +10,19 @@ export type ApiError = {
   details?: unknown;
 };
 
-// PED §7 + SUPER_ADMIN split — seven roles. APPLICANT is the pre-hire state;
-// INTERN is the post-hire state. Backend flips APPLICANT → INTERN inside
-// EngagementService.applyTransition when an engagement goes ACTIVE.
-// OPERATIONS holds the former RECRUITER/ERM operational powers (postings,
-// interviews, onboarding, applications pipeline). SUPER_ADMIN holds the
-// former ADMIN god-mode (user management, role management, full audit-log
-// read/export, cross-role profile access, system/config endpoints) — split
-// back out so OPERATIONS isn't indistinguishable from recruiters/ERMs.
-// EXECUTIVE is read-only leadership.
+// Six-role taxonomy. Mirrors backend UserRole.java.
+//   INTERN            — applies, runs projects, submits timesheets.
+//   TRAINER           — assigns projects, conducts sessions, first sign-off.
+//   REPORTING_MANAGER — post-trainer review, approves timesheets.
+//   MANAGER           — monitors ERM and the application pipeline.
+//   ERM               — shortlisting + onboarding + pre-hire ops.
+//   SUPER_ADMIN       — owner / god-mode oversight.
 export type UserRole =
-  | 'APPLICANT'
   | 'INTERN'
-  | 'HR'
-  | 'OPERATIONS'
-  | 'TECHNICAL_EVALUATOR'
+  | 'TRAINER'
   | 'REPORTING_MANAGER'
-  | 'EXECUTIVE'
+  | 'MANAGER'
+  | 'ERM'
   | 'SUPER_ADMIN';
 
 // Phase 1.4 — candidate's neutral self-attestation on expected work-auth

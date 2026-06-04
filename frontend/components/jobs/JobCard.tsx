@@ -65,7 +65,7 @@ export default function JobCard({ posting, onApplied }: Props) {
   );
 
   const isAuthed = !!user;
-  const isApplicant = !!user?.roles?.includes('APPLICANT');
+  const isApplicant = !!user?.roles?.includes('INTERN');
   const isPostApplicant =
     isAuthed && !isApplicant && (user?.roles?.length ?? 0) > 0;
 

@@ -22,7 +22,7 @@ public class DocumentController {
     private final DocumentService documentService;
 
     @GetMapping
-    @PreAuthorize("hasAnyRole('OPERATIONS', 'HR')")
+    @PreAuthorize("hasRole('ERM')")
     public PagedResponse<DocumentRecordResponse> list(
             @RequestParam(required = false) DocumentType type,
             @RequestParam(required = false) UUID candidateId,

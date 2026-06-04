@@ -9,7 +9,7 @@ import org.springframework.stereotype.Component;
 
 /**
  * Populates the database with realistic demo candidates, resumes and applications
- * spread across the recruitment pipeline so the Kanban at /careers/recruiter shows
+ * spread across the recruitment pipeline so the Kanban at /careers/erm shows
  * cards in every column for the demo.
  *
  * Idempotent — if the sentinel demo candidate ({@code priya.sharma@example.com})

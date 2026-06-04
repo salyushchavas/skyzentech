@@ -23,7 +23,7 @@ function descriptionExcerpt(text: string | undefined, maxChars = 180): string {
 /**
  * "Applied" variant of {@link JobPostingCard}: the candidate has already
  * applied to this posting, so the card surfaces the application status badge
- * and links to /careers/candidate/applications instead of dangling an
+ * and links to /careers/intern/applications instead of dangling an
  * Apply CTA (which would create a duplicate application).
  */
 export default function AppliedJobPostingCard({ posting }: Props) {
@@ -49,7 +49,7 @@ export default function AppliedJobPostingCard({ posting }: Props) {
       </p>
       <div className="flex flex-wrap items-center gap-3 text-sm">
         <Link
-          href="/careers/candidate/applications"
+          href="/careers/intern/applications"
           className="font-medium text-primary-700 hover:text-primary-800 hover:underline"
         >
           View application &rarr;

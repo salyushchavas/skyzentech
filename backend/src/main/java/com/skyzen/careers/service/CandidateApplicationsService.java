@@ -191,7 +191,7 @@ public class CandidateApplicationsService {
                         || latestOffer.getExpiresAt().isAfter(Instant.now()))) {
             return ApplicationJourneyResponse.ActionNeeded.builder()
                     .label("Respond to offer")
-                    .href("/careers/candidate/offers/" + latestOffer.getId())
+                    .href("/careers/intern/offers/" + latestOffer.getId())
                     .build();
         }
         // Phase 2.1: surface the take-screening CTA when the recruiter has sent

@@ -91,7 +91,7 @@ public class UserRoleReconciliationRunner implements ApplicationRunner {
         // Pass 1 — promote APPLICANTs whose engagement says they should be INTERN.
         List<User> applicants;
         try {
-            applicants = userRepository.findByRole(UserRole.APPLICANT);
+            applicants = userRepository.findByRole(UserRole.INTERN);
         } catch (Exception e) {
             log.warn("[UserRoleReconciliation] failed to load APPLICANTs: {}", e.getMessage(), e);
             return;

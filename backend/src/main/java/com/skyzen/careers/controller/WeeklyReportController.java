@@ -79,7 +79,7 @@ public class WeeklyReportController {
 
     /** All reports for a candidate the caller supervises. */
     @GetMapping("/intern/{candidateId}")
-    @PreAuthorize("hasAnyRole('TECHNICAL_EVALUATOR', 'SUPER_ADMIN')")
+    @PreAuthorize("hasAnyRole('TRAINER', 'SUPER_ADMIN')")
     public List<WeeklyReportResponse> listForIntern(
             @PathVariable UUID candidateId,
             @AuthenticationPrincipal User user) {
@@ -87,7 +87,7 @@ public class WeeklyReportController {
     }
 
     @PostMapping("/{id}/return")
-    @PreAuthorize("hasAnyRole('TECHNICAL_EVALUATOR', 'SUPER_ADMIN')")
+    @PreAuthorize("hasAnyRole('TRAINER', 'SUPER_ADMIN')")
     public WeeklyReportResponse returnForCorrection(
             @PathVariable UUID id,
             @Valid @RequestBody ReviewWeeklyReportRequest req,
@@ -96,7 +96,7 @@ public class WeeklyReportController {
     }
 
     @PostMapping("/{id}/approve")
-    @PreAuthorize("hasAnyRole('TECHNICAL_EVALUATOR', 'SUPER_ADMIN')")
+    @PreAuthorize("hasAnyRole('TRAINER', 'SUPER_ADMIN')")
     public WeeklyReportResponse approve(
             @PathVariable UUID id,
             @RequestBody(required = false) ReviewWeeklyReportRequest req,

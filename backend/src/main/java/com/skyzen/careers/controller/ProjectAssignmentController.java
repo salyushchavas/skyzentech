@@ -26,7 +26,7 @@ public class ProjectAssignmentController {
     private final ProjectAssignmentService service;
 
     @PostMapping
-    @PreAuthorize("hasAnyRole('TECHNICAL_EVALUATOR', 'SUPER_ADMIN')")
+    @PreAuthorize("hasAnyRole('TRAINER', 'SUPER_ADMIN')")
     public AssignProjectResultResponse assign(
             @Valid @RequestBody AssignProjectRequest req,
             @AuthenticationPrincipal User caller) {
@@ -34,28 +34,28 @@ public class ProjectAssignmentController {
     }
 
     @PostMapping("/{id}/access-granted")
-    @PreAuthorize("hasAnyRole('TECHNICAL_EVALUATOR', 'SUPER_ADMIN')")
+    @PreAuthorize("hasAnyRole('TRAINER', 'SUPER_ADMIN')")
     public ProjectAssignmentResponse markAccessGranted(
             @PathVariable UUID id, @AuthenticationPrincipal User caller) {
         return service.markAccessGranted(id, caller);
     }
 
     @DeleteMapping("/{id}/access-granted")
-    @PreAuthorize("hasAnyRole('TECHNICAL_EVALUATOR', 'SUPER_ADMIN')")
+    @PreAuthorize("hasAnyRole('TRAINER', 'SUPER_ADMIN')")
     public ProjectAssignmentResponse revokeAccessGranted(
             @PathVariable UUID id, @AuthenticationPrincipal User caller) {
         return service.revokeAccessGranted(id, caller);
     }
 
     @PostMapping("/{id}/start")
-    @PreAuthorize("hasAnyRole('INTERN', 'APPLICANT')")
+    @PreAuthorize("hasRole('INTERN')")
     public ProjectAssignmentResponse start(
             @PathVariable UUID id, @AuthenticationPrincipal User caller) {
         return service.startAssignment(id, caller);
     }
 
     @PostMapping("/{id}/submit")
-    @PreAuthorize("hasAnyRole('INTERN', 'APPLICANT')")
+    @PreAuthorize("hasRole('INTERN')")
     public ProjectAssignmentResponse submit(
             @PathVariable UUID id,
             @Valid @RequestBody(required = false) SubmitAssignmentRequest req,
@@ -65,19 +65,19 @@ public class ProjectAssignmentController {
     }
 
     @GetMapping("/mine")
-    @PreAuthorize("hasAnyRole('INTERN', 'APPLICANT')")
+    @PreAuthorize("hasRole('INTERN')")
     public List<ProjectAssignmentResponse> mine(@AuthenticationPrincipal User caller) {
         return service.listForIntern(caller.getId());
     }
 
     @GetMapping("/by-project/{projectId}")
-    @PreAuthorize("hasAnyRole('TECHNICAL_EVALUATOR', 'SUPER_ADMIN')")
+    @PreAuthorize("hasAnyRole('TRAINER', 'SUPER_ADMIN')")
     public List<ProjectAssignmentResponse> byProject(@PathVariable UUID projectId) {
         return service.listForProject(projectId);
     }
 
     @GetMapping("/eligible-interns")
-    @PreAuthorize("hasAnyRole('TECHNICAL_EVALUATOR', 'SUPER_ADMIN')")
+    @PreAuthorize("hasAnyRole('TRAINER', 'SUPER_ADMIN')")
     public List<EligibleInternResponse> eligibleInterns() {
         return service.eligibleInterns();
     }
@@ -85,14 +85,14 @@ public class ProjectAssignmentController {
     // ── Reviewer lifecycle (TE + RM) ───────────────────────────────────────
 
     @PostMapping("/{id}/tech-approve")
-    @PreAuthorize("hasAnyRole('TECHNICAL_EVALUATOR', 'SUPER_ADMIN')")
+    @PreAuthorize("hasAnyRole('TRAINER', 'SUPER_ADMIN')")
     public ProjectAssignmentResponse techApprove(
             @PathVariable UUID id, @AuthenticationPrincipal User caller) {
         return service.techApprove(id, caller);
     }
 
     @PostMapping("/{id}/return-revisions")
-    @PreAuthorize("hasAnyRole('TECHNICAL_EVALUATOR', 'REPORTING_MANAGER', 'SUPER_ADMIN')")
+    @PreAuthorize("hasAnyRole('TRAINER', 'REPORTING_MANAGER', 'SUPER_ADMIN')")
     public ProjectAssignmentResponse returnForRevisions(
             @PathVariable UUID id,
             @Valid @RequestBody ReturnAssignmentRequest req,
@@ -121,14 +121,14 @@ public class ProjectAssignmentController {
      * decide which slice to show.
      */
     @GetMapping("/by-status")
-    @PreAuthorize("hasAnyRole('TECHNICAL_EVALUATOR', 'REPORTING_MANAGER', 'SUPER_ADMIN')")
+    @PreAuthorize("hasAnyRole('TRAINER', 'REPORTING_MANAGER', 'SUPER_ADMIN')")
     public List<ProjectAssignmentResponse> byStatus(
             @RequestParam("status") List<ProjectAssignmentStatus> statuses) {
         return service.listByStatuses(statuses);
     }
 
     @GetMapping("/{id}")
-    @PreAuthorize("hasAnyRole('TECHNICAL_EVALUATOR', 'SUPER_ADMIN', 'INTERN', 'APPLICANT')")
+    @PreAuthorize("hasAnyRole('TRAINER', 'SUPER_ADMIN', 'INTERN')")
     public ProjectAssignmentResponse get(@PathVariable UUID id,
                                           @AuthenticationPrincipal User caller) {
         return service.getAssignment(id, caller);

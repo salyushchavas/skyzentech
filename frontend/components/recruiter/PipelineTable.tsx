@@ -49,7 +49,7 @@ const SORTABLE_HEADERS: { key: SortField; label: string }[] = [
 
 // Bulk action endpoint is RECRUITER/ERM/ADMIN per Part-1 @PreAuthorize; hide
 // the buttons for HR even though they can view the table.
-const BULK_ROLES: ReadonlyArray<UserRole> = ['OPERATIONS'];
+const BULK_ROLES: ReadonlyArray<UserRole> = ['ERM'];
 
 function hasBulkAccess(roles: UserRole[] | undefined): boolean {
   if (!roles) return false;
@@ -352,7 +352,7 @@ export default function PipelineTable({ postings }: Props) {
                   selected={selectedIds.has(a.id)}
                   onToggle={() => toggleRow(a.id)}
                   onOpen={() =>
-                    router.push(`/careers/recruiter/applications/${a.id}`)
+                    router.push(`/careers/erm/applications/${a.id}`)
                   }
                 />
               ))

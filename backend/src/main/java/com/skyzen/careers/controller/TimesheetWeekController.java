@@ -39,7 +39,7 @@ public class TimesheetWeekController {
     private final TimesheetService timesheetService;
 
     @GetMapping("/week")
-    @PreAuthorize("hasAnyRole('INTERN', 'APPLICANT', 'SUPER_ADMIN')")
+    @PreAuthorize("hasAnyRole('INTERN', 'SUPER_ADMIN')")
     public TimesheetWeekResponse getWeek(
             @RequestParam("weekStart") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE)
             LocalDate weekStart,
@@ -48,7 +48,7 @@ public class TimesheetWeekController {
     }
 
     @PatchMapping("/{id}/days/{day}")
-    @PreAuthorize("hasAnyRole('INTERN', 'APPLICANT', 'SUPER_ADMIN')")
+    @PreAuthorize("hasAnyRole('INTERN', 'SUPER_ADMIN')")
     public TimesheetWeekResponse patchDay(
             @PathVariable UUID id,
             @PathVariable("day") DayOfWeek day,
@@ -58,7 +58,7 @@ public class TimesheetWeekController {
     }
 
     @PostMapping("/{id}/submit")
-    @PreAuthorize("hasAnyRole('INTERN', 'APPLICANT', 'SUPER_ADMIN')")
+    @PreAuthorize("hasAnyRole('INTERN', 'SUPER_ADMIN')")
     public TimesheetResponse submit(@PathVariable UUID id,
                                     @AuthenticationPrincipal User caller) {
         return timesheetService.submit(id, caller);

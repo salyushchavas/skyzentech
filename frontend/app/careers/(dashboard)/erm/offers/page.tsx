@@ -43,7 +43,7 @@ const MS_30_DAYS = 30 * 86_400_000;
 
 export default function HrOffersPage() {
   return (
-    <ProtectedRoute requiredRoles={['OPERATIONS', 'HR']}>
+    <ProtectedRoute requiredRoles={['ERM']}>
       <DashboardLayout title="Offer Letters">
         <Suspense fallback={<Spinner />}>
           <OffersBody />
@@ -101,7 +101,7 @@ function OffersBody() {
       params.set('status', next);
     }
     const qs = params.toString();
-    router.replace(qs ? `/careers/hr/offers?${qs}` : '/careers/hr/offers');
+    router.replace(qs ? `/careers/erm/offers?${qs}` : '/careers/erm/offers');
   }
 
   const filtered = useMemo(() => {
@@ -196,7 +196,7 @@ function OffersBody() {
           })}
         </div>
         <Link
-          href="/careers/hr/offers/new"
+          href="/careers/erm/offers/new"
           className="inline-flex items-center gap-1.5 rounded-md bg-accent px-4 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-accent-dark"
         >
           <FilePlus className="h-4 w-4" strokeWidth={2} />
@@ -264,7 +264,7 @@ function OffersBody() {
                 {filtered.map((o) => (
                   <tr
                     key={o.id}
-                    onClick={() => router.push(`/careers/hr/offers/${o.id}`)}
+                    onClick={() => router.push(`/careers/erm/offers/${o.id}`)}
                     className="cursor-pointer hover:bg-gray-50"
                   >
                     <td className="px-4 py-3">
@@ -319,7 +319,7 @@ function OffersBody() {
             {filtered.map((o) => (
               <div
                 key={o.id}
-                onClick={() => router.push(`/careers/hr/offers/${o.id}`)}
+                onClick={() => router.push(`/careers/erm/offers/${o.id}`)}
                 className="cursor-pointer rounded-lg border border-gray-200 bg-white p-4"
               >
                 <div className="mb-2 flex items-start justify-between gap-2">
@@ -430,7 +430,7 @@ function RowActions({
     return (
       <div className="flex flex-wrap justify-end gap-1.5">
         <Link
-          href={`/careers/hr/offers/${offer.id}/edit`}
+          href={`/careers/erm/offers/${offer.id}/edit`}
           className="rounded-md border border-gray-300 bg-white px-2.5 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50"
         >
           Edit
@@ -458,7 +458,7 @@ function RowActions({
     return (
       <div className="flex flex-wrap justify-end gap-1.5">
         <Link
-          href={`/careers/hr/offers/${offer.id}`}
+          href={`/careers/erm/offers/${offer.id}`}
           className="rounded-md border border-gray-300 bg-white px-2.5 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50"
         >
           View
@@ -477,7 +477,7 @@ function RowActions({
   return (
     <div className="flex flex-wrap justify-end gap-1.5">
       <Link
-        href={`/careers/hr/offers/${offer.id}`}
+        href={`/careers/erm/offers/${offer.id}`}
         className="rounded-md border border-gray-300 bg-white px-2.5 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50"
       >
         View
@@ -505,7 +505,7 @@ function EmptyState({ filter }: { filter: 'ALL' | OfferStatus }) {
     <div className="rounded-lg border border-dashed border-gray-300 bg-white p-12 text-center">
       <p className="mb-4 text-base font-medium text-gray-700">{label}</p>
       <Link
-        href="/careers/hr/offers/new"
+        href="/careers/erm/offers/new"
         className="inline-flex items-center gap-1.5 rounded-full bg-accent px-5 py-2 text-sm font-semibold text-white transition-colors hover:bg-accent-dark"
       >
         <FilePlus className="h-4 w-4" strokeWidth={2} />

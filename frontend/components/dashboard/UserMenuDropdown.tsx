@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Home, LogOut, User as UserIcon } from 'lucide-react';
+import { HelpCircle, LogOut, User as UserIcon } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
 import type { UserRole } from '@/types';
 
@@ -15,15 +15,18 @@ function initialOf(user: { fullName?: string; email: string }): string {
   return user.email[0]?.toUpperCase() ?? 'U';
 }
 
-// Only candidate-side users have a profile page today
-// (frontend/app/careers/(dashboard)/candidate/profile). Staff roles get the
-// item hidden. The previous lowercase-the-enum trick produced 404s for every
-// role (/careers/applicant/profile, /careers/operations/profile, …).
+// Profile page lives under each role's segment. INTERN keeps the per-role
+// profile path; Phase 1+ will introduce a profile surface for that role.
+// Other roles get the entry hidden until a role-specific profile exists.
 function profileHrefFor(roles: UserRole[] | undefined): string | null {
   if (!roles?.length) return null;
-  if (roles.includes('APPLICANT') || roles.includes('INTERN')) {
-    return '/careers/candidate/profile';
-  }
+  if (roles.includes('INTERN')) return '/careers/intern';
+  return null;
+}
+
+function helpHrefFor(roles: UserRole[] | undefined): string | null {
+  if (!roles?.length) return null;
+  if (roles.includes('INTERN')) return '/careers/intern/help';
   return null;
 }
 
@@ -55,6 +58,7 @@ export default function UserMenuDropdown() {
 
   const initial = initialOf(user);
   const profileHref = profileHrefFor(user.roles);
+  const helpHref = helpHrefFor(user.roles);
 
   function handleSignOut() {
     setOpen(false);
@@ -105,15 +109,17 @@ export default function UserMenuDropdown() {
             Profile
           </Link>
         )}
-        <Link
-          href="/"
-          role="menuitem"
-          onClick={() => setOpen(false)}
-          className="flex items-center gap-2 px-3 py-2 text-sm text-gray-700 transition-colors hover:bg-gray-100 hover:text-gray-900"
-        >
-          <Home className="h-[18px] w-[18px]" strokeWidth={2} />
-          Back to main site
-        </Link>
+        {helpHref && (
+          <Link
+            href={helpHref}
+            role="menuitem"
+            onClick={() => setOpen(false)}
+            className="flex items-center gap-2 px-3 py-2 text-sm text-gray-700 transition-colors hover:bg-gray-100 hover:text-gray-900"
+          >
+            <HelpCircle className="h-[18px] w-[18px]" strokeWidth={2} />
+            Help
+          </Link>
+        )}
 
         <div className="my-1 border-t border-gray-100" />
 

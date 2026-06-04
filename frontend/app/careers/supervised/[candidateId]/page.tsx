@@ -192,7 +192,7 @@ function formatHours(h: number | string | null | undefined): string {
 
 export default function SupervisedInternDetailPage() {
   return (
-    <ProtectedRoute requiredRoles={['OPERATIONS', 'HR', 'TECHNICAL_EVALUATOR']}>
+    <ProtectedRoute requiredRoles={['ERM', 'TRAINER']}>
       <DashboardLayout title="Supervised Intern">
         <InternDetail />
       </DashboardLayout>

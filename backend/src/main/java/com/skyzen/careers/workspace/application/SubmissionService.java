@@ -276,7 +276,7 @@ public class SubmissionService {
         // Role-based — any TECHNICAL_EVALUATOR / REPORTING_MANAGER can read
         // any submission. Per-engagement FKs are no longer the boundary.
         if (caller.getRoles() != null
-                && (caller.getRoles().contains(UserRole.TECHNICAL_EVALUATOR)
+                && (caller.getRoles().contains(UserRole.TRAINER)
                     || caller.getRoles().contains(UserRole.REPORTING_MANAGER))) {
             return;
         }

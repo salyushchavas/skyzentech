@@ -143,7 +143,7 @@ public class TestAccountSeeder implements CommandLineRunner {
         if (!enabled) return; // Silent no-op in production / default config.
         log.info("{} Seeding test accounts (app.seed.test-accounts-enabled=true)", LOG_TAG);
         try {
-            User evaluator = findOrCreateUser(EVAL_EMAIL,    "Test Evaluator",         EVAL_PASSWORD,   UserRole.TECHNICAL_EVALUATOR);
+            User evaluator = findOrCreateUser(EVAL_EMAIL,    "Test Evaluator",         EVAL_PASSWORD,   UserRole.TRAINER);
             User rm        = findOrCreateUser(RM_EMAIL,      "Test Reporting Manager", RM_PASSWORD,     UserRole.REPORTING_MANAGER);
             User internU   = findOrCreateUser(INTERN_EMAIL,  "Test Intern",            INTERN_PASSWORD, UserRole.INTERN);
 

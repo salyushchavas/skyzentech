@@ -169,7 +169,7 @@ public class DocumentService {
                 .createdAt(f.getCreatedAt())
                 .updatedAt(f.getUpdatedAt())
                 .retentionPolicyText(RETENTION_POLICIES.get(DocumentType.I9))
-                .linkUrl("/careers/hr/i9-everify/i9/" + f.getId())
+                .linkUrl("/careers/erm/i9-everify/i9/" + f.getId())
                 .immutable(s == I9Status.COMPLETED)
                 .hasAuditLog(true)
                 .build();
@@ -193,7 +193,7 @@ public class DocumentService {
                 .createdAt(p.getCreatedAt())
                 .updatedAt(p.getUpdatedAt())
                 .retentionPolicyText(RETENTION_POLICIES.get(DocumentType.I983))
-                .linkUrl("/careers/operations/training-plans/" + p.getId())
+                .linkUrl("/careers/erm/training-plans/" + p.getId())
                 .immutable(s == I983Status.COMPLETE
                         || s == I983Status.SUBMITTED_TO_DSO
                         || s == I983Status.DSO_APPROVED)
@@ -226,7 +226,7 @@ public class DocumentService {
                 .createdAt(o.getCreatedAt())
                 .updatedAt(o.getUpdatedAt())
                 .retentionPolicyText(RETENTION_POLICIES.get(DocumentType.OFFER))
-                .linkUrl("/careers/hr/offers/" + o.getId())
+                .linkUrl("/careers/erm/offers/" + o.getId())
                 .immutable(s == OfferStatus.ACCEPTED)
                 .hasAuditLog(false)
                 .build();

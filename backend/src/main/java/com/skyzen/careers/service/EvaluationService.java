@@ -337,8 +337,8 @@ public class EvaluationService {
             throw new ForbiddenException(
                     "Only this intern's evaluator, HR, or SUPER_ADMIN may view their evaluations.");
         }
-        if (actor.getRoles().contains(UserRole.HR)
-                || actor.getRoles().contains(UserRole.TECHNICAL_EVALUATOR)
+        if (actor.getRoles().contains(UserRole.ERM)
+                || actor.getRoles().contains(UserRole.TRAINER)
                 || actor.getRoles().contains(UserRole.REPORTING_MANAGER)) {
             return;
         }
@@ -350,7 +350,7 @@ public class EvaluationService {
         if (actor == null) throw new ForbiddenException("Authentication required.");
         if (isSuperAdmin(actor)) return;
         if (actor.getRoles() != null
-                && actor.getRoles().contains(UserRole.TECHNICAL_EVALUATOR)) {
+                && actor.getRoles().contains(UserRole.TRAINER)) {
             return;
         }
         throw new ForbiddenException(

@@ -429,7 +429,7 @@ public class CandidateDashboardService {
             case "APPLIED" -> {
                 out.add(subStep("PROFILE", "Complete your profile",
                         profileComplete >= 100 ? "done" : "current", "you",
-                        "/careers/candidate/profile",
+                        "/careers/intern/profile",
                         profileComplete + "% complete"));
                 boolean hasResume = candidate != null
                         && (candidate.getDefaultResumeId() != null
@@ -441,7 +441,7 @@ public class CandidateDashboardService {
                 if (anchor != null) {
                     out.add(subStep("APPLY_SUBMITTED", "Application submitted",
                             "done", "system",
-                            "/careers/candidate/applications",
+                            "/careers/intern/applications",
                             "Awaiting recruiter review"));
                 } else {
                     out.add(subStep("APPLY_SUBMIT", "Apply to an internship",
@@ -480,14 +480,14 @@ public class CandidateDashboardService {
                 if (next != null) {
                     out.add(subStep("INTERVIEW_SCHEDULED", "Interview scheduled",
                             "current", "you",
-                            "/careers/candidate/interviews",
+                            "/careers/intern/interviews",
                             next.getScheduledAt() != null
                                     ? "On " + formatDate(next.getScheduledAt())
                                     : "Date TBD"));
                 } else if (s == ApplicationStatus.INTERVIEW_SCHEDULED) {
                     out.add(subStep("INTERVIEW_SCHEDULED", "Interview scheduled",
                             "current", "you",
-                            "/careers/candidate/interviews",
+                            "/careers/intern/interviews",
                             "Check your calendar invite"));
                 }
                 if (s == ApplicationStatus.INTERVIEWED) {
@@ -518,13 +518,13 @@ public class CandidateDashboardService {
                 if (live != null) {
                     out.add(subStep("OFFER_REVIEW", "Review & respond to offer",
                             "current", "you",
-                            "/careers/candidate/offers/" + live.getId(),
+                            "/careers/intern/offers/" + live.getId(),
                             live.getExpiresAt() != null
                                     ? "Respond by " + formatDate(live.getExpiresAt())
                                     : "Open the offer"));
                 } else if (accepted != null) {
                     out.add(subStep("OFFER_ACCEPTED", "Offer accepted",
-                            "done", "you", "/careers/candidate/offers/" + accepted.getId(),
+                            "done", "you", "/careers/intern/offers/" + accepted.getId(),
                             "Onboarding will start shortly"));
                     out.add(subStep("AWAIT_ONBOARDING_SEED", "Onboarding setup",
                             "waiting", "system", null,
@@ -634,7 +634,7 @@ public class CandidateDashboardService {
                 sub = "Sign & complete: " + latest.getStatus().name();
             }
             out.add(subStep("I983_PLAN", "Form I-983 Training Plan",
-                    state, owner, "/careers/candidate/training-plans", sub));
+                    state, owner, "/careers/intern/training-plans", sub));
         }
 
         // I-9 §1 — universal, candidate-owned.
@@ -648,7 +648,7 @@ public class CandidateDashboardService {
             s1State = "current"; s1Sub = "Sign by your first day";
         }
         out.add(subStep("I9_SECTION_1", "Form I-9 — Section 1",
-                s1State, "you", "/careers/candidate/i9", s1Sub));
+                s1State, "you", "/careers/intern/i9", s1Sub));
 
         // I-9 §2 — universal, employer-owned.
         String s2State;
@@ -706,7 +706,7 @@ public class CandidateDashboardService {
             out.add(subStep("ONBOARDING_TASKS",
                     "Onboarding tasks (" + done + " of " + total + ")",
                     done >= total ? "done" : "current", "you",
-                    "/careers/candidate/onboarding",
+                    "/careers/intern/onboarding",
                     done >= total
                             ? "All tasks complete"
                             : "Policy acks, GitHub access, supervisor intro"));
@@ -840,7 +840,7 @@ public class CandidateDashboardService {
                     .label("Form I-9 — Section 1")
                     .state(s1State)
                     .subtitle(s1Sub)
-                    .href("/careers/candidate/i9")
+                    .href("/careers/intern/i9")
                     .completedAt(s1At)
                     .build());
 
@@ -940,7 +940,7 @@ public class CandidateDashboardService {
                     .label("Form I-983 Training Plan")
                     .state(state)
                     .subtitle(sub)
-                    .href("/careers/candidate/training-plans")
+                    .href("/careers/intern/training-plans")
                     .completedAt(null)
                     .build());
         }
@@ -994,7 +994,7 @@ public class CandidateDashboardService {
                             : "You have an offer")
                     .subtitle(subtitle)
                     .ctaLabel("View offer")
-                    .ctaHref("/careers/candidate/offers/" + sent.getId())
+                    .ctaHref("/careers/intern/offers/" + sent.getId())
                     .build();
         }
 
@@ -1044,7 +1044,7 @@ public class CandidateDashboardService {
                             ? nextInterview.getScheduledAt().toString()
                             : null)
                     .ctaLabel("View details")
-                    .ctaHref("/careers/candidate/interviews")
+                    .ctaHref("/careers/intern/interviews")
                     .build();
         }
 
@@ -1069,7 +1069,7 @@ public class CandidateDashboardService {
                     .title("Complete onboarding (" + doneTasks + " of " + totalTasks + ")")
                     .subtitle(null)
                     .ctaLabel("Continue onboarding")
-                    .ctaHref("/careers/candidate/onboarding")
+                    .ctaHref("/careers/intern/onboarding")
                     .build();
         }
 
@@ -1145,7 +1145,7 @@ public class CandidateDashboardService {
                             .title("Onboarding complete")
                             .subtitle("Awaiting HR activation — typically same-day.")
                             .ctaLabel("View onboarding")
-                            .ctaHref("/careers/candidate/onboarding")
+                            .ctaHref("/careers/intern/onboarding")
                             .isWaiting(true)
                             .waitingFor("HR activation")
                             .build();
@@ -1159,7 +1159,7 @@ public class CandidateDashboardService {
                         .title("Onboarding compliance in progress")
                         .subtitle("HR is finalizing your I-9 / E-Verify steps.")
                         .ctaLabel("View onboarding")
-                        .ctaHref("/careers/candidate/onboarding")
+                        .ctaHref("/careers/intern/onboarding")
                         .isWaiting(true)
                         .waitingFor("HR completing post-offer compliance")
                         .build();
@@ -1187,7 +1187,7 @@ public class CandidateDashboardService {
                                 : "Conditionally selected")
                         .subtitle("Offer pending. HR will send the formal offer next.")
                         .ctaLabel("View application")
-                        .ctaHref("/careers/candidate/applications")
+                        .ctaHref("/careers/intern/applications")
                         .isWaiting(true)
                         .waitingFor("HR drafting your formal offer")
                         .build();
@@ -1200,7 +1200,7 @@ public class CandidateDashboardService {
                                 : "Interview complete")
                         .subtitle("We're reviewing your interview — expect to hear back soon.")
                         .ctaLabel("View application")
-                        .ctaHref("/careers/candidate/applications")
+                        .ctaHref("/careers/intern/applications")
                         .isWaiting(true)
                         .waitingFor("Hiring team reviewing your scorecard")
                         .build();
@@ -1213,7 +1213,7 @@ public class CandidateDashboardService {
                                 : "You've been shortlisted")
                         .subtitle("A recruiter will reach out with next steps")
                         .ctaLabel("View application")
-                        .ctaHref("/careers/candidate/applications")
+                        .ctaHref("/careers/intern/applications")
                         .isWaiting(true)
                         .waitingFor("Recruiter scheduling your interview")
                         .build();
@@ -1226,7 +1226,7 @@ public class CandidateDashboardService {
                                 : "Screening submitted")
                         .subtitle("Recruiter is reviewing your answers.")
                         .ctaLabel("View application")
-                        .ctaHref("/careers/candidate/applications")
+                        .ctaHref("/careers/intern/applications")
                         .isWaiting(true)
                         .waitingFor("Recruiter reviewing your screening")
                         .build();
@@ -1252,7 +1252,7 @@ public class CandidateDashboardService {
                         .title("Complete your profile")
                         .subtitle(profileComplete + "% complete")
                         .ctaLabel("Edit profile")
-                        .ctaHref("/careers/candidate/profile")
+                        .ctaHref("/careers/intern/profile")
                         .build();
             }
             return CandidateDashboardResponse.NextStep.builder()
@@ -1397,7 +1397,7 @@ public class CandidateDashboardService {
                         .title("Complete your profile")
                         .subtitle(profileComplete + "% complete")
                         .ctaLabel("Edit profile")
-                        .ctaHref("/careers/candidate/profile")
+                        .ctaHref("/careers/intern/profile")
                         .build()
                 : CandidateDashboardResponse.NextStep.builder()
                         .type("BROWSE")
@@ -1459,7 +1459,7 @@ public class CandidateDashboardService {
                     .releaseDate(top.getReleaseDate())
                     .acknowledged(ack != null)
                     .acknowledgedAt(ack != null ? ack.getAcknowledgedAt() : null)
-                    .href("/careers/candidate/weekly-materials")
+                    .href("/careers/intern/weekly-materials")
                     .build();
         }
 
@@ -1477,7 +1477,7 @@ public class CandidateDashboardService {
                         .submittedAt(report != null ? report.getSubmittedAt() : null)
                         .reviewedAt(report != null ? report.getReviewedAt() : null)
                         .reviewNotes(report != null ? report.getReviewNotes() : null)
-                        .href("/careers/candidate/weekly-reports")
+                        .href("/careers/intern/weekly-reports")
                         .build();
 
         // Timesheet — newest first list; pick the one whose weekStart matches
@@ -1534,7 +1534,7 @@ public class CandidateDashboardService {
                     .type(d.getType() != null ? d.getType().name() : null)
                     .status(d.getStatus() != null ? d.getStatus().name() : null)
                     .selfReviewPending(true)
-                    .href("/careers/candidate/evaluations")
+                    .href("/careers/intern/evaluations")
                     .build();
         }
         // 2. Read: most-recent FINALIZED (the repo orders by createdAt desc).
@@ -1550,7 +1550,7 @@ public class CandidateDashboardService {
                 .overallRating(top.getOverallRating())
                 .finalizedAt(top.getFinalizedAt())
                 .selfReviewPending(false)
-                .href("/careers/candidate/evaluations")
+                .href("/careers/intern/evaluations")
                 .build();
     }
 
@@ -1587,7 +1587,7 @@ public class CandidateDashboardService {
                 .progressPct(chosen.getProgressPct())
                 .reviewNotes(chosen.getStatus() == ProjectStatus.RETURNED
                         ? chosen.getReviewNotes() : null)
-                .href("/careers/candidate/projects")
+                .href("/careers/intern/projects")
                 .build();
     }
 
@@ -1725,33 +1725,33 @@ public class CandidateDashboardService {
         CandidateDashboardResponse.ReportCard rep = cockpit.getReport();
         if (rep == null || rep.getStatus() == null) {
             out.add(subStep("WEEKLY_REPORT", "Submit this week's report",
-                    "current", "you", "/careers/candidate/weekly-reports",
+                    "current", "you", "/careers/intern/weekly-reports",
                     "Completed work, blockers, learnings, next plan"));
         } else {
             switch (rep.getStatus()) {
                 case "DRAFT" -> out.add(subStep("WEEKLY_REPORT",
                         "Finish & submit this week's report",
-                        "current", "you", "/careers/candidate/weekly-reports",
+                        "current", "you", "/careers/intern/weekly-reports",
                         "Draft saved — submit when ready"));
                 case "RETURNED" -> out.add(subStep("WEEKLY_REPORT",
                         "Reviewer asked for changes",
-                        "current", "you", "/careers/candidate/weekly-reports",
+                        "current", "you", "/careers/intern/weekly-reports",
                         rep.getReviewNotes() != null && !rep.getReviewNotes().isBlank()
                                 ? rep.getReviewNotes()
                                 : "Update and resubmit"));
                 case "SUBMITTED" -> out.add(subStep("WEEKLY_REPORT",
                         "Report submitted",
-                        "waiting", "supervisor", "/careers/candidate/weekly-reports",
+                        "waiting", "supervisor", "/careers/intern/weekly-reports",
                         "Awaiting supervisor review"));
                 case "APPROVED" -> out.add(subStep("WEEKLY_REPORT",
                         "Report approved",
-                        "done", "supervisor", "/careers/candidate/weekly-reports",
+                        "done", "supervisor", "/careers/intern/weekly-reports",
                         rep.getReviewedAt() != null
                                 ? "Approved on " + formatDate(rep.getReviewedAt())
                                 : "Approved"));
                 default -> out.add(subStep("WEEKLY_REPORT",
                         "Weekly report",
-                        "current", "you", "/careers/candidate/weekly-reports",
+                        "current", "you", "/careers/intern/weekly-reports",
                         rep.getStatus()));
             }
         }
@@ -1817,7 +1817,7 @@ public class CandidateDashboardService {
                             ? rep.getReviewNotes()
                             : "Update and resubmit")
                     .ctaLabel("Open report")
-                    .ctaHref("/careers/candidate/weekly-reports")
+                    .ctaHref("/careers/intern/weekly-reports")
                     .build();
         }
 
@@ -1839,7 +1839,7 @@ public class CandidateDashboardService {
                     .title("Read this week's material")
                     .subtitle(mat.getTitle())
                     .ctaLabel("Open material")
-                    .ctaHref("/careers/candidate/weekly-materials")
+                    .ctaHref("/careers/intern/weekly-materials")
                     .build();
         }
 
@@ -1850,7 +1850,7 @@ public class CandidateDashboardService {
                     .title("Submit this week's report")
                     .subtitle("Completed work, blockers, learnings, next plan")
                     .ctaLabel("Open report")
-                    .ctaHref("/careers/candidate/weekly-reports")
+                    .ctaHref("/careers/intern/weekly-reports")
                     .build();
         }
         if ("DRAFT".equals(rep.getStatus())) {
@@ -1859,7 +1859,7 @@ public class CandidateDashboardService {
                     .title("Finish your weekly report")
                     .subtitle("Draft saved — submit when ready")
                     .ctaLabel("Open report")
-                    .ctaHref("/careers/candidate/weekly-reports")
+                    .ctaHref("/careers/intern/weekly-reports")
                     .build();
         }
 
@@ -2055,7 +2055,7 @@ public class CandidateDashboardService {
             out.add(step("SCREENING", "Screening",
                     "IN_PROGRESS", null, null,
                     "Complete the screening questionnaire.",
-                    true, "/careers/candidate/applications"));
+                    true, "/careers/intern/applications"));
         } else {
             out.add(step("SCREENING", "Screening",
                     "NOT_STARTED", null, null,
@@ -2071,12 +2071,12 @@ public class CandidateDashboardService {
                     null,
                     interviewDoneDescription(completedInterview),
                     true,
-                    "/careers/candidate/interviews/" + completedInterview.getId()));
+                    "/careers/intern/interviews/" + completedInterview.getId()));
         } else if (scheduledInterview != null) {
             out.add(step("INTERVIEW", "Interview",
                     "IN_PROGRESS", null, null,
                     "Interview scheduled — check your calendar.",
-                    false, "/careers/candidate/interviews"));
+                    false, "/careers/intern/interviews"));
         } else if (appStatus == ApplicationStatus.INTERVIEWED) {
             out.add(step("INTERVIEW", "Interview",
                     "DONE", null, null,
@@ -2101,7 +2101,7 @@ public class CandidateDashboardService {
             out.add(step("OFFER_ACCEPTED", "Offer accepted",
                     "IN_PROGRESS", null, null,
                     "Respond to your offer.",
-                    true, "/careers/candidate/offers"));
+                    true, "/careers/intern/offers"));
         } else {
             out.add(step("OFFER_ACCEPTED", "Offer accepted",
                     "NOT_STARTED", null, null,
@@ -2123,7 +2123,7 @@ public class CandidateDashboardService {
         }
         out.add(step("I9_SECTION1", "I-9 Section 1",
                 i9s1Status, i9s1At, null,
-                i9s1Desc, s1Action, s1Action ? "/careers/candidate/i9" : null));
+                i9s1Desc, s1Action, s1Action ? "/careers/intern/i9" : null));
 
         // I9_SECTION2
         String i9s2Status; Instant i9s2At = null; String i9s2Wait = null;
@@ -2155,19 +2155,19 @@ public class CandidateDashboardService {
                 case DSO_APPROVED -> out.add(step("I983", "I-983 Training Plan",
                         "DONE", i983.getDsoRespondedAt(), null,
                         "DSO approved your training plan.",
-                        false, "/careers/candidate/training-plans/" + i983.getId()));
+                        false, "/careers/intern/training-plans/" + i983.getId()));
                 case SUBMITTED_TO_DSO -> out.add(step("I983", "I-983 Training Plan",
                         "WAITING", null, "DSO",
                         "Submitted — DSO review pending.",
-                        false, "/careers/candidate/training-plans/" + i983.getId()));
+                        false, "/careers/intern/training-plans/" + i983.getId()));
                 case DSO_REJECTED, AMENDMENT_REQUESTED -> out.add(step("I983", "I-983 Training Plan",
                         "BLOCKED", null, null,
                         "DSO requested changes.",
-                        true, "/careers/candidate/training-plans/" + i983.getId()));
+                        true, "/careers/intern/training-plans/" + i983.getId()));
                 default -> out.add(step("I983", "I-983 Training Plan",
                         "IN_PROGRESS", null, null,
                         "Drafting your training plan.",
-                        true, "/careers/candidate/training-plans/" + i983.getId()));
+                        true, "/careers/intern/training-plans/" + i983.getId()));
             }
         }
 
@@ -2225,7 +2225,7 @@ public class CandidateDashboardService {
         }
         out.add(step("ONBOARDING_TASKS", "Onboarding tasks",
                 tasksStatus, null, null, tasksDesc,
-                tasksAction, tasksAction ? "/careers/candidate/onboarding" : null));
+                tasksAction, tasksAction ? "/careers/intern/onboarding" : null));
 
         // HR_ACTIVATION
         if (engagement == null) {

@@ -138,10 +138,10 @@ public class UserSupervisionService {
                 ? EnumSet.copyOf(target.getRoles())
                 : EnumSet.noneOf(UserRole.class);
 
-        if (roles.contains(UserRole.APPLICANT) || roles.contains(UserRole.INTERN)) {
+        if (roles.contains(UserRole.INTERN) || roles.contains(UserRole.INTERN)) {
             candidateContext = buildCandidateContext(target);
         }
-        if (roles.contains(UserRole.TECHNICAL_EVALUATOR)) {
+        if (roles.contains(UserRole.TRAINER)) {
             supervisorContext = buildSupervisorContext(target);
         }
 
@@ -244,7 +244,7 @@ public class UserSupervisionService {
                             ? jp.getEntity().getName() : null)
                     .status(a.getStatus() != null ? a.getStatus().name() : null)
                     .appliedAt(a.getAppliedAt())
-                    .href("/careers/recruiter/applications/" + a.getId())
+                    .href("/careers/erm/applications/" + a.getId())
                     .build());
         }
 
@@ -327,12 +327,12 @@ public class UserSupervisionService {
             b.i9Status(i9.getStatus() != null ? i9.getStatus().name() : null)
                     .i9FirstDayOfEmployment(i9.getFirstDayOfEmployment())
                     .i9WorkAuthExpirationDate(i9.getWorkAuthExpirationDate())
-                    .i9DetailHref("/careers/hr/i9-everify/i9/" + i9.getId());
+                    .i9DetailHref("/careers/erm/i9-everify/i9/" + i9.getId());
 
             EVerifyCase ev = everifyCaseRepository.findByI9FormId(i9.getId()).orElse(null);
             if (ev != null) {
                 b.everifyStatus(ev.getStatus() != null ? ev.getStatus().name() : null)
-                        .everifyDetailHref("/careers/hr/i9-everify/everify/" + ev.getId());
+                        .everifyDetailHref("/careers/erm/i9-everify/everify/" + ev.getId());
             }
         }
 
@@ -342,7 +342,7 @@ public class UserSupervisionService {
         if (latestPlan != null) {
             b.i983Status(latestPlan.getStatus() != null ? latestPlan.getStatus().name() : null)
                     .i983OptEndDate(latestPlan.getOptEndDate())
-                    .i983DetailHref("/careers/operations/training-plans/" + latestPlan.getId());
+                    .i983DetailHref("/careers/erm/training-plans/" + latestPlan.getId());
         }
         return b.build();
     }
@@ -372,7 +372,7 @@ public class UserSupervisionService {
                         .name(name)
                         .position(position)
                         .engagementStatus(e.getStatus() != null ? e.getStatus().name() : null)
-                        .reviewHref("/careers/evaluator/weekly-reports?intern=" + candidateId)
+                        .reviewHref("/careers/trainer/weekly-reports?intern=" + candidateId)
                         .build());
             }
 

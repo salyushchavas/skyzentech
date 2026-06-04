@@ -35,7 +35,7 @@ public class ApplicationController {
     private final CandidateApplicationsService candidateApplicationsService;
 
     @PostMapping
-    @PreAuthorize("hasAnyRole('APPLICANT', 'INTERN')")
+    @PreAuthorize("hasRole('INTERN')")
     public ResponseEntity<ApplicationResponse> apply(
             @Valid @RequestBody ApplicationCreateRequest req,
             @AuthenticationPrincipal User user) {
@@ -45,7 +45,7 @@ public class ApplicationController {
     }
 
     @GetMapping("/me")
-    @PreAuthorize("hasAnyRole('APPLICANT', 'INTERN')")
+    @PreAuthorize("hasRole('INTERN')")
     public List<ApplicationResponse> listMine(@AuthenticationPrincipal User user) {
         return applicationService.listForCandidate(user);
     }
@@ -56,7 +56,7 @@ public class ApplicationController {
      * stage dates and an action-needed CTA when something is pending.
      */
     @GetMapping("/me/journey")
-    @PreAuthorize("hasAnyRole('APPLICANT', 'INTERN')")
+    @PreAuthorize("hasRole('INTERN')")
     public List<ApplicationJourneyResponse> listMyJourney(@AuthenticationPrincipal User user) {
         return candidateApplicationsService.listJourneyForCandidate(user);
     }
@@ -70,7 +70,7 @@ public class ApplicationController {
      *   - page / size (size capped at 100)
      */
     @GetMapping
-    @PreAuthorize("hasAnyRole('OPERATIONS', 'HR')")
+    @PreAuthorize("hasRole('ERM')")
     public PagedResponse<ApplicationResponse> list(
             @RequestParam(required = false) String search,
             @RequestParam(required = false) List<ApplicationStatus> status,
@@ -114,7 +114,7 @@ public class ApplicationController {
     }
 
     @GetMapping("/{id}")
-    @PreAuthorize("hasAnyRole('APPLICANT', 'INTERN', 'OPERATIONS', 'HR', 'TECHNICAL_EVALUATOR')")
+    @PreAuthorize("hasAnyRole('INTERN', 'ERM', 'TRAINER')")
     public ApplicationResponse getOne(@PathVariable UUID id,
                                       @AuthenticationPrincipal User user) {
         // CANDIDATE is gated to their own application in ApplicationService.findById;
@@ -124,7 +124,7 @@ public class ApplicationController {
     }
 
     @PatchMapping("/{id}/status")
-    @PreAuthorize("hasRole('OPERATIONS')")
+    @PreAuthorize("hasRole('ERM')")
     public ApplicationResponse updateStatus(@PathVariable UUID id,
                                             @Valid @RequestBody ApplicationStatusUpdateRequest req,
                                             @AuthenticationPrincipal User user) {
@@ -138,7 +138,7 @@ public class ApplicationController {
      * SHORTLIST audit entry. Idempotent — returns 200 even if already SHORTLISTED.
      */
     @PostMapping("/{id}/shortlist")
-    @PreAuthorize("hasRole('OPERATIONS')")
+    @PreAuthorize("hasRole('ERM')")
     public ApplicationResponse shortlist(
             @PathVariable UUID id,
             @Valid @RequestBody(required = false) RecruiterDecisionRequest req,
@@ -148,7 +148,7 @@ public class ApplicationController {
 
     /** Mirror of {@link #shortlist} for one-click rejection. Adds a REJECT audit entry. */
     @PostMapping("/{id}/reject")
-    @PreAuthorize("hasRole('OPERATIONS')")
+    @PreAuthorize("hasRole('ERM')")
     public ApplicationResponse reject(
             @PathVariable UUID id,
             @Valid @RequestBody(required = false) RecruiterDecisionRequest req,
@@ -163,7 +163,7 @@ public class ApplicationController {
      * no-op (no duplicate audit, no duplicate stub email).
      */
     @PostMapping("/{id}/conditional-select")
-    @PreAuthorize("hasRole('OPERATIONS')")
+    @PreAuthorize("hasRole('ERM')")
     public ApplicationResponse conditionalSelect(
             @PathVariable UUID id,
             @AuthenticationPrincipal User user) {
@@ -176,7 +176,7 @@ public class ApplicationController {
      * Returns {@code { updated, skipped }} so the UI can render an honest toast.
      */
     @PostMapping("/bulk")
-    @PreAuthorize("hasRole('OPERATIONS')")
+    @PreAuthorize("hasRole('ERM')")
     public BulkApplicationActionResponse bulkAction(
             @Valid @RequestBody BulkApplicationActionRequest req,
             @AuthenticationPrincipal User user) {

@@ -27,7 +27,7 @@ type ActionKind = 'send' | 'revoke' | 'delete';
 
 export default function OfferDetailPage() {
   return (
-    <ProtectedRoute requiredRoles={['OPERATIONS', 'HR']}>
+    <ProtectedRoute requiredRoles={['ERM']}>
       <DashboardLayout title="Offer Details">
         <Body />
       </DashboardLayout>
@@ -84,7 +84,7 @@ function Body() {
       } else if (confirm === 'delete') {
         await api.delete(`/api/v1/offers/${offer.id}`);
         toast.success('Draft deleted');
-        router.push('/careers/hr/offers');
+        router.push('/careers/erm/offers');
         return;
       }
     } catch (err: any) {
@@ -138,7 +138,7 @@ function Body() {
             Retry
           </button>
           <Link
-            href="/careers/hr/offers"
+            href="/careers/erm/offers"
             className="rounded border border-red-300 px-3 py-1 text-xs font-medium hover:bg-red-100"
           >
             Back to offers
@@ -153,7 +153,7 @@ function Body() {
       <div className="rounded-lg border border-dashed border-gray-300 bg-white p-12 text-center">
         <p className="mb-4 text-base font-medium text-gray-700">Offer not found.</p>
         <Link
-          href="/careers/hr/offers"
+          href="/careers/erm/offers"
           className="inline-flex items-center gap-1 text-sm text-accent hover:underline"
         >
           <ArrowLeft className="h-4 w-4" strokeWidth={2} />
@@ -166,7 +166,7 @@ function Body() {
   return (
     <>
       <Link
-        href="/careers/hr/offers"
+        href="/careers/erm/offers"
         className="mb-4 inline-flex items-center gap-1 text-sm text-gray-600 hover:text-gray-900"
       >
         <ArrowLeft className="h-4 w-4" strokeWidth={2} />
@@ -444,7 +444,7 @@ function ActionPanel({
     return (
       <div className="space-y-2">
         <Link
-          href={`/careers/hr/offers/${offer.id}/edit`}
+          href={`/careers/erm/offers/${offer.id}/edit`}
           className="flex w-full items-center justify-between rounded-md bg-accent px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-accent-dark"
         >
           <span className="inline-flex items-center gap-2">
@@ -508,7 +508,7 @@ function ActionPanel({
         This offer is in a terminal state and cannot be modified.
       </p>
       <Link
-        href={`/careers/hr/offers/new?fromApplication=${offer.applicationId}`}
+        href={`/careers/erm/offers/new?fromApplication=${offer.applicationId}`}
         className="inline-flex items-center gap-1.5 rounded-md border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50"
       >
         Create a new offer

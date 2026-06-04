@@ -41,7 +41,7 @@ function VerifyEmailInner() {
   // landing destination.
   useEffect(() => {
     if (user?.emailVerified) {
-      router.replace(returnTo ?? '/careers/candidate');
+      router.replace(returnTo ?? '/careers/intern');
     }
   }, [user?.emailVerified, returnTo, router]);
 
@@ -67,7 +67,7 @@ function VerifyEmailInner() {
           ? `Verified — your Applicant ID is ${res.data.applicantId}`
           : 'Email verified'
       );
-      router.replace(returnTo ?? '/careers/candidate');
+      router.replace(returnTo ?? '/careers/intern');
     } catch (err: any) {
       setError(err?.response?.data?.error ?? 'Verification failed.');
     } finally {

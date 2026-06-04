@@ -20,13 +20,13 @@ import type {
 } from '@/types';
 
 const READ_ROLES: UserRole[] = [
-  'OPERATIONS',
-  'OPERATIONS',
-  'OPERATIONS',
-  'HR',
-  'TECHNICAL_EVALUATOR',
+  'ERM',
+  'ERM',
+  'ERM',
+  'ERM',
+  'TRAINER',
 ];
-const ADMIN_ERM: UserRole[] = ['OPERATIONS'];
+const ADMIN_ERM: UserRole[] = ['ERM'];
 
 const TYPE_LABEL: Record<string, string> = {
   INITIAL_SCREEN: 'Initial Screen',
@@ -155,7 +155,7 @@ function Body() {
   return (
     <>
       <Link
-        href="/careers/operations/interviews"
+        href="/careers/erm/interviews"
         className="mb-4 inline-flex items-center gap-1 text-sm text-gray-600 hover:text-gray-900"
       >
         <ArrowLeft className="h-4 w-4" strokeWidth={2} />

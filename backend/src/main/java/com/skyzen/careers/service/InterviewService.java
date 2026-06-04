@@ -78,7 +78,7 @@ public class InterviewService {
                 .orElseThrow(() -> new ResourceNotFoundException(
                         "Interviewer not found: " + req.getInterviewerId()));
 
-        if ((interviewer.getRoles().contains(UserRole.APPLICANT) || interviewer.getRoles().contains(UserRole.INTERN))
+        if ((interviewer.getRoles().contains(UserRole.INTERN) || interviewer.getRoles().contains(UserRole.INTERN))
                 && interviewer.getRoles().size() == 1) {
             throw new BadRequestException("Interviewer must be an internal user, not a candidate");
         }
@@ -139,7 +139,7 @@ public class InterviewService {
             User newInterviewer = userRepository.findById(req.getInterviewerId())
                     .orElseThrow(() -> new ResourceNotFoundException(
                             "Interviewer not found: " + req.getInterviewerId()));
-            if ((newInterviewer.getRoles().contains(UserRole.APPLICANT) || newInterviewer.getRoles().contains(UserRole.INTERN))
+            if ((newInterviewer.getRoles().contains(UserRole.INTERN) || newInterviewer.getRoles().contains(UserRole.INTERN))
                     && newInterviewer.getRoles().size() == 1) {
                 throw new BadRequestException("Interviewer must be an internal user, not a candidate");
             }
@@ -340,11 +340,11 @@ public class InterviewService {
         }
 
         Set<UserRole> roles = caller.getRoles();
-        boolean privileged = roles.contains(UserRole.OPERATIONS)
-                || roles.contains(UserRole.OPERATIONS)
-                || roles.contains(UserRole.OPERATIONS)
-                || roles.contains(UserRole.HR)
-                || roles.contains(UserRole.TECHNICAL_EVALUATOR);
+        boolean privileged = roles.contains(UserRole.ERM)
+                || roles.contains(UserRole.ERM)
+                || roles.contains(UserRole.ERM)
+                || roles.contains(UserRole.ERM)
+                || roles.contains(UserRole.TRAINER);
         boolean isInterviewer = interview.getInterviewer() != null
                 && caller.getId().equals(interview.getInterviewer().getId());
 
@@ -352,7 +352,7 @@ public class InterviewService {
             return toResponse(interview);
         }
 
-        if ((roles.contains(UserRole.APPLICANT) || roles.contains(UserRole.INTERN)) && belongsToCandidate(interview, caller)) {
+        if ((roles.contains(UserRole.INTERN) || roles.contains(UserRole.INTERN)) && belongsToCandidate(interview, caller)) {
             // Candidates technically use /me, but if they hit this directly we hide
             // feedback by 404-ing rather than 200 with sanitized payload, to be safe.
             throw new ResourceNotFoundException("Interview not found: " + interviewId);
@@ -410,11 +410,11 @@ public class InterviewService {
         if (caller == null || caller.getRoles() == null) {
             throw new ForbiddenException("Authentication required");
         }
-        boolean allowed = caller.getRoles().contains(UserRole.OPERATIONS)
-                || caller.getRoles().contains(UserRole.OPERATIONS)
-                || caller.getRoles().contains(UserRole.OPERATIONS)
-                || caller.getRoles().contains(UserRole.HR)
-                || caller.getRoles().contains(UserRole.TECHNICAL_EVALUATOR);
+        boolean allowed = caller.getRoles().contains(UserRole.ERM)
+                || caller.getRoles().contains(UserRole.ERM)
+                || caller.getRoles().contains(UserRole.ERM)
+                || caller.getRoles().contains(UserRole.ERM)
+                || caller.getRoles().contains(UserRole.TRAINER);
         if (!allowed) {
             throw new ForbiddenException("Not allowed to view interview scorecards");
         }
@@ -435,7 +435,7 @@ public class InterviewService {
             throw new ForbiddenException("Authentication required");
         }
         Set<UserRole> roles = submitter.getRoles();
-        boolean privileged = roles.contains(UserRole.OPERATIONS);
+        boolean privileged = roles.contains(UserRole.ERM);
         boolean isInterviewer = interview.getInterviewer() != null
                 && submitter.getId().equals(interview.getInterviewer().getId());
         if (!privileged && !isInterviewer) {

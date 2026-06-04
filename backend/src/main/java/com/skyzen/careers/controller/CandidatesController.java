@@ -29,7 +29,7 @@ public class CandidatesController {
     private final CandidatesService candidatesService;
 
     @GetMapping
-    @PreAuthorize("hasAnyRole('OPERATIONS', 'HR')")
+    @PreAuthorize("hasRole('ERM')")
     public PagedResponse<CandidateListItemResponse> list(
             @RequestParam(required = false) String search,
             @RequestParam(defaultValue = "0") int page,
@@ -42,7 +42,7 @@ public class CandidatesController {
     }
 
     @GetMapping("/{id}")
-    @PreAuthorize("hasAnyRole('OPERATIONS', 'HR')")
+    @PreAuthorize("hasRole('ERM')")
     public CandidateDetailResponse detail(@PathVariable UUID id) {
         return candidatesService.detail(id);
     }

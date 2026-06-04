@@ -38,11 +38,11 @@ public class RoleTestUsersSeeder implements CommandLineRunner {
     // exist but both now seed OPERATIONS (PED §7 collapse). evaluator@ is now
     // TECHNICAL_EVALUATOR. executive@ is new (read-only leadership).
     private static final List<TestUser> TEST_USERS = List.of(
-            new TestUser("recruiter@skyzen.test", "recruiter12345", "Demo Operations (ex-Recruiter)", UserRole.OPERATIONS),
-            new TestUser("erm@skyzen.test",       "erm12345",       "Demo Operations (ex-ERM)",       UserRole.OPERATIONS),
-            new TestUser("hr@skyzen.test",        "hr12345",        "Demo HR / Compliance",            UserRole.HR),
-            new TestUser("evaluator@skyzen.test", "evaluator12345", "Demo Technical Evaluator",       UserRole.TECHNICAL_EVALUATOR),
-            new TestUser("executive@skyzen.test", "executive12345", "Demo Executive",                  UserRole.EXECUTIVE)
+            new TestUser("recruiter@skyzen.test", "recruiter12345", "Demo Operations (ex-Recruiter)", UserRole.ERM),
+            new TestUser("erm@skyzen.test",       "erm12345",       "Demo Operations (ex-ERM)",       UserRole.ERM),
+            new TestUser("hr@skyzen.test",        "hr12345",        "Demo HR / Compliance",            UserRole.ERM),
+            new TestUser("evaluator@skyzen.test", "evaluator12345", "Demo Technical Evaluator",       UserRole.TRAINER),
+            new TestUser("executive@skyzen.test", "executive12345", "Demo Executive",                  UserRole.MANAGER)
     );
 
     @Override

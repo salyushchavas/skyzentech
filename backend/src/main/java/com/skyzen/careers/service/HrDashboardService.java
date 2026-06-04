@@ -158,7 +158,7 @@ public class HrDashboardService {
                 .key("I9_SECTION_2_PENDING")
                 .label("I-9 Section 2 to complete")
                 .count(section2Pending)
-                .href("/careers/hr/i9-everify")
+                .href("/careers/erm/i9-everify")
                 .build());
 
         long everifyOpenOrPending = everifys.stream()
@@ -168,7 +168,7 @@ public class HrDashboardService {
                 .key("EVERIFY_TO_ACTION")
                 .label("E-Verify cases to create or resolve")
                 .count(everifyOpenOrPending)
-                .href("/careers/hr/i9-everify")
+                .href("/careers/erm/i9-everify")
                 .build());
 
         // "Awaiting employer signature" = student has signed (or plan past
@@ -183,7 +183,7 @@ public class HrDashboardService {
                 .key("I983_AWAITING_EMPLOYER")
                 .label("I-983 plans awaiting employer signature")
                 .count(awaitingEmployerSig)
-                .href("/careers/operations/training-plans")
+                .href("/careers/erm/training-plans")
                 .build());
 
         long tncCases = everifys.stream()
@@ -193,7 +193,7 @@ public class HrDashboardService {
                 .key("TNC_TO_ACTION")
                 .label("Tentative Nonconfirmation cases to action")
                 .count(tncCases)
-                .href("/careers/hr/i9-everify")
+                .href("/careers/erm/i9-everify")
                 .build());
 
         LocalDate expiryCutoff = today.plusDays(ACTION_QUEUE_EXPIRY_WINDOW_DAYS);
@@ -202,7 +202,7 @@ public class HrDashboardService {
                 .key("WORK_AUTH_EXPIRING")
                 .label("Work authorizations expiring soon")
                 .count(expiringSoon)
-                .href("/careers/hr/compliance")
+                .href("/careers/erm/compliance")
                 .build());
 
         return out;
@@ -287,7 +287,7 @@ public class HrDashboardService {
                     .authType("Work authorization")
                     .expirationDate(d)
                     .daysUntilExpiry((int) ChronoUnit.DAYS.between(today, d))
-                    .linkUrl("/careers/hr/i9-everify/i9/" + f.getId())
+                    .linkUrl("/careers/erm/i9-everify/i9/" + f.getId())
                     .build());
         }
 
@@ -302,7 +302,7 @@ public class HrDashboardService {
                     .authType("STEM OPT")
                     .expirationDate(d)
                     .daysUntilExpiry((int) ChronoUnit.DAYS.between(today, d))
-                    .linkUrl("/careers/operations/training-plans/" + p.getId())
+                    .linkUrl("/careers/erm/training-plans/" + p.getId())
                     .build());
         }
 
@@ -416,10 +416,10 @@ public class HrDashboardService {
     private static String linkFor(AuditLog a) {
         if (a.getEntityType() == null || a.getEntityId() == null) return null;
         return switch (a.getEntityType()) {
-            case "I9Form" -> "/careers/hr/i9-everify/i9/" + a.getEntityId();
-            case "I983Plan" -> "/careers/operations/training-plans/" + a.getEntityId();
-            case "Offer" -> "/careers/hr/offers/" + a.getEntityId();
-            case "EVerifyCase" -> "/careers/hr/i9-everify/everify/" + a.getEntityId();
+            case "I9Form" -> "/careers/erm/i9-everify/i9/" + a.getEntityId();
+            case "I983Plan" -> "/careers/erm/training-plans/" + a.getEntityId();
+            case "Offer" -> "/careers/erm/offers/" + a.getEntityId();
+            case "EVerifyCase" -> "/careers/erm/i9-everify/everify/" + a.getEntityId();
             default -> null;
         };
     }

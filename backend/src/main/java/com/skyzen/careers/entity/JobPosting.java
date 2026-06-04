@@ -45,8 +45,15 @@ public class JobPosting {
 
     private String location;
 
+    /**
+     * Renamed per the Applicant-to-Intern Lifecycle doc (Phase 0): the column
+     * was {@code employment_type}; an idempotent ALTER ... RENAME COLUMN in
+     * {@link com.skyzen.careers.bootstrap.SchemaFixupRunner} migrates existing
+     * deployments. Java field name kept as {@code employmentType} so the
+     * blast radius across DTOs/services stays small.
+     */
     @Enumerated(EnumType.STRING)
-    @Column(name = "employment_type", nullable = false)
+    @Column(name = "job_type", nullable = false)
     @Builder.Default
     private EmploymentType employmentType = EmploymentType.INTERNSHIP;
 

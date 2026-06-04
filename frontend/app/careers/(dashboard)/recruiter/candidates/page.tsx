@@ -31,7 +31,7 @@ function initialsOf(name: string | null | undefined): string {
 
 export default function RecruiterCandidatesPage() {
   return (
-    <ProtectedRoute requiredRoles={['OPERATIONS', 'HR']}>
+    <ProtectedRoute requiredRoles={['ERM']}>
       <DashboardLayout title="Candidates">
         <CandidatesList />
       </DashboardLayout>
@@ -133,7 +133,7 @@ function CandidatesList() {
             <li key={c.candidateId}>
               <button
                 type="button"
-                onClick={() => router.push(`/careers/recruiter/candidates/${c.candidateId}`)}
+                onClick={() => router.push(`/careers/erm/candidates/${c.candidateId}`)}
                 className="flex w-full items-center gap-4 rounded-lg border border-gray-200 bg-white p-4 text-left hover:border-gray-300 hover:bg-gray-50"
               >
                 <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-accent text-sm font-semibold text-white">

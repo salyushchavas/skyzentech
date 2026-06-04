@@ -82,7 +82,7 @@ public class OfferService {
             ApplicationStatus.OFFERED);
 
     /** Privileged staff roles that get the full OfferResponse view. */
-    private static final Set<UserRole> STAFF_ROLES = EnumSet.of(UserRole.OPERATIONS, UserRole.HR);
+    private static final Set<UserRole> STAFF_ROLES = EnumSet.of(UserRole.ERM, UserRole.ERM);
 
     private final OfferRepository offerRepository;
     private final ApplicationRepository applicationRepository;
@@ -557,7 +557,7 @@ public class OfferService {
         if (user == null) return false;
         Set<UserRole> roles = user.getRoles();
         if (roles == null) return false;
-        boolean isCandidate = (roles.contains(UserRole.APPLICANT) || roles.contains(UserRole.INTERN));
+        boolean isCandidate = (roles.contains(UserRole.INTERN) || roles.contains(UserRole.INTERN));
         boolean isStaff = roles.stream().anyMatch(STAFF_ROLES::contains);
         return isCandidate && !isStaff;
     }

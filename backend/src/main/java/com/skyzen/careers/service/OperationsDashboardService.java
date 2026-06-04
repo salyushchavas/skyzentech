@@ -168,7 +168,7 @@ public class OperationsDashboardService {
                 .key("NEW_APPLICATIONS")
                 .label("New applications to review")
                 .count(newApps)
-                .href("/careers/recruiter")
+                .href("/careers/erm")
                 .build());
 
         long screeningsToAssign = countScreeningsToAssign();
@@ -176,7 +176,7 @@ public class OperationsDashboardService {
                 .key("SCREENINGS_TO_ASSIGN")
                 .label("Screenings to assign")
                 .count(screeningsToAssign)
-                .href("/careers/recruiter")
+                .href("/careers/erm")
                 .build());
 
         long interviewsToSchedule = countInterviewsToSchedule();
@@ -184,7 +184,7 @@ public class OperationsDashboardService {
                 .key("INTERVIEWS_TO_SCHEDULE")
                 .label("Interviews to schedule")
                 .count(interviewsToSchedule)
-                .href("/careers/operations/interviews")
+                .href("/careers/erm/interviews")
                 .build());
 
         long pendingScorecards = countPendingScorecards();
@@ -192,7 +192,7 @@ public class OperationsDashboardService {
                 .key("SCORECARDS_TO_SUBMIT")
                 .label("Scorecards to submit")
                 .count(pendingScorecards)
-                .href("/careers/operations/interviews")
+                .href("/careers/erm/interviews")
                 .build());
 
         long onboardingToAction = countOnboardingTasksPending();

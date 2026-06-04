@@ -54,7 +54,7 @@ const SHORTLIST_LOCKED: ReadonlyArray<ApplicationStatus> = [
 
 export default function RecruiterReviewPage() {
   return (
-    <ProtectedRoute requiredRoles={['OPERATIONS']}>
+    <ProtectedRoute requiredRoles={['ERM']}>
       <DashboardLayout title="Review applicant">
         <Body />
       </DashboardLayout>
@@ -248,7 +248,7 @@ function Body() {
       <div className="rounded-md border border-red-200 bg-red-50 p-4 text-sm text-red-700">
         <p className="mb-2">{error}</p>
         <Link
-          href="/careers/recruiter"
+          href="/careers/erm"
           className="rounded border border-red-300 px-3 py-1 text-xs font-medium hover:bg-red-100"
         >
           Back to pipeline
@@ -279,13 +279,13 @@ function Body() {
       <FilterTabs
         counts={tabCounts}
         currentStatus={app.status}
-        onClick={() => router.push('/careers/recruiter')}
+        onClick={() => router.push('/careers/erm')}
       />
 
       {/* (2) Main card */}
       <div className="rounded-lg border border-gray-200 bg-white p-5">
         <Link
-          href="/careers/recruiter"
+          href="/careers/erm"
           className="mb-3 inline-flex items-center gap-1 text-xs text-gray-600 hover:text-gray-900"
         >
           <ArrowLeft className="h-3.5 w-3.5" strokeWidth={2} />

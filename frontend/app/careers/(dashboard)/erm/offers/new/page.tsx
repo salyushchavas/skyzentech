@@ -34,7 +34,7 @@ const FREQ_OPTIONS: { value: CompensationFrequency; label: string }[] = [
 
 export default function NewOfferPage() {
   return (
-    <ProtectedRoute requiredRoles={['OPERATIONS', 'HR']}>
+    <ProtectedRoute requiredRoles={['ERM']}>
       <DashboardLayout title="Create Offer">
         <Suspense fallback={<Spinner />}>
           <Form />
@@ -167,7 +167,7 @@ function Form() {
       } else {
         toast.success('Draft saved');
       }
-      router.push(`/careers/hr/offers/${offerId}`);
+      router.push(`/careers/erm/offers/${offerId}`);
     } catch (err: any) {
       const msg = err?.response?.data?.error ?? 'Could not create offer';
       setFormError(msg);

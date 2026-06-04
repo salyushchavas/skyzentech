@@ -35,7 +35,7 @@ const DURATION_OPTIONS = [30, 45, 60, 90, 120];
 
 export default function NewInterviewPage() {
   return (
-    <ProtectedRoute requiredRoles={['OPERATIONS']}>
+    <ProtectedRoute requiredRoles={['ERM']}>
       <DashboardLayout title="Schedule Interview">
         <Form />
       </DashboardLayout>
@@ -129,7 +129,7 @@ function Form() {
     try {
       await api.post<InterviewResponse>('/api/v1/interviews', body);
       toast.success('Interview scheduled');
-      router.push('/careers/operations/interviews');
+      router.push('/careers/erm/interviews');
     } catch (err: any) {
       const msg = err?.response?.data?.error ?? 'Could not schedule interview';
       setFormError(msg);

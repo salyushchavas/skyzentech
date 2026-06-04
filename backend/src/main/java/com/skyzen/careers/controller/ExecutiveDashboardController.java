@@ -31,7 +31,7 @@ public class ExecutiveDashboardController {
     private final ExecutiveDashboardService executiveDashboardService;
 
     @GetMapping("/dashboard")
-    @PreAuthorize("hasAnyRole('EXECUTIVE', 'SUPER_ADMIN')")
+    @PreAuthorize("hasAnyRole('MANAGER', 'SUPER_ADMIN')")
     public ExecutiveDashboardResponse dashboard(@AuthenticationPrincipal User caller) {
         return executiveDashboardService.build(caller);
     }

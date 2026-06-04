@@ -26,7 +26,7 @@ import type {
  */
 export default function HrCandidateEvaluationsPage() {
   return (
-    <ProtectedRoute requiredRoles={['HR', 'OPERATIONS', 'SUPER_ADMIN']}>
+    <ProtectedRoute requiredRoles={['ERM', 'SUPER_ADMIN']}>
       <DashboardLayout title="Candidate Evaluations">
         <Body />
       </DashboardLayout>
@@ -104,7 +104,7 @@ function Body() {
     <section className="space-y-6">
       <div>
         <Link
-          href="/careers/hr/i9-everify"
+          href="/careers/erm/i9-everify"
           className="inline-flex items-center gap-1 text-sm text-gray-600 hover:text-gray-900"
         >
           <ArrowLeft className="h-3.5 w-3.5" strokeWidth={2} />

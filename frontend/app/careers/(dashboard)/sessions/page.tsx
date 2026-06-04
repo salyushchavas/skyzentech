@@ -24,12 +24,12 @@ export default function SessionsPage() {
   // Open to every authenticated role — the @PreAuthorize on the backend is
   // isAuthenticated().
   const allRoles: UserRole[] = [
-    'APPLICANT',
     'INTERN',
-    'HR',
-    'OPERATIONS',
-    'TECHNICAL_EVALUATOR',
-    'EXECUTIVE',
+    'INTERN',
+    'ERM',
+    'ERM',
+    'TRAINER',
+    'MANAGER',
     'SUPER_ADMIN',
   ];
   return (

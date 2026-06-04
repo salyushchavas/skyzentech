@@ -452,7 +452,7 @@ public class ProjectService {
         if (actor == null) throw new ForbiddenException("Authentication required.");
         if (isSuperAdmin(actor)) return;
         if (actor.getRoles() != null
-                && actor.getRoles().contains(UserRole.TECHNICAL_EVALUATOR)) {
+                && actor.getRoles().contains(UserRole.TRAINER)) {
             return;
         }
         throw new ForbiddenException(

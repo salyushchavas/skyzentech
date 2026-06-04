@@ -42,7 +42,7 @@ const FILTER_OPTIONS: { key: Filter; label: string }[] = [
 
 export default function HrI9EverifyPage() {
   return (
-    <ProtectedRoute requiredRoles={['OPERATIONS', 'HR']}>
+    <ProtectedRoute requiredRoles={['ERM']}>
       <DashboardLayout title="I-9 & E-Verify">
         <Body />
       </DashboardLayout>
@@ -324,7 +324,7 @@ function I9TabContent() {
               {filtered.map((r) => (
                 <tr
                   key={r.id}
-                  onClick={() => router.push(`/careers/hr/i9-everify/i9/${r.id}`)}
+                  onClick={() => router.push(`/careers/erm/i9-everify/i9/${r.id}`)}
                   className="cursor-pointer hover:bg-gray-50"
                 >
                   <td className="px-4 py-3">
@@ -359,7 +359,7 @@ function I9TabContent() {
                     onClick={(e) => e.stopPropagation()}
                   >
                     <Link
-                      href={`/careers/hr/i9-everify/i9/${r.id}`}
+                      href={`/careers/erm/i9-everify/i9/${r.id}`}
                       className="rounded-md bg-accent px-3 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-accent-dark"
                     >
                       Open
@@ -652,7 +652,7 @@ function EVerifyTabContent({
                 <tr
                   key={r.id}
                   onClick={() =>
-                    router.push(`/careers/hr/i9-everify/everify/${r.id}`)
+                    router.push(`/careers/erm/i9-everify/everify/${r.id}`)
                   }
                   className="cursor-pointer hover:bg-gray-50"
                 >
@@ -717,7 +717,7 @@ function EVerifyTabContent({
                     onClick={(e) => e.stopPropagation()}
                   >
                     <Link
-                      href={`/careers/hr/i9-everify/everify/${r.id}`}
+                      href={`/careers/erm/i9-everify/everify/${r.id}`}
                       className="rounded-md bg-accent px-3 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-accent-dark"
                     >
                       Open

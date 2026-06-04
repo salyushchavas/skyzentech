@@ -27,7 +27,7 @@ const VALID_TABS: Tab[] = ['details', 'signatures', 'dso', 'history'];
 
 export default function ErmI983DetailPage() {
   return (
-    <ProtectedRoute requiredRoles={['OPERATIONS', 'HR']}>
+    <ProtectedRoute requiredRoles={['ERM']}>
       <DashboardLayout title="I-983 Training Plan">
         <Body />
       </DashboardLayout>
@@ -111,7 +111,7 @@ function Body() {
       <div className="rounded-md border border-red-200 bg-red-50 p-4 text-sm text-red-700">
         <p className="mb-2">{error}</p>
         <Link
-          href="/careers/operations/training-plans"
+          href="/careers/erm/training-plans"
           className="rounded border border-red-300 px-3 py-1 text-xs font-medium hover:bg-red-100"
         >
           Back to plans
@@ -128,7 +128,7 @@ function Body() {
   return (
     <>
       <Link
-        href="/careers/operations/training-plans"
+        href="/careers/erm/training-plans"
         className="mb-4 inline-flex items-center gap-1 text-sm text-gray-600 hover:text-gray-900"
       >
         <ArrowLeft className="h-4 w-4" strokeWidth={2} />

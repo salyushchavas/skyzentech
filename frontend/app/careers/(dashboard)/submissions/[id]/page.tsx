@@ -38,12 +38,7 @@ const REASON_MAX = 2000;
 export default function SubmissionReviewPage() {
   return (
     <ProtectedRoute
-      requiredRoles={[
-        'TECHNICAL_EVALUATOR',
-        'REPORTING_MANAGER',
-        'SUPER_ADMIN',
-        'INTERN',
-      ]}
+      requiredRoles={['TRAINER', 'REPORTING_MANAGER', 'SUPER_ADMIN', 'INTERN']}
     >
       <DashboardLayout title="Submission review">
         <Body />
@@ -73,9 +68,9 @@ function Body() {
   const roles = user?.roles ?? [];
   const isIntern = roles.includes('INTERN');
   const canApprove =
-    roles.includes('TECHNICAL_EVALUATOR') || roles.includes('SUPER_ADMIN');
+    roles.includes('TRAINER') || roles.includes('SUPER_ADMIN');
   const canReturn =
-    roles.includes('TECHNICAL_EVALUATOR')
+    roles.includes('TRAINER')
     || roles.includes('REPORTING_MANAGER')
     || roles.includes('SUPER_ADMIN');
 
@@ -136,7 +131,7 @@ function Body() {
       toast.success('Submission approved.');
       // Bounce back to the evaluator project board so the reviewer can pick
       // the next one up without an extra click.
-      router.push('/careers/evaluator/projects');
+      router.push('/careers/trainer/projects');
     } catch (err: any) {
       toast.error(err?.response?.data?.error ?? "Couldn't approve.");
       setBusy(null);
@@ -153,7 +148,7 @@ function Body() {
         reason: trimmed,
       });
       toast.success('Returned for revisions.');
-      router.push('/careers/evaluator/projects');
+      router.push('/careers/trainer/projects');
     } catch (err: any) {
       toast.error(err?.response?.data?.error ?? "Couldn't return.");
       setBusy(null);

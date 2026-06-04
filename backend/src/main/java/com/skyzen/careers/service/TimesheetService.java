@@ -329,9 +329,9 @@ public class TimesheetService {
         if (!isOwner
                 && !isSuperAdmin(caller)
                 && !hasRole(caller, UserRole.REPORTING_MANAGER)
-                && !hasRole(caller, UserRole.TECHNICAL_EVALUATOR)
-                && !hasRole(caller, UserRole.OPERATIONS)
-                && !hasRole(caller, UserRole.HR)) {
+                && !hasRole(caller, UserRole.TRAINER)
+                && !hasRole(caller, UserRole.ERM)
+                && !hasRole(caller, UserRole.ERM)) {
             throw new ForbiddenException("Not authorised to view this timesheet.");
         }
         return toWeekResponse(t);

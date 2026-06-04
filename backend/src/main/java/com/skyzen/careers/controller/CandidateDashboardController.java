@@ -24,7 +24,7 @@ public class CandidateDashboardController {
     private final CandidateDashboardService candidateDashboardService;
 
     @GetMapping("/dashboard")
-    @PreAuthorize("hasAnyRole('APPLICANT', 'INTERN')")
+    @PreAuthorize("hasRole('INTERN')")
     public CandidateDashboardResponse dashboard(@AuthenticationPrincipal User caller) {
         return candidateDashboardService.build(caller);
     }
@@ -36,7 +36,7 @@ public class CandidateDashboardController {
      * frontend polls this every 30s while the dashboard is visible.
      */
     @GetMapping("/dashboard-status")
-    @PreAuthorize("hasAnyRole('APPLICANT', 'INTERN')")
+    @PreAuthorize("hasRole('INTERN')")
     public DashboardStatusDTO dashboardStatus(@AuthenticationPrincipal User caller) {
         return candidateDashboardService.getDashboardStatus(caller);
     }

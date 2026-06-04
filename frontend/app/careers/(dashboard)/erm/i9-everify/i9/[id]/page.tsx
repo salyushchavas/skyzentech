@@ -35,7 +35,7 @@ const VALID_TABS: Tab[] = ['section1', 'section2', 'history'];
 
 export default function HrI9DetailPage() {
   return (
-    <ProtectedRoute requiredRoles={['OPERATIONS', 'HR']}>
+    <ProtectedRoute requiredRoles={['ERM']}>
       <DashboardLayout title="I-9 Form">
         <Body />
       </DashboardLayout>
@@ -54,9 +54,9 @@ function Body() {
 
   const router = useRouter();
   const { user } = useAuth();
-  const isAdmin = user?.roles?.includes('OPERATIONS') ?? false;
+  const isAdmin = user?.roles?.includes('ERM') ?? false;
   const canCreateEVerify =
-    user?.roles?.some((r) => r === 'HR' || r === 'OPERATIONS') ?? false;
+    user?.roles?.some((r) => r === 'ERM') ?? false;
 
   const [form, setForm] = useState<I9FormResponse | null>(null);
   const [history, setHistory] = useState<I9HistoryEntryResponse[] | null>(null);
@@ -102,7 +102,7 @@ function Body() {
       });
       toast.success('E-Verify case created');
       setCreateCaseOpen(false);
-      router.push(`/careers/hr/i9-everify/everify/${res.data.id}`);
+      router.push(`/careers/erm/i9-everify/everify/${res.data.id}`);
     } catch (err: any) {
       toast.error(
         err?.response?.data?.error ?? "Couldn't create E-Verify case."
@@ -159,7 +159,7 @@ function Body() {
       <div className="rounded-md border border-red-200 bg-red-50 p-4 text-sm text-red-700">
         <p className="mb-2">{error}</p>
         <Link
-          href="/careers/hr/i9-everify"
+          href="/careers/erm/i9-everify"
           className="rounded border border-red-300 px-3 py-1 text-xs font-medium hover:bg-red-100"
         >
           Back to I-9 list
@@ -173,7 +173,7 @@ function Body() {
   return (
     <>
       <Link
-        href="/careers/hr/i9-everify"
+        href="/careers/erm/i9-everify"
         className="mb-4 inline-flex items-center gap-1 text-sm text-gray-600 hover:text-gray-900"
       >
         <ArrowLeft className="h-4 w-4" strokeWidth={2} />
@@ -194,7 +194,7 @@ function Body() {
           <div className="flex items-center gap-2">
             {form.candidateId && (
               <Link
-                href={`/careers/hr/evaluations/${form.candidateId}`}
+                href={`/careers/erm/evaluations/${form.candidateId}`}
                 className="inline-flex items-center gap-1 rounded-md border border-gray-300 bg-white px-2.5 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50"
               >
                 View evaluations
@@ -467,7 +467,7 @@ function Section2Tab({
               )}
             </div>
             <Link
-              href={`/careers/hr/i9-everify/everify/${everifyCase.id}`}
+              href={`/careers/erm/i9-everify/everify/${everifyCase.id}`}
               className="inline-flex items-center gap-1 text-sm font-medium text-accent hover:text-accent-dark"
             >
               View case

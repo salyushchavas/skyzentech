@@ -34,7 +34,7 @@ public class SupervisorDashboardController {
     private final SupervisorDashboardService supervisorDashboardService;
 
     @GetMapping("/dashboard")
-    @PreAuthorize("hasAnyRole('TECHNICAL_EVALUATOR', 'SUPER_ADMIN')")
+    @PreAuthorize("hasAnyRole('TRAINER', 'SUPER_ADMIN')")
     public SupervisorDashboardResponse dashboard(@AuthenticationPrincipal User caller) {
         return supervisorDashboardService.build(caller);
     }

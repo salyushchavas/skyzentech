@@ -46,7 +46,7 @@ public class AdminInsightsController {
     private final AdminAuditLogService adminAuditLogService;
 
     @GetMapping("/overview")
-    @PreAuthorize("hasAnyRole('SUPER_ADMIN', 'EXECUTIVE')")
+    @PreAuthorize("hasAnyRole('SUPER_ADMIN', 'MANAGER')")
     public AdminOverviewResponse overview() {
         return adminOverviewService.build();
     }

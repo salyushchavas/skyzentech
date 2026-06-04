@@ -137,6 +137,42 @@ public class SchemaFixupRunner implements CommandLineRunner {
                     e.getMessage());
         }
 
+        // ── 6-role finalize: collapse the legacy role taxonomy onto the new
+        //                    INTERN/TRAINER/REPORTING_MANAGER/MANAGER/ERM/SUPER_ADMIN.
+        //
+        // Idempotent — subsequent boots find zero matching rows. Each UPDATE
+        // is wrapped in its own try/catch so a missing table / column on some
+        // deployment doesn't crash startup. The mapping mirrors UserRole.java.
+        applyRoleRemap("user_roles", "APPLICANT", "INTERN");
+        applyRoleRemap("user_roles", "TECHNICAL_EVALUATOR", "TRAINER");
+        applyRoleRemap("user_roles", "TECHNICAL_SUPERVISOR", "TRAINER");
+        applyRoleRemap("user_roles", "HR", "ERM");
+        applyRoleRemap("user_roles", "HR_COMPLIANCE", "ERM");
+        applyRoleRemap("user_roles", "OPERATIONS", "ERM");
+        applyRoleRemap("user_roles", "EXECUTIVE", "MANAGER");
+        applyRoleRemap("users", "APPLICANT", "INTERN");
+        applyRoleRemap("users", "TECHNICAL_EVALUATOR", "TRAINER");
+        applyRoleRemap("users", "TECHNICAL_SUPERVISOR", "TRAINER");
+        applyRoleRemap("users", "HR", "ERM");
+        applyRoleRemap("users", "HR_COMPLIANCE", "ERM");
+        applyRoleRemap("users", "OPERATIONS", "ERM");
+        applyRoleRemap("users", "EXECUTIVE", "MANAGER");
+
+        // After remap user_roles may contain duplicate (user_id, role) pairs
+        // (e.g. a user who carried both OPERATIONS and HR is now ERM twice).
+        // Collapse them to keep the join table well-formed.
+        try {
+            int n = jdbcTemplate.update(
+                    "DELETE FROM user_roles a USING user_roles b "
+                            + "WHERE a.ctid < b.ctid "
+                            + "  AND a.user_id = b.user_id "
+                            + "  AND a.role = b.role");
+            if (n > 0) log.info("[SchemaFixupRunner] role dedupe: removed {} duplicate user_roles "
+                    + "rows after collapse", n);
+        } catch (Exception e) {
+            log.warn("[SchemaFixupRunner] user_roles dedupe skipped (non-fatal): {}", e.getMessage());
+        }
+
         // Workspace submissions — drop the auto-generated CHECK on
         // review_outcome so future ReviewOutcome additions don't trip the
         // stale-CHECK trap. Idempotent.
@@ -561,6 +597,101 @@ public class SchemaFixupRunner implements CommandLineRunner {
             log.info("Ensured i9_forms PII columns are TEXT for AES-256-GCM ciphertext.");
         } catch (Exception e) {
             log.warn("i9_forms PII column widening failed (non-fatal): {}", e.getMessage(), e);
+        }
+
+        // ── Phase 0 (Applicant-to-Intern Lifecycle) ────────────────────────
+        //
+        // users.lifecycle_status — canonical position on the 13-state journey
+        // the Phase-1 mode engine derives the intern dashboard mode from.
+        // Backfilled to REGISTERED for every existing row via the column
+        // DEFAULT so the NOT NULL add is safe on a populated table.
+        try {
+            jdbcTemplate.execute(
+                    "ALTER TABLE users ADD COLUMN IF NOT EXISTS lifecycle_status "
+                            + "VARCHAR(40) NOT NULL DEFAULT 'REGISTERED'");
+            log.info("Ensured users.lifecycle_status column exists (default REGISTERED).");
+        } catch (Exception e) {
+            log.warn("users.lifecycle_status add failed (non-fatal): {}", e.getMessage(), e);
+        }
+
+        // users.employee_id — minted at OFFER_SIGNED → EMPLOYEE_ID_CREATED
+        // transition (Phase 3). Nullable until then; no default value.
+        try {
+            jdbcTemplate.execute(
+                    "ALTER TABLE users ADD COLUMN IF NOT EXISTS employee_id VARCHAR(40)");
+            log.info("Ensured users.employee_id column exists (nullable).");
+        } catch (Exception e) {
+            log.warn("users.employee_id add failed (non-fatal): {}", e.getMessage(), e);
+        }
+
+        // job_postings.employment_type → job_type. Doc nomenclature uses
+        // job_type (FULL_TIME | INTERNSHIP). RENAME COLUMN is non-idempotent
+        // on Postgres < 15 — wrap in try/catch so the second boot's no-op
+        // failure is swallowed silently. If neither column exists, Hibernate
+        // ddl-auto=update will add job_type from the entity definition.
+        try {
+            jdbcTemplate.execute(
+                    "ALTER TABLE job_postings RENAME COLUMN employment_type TO job_type");
+            log.info("Renamed job_postings.employment_type → job_type.");
+        } catch (Exception e) {
+            log.debug("job_postings.employment_type → job_type rename skipped (likely already renamed): {}",
+                    e.getMessage());
+        }
+
+        // Doc-spec entity field aligns: additive columns only — idempotent.
+        try {
+            jdbcTemplate.execute(
+                    "ALTER TABLE interviews ADD COLUMN IF NOT EXISTS zoom_meeting_id VARCHAR(64)");
+            jdbcTemplate.execute(
+                    "ALTER TABLE interviews ADD COLUMN IF NOT EXISTS applicant_visible_notes TEXT");
+            log.info("Ensured interviews zoom_meeting_id + applicant_visible_notes columns exist.");
+        } catch (Exception e) {
+            log.warn("interviews doc-spec columns add failed (non-fatal): {}", e.getMessage(), e);
+        }
+        try {
+            jdbcTemplate.execute(
+                    "ALTER TABLE offers ADD COLUMN IF NOT EXISTS docusign_envelope_id VARCHAR(64)");
+            jdbcTemplate.execute(
+                    "ALTER TABLE offers ADD COLUMN IF NOT EXISTS signed_pdf_file_id VARCHAR(128)");
+            log.info("Ensured offers docusign_envelope_id + signed_pdf_file_id columns exist.");
+        } catch (Exception e) {
+            log.warn("offers doc-spec columns add failed (non-fatal): {}", e.getMessage(), e);
+        }
+        try {
+            jdbcTemplate.execute(
+                    "ALTER TABLE applications ADD COLUMN IF NOT EXISTS manager_owner_id UUID");
+            log.info("Ensured applications.manager_owner_id column exists.");
+        } catch (Exception e) {
+            log.warn("applications.manager_owner_id add failed (non-fatal): {}", e.getMessage(), e);
+        }
+        // applications.operations_owner_id → erm_owner_id. Rename if legacy
+        // column exists; otherwise no-op.
+        try {
+            jdbcTemplate.execute(
+                    "ALTER TABLE applications RENAME COLUMN operations_owner_id TO erm_owner_id");
+            log.info("Renamed applications.operations_owner_id → erm_owner_id.");
+        } catch (Exception e) {
+            log.debug("applications.operations_owner_id rename skipped: {}", e.getMessage());
+        }
+    }
+
+    /**
+     * Remap a legacy role string to its new-taxonomy equivalent on the given
+     * table ({@code user_roles} or {@code users}). Idempotent and silent on
+     * a no-op row count. Missing table / column logged at debug only.
+     */
+    private void applyRoleRemap(String table, String from, String to) {
+        try {
+            int n = jdbcTemplate.update(
+                    "UPDATE " + table + " SET role = ? WHERE role = ?",
+                    to, from);
+            if (n > 0) {
+                log.info("[SchemaFixupRunner] role rename: {} {}.role rows updated {} → {}",
+                        n, table, from, to);
+            }
+        } catch (Exception e) {
+            log.debug("[SchemaFixupRunner] role rename {}.role {} → {} skipped: {}",
+                    table, from, to, e.getMessage());
         }
     }
 

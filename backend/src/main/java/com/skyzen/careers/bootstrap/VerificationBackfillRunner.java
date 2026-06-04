@@ -80,7 +80,7 @@ public class VerificationBackfillRunner implements CommandLineRunner {
             // backfill applies to either — even hired interns who pre-date the
             // applicantId rollout should have one stamped.
             if (u.getRoles() == null
-                    || !(u.getRoles().contains(UserRole.APPLICANT)
+                    || !(u.getRoles().contains(UserRole.INTERN)
                             || u.getRoles().contains(UserRole.INTERN))) continue;
             String id = applicantIdGenerator.nextApplicantId();
             u.setApplicantId(id);

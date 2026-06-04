@@ -83,7 +83,7 @@ public class OnboardingService {
                     OnboardingCategory.PAPERWORK,
                     10,
                     null,
-                    "/careers/candidate/offers/{offerId}",
+                    "/careers/intern/offers/{offerId}",
                     true
             ),
             new TaskTemplate(
@@ -93,7 +93,7 @@ public class OnboardingService {
                     OnboardingCategory.COMPLIANCE,
                     20,
                     0,
-                    "/careers/candidate/i9",
+                    "/careers/intern/i9",
                     false
             ),
             new TaskTemplate(
@@ -113,7 +113,7 @@ public class OnboardingService {
                     OnboardingCategory.COMPLIANCE,
                     40,
                     10,
-                    "/careers/candidate/training-plans",
+                    "/careers/intern/training-plans",
                     false
             ),
             new TaskTemplate(
@@ -123,7 +123,7 @@ public class OnboardingService {
                     OnboardingCategory.PAPERWORK,
                     50,
                     -3,
-                    "/careers/candidate/background-check",
+                    "/careers/intern/background-check",
                     false
             ),
             new TaskTemplate(
@@ -163,7 +163,7 @@ public class OnboardingService {
                     OnboardingCategory.SETUP,
                     90,
                     7,
-                    "/careers/candidate/timesheets",
+                    "/careers/intern/timesheets",
                     false
             )
     );
@@ -192,7 +192,7 @@ public class OnboardingService {
                     OnboardingCategory.COMPLIANCE,
                     45,
                     -7,
-                    "/careers/candidate/training-plans",
+                    "/careers/intern/training-plans",
                     false)),
             Map.entry("I983_DSO_APPROVAL", new TaskTemplate(
                     "I983_DSO_APPROVAL",
@@ -201,7 +201,7 @@ public class OnboardingService {
                     OnboardingCategory.COMPLIANCE,
                     46,
                     0,
-                    "/careers/candidate/training-plans",
+                    "/careers/intern/training-plans",
                     false)),
             Map.entry("EVERIFY_BY_DAY_3", new TaskTemplate(
                     "EVERIFY_BY_DAY_3",
@@ -575,9 +575,9 @@ public class OnboardingService {
             throw new AccessDeniedException("Authentication required");
         }
         var roles = actor.getRoles();
-        boolean staff = roles != null && (roles.contains(UserRole.OPERATIONS)
-                || roles.contains(UserRole.OPERATIONS)
-                || roles.contains(UserRole.HR));
+        boolean staff = roles != null && (roles.contains(UserRole.ERM)
+                || roles.contains(UserRole.ERM)
+                || roles.contains(UserRole.ERM));
         if (staff) return;
 
         // Candidates may update their own tasks.

@@ -152,33 +152,33 @@ public class CandidateNavService {
 
         // Primary group — appears before history.
         items.add(item("dashboard", "Dashboard",
-                "/careers/candidate", group(intern, "primary"), null, seen));
+                "/careers/intern", group(intern, "primary"), null, seen));
         items.add(item("openings", "Open Internships",
                 "/careers/openings", group(intern, "history"), null, seen));
         items.add(item("applications", "My Applications",
-                "/careers/candidate/applications", group(intern, "history"), null, seen));
+                "/careers/intern/applications", group(intern, "history"), null, seen));
 
         if (!interviews.isEmpty()) {
             items.add(item("interviews", "Interviews",
-                    "/careers/candidate/interviews", group(intern, "history"),
+                    "/careers/intern/interviews", group(intern, "history"),
                     countBadge(upcomingInterviewCount), seen));
         }
         if (!offers.isEmpty()) {
             items.add(item("offers", "Offers",
-                    "/careers/candidate/offers", group(intern, "history"),
+                    "/careers/intern/offers", group(intern, "history"),
                     countBadge(undecidedOfferCount), seen));
         }
 
         // Engagement-gated cluster — onboarding + compliance.
         if (hasEngagement) {
             items.add(item("onboarding", "Onboarding",
-                    "/careers/candidate/onboarding", group(intern, "primary"),
+                    "/careers/intern/onboarding", group(intern, "primary"),
                     countBadge((int) pendingTaskCount), seen));
             items.add(item("i9", "I-9 Form",
-                    "/careers/candidate/i9", group(intern, "primary"), null, seen));
+                    "/careers/intern/i9", group(intern, "primary"), null, seen));
             if (isStemOpt) {
                 items.add(item("training-plan", "Training Plan",
-                        "/careers/candidate/training-plans",
+                        "/careers/intern/training-plans",
                         group(intern, "primary"), null, seen));
             }
         }
@@ -186,22 +186,22 @@ public class CandidateNavService {
         // INTERN-only cluster — appears only with ACTIVE engagement.
         if (intern) {
             items.add(item("weekly-materials", "Weekly Materials",
-                    "/careers/candidate/weekly-materials", "primary", null, seen));
+                    "/careers/intern/weekly-materials", "primary", null, seen));
             items.add(item("weekly-reports", "Weekly Reports",
-                    "/careers/candidate/weekly-reports", "primary", null, seen));
+                    "/careers/intern/weekly-reports", "primary", null, seen));
             items.add(item("timesheets", "My Work",
                     "/careers/intern/work", "primary", null, seen));
             items.add(item("projects", "Projects",
-                    "/careers/candidate/projects", "primary", null, seen));
+                    "/careers/intern/projects", "primary", null, seen));
             items.add(item("playground", "Playground",
                     "/careers/playground", "primary", null, seen));
             items.add(item("evaluations", "Evaluations",
-                    "/careers/candidate/evaluations", "primary", null, seen));
+                    "/careers/intern/evaluations", "primary", null, seen));
         }
 
         // Tail — Profile + Sessions + Help always at the bottom.
         items.add(item("profile", "Profile",
-                "/careers/candidate/profile", group(intern, "primary"), null, seen));
+                "/careers/intern/profile", group(intern, "primary"), null, seen));
         items.add(item("sessions", "Active sessions",
                 "/careers/sessions", group(intern, "primary"), null, seen));
         items.add(item("help", "Help & Support",

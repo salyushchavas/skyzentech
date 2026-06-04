@@ -31,7 +31,7 @@ import type {
 
 export default function HrCompliancePage() {
   return (
-    <ProtectedRoute requiredRoles={['OPERATIONS', 'HR']}>
+    <ProtectedRoute requiredRoles={['ERM']}>
       <DashboardLayout title="Compliance Overview">
         <Body />
       </DashboardLayout>
@@ -416,7 +416,7 @@ function RecentActivityCard({
           </ul>
           <div className="mt-4 border-t border-gray-100 pt-3 text-center">
             <Link
-              href="/careers/hr/documents"
+              href="/careers/erm/documents"
               className="text-xs font-medium text-accent hover:text-accent-dark"
             >
               View all activity →

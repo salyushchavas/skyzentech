@@ -32,7 +32,7 @@ public class ApplicationScorecardController {
     private final InterviewService interviewService;
 
     @GetMapping("/{applicationId}/scorecard")
-    @PreAuthorize("hasAnyRole('OPERATIONS', 'HR', 'TECHNICAL_EVALUATOR')")
+    @PreAuthorize("hasAnyRole('ERM', 'TRAINER')")
     public ResponseEntity<InterviewScorecardSummary> latestScorecard(
             @PathVariable UUID applicationId,
             @AuthenticationPrincipal User caller) {

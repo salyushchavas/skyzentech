@@ -18,13 +18,14 @@ import java.util.Optional;
 
 /**
  * Seeds one test user per role with known credentials so every role on the
- * 8-role taxonomy is testable from a single consistent credential set.
+ * six-role taxonomy is testable from a single consistent credential set.
  *
  * <h2>Idempotent</h2>
  * Looked up by email (case-insensitive via the underlying findByEmail). If a
  * user with the same email exists — regardless of role — the row is left
  * untouched. Re-running the seeder is therefore safe; existing accounts are
- * never overwritten.
+ * never overwritten. Pre-existing legacy-role rows are remapped onto the new
+ * taxonomy by {@code SchemaFixupRunner} before this seeder runs.
  *
  * <h2>Gated</h2>
  * Off by default. Enable via {@code app.bootstrap.seed-test-role-users-enabled=true}
@@ -34,23 +35,13 @@ import java.util.Optional;
  *
  * <h2>Test users</h2>
  * <pre>
- *   test-applicant@skyzen.test   Applicant@1   APPLICANT
- *   test-intern@skyzen.test      Intern@1      INTERN
- *   test-hr@skyzen.test          Hr@1234       HR
- *   test-ops@skyzen.test         Ops@1234      OPERATIONS
- *   test-eval@skyzen.test        Eval@1234     TECHNICAL_EVALUATOR
- *   test-rm@skyzen.test          Rm@1234       REPORTING_MANAGER
- *   test-exec@skyzen.test        Exec@1234     EXECUTIVE
- *   test-admin@skyzen.test       Admin@1234    SUPER_ADMIN
+ *   test-intern@skyzen.test    Intern@1234    INTERN
+ *   test-trainer@skyzen.test   Trainer@1234   TRAINER
+ *   test-rm@skyzen.test        Rm@1234        REPORTING_MANAGER
+ *   test-manager@skyzen.test   Manager@1234   MANAGER
+ *   test-erm@skyzen.test       Erm@1234       ERM
+ *   test-admin@skyzen.test     Admin@1234     SUPER_ADMIN
  * </pre>
- *
- * <h2>Note on intern testing</h2>
- * The seeded {@code test-intern@skyzen.test} is a plain INTERN account with
- * no engagement. End-to-end intern workflows (timesheets, weekly reports,
- * project allocation) require an ACTIVE engagement — use the upstream-chain
- * builder in {@link TestAccountSeeder} (which seeds the same email with a
- * full engagement) or run the existing
- * {@code TestUserPromotionRunner} against {@code abhizoe5+test5@gmail.com}.
  */
 @Component
 @Order(20)
@@ -74,14 +65,12 @@ public class TestRoleUserSeeder implements ApplicationRunner {
     ) {}
 
     private static final List<TestRoleUser> TEST_USERS = List.of(
-            new TestRoleUser("test-applicant@skyzen.test", "Applicant@1", "Test Applicant", UserRole.APPLICANT),
-            new TestRoleUser("test-intern@skyzen.test",    "Intern@1",    "Test Intern",    UserRole.INTERN),
-            new TestRoleUser("test-hr@skyzen.test",        "Hr@1234",     "Test HR",        UserRole.HR),
-            new TestRoleUser("test-ops@skyzen.test",       "Ops@1234",    "Test Ops",       UserRole.OPERATIONS),
-            new TestRoleUser("test-eval@skyzen.test",      "Eval@1234",   "Test Evaluator", UserRole.TECHNICAL_EVALUATOR),
-            new TestRoleUser("test-rm@skyzen.test",        "Rm@1234",     "Test RM",        UserRole.REPORTING_MANAGER),
-            new TestRoleUser("test-exec@skyzen.test",      "Exec@1234",   "Test Exec",      UserRole.EXECUTIVE),
-            new TestRoleUser("test-admin@skyzen.test",     "Admin@1234",  "Test Admin",     UserRole.SUPER_ADMIN)
+            new TestRoleUser("test-intern@skyzen.test",   "Intern@1234",  "Test Intern",   UserRole.INTERN),
+            new TestRoleUser("test-trainer@skyzen.test",  "Trainer@1234", "Test Trainer",  UserRole.TRAINER),
+            new TestRoleUser("test-rm@skyzen.test",       "Rm@1234",      "Test RM",       UserRole.REPORTING_MANAGER),
+            new TestRoleUser("test-manager@skyzen.test",  "Manager@1234", "Test Manager",  UserRole.MANAGER),
+            new TestRoleUser("test-erm@skyzen.test",      "Erm@1234",     "Test ERM",      UserRole.ERM),
+            new TestRoleUser("test-admin@skyzen.test",    "Admin@1234",   "Test Admin",    UserRole.SUPER_ADMIN)
     );
 
     @Override

@@ -77,51 +77,37 @@ public class UserRoleMigrationRunner implements CommandLineRunner {
                 log.warn("user_roles_role_check drop failed (non-fatal): {}", ce.getMessage());
             }
 
-            // 1. CANDIDATE → INTERN where the user has an ACTIVE engagement.
-            //    Must run BEFORE the catch-all CANDIDATE → APPLICANT, otherwise
-            //    every candidate becomes APPLICANT and INTERN promotion is lost.
+            // 1. CANDIDATE → INTERN. The 6-role taxonomy collapses pre-hire
+            //    and post-hire candidate lifecycle onto INTERN, so the engagement
+            //    check that used to split CANDIDATE → INTERN vs APPLICANT is
+            //    obsolete. Any legacy CANDIDATE row maps to INTERN flat.
             int hired = jdbcTemplate.update(
-                    "UPDATE user_roles SET role = 'INTERN' "
-                            + "WHERE role = 'CANDIDATE' "
-                            + "AND user_id IN ("
-                            + "  SELECT c.user_id FROM candidates c "
-                            + "  JOIN engagements e ON e.candidate_id = c.id "
-                            + "  WHERE e.status = 'ACTIVE')");
+                    "UPDATE user_roles SET role = 'INTERN' WHERE role = 'CANDIDATE'");
             total += hired;
-            log.info("Role migration: CANDIDATE→INTERN (active engagement): {} rows", hired);
+            log.info("Role migration: CANDIDATE→INTERN: {} rows", hired);
 
-            // 2. CANDIDATE → APPLICANT (everyone else).
-            int applicants = jdbcTemplate.update(
-                    "UPDATE user_roles SET role = 'APPLICANT' WHERE role = 'CANDIDATE'");
-            total += applicants;
-            log.info("Role migration: CANDIDATE→APPLICANT: {} rows", applicants);
-
-            // 3. RECRUITER / ERM / ADMIN → OPERATIONS. Done as three separate
-            //    statements (rather than IN-list) so the per-bucket counts log
-            //    cleanly. A user who happened to carry multiple of these in a
-            //    transitional state would collapse to a single OPERATIONS row
-            //    via the (user_id, role) primary-key dedupe.
+            // 2. RECRUITER / ADMIN → ERM. Done as separate statements so the
+            //    per-bucket counts log cleanly. A user who happened to carry
+            //    multiple of these in a transitional state would collapse to
+            //    a single ERM row via the (user_id, role) primary-key dedupe.
+            //    Note: the legacy 'ERM' role string already maps to the new
+            //    ERM value, so no UPDATE is needed for that bucket. Legacy
+            //    'OPERATIONS' rows are remapped to ERM by SchemaFixupRunner.
             int ops = 0;
             ops += jdbcTemplate.update(
-                    "UPDATE user_roles SET role = 'OPERATIONS' WHERE role = 'RECRUITER' "
+                    "UPDATE user_roles SET role = 'ERM' WHERE role = 'RECRUITER' "
                             + "AND NOT EXISTS (SELECT 1 FROM user_roles ur2 "
-                            + "  WHERE ur2.user_id = user_roles.user_id AND ur2.role = 'OPERATIONS')");
+                            + "  WHERE ur2.user_id = user_roles.user_id AND ur2.role = 'ERM')");
             jdbcTemplate.update(
                     "DELETE FROM user_roles WHERE role = 'RECRUITER'");
             ops += jdbcTemplate.update(
-                    "UPDATE user_roles SET role = 'OPERATIONS' WHERE role = 'ERM' "
+                    "UPDATE user_roles SET role = 'ERM' WHERE role = 'ADMIN' "
                             + "AND NOT EXISTS (SELECT 1 FROM user_roles ur2 "
-                            + "  WHERE ur2.user_id = user_roles.user_id AND ur2.role = 'OPERATIONS')");
-            jdbcTemplate.update(
-                    "DELETE FROM user_roles WHERE role = 'ERM'");
-            ops += jdbcTemplate.update(
-                    "UPDATE user_roles SET role = 'OPERATIONS' WHERE role = 'ADMIN' "
-                            + "AND NOT EXISTS (SELECT 1 FROM user_roles ur2 "
-                            + "  WHERE ur2.user_id = user_roles.user_id AND ur2.role = 'OPERATIONS')");
+                            + "  WHERE ur2.user_id = user_roles.user_id AND ur2.role = 'ERM')");
             jdbcTemplate.update(
                     "DELETE FROM user_roles WHERE role = 'ADMIN'");
             total += ops;
-            log.info("Role migration: RECRUITER/ERM/ADMIN→OPERATIONS: {} rows promoted, "
+            log.info("Role migration: RECRUITER/ADMIN→ERM: {} rows promoted, "
                     + "duplicates collapsed", ops);
 
             // 4. (Step retired.) The original PED-§7 line here renamed

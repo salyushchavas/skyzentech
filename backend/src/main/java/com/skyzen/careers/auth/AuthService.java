@@ -100,7 +100,7 @@ public class AuthService {
                 .passwordHash(passwordEncoder.encode(req.password()))
                 .fullName(req.fullName())
                 .phoneNumber(req.phoneNumber())
-                .roles(EnumSet.of(UserRole.APPLICANT))
+                .roles(EnumSet.of(UserRole.INTERN))
                 .emailVerified(false)
                 // Proof of consent — stamped because the @AssertTrue on
                 // RegisterRequest.acceptedTos passed validation by the time
@@ -195,7 +195,7 @@ public class AuthService {
         // under concurrent verifications.
         String applicantId = user.getApplicantId();
         if (applicantId == null && user.getRoles() != null
-                && user.getRoles().contains(UserRole.APPLICANT)) {
+                && user.getRoles().contains(UserRole.INTERN)) {
             // Applicant IDs are issued only on the first email verification of
             // a freshly-registered APPLICANT. Once they're hired they become
             // INTERN — by then they already carry an applicantId from this

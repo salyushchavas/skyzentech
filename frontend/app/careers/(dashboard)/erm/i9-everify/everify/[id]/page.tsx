@@ -52,7 +52,7 @@ const STATUS_LABEL: Record<EVerifyStatus, string> = {
 
 export default function EVerifyDetailPage() {
   return (
-    <ProtectedRoute requiredRoles={['OPERATIONS', 'HR']}>
+    <ProtectedRoute requiredRoles={['ERM']}>
       <DashboardLayout title="E-Verify Case">
         <Body />
       </DashboardLayout>
@@ -71,7 +71,7 @@ function Body() {
 
   const { user } = useAuth();
   const canWrite =
-    user?.roles?.some((r) => r === 'HR' || r === 'OPERATIONS') ?? false;
+    user?.roles?.some((r) => r === 'ERM') ?? false;
 
   const [caseData, setCaseData] = useState<EVerifyCaseResponse | null>(null);
   const [i9, setI9] = useState<I9FormResponse | null>(null);
@@ -135,7 +135,7 @@ function Body() {
       <div className="rounded-md border border-red-200 bg-red-50 p-4 text-sm text-red-700">
         <p className="mb-2">{error}</p>
         <Link
-          href="/careers/hr/i9-everify#everify"
+          href="/careers/erm/i9-everify#everify"
           className="rounded border border-red-300 px-3 py-1 text-xs font-medium hover:bg-red-100"
         >
           Back to E-Verify list
@@ -149,7 +149,7 @@ function Body() {
   return (
     <>
       <Link
-        href="/careers/hr/i9-everify#everify"
+        href="/careers/erm/i9-everify#everify"
         className="mb-4 inline-flex items-center gap-1 text-sm text-gray-600 hover:text-gray-900"
       >
         <ArrowLeft className="h-4 w-4" strokeWidth={2} />
@@ -280,7 +280,7 @@ function Body() {
                     : '—'}
                 </div>
                 <Link
-                  href={`/careers/hr/i9-everify/i9/${i9.id}`}
+                  href={`/careers/erm/i9-everify/i9/${i9.id}`}
                   className="mt-4 inline-flex items-center gap-1 text-sm font-medium text-accent hover:text-accent-dark"
                 >
                   View I-9 form

@@ -85,6 +85,25 @@ public class User {
     private Instant applicantIdCreatedAt;
 
     /**
+     * Skyzen Employee ID, minted at the OFFER_SIGNED → EMPLOYEE_ID_CREATED
+     * transition (Phase 3). Nullable until that transition fires.
+     */
+    @Column(name = "employee_id", length = 40)
+    private String employeeId;
+
+    /**
+     * Position on the applicant-to-intern lifecycle funnel. Single source of
+     * truth for the Phase-1 dashboard mode engine. Existing rows are stamped
+     * REGISTERED via {@code SchemaFixupRunner}.
+     */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "lifecycle_status", nullable = false, length = 40,
+            columnDefinition = "varchar(40) not null default 'REGISTERED'")
+    @Builder.Default
+    private com.skyzen.careers.enums.InternLifecycleStatus lifecycleStatus =
+            com.skyzen.careers.enums.InternLifecycleStatus.REGISTERED;
+
+    /**
      * JSON array of nav-item keys this candidate/intern has already opened —
      * used to suppress the "new" badge after the first visit. Additive column
      * (ddl-auto handles it); legacy rows surface as null which the nav

@@ -385,7 +385,7 @@ public class ProjectAssignmentService {
     private static void ensureStaff(User actor) {
         if (actor == null) throw new ForbiddenException("Authentication required");
         if (actor.getRoles() == null
-                || (!actor.getRoles().contains(UserRole.TECHNICAL_EVALUATOR)
+                || (!actor.getRoles().contains(UserRole.TRAINER)
                     && !actor.getRoles().contains(UserRole.SUPER_ADMIN))) {
             throw new ForbiddenException(
                     "Only TECHNICAL_EVALUATOR or SUPER_ADMIN may perform this action.");
@@ -405,7 +405,7 @@ public class ProjectAssignmentService {
     private static void ensureReviewerForReturn(User actor) {
         if (actor == null) throw new ForbiddenException("Authentication required");
         if (actor.getRoles() == null
-                || (!actor.getRoles().contains(UserRole.TECHNICAL_EVALUATOR)
+                || (!actor.getRoles().contains(UserRole.TRAINER)
                     && !actor.getRoles().contains(UserRole.REPORTING_MANAGER)
                     && !actor.getRoles().contains(UserRole.SUPER_ADMIN))) {
             throw new ForbiddenException(
@@ -444,7 +444,7 @@ public class ProjectAssignmentService {
         if (caller == null) throw new ForbiddenException("Authentication required");
         boolean isOwner = a.getInternId().equals(caller.getId());
         boolean staffAccess = caller.getRoles() != null
-                && (caller.getRoles().contains(UserRole.TECHNICAL_EVALUATOR)
+                && (caller.getRoles().contains(UserRole.TRAINER)
                     || caller.getRoles().contains(UserRole.SUPER_ADMIN));
         if (!isOwner && !staffAccess) {
             throw new ForbiddenException("Not authorised to view this assignment");

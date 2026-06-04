@@ -1,34 +1,26 @@
 import type { User, UserRole } from '@/types';
 
-// PED §7 + SUPER_ADMIN split. APPLICANT + INTERN share the candidate landing
-// — the page adapts its face by engagement state. OPERATIONS collapses the
-// former recruiter / ERM dashboards into one Operations landing. SUPER_ADMIN
-// and EXECUTIVE both land on /careers/admin — EXECUTIVE for read-only
-// overview, SUPER_ADMIN for full user/entity/audit management. Page-level
-// ProtectedRoute gates which screens each role can open from there.
+// Six-role landing map. Each role lands on its own dashboard. Page-level
+// ProtectedRoute gates which screens a role can open from there.
 export const ROLE_DASHBOARDS: Record<UserRole, string> = {
-  APPLICANT: '/careers/candidate',
-  INTERN: '/careers/candidate',
-  HR: '/careers/hr',
-  OPERATIONS: '/careers/operations',
-  TECHNICAL_EVALUATOR: '/careers/evaluator',
+  INTERN: '/careers/intern',
+  TRAINER: '/careers/trainer',
   REPORTING_MANAGER: '/careers/reporting-manager',
-  EXECUTIVE: '/careers/executive',
+  MANAGER: '/careers/manager',
+  ERM: '/careers/erm',
   SUPER_ADMIN: '/careers/admin',
 };
 
 // Priority order for picking the landing when a user carries multiple roles.
-// SUPER_ADMIN wins (god-mode lands on admin); EXECUTIVE next (read-only admin);
-// then operational/staff roles; APPLICANT/INTERN last as the candidate face.
+// SUPER_ADMIN wins (god-mode lands on admin); MANAGER next (oversight);
+// then operational/staff roles; INTERN last as the candidate face.
 const ROLE_LANDING_PRIORITY: UserRole[] = [
   'SUPER_ADMIN',
-  'EXECUTIVE',
-  'OPERATIONS',
-  'HR',
-  'TECHNICAL_EVALUATOR',
+  'MANAGER',
+  'ERM',
+  'TRAINER',
   'REPORTING_MANAGER',
   'INTERN',
-  'APPLICANT',
 ];
 
 export function getDashboardForUser(user: User): string {

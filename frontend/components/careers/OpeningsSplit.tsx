@@ -25,7 +25,7 @@ interface Props {
  */
 export default function OpeningsSplit({ initialPostings }: Props) {
   const { user, isLoading } = useAuth();
-  const isCandidate = !!(user?.roles?.includes('APPLICANT') || user?.roles?.includes('INTERN'));
+  const isCandidate = !!(user?.roles?.includes('INTERN') || user?.roles?.includes('INTERN'));
 
   const [postings, setPostings] = useState<JobPostingResponse[]>(initialPostings);
   const [refetching, setRefetching] = useState(false);
@@ -135,7 +135,7 @@ export default function OpeningsSplit({ initialPostings }: Props) {
               <>
                 You&apos;ve applied to every open posting. Check back when new ones go live, or{' '}
                 <Link
-                  href="/careers/candidate/applications"
+                  href="/careers/intern/applications"
                   className="font-medium text-primary-700 hover:underline"
                 >
                   review your applications

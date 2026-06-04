@@ -32,7 +32,7 @@ type ViewMode = 'board' | 'table';
 export default function RecruiterPipelinePage() {
   return (
     <ProtectedRoute
-      requiredRoles={['OPERATIONS', 'HR']}
+      requiredRoles={['ERM']}
     >
       <DashboardLayout title="Application Pipeline">
         <PipelineShell />
@@ -369,7 +369,7 @@ function PipelineBoard() {
                 label={col.label}
                 items={columnsByStatus.get(col.key) ?? []}
                 onViewDetails={(id) =>
-                  router.push(`/careers/recruiter/applications/${id}`)
+                  router.push(`/careers/erm/applications/${id}`)
                 }
                 onDownloadResume={downloadResume}
               />

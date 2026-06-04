@@ -65,7 +65,7 @@ public class ProjectController {
     // catalog flow is purely additive.
 
     @org.springframework.web.bind.annotation.PostMapping("/catalog")
-    @PreAuthorize("hasAnyRole('TECHNICAL_EVALUATOR', 'SUPER_ADMIN')")
+    @PreAuthorize("hasAnyRole('TRAINER', 'SUPER_ADMIN')")
     public com.skyzen.careers.dto.project.catalog.CatalogProjectResponse createCatalog(
             @jakarta.validation.Valid @org.springframework.web.bind.annotation.RequestBody
             com.skyzen.careers.dto.project.catalog.CreateCatalogProjectRequest req,
@@ -74,14 +74,14 @@ public class ProjectController {
     }
 
     @GetMapping("/catalog/{id}")
-    @PreAuthorize("hasAnyRole('TECHNICAL_EVALUATOR', 'SUPER_ADMIN', 'INTERN')")
+    @PreAuthorize("hasAnyRole('TRAINER', 'SUPER_ADMIN', 'INTERN')")
     public com.skyzen.careers.dto.project.catalog.CatalogProjectResponse getCatalog(
             @PathVariable UUID id) {
         return catalogService.getCatalogProject(id);
     }
 
     @GetMapping("/catalog")
-    @PreAuthorize("hasAnyRole('TECHNICAL_EVALUATOR', 'SUPER_ADMIN')")
+    @PreAuthorize("hasAnyRole('TRAINER', 'SUPER_ADMIN')")
     public java.util.List<com.skyzen.careers.dto.project.catalog.CatalogProjectResponse> listCatalog(
             @org.springframework.web.bind.annotation.RequestParam(name = "createdByMe", defaultValue = "false")
             boolean createdByMe,
@@ -97,7 +97,7 @@ public class ProjectController {
     }
 
     @org.springframework.web.bind.annotation.PostMapping("/catalog/{id}/repository")
-    @PreAuthorize("hasAnyRole('TECHNICAL_EVALUATOR', 'SUPER_ADMIN')")
+    @PreAuthorize("hasAnyRole('TRAINER', 'SUPER_ADMIN')")
     public com.skyzen.careers.dto.project.catalog.CatalogProjectResponse linkRepository(
             @PathVariable UUID id,
             @jakarta.validation.Valid @org.springframework.web.bind.annotation.RequestBody
@@ -107,7 +107,7 @@ public class ProjectController {
     }
 
     @org.springframework.web.bind.annotation.PutMapping("/catalog/{id}/repository")
-    @PreAuthorize("hasAnyRole('TECHNICAL_EVALUATOR', 'SUPER_ADMIN')")
+    @PreAuthorize("hasAnyRole('TRAINER', 'SUPER_ADMIN')")
     public com.skyzen.careers.dto.project.catalog.CatalogProjectResponse updateRepository(
             @PathVariable UUID id,
             @jakarta.validation.Valid @org.springframework.web.bind.annotation.RequestBody
@@ -119,7 +119,7 @@ public class ProjectController {
     // ── Supervisor commands ─────────────────────────────────────────────────
 
     @PostMapping
-    @PreAuthorize("hasAnyRole('TECHNICAL_EVALUATOR', 'SUPER_ADMIN')")
+    @PreAuthorize("hasAnyRole('TRAINER', 'SUPER_ADMIN')")
     public ResponseEntity<ProjectResponse> create(
             @Valid @RequestBody CreateProjectRequest req,
             @AuthenticationPrincipal User user) {
@@ -129,7 +129,7 @@ public class ProjectController {
     }
 
     @PutMapping("/{id}")
-    @PreAuthorize("hasAnyRole('TECHNICAL_EVALUATOR', 'SUPER_ADMIN')")
+    @PreAuthorize("hasAnyRole('TRAINER', 'SUPER_ADMIN')")
     public ProjectResponse update(
             @PathVariable UUID id,
             @Valid @RequestBody UpdateProjectRequest req,
@@ -138,7 +138,7 @@ public class ProjectController {
     }
 
     @GetMapping("/intern/{candidateId}")
-    @PreAuthorize("hasAnyRole('TECHNICAL_EVALUATOR', 'SUPER_ADMIN')")
+    @PreAuthorize("hasAnyRole('TRAINER', 'SUPER_ADMIN')")
     public List<ProjectResponse> listForIntern(
             @PathVariable UUID candidateId,
             @AuthenticationPrincipal User user) {
@@ -147,13 +147,13 @@ public class ProjectController {
 
     /** Supervisor's full board — all projects they've allocated. */
     @GetMapping("/published")
-    @PreAuthorize("hasAnyRole('TECHNICAL_EVALUATOR', 'SUPER_ADMIN')")
+    @PreAuthorize("hasAnyRole('TRAINER', 'SUPER_ADMIN')")
     public List<ProjectResponse> listMine(@AuthenticationPrincipal User user) {
         return service.listMine(user);
     }
 
     @PostMapping("/{id}/return")
-    @PreAuthorize("hasAnyRole('TECHNICAL_EVALUATOR', 'SUPER_ADMIN')")
+    @PreAuthorize("hasAnyRole('TRAINER', 'SUPER_ADMIN')")
     public ProjectResponse returnForChanges(
             @PathVariable UUID id,
             @Valid @RequestBody ReviewProjectRequest req,
@@ -162,7 +162,7 @@ public class ProjectController {
     }
 
     @PostMapping("/{id}/complete")
-    @PreAuthorize("hasAnyRole('TECHNICAL_EVALUATOR', 'SUPER_ADMIN')")
+    @PreAuthorize("hasAnyRole('TRAINER', 'SUPER_ADMIN')")
     public ProjectResponse complete(
             @PathVariable UUID id,
             @RequestBody(required = false) ReviewProjectRequest req,
@@ -170,20 +170,29 @@ public class ProjectController {
         return service.complete(id, req, user);
     }
 
-    // ── Intern commands ─────────────────────────────────────────────────────
+    // ── Intern commands (legacy single-allocation, @Deprecated) ─────────────
+    //
+    // These four endpoints are the pre-ProjectAssignment intern API. Phase 0
+    // freezes them — the new ProjectAssignmentController.{start,submit} are
+    // the canonical replacements; {progress} has no replacement (status now
+    // flows implicitly). Endpoints remain on disk so any in-flight client
+    // doesn't 404 immediately, but the API is closed: Phase 1+ removes them.
 
+    @Deprecated
     @GetMapping("/me")
     @PreAuthorize("hasRole('INTERN')")
     public List<ProjectResponse> listForMe(@AuthenticationPrincipal User user) {
         return service.listForMe(user);
     }
 
+    @Deprecated
     @PostMapping("/{id}/start")
     @PreAuthorize("hasRole('INTERN')")
     public ProjectResponse start(@PathVariable UUID id, @AuthenticationPrincipal User user) {
         return service.start(id, user);
     }
 
+    @Deprecated
     @PutMapping("/{id}/progress")
     @PreAuthorize("hasRole('INTERN')")
     public ProjectResponse updateProgress(
@@ -193,6 +202,7 @@ public class ProjectController {
         return service.updateProgress(id, req, user);
     }
 
+    @Deprecated
     @PostMapping("/{id}/submit")
     @PreAuthorize("hasRole('INTERN')")
     public ProjectResponse submit(
@@ -213,7 +223,7 @@ public class ProjectController {
     // All thin pass-throughs to ProjectWorkflowService.
 
     @PostMapping("/{id}/tech-approve")
-    @PreAuthorize("hasAnyRole('TECHNICAL_EVALUATOR', 'SUPER_ADMIN')")
+    @PreAuthorize("hasAnyRole('TRAINER', 'SUPER_ADMIN')")
     public Map<String, Object> techApprove(
             @PathVariable UUID id,
             @AuthenticationPrincipal User user) {
@@ -222,7 +232,7 @@ public class ProjectController {
     }
 
     @PostMapping("/{id}/return-revisions")
-    @PreAuthorize("hasAnyRole('TECHNICAL_EVALUATOR', 'REPORTING_MANAGER', 'SUPER_ADMIN')")
+    @PreAuthorize("hasAnyRole('TRAINER', 'REPORTING_MANAGER', 'SUPER_ADMIN')")
     public Map<String, Object> returnForRevisions(
             @PathVariable UUID id,
             @RequestBody Map<String, String> body,

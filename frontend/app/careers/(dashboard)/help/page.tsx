@@ -13,7 +13,7 @@ import ProtectedRoute from '@/components/ProtectedRoute';
  */
 export default function HelpPage() {
   return (
-    <ProtectedRoute requiredRoles={['APPLICANT', 'INTERN']}>
+    <ProtectedRoute requiredRoles={['INTERN']}>
       <DashboardLayout title="Help & Support">
         <Body />
       </DashboardLayout>

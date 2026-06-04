@@ -14,7 +14,7 @@ import type {
 
 export default function NewI983PlanPage() {
   return (
-    <ProtectedRoute requiredRoles={['OPERATIONS', 'HR']}>
+    <ProtectedRoute requiredRoles={['ERM']}>
       <DashboardLayout title="New Training Plan">
         <Form />
       </DashboardLayout>
@@ -81,7 +81,7 @@ function Form() {
         applicationId: selected.id,
       });
       toast.success('Plan created — fill in the remaining sections');
-      router.push(`/careers/operations/training-plans/${res.data.id}`);
+      router.push(`/careers/erm/training-plans/${res.data.id}`);
     } catch (err: any) {
       const msg = err?.response?.data?.error ?? "Couldn't create plan.";
       setFormError(msg);

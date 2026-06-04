@@ -25,7 +25,7 @@ public class SupervisedInternsController {
     private final SupervisedOverviewService supervisedOverviewService;
 
     @GetMapping("/interns")
-    @PreAuthorize("hasAnyRole('OPERATIONS', 'HR', 'TECHNICAL_EVALUATOR')")
+    @PreAuthorize("hasAnyRole('ERM', 'TRAINER')")
     public List<InternSummaryResponse> listInterns(
             @RequestParam(required = false) UUID entityId,
             @RequestParam(required = false) String search) {
@@ -39,7 +39,7 @@ public class SupervisedInternsController {
      * id is accepted or read.
      */
     @GetMapping("/my/overview")
-    @PreAuthorize("hasAnyRole('APPLICANT', 'INTERN')")
+    @PreAuthorize("hasRole('INTERN')")
     public SupervisedOverviewResponse myOverview(@AuthenticationPrincipal User caller) {
         return supervisedOverviewService.forUser(caller);
     }

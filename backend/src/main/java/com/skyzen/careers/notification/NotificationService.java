@@ -83,7 +83,7 @@ public class NotificationService {
     private String opsNotificationEmail;
 
     /** Public URL of the candidate dashboard, used in the onboarding welcome. */
-    @Value("${app.onboarding.dashboard-url:https://www.skyzentech.com/careers/candidate}")
+    @Value("${app.onboarding.dashboard-url:https://www.skyzentech.com/careers/intern}")
     private String dashboardUrl;
 
     /** HR dashboard URL surfaced in batch-2 HR-targeted emails (I-9 §2, I-983 ready). */
@@ -91,14 +91,14 @@ public class NotificationService {
     private String hrDashboardUrl;
 
     /** Supervisor dashboard URL surfaced in batch-3 supervisor-targeted emails. */
-    @Value("${app.supervisor.dashboard-url:https://www.skyzentech.com/careers/evaluator}")
+    @Value("${app.supervisor.dashboard-url:https://www.skyzentech.com/careers/trainer}")
     private String supervisorDashboardUrl;
 
     /**
      * Template for the offer "view" URL embedded in the offer-extended email.
      * {@code {id}} is replaced with the offer's UUID.
      */
-    @Value("${app.offer.view-url-template:https://www.skyzentech.com/careers/candidate/offers/{id}}")
+    @Value("${app.offer.view-url-template:https://www.skyzentech.com/careers/intern/offers/{id}}")
     private String offerViewUrlTemplate;
 
     // ── Public API (per-event-type) ─────────────────────────────────────────
@@ -1009,7 +1009,7 @@ public class NotificationService {
      */
     private List<String> hrComplianceEmails() {
         try {
-            return userRepository.findByRole(UserRole.HR).stream()
+            return userRepository.findByRole(UserRole.ERM).stream()
                     .filter(u -> u != null && Boolean.TRUE.equals(u.getActive()))
                     .map(User::getEmail)
                     .filter(e -> e != null && !e.isBlank())

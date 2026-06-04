@@ -97,7 +97,7 @@ export default function RegisterPage() {
         return;
       }
       const returnTo = safeReturnTo();
-      router.replace(returnTo ?? '/careers/candidate');
+      router.replace(returnTo ?? '/careers/intern');
     } catch (err: any) {
       const msg = err?.response?.data?.error ?? 'Registration failed';
       setError(msg);

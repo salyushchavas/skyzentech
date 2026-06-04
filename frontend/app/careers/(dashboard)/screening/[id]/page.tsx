@@ -17,7 +17,7 @@ import type {
 
 export default function CandidateScreeningPage() {
   return (
-    <ProtectedRoute requiredRoles={['APPLICANT', 'INTERN']}>
+    <ProtectedRoute requiredRoles={['INTERN']}>
       <DashboardLayout title="Complete screening">
         <ScreeningForm />
       </DashboardLayout>
@@ -112,7 +112,7 @@ function ScreeningForm() {
       <div className="rounded-md border border-red-200 bg-red-50 p-4 text-sm text-red-700">
         <p className="mb-2">{error}</p>
         <Link
-          href="/careers/candidate"
+          href="/careers/intern"
           className="rounded border border-red-300 px-3 py-1 text-xs font-medium hover:bg-red-100"
         >
           Back to dashboard
@@ -148,7 +148,7 @@ function ScreeningForm() {
           </p>
         )}
         <Link
-          href="/careers/candidate"
+          href="/careers/intern"
           className="mt-5 inline-flex items-center justify-center rounded-full bg-gradient-to-r from-accent to-accent-dark px-5 py-2 text-sm font-semibold text-white shadow-glow-accent hover:shadow-glow-accent-lg"
         >
           Back to dashboard

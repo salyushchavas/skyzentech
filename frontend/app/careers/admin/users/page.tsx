@@ -24,48 +24,44 @@ interface AdminUserResponse {
  *  blocked-state banner instead of a passing toast. */
 const LAST_SUPER_ADMIN_FRAGMENT = 'last active SUPER_ADMIN';
 
-// PED §7 + SUPER_ADMIN split — STAFF_ROLES are the five roles a SUPER_ADMIN
-// can assign via this UI. APPLICANT and INTERN are NOT in the picker — those
-// are set by candidate registration and the engagement-activation role flip,
-// not by admin-side assignment.
+// STAFF_ROLES are the roles a SUPER_ADMIN can assign via this UI. INTERN is
+// NOT in the picker — that role is set by candidate registration, not by
+// admin-side assignment.
 const STAFF_ROLES: UserRole[] = [
   'SUPER_ADMIN',
-  'OPERATIONS',
-  'HR',
-  'TECHNICAL_EVALUATOR',
-  'EXECUTIVE',
+  'MANAGER',
+  'ERM',
+  'TRAINER',
+  'REPORTING_MANAGER',
 ];
 
 const ROLE_LABEL: Record<UserRole, string> = {
-  APPLICANT: 'Applicant',
   INTERN: 'Intern',
-  OPERATIONS: 'Operations',
-  HR: 'HR / Compliance',
-  TECHNICAL_EVALUATOR: 'Technical Evaluator',
+  TRAINER: 'Trainer',
   REPORTING_MANAGER: 'Reporting Manager',
-  EXECUTIVE: 'Executive',
+  MANAGER: 'Manager',
+  ERM: 'ERM',
   SUPER_ADMIN: 'Super admin',
 };
 
 const ROLE_COLOR: Record<UserRole, string> = {
-  APPLICANT: 'bg-gray-100 text-gray-700',
   INTERN: 'bg-sky-100 text-sky-800',
-  OPERATIONS: 'bg-rose-100 text-rose-800',
-  HR: 'bg-emerald-100 text-emerald-800',
-  TECHNICAL_EVALUATOR: 'bg-amber-100 text-amber-800',
+  TRAINER: 'bg-amber-100 text-amber-800',
   REPORTING_MANAGER: 'bg-violet-100 text-violet-800',
-  EXECUTIVE: 'bg-violet-100 text-violet-800',
+  MANAGER: 'bg-violet-100 text-violet-800',
+  ERM: 'bg-emerald-100 text-emerald-800',
   SUPER_ADMIN: 'bg-indigo-100 text-indigo-800',
 };
 
-// Show SUPER_ADMIN first if present (god-mode); then OPERATIONS; then any
-// other non-candidate-side role; otherwise just the first.
-const CANDIDATE_SIDE: UserRole[] = ['APPLICANT', 'INTERN'];
+// Show SUPER_ADMIN first if present (god-mode); then MANAGER (oversight);
+// then ERM; then any other non-INTERN role; otherwise just the first.
+const CANDIDATE_SIDE: UserRole[] = ['INTERN'];
 
 function primaryRole(roles: UserRole[] | null | undefined): UserRole {
-  if (!roles || roles.length === 0) return 'APPLICANT';
+  if (!roles || roles.length === 0) return 'INTERN';
   if (roles.includes('SUPER_ADMIN')) return 'SUPER_ADMIN';
-  if (roles.includes('OPERATIONS')) return 'OPERATIONS';
+  if (roles.includes('MANAGER')) return 'MANAGER';
+  if (roles.includes('ERM')) return 'ERM';
   const staff = roles.find((r) => !CANDIDATE_SIDE.includes(r));
   return staff ?? roles[0];
 }
@@ -405,7 +401,7 @@ function NewUserModal({
 }) {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
-  const [role, setRole] = useState<UserRole>('OPERATIONS');
+  const [role, setRole] = useState<UserRole>('ERM');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -541,7 +537,7 @@ function ChangeRoleModal({
   onBlocked: (msg: string) => void;
 }) {
   const current = primaryRole(target.roles);
-  const [role, setRole] = useState<UserRole>(STAFF_ROLES.includes(current) ? current : 'OPERATIONS');
+  const [role, setRole] = useState<UserRole>(STAFF_ROLES.includes(current) ? current : 'ERM');
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 

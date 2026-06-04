@@ -245,7 +245,7 @@ public class WorkspaceFileService {
         // Per-engagement supervisor FK is informational, not a boundary.
         return caller != null
                 && caller.getRoles() != null
-                && caller.getRoles().contains(UserRole.TECHNICAL_EVALUATOR);
+                && caller.getRoles().contains(UserRole.TRAINER);
     }
 
     private static boolean isSuperAdmin(User u) {

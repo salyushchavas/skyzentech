@@ -33,7 +33,7 @@ const FILTER_OPTIONS: { key: Filter; label: string }[] = [
 
 export default function ErmTrainingPlansPage() {
   return (
-    <ProtectedRoute requiredRoles={['OPERATIONS', 'HR']}>
+    <ProtectedRoute requiredRoles={['ERM']}>
       <DashboardLayout title="I-983 Training Plans">
         <Body />
       </DashboardLayout>
@@ -104,7 +104,7 @@ function Body() {
           className="w-64 rounded-md border border-gray-300 px-3 py-1.5 text-sm focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
         />
         <Link
-          href="/careers/operations/training-plans/new"
+          href="/careers/erm/training-plans/new"
           className="inline-flex items-center gap-1.5 rounded-md bg-accent px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-accent-dark"
         >
           <Plus className="h-4 w-4" strokeWidth={2} />
@@ -176,7 +176,7 @@ function Body() {
           </p>
           {rows.length === 0 && (
             <Link
-              href="/careers/operations/training-plans/new"
+              href="/careers/erm/training-plans/new"
               className="mt-4 inline-flex items-center gap-1.5 rounded-md bg-accent px-4 py-2 text-sm font-semibold text-white hover:bg-accent-dark"
             >
               <Plus className="h-4 w-4" strokeWidth={2} />
@@ -207,7 +207,7 @@ function Body() {
                 <tr
                   key={r.id}
                   onClick={() =>
-                    router.push(`/careers/operations/training-plans/${r.id}`)
+                    router.push(`/careers/erm/training-plans/${r.id}`)
                   }
                   className="cursor-pointer hover:bg-gray-50"
                 >
@@ -254,7 +254,7 @@ function Body() {
                     onClick={(e) => e.stopPropagation()}
                   >
                     <Link
-                      href={`/careers/operations/training-plans/${r.id}`}
+                      href={`/careers/erm/training-plans/${r.id}`}
                       className="rounded-md bg-accent px-3 py-1.5 text-xs font-semibold text-white hover:bg-accent-dark"
                     >
                       Open

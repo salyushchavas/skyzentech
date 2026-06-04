@@ -30,7 +30,7 @@ public class WorkAssignmentController {
     private final WorkAssignmentService workAssignmentService;
 
     @PostMapping("/interns/{candidateId}/assignments")
-    @PreAuthorize("hasAnyRole('OPERATIONS', 'TECHNICAL_EVALUATOR')")
+    @PreAuthorize("hasAnyRole('ERM', 'TRAINER')")
     public ResponseEntity<AssignmentResponse> create(
             @PathVariable UUID candidateId,
             @Valid @RequestBody CreateAssignmentRequest req,
@@ -41,26 +41,34 @@ public class WorkAssignmentController {
     }
 
     @GetMapping("/interns/{candidateId}/assignments")
-    @PreAuthorize("hasAnyRole('OPERATIONS', 'HR', 'TECHNICAL_EVALUATOR')")
+    @PreAuthorize("hasAnyRole('ERM', 'TRAINER')")
     public List<AssignmentResponse> listForIntern(@PathVariable UUID candidateId) {
         return workAssignmentService.listForIntern(candidateId);
     }
 
+    // Legacy intern-callable assignment endpoints — superseded by the
+    // ProjectAssignment flow per the Applicant-to-Intern Lifecycle doc.
+    // Kept on disk through Phase 0 so any in-flight clients keep working;
+    // marked @Deprecated and removed in a subsequent phase.
+
+    @Deprecated
     @GetMapping("/my/assignments")
-    @PreAuthorize("hasAnyRole('APPLICANT', 'INTERN')")
+    @PreAuthorize("hasRole('INTERN')")
     public List<AssignmentResponse> listMine(@AuthenticationPrincipal User caller) {
         return workAssignmentService.listForCandidateUser(caller);
     }
 
+    @Deprecated
     @PostMapping("/assignments/{id}/start")
-    @PreAuthorize("hasAnyRole('APPLICANT', 'INTERN')")
+    @PreAuthorize("hasRole('INTERN')")
     public AssignmentResponse start(@PathVariable UUID id,
                                     @AuthenticationPrincipal User caller) {
         return workAssignmentService.start(id, caller);
     }
 
+    @Deprecated
     @PostMapping("/assignments/{id}/submit")
-    @PreAuthorize("hasAnyRole('APPLICANT', 'INTERN')")
+    @PreAuthorize("hasRole('INTERN')")
     public AssignmentResponse submit(@PathVariable UUID id,
                                      @Valid @RequestBody SubmitAssignmentRequest req,
                                      @AuthenticationPrincipal User caller) {
@@ -68,7 +76,7 @@ public class WorkAssignmentController {
     }
 
     @PostMapping("/assignments/{id}/review")
-    @PreAuthorize("hasAnyRole('OPERATIONS', 'TECHNICAL_EVALUATOR')")
+    @PreAuthorize("hasAnyRole('ERM', 'TRAINER')")
     public AssignmentResponse review(@PathVariable UUID id,
                                      @Valid @RequestBody ReviewAssignmentRequest req,
                                      @AuthenticationPrincipal User caller) {

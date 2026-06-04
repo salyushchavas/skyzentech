@@ -71,7 +71,7 @@ public class I9FormService {
     private static final int SECTION_2_DEADLINE_BUSINESS_DAYS = 3;
 
     /** Privileged roles that bypass the candidate ownership check on reads. */
-    private static final Set<UserRole> READ_PRIVILEGED = EnumSet.of(UserRole.OPERATIONS, UserRole.HR, UserRole.TECHNICAL_EVALUATOR);
+    private static final Set<UserRole> READ_PRIVILEGED = EnumSet.of(UserRole.ERM, UserRole.ERM, UserRole.TRAINER);
 
     private final I9FormRepository formRepository;
     private final CandidateRepository candidateRepository;
@@ -510,7 +510,7 @@ public class I9FormService {
             return;
         }
         // Candidates can only edit their own form's Section 1.
-        if (caller.getRoles() != null && (caller.getRoles().contains(UserRole.APPLICANT) || caller.getRoles().contains(UserRole.INTERN))
+        if (caller.getRoles() != null && (caller.getRoles().contains(UserRole.INTERN) || caller.getRoles().contains(UserRole.INTERN))
                 && form.getCandidate() != null
                 && form.getCandidate().getUser() != null
                 && form.getCandidate().getUser().getId().equals(caller.getId())) {
