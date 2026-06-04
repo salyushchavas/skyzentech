@@ -1,7 +1,10 @@
 package com.skyzen.careers.intern;
 
+import com.skyzen.careers.entity.InternLifecycle;
 import com.skyzen.careers.entity.User;
 import com.skyzen.careers.enums.InternLifecycleStatus;
+import com.skyzen.careers.repository.InternLifecycleRepository;
+import com.skyzen.careers.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -9,6 +12,7 @@ import org.springframework.stereotype.Service;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
 
 import static com.skyzen.careers.intern.InternDashboardResponse.*;
 
@@ -27,6 +31,9 @@ import static com.skyzen.careers.intern.InternDashboardResponse.*;
 @Slf4j
 public class InternDashboardService {
 
+    private final InternLifecycleRepository internLifecycleRepository;
+    private final UserRepository userRepository;
+
     public InternDashboardResponse getDashboard(User caller) {
         InternLifecycleStatus status = caller.getLifecycleStatus() != null
                 ? caller.getLifecycleStatus()
@@ -42,7 +49,7 @@ public class InternDashboardService {
                 buildStepper(status),
                 buildModules(mode),
                 buildNextAction(status, mode, emailVerified),
-                buildContacts(),
+                buildContacts(caller),
                 Instant.now()
         );
     }
@@ -253,9 +260,33 @@ public class InternDashboardService {
 
     // ── Contacts ────────────────────────────────────────────────────────────
 
-    private Contacts buildContacts() {
-        // Phase 3 fills these from the InternLifecycle row once it's wired.
-        return new Contacts(null, null, null, null);
+    private Contacts buildContacts(User caller) {
+        // Phase 5: populate from InternLifecycle.{trainerId, evaluatorId,
+        // managerId, ermId} once the ERM has wired them via the assignment
+        // endpoints. Pre-active interns get all-null contacts.
+        try {
+            InternLifecycle lc = internLifecycleRepository.findByUserId(caller.getId())
+                    .orElse(null);
+            if (lc == null) return new Contacts(null, null, null, null);
+            return new Contacts(
+                    lookupContact(lc.getErmId()),
+                    lookupContact(lc.getTrainerId()),
+                    lookupContact(lc.getEvaluatorId()),
+                    lookupContact(lc.getManagerId()));
+        } catch (Exception e) {
+            log.warn("Contacts lookup failed (non-fatal) for {}: {}",
+                    caller.getId(), e.getMessage());
+            return new Contacts(null, null, null, null);
+        }
+    }
+
+    private Contact lookupContact(UUID userId) {
+        if (userId == null) return null;
+        return userRepository.findById(userId)
+                .map(u -> new Contact(
+                        u.getFullName() != null ? u.getFullName() : u.getEmail(),
+                        u.getEmail()))
+                .orElse(null);
     }
 
     // ── User summary ────────────────────────────────────────────────────────

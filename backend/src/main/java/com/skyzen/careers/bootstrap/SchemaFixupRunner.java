@@ -880,6 +880,90 @@ public class SchemaFixupRunner implements CommandLineRunner {
             log.warn("documents Phase 4 columns add failed (non-fatal): {}", e.getMessage(), e);
         }
 
+        // ── Phase 5 (active intern: meetings, project alignment) ───────────
+
+        // weekly_meetings table — Trainer schedules + Zoom. Distinct from the
+        // existing interviews table (which is pre-hire scope).
+        try {
+            jdbcTemplate.execute(
+                    "CREATE TABLE IF NOT EXISTS weekly_meetings ("
+                            + "  id UUID PRIMARY KEY,"
+                            + "  intern_lifecycle_id UUID NOT NULL,"
+                            + "  scheduled_for TIMESTAMP NOT NULL,"
+                            + "  duration_minutes INTEGER NOT NULL DEFAULT 30,"
+                            + "  timezone VARCHAR(50) NOT NULL DEFAULT 'UTC',"
+                            + "  topic VARCHAR(200) NOT NULL,"
+                            + "  agenda TEXT,"
+                            + "  zoom_meeting_id BIGINT,"
+                            + "  zoom_join_url TEXT,"
+                            + "  zoom_start_url TEXT,"
+                            + "  zoom_password VARCHAR(40),"
+                            + "  host_user_id UUID NOT NULL,"
+                            + "  status VARCHAR(20) NOT NULL DEFAULT 'SCHEDULED',"
+                            + "  recurrence VARCHAR(20),"
+                            + "  recurrence_parent_id UUID,"
+                            + "  trainer_notes TEXT,"
+                            + "  created_at TIMESTAMP NOT NULL DEFAULT NOW(),"
+                            + "  updated_at TIMESTAMP NOT NULL DEFAULT NOW()"
+                            + ")");
+            jdbcTemplate.execute(
+                    "CREATE INDEX IF NOT EXISTS idx_weekly_meetings_lifecycle_scheduled "
+                            + "ON weekly_meetings(intern_lifecycle_id, scheduled_for)");
+            jdbcTemplate.execute(
+                    "CREATE INDEX IF NOT EXISTS idx_weekly_meetings_status "
+                            + "ON weekly_meetings(status)");
+            log.info("Ensured weekly_meetings table + indexes exist.");
+        } catch (Exception e) {
+            log.warn("weekly_meetings table ensure failed (non-fatal): {}", e.getMessage(), e);
+        }
+
+        // projects Phase 5 column additions. Existing Project entity already
+        // has most fields; Phase 5 adds the doc-spec ones that were missing.
+        // Idempotent — re-runs are no-ops once columns exist.
+        try {
+            jdbcTemplate.execute(
+                    "ALTER TABLE projects ADD COLUMN IF NOT EXISTS intern_lifecycle_id UUID");
+            jdbcTemplate.execute(
+                    "ALTER TABLE projects ADD COLUMN IF NOT EXISTS learning_objectives TEXT");
+            jdbcTemplate.execute(
+                    "ALTER TABLE projects ADD COLUMN IF NOT EXISTS expected_hours INTEGER");
+            jdbcTemplate.execute(
+                    "ALTER TABLE projects ADD COLUMN IF NOT EXISTS completion_remarks TEXT");
+            jdbcTemplate.execute(
+                    "ALTER TABLE projects ADD COLUMN IF NOT EXISTS github_repo_url VARCHAR(500)");
+            jdbcTemplate.execute(
+                    "ALTER TABLE projects ADD COLUMN IF NOT EXISTS github_repo_owner VARCHAR(100)");
+            jdbcTemplate.execute(
+                    "ALTER TABLE projects ADD COLUMN IF NOT EXISTS github_repo_name VARCHAR(100)");
+            jdbcTemplate.execute(
+                    "ALTER TABLE projects ADD COLUMN IF NOT EXISTS github_access_granted "
+                            + "BOOLEAN NOT NULL DEFAULT FALSE");
+            jdbcTemplate.execute(
+                    "ALTER TABLE projects ADD COLUMN IF NOT EXISTS github_invitation_id BIGINT");
+            log.info("Ensured projects Phase 5 columns exist.");
+        } catch (Exception e) {
+            log.warn("projects Phase 5 columns add failed (non-fatal): {}", e.getMessage(), e);
+        }
+
+        // project_submissions Phase 5 columns — versioned reviews.
+        try {
+            jdbcTemplate.execute(
+                    "ALTER TABLE project_submissions ADD COLUMN IF NOT EXISTS version "
+                            + "INTEGER NOT NULL DEFAULT 1");
+            jdbcTemplate.execute(
+                    "ALTER TABLE project_submissions ADD COLUMN IF NOT EXISTS trainer_decision "
+                            + "VARCHAR(20)");
+            jdbcTemplate.execute(
+                    "ALTER TABLE project_submissions ADD COLUMN IF NOT EXISTS trainer_feedback TEXT");
+            jdbcTemplate.execute(
+                    "ALTER TABLE project_submissions ADD COLUMN IF NOT EXISTS reviewed_at TIMESTAMP");
+            jdbcTemplate.execute(
+                    "ALTER TABLE project_submissions ADD COLUMN IF NOT EXISTS reviewed_by_id UUID");
+            log.info("Ensured project_submissions Phase 5 columns exist.");
+        } catch (Exception e) {
+            log.warn("project_submissions Phase 5 columns add failed (non-fatal): {}", e.getMessage(), e);
+        }
+
         // interviews doc-spec fields. zoom_start_url is HOST-ONLY — never
         // returned to applicants (enforced in the DTO mapper).
         try {
