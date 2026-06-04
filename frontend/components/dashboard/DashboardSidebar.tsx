@@ -4,6 +4,8 @@ import { useMemo } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
+  AlertTriangle,
+  BarChart3,
   Briefcase,
   ClipboardList,
   FileSignature,
@@ -12,12 +14,17 @@ import {
   Hammer,
   HelpCircle,
   Home,
+  Inbox,
   LayoutDashboard,
   ListChecks,
   Lock,
   LogOut,
   MessagesSquare,
+  Settings,
+  ShieldCheck,
   Star,
+  UserPlus,
+  Users,
   Video,
   type LucideIcon,
 } from 'lucide-react';
@@ -66,9 +73,22 @@ const STAFF_ROLE_LINKS: Record<UserRole, StaffLink[]> = {
   MANAGER: [
     { icon: LayoutDashboard, label: 'Manager Dashboard', href: '/careers/manager' },
   ],
+  // ERM Control Dashboard doc — 14 items in exact order.
   ERM: [
-    { icon: LayoutDashboard, label: 'ERM Dashboard', href: '/careers/erm' },
-    { icon: LogOut,          label: 'Exits',         href: '/careers/erm/exits' },
+    { icon: Home,           label: 'Home',                 href: '/careers/erm' },
+    { icon: Inbox,          label: 'Application Inbox',    href: '/careers/erm/applications' },
+    { icon: ListChecks,     label: 'Shortlist Queue',      href: '/careers/erm/shortlist' },
+    { icon: Video,          label: 'Interviews',           href: '/careers/erm/interviews' },
+    { icon: FileSignature,  label: 'Offers / DocuSign',    href: '/careers/erm/offers' },
+    { icon: UserPlus,       label: 'New Hire List',        href: '/careers/erm/new-hire' },
+    { icon: ClipboardList,  label: 'Onboarding Documents', href: '/careers/erm/onboarding' },
+    { icon: ShieldCheck,    label: 'I-9 / E-Verify Tracker', href: '/careers/erm/compliance' },
+    { icon: Users,          label: 'Active Interns',       href: '/careers/erm/active-interns' },
+    { icon: Hammer,         label: 'Timesheets',           href: '/careers/erm/timesheets' },
+    { icon: AlertTriangle,  label: 'Escalations',          href: '/careers/erm/escalations' },
+    { icon: LogOut,         label: 'Exit / Inactivate',    href: '/careers/erm/exits' },
+    { icon: BarChart3,      label: 'Reports',              href: '/careers/erm/reports' },
+    { icon: Settings,       label: 'Settings',             href: '/careers/erm/settings' },
   ],
   SUPER_ADMIN: [
     { icon: LayoutDashboard, label: 'Super Admin Dashboard', href: '/careers/admin' },

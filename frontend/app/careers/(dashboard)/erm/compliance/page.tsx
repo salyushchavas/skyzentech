@@ -416,7 +416,7 @@ function RecentActivityCard({
           </ul>
           <div className="mt-4 border-t border-gray-100 pt-3 text-center">
             <Link
-              href="/careers/erm/documents"
+              href="/careers/erm/escalations"
               className="text-xs font-medium text-accent hover:text-accent-dark"
             >
               View all activity →

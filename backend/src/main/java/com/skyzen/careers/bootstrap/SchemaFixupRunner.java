@@ -1291,6 +1291,45 @@ public class SchemaFixupRunner implements CommandLineRunner {
         // ensures the columns + indexes match the entity contract on every
         // boot path (including environments that disable ddl-auto).
         ensureExitTables();
+
+        // ERM Phase 0 — communication_templates. Same idempotent guarantee
+        // as the exit tables above; ddl-auto would also create this, but the
+        // explicit CREATE keeps the contract visible in source.
+        ensureCommunicationTemplatesTable();
+    }
+
+    /**
+     * ERM Phase 0 — ERM-editable message template storage.
+     * UNIQUE on (template_key, channel) so the service can resolve at render
+     * time without scanning. Channel discriminates EMAIL vs IN_APP without
+     * a schema change later.
+     */
+    private void ensureCommunicationTemplatesTable() {
+        try {
+            jdbcTemplate.execute(
+                    "CREATE TABLE IF NOT EXISTS communication_templates ("
+                            + "  id UUID PRIMARY KEY,"
+                            + "  template_key VARCHAR(80) NOT NULL,"
+                            + "  channel VARCHAR(20) NOT NULL,"
+                            + "  subject_template TEXT,"
+                            + "  body_template TEXT NOT NULL,"
+                            + "  variables_csv VARCHAR(500),"
+                            + "  active BOOLEAN NOT NULL DEFAULT TRUE,"
+                            + "  updated_by_id UUID,"
+                            + "  created_at TIMESTAMP NOT NULL DEFAULT NOW(),"
+                            + "  updated_at TIMESTAMP NOT NULL DEFAULT NOW()"
+                            + ")");
+            jdbcTemplate.execute(
+                    "CREATE UNIQUE INDEX IF NOT EXISTS uk_communication_templates_key_channel "
+                            + "ON communication_templates(template_key, channel)");
+            jdbcTemplate.execute(
+                    "CREATE INDEX IF NOT EXISTS idx_communication_templates_active "
+                            + "ON communication_templates(active)");
+            log.info("[SchemaFixupRunner] ensured communication_templates table + indexes");
+        } catch (Exception e) {
+            log.warn("[SchemaFixupRunner] communication_templates ensure failed (non-fatal): {}",
+                    e.getMessage(), e);
+        }
     }
 
     /**

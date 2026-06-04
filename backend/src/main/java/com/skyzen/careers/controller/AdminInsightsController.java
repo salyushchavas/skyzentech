@@ -28,11 +28,11 @@ import java.util.List;
  *
  * <h2>Role gates</h2>
  * <ul>
- *   <li>{@code overview} — SUPER_ADMIN or EXECUTIVE (leadership oversight).</li>
+ *   <li>{@code overview} — SUPER_ADMIN or MANAGER (leadership oversight).</li>
  *   <li>Audit-log endpoints (paged read, actions list, entity-types list,
- *       CSV export) — SUPER_ADMIN ONLY. EXECUTIVE and HR are
- *       intentionally denied the full log; HR keeps its compliance-scoped
- *       feed via {@code /api/v1/hr/dashboard}.</li>
+ *       CSV export) — SUPER_ADMIN ONLY. MANAGER and ERM are intentionally
+ *       denied the full log; ERM's compliance feed lives on its own
+ *       dashboard.</li>
  * </ul>
  *
  * No PageImpl on the wire — see {@link PagedAuditLogResponse}.
