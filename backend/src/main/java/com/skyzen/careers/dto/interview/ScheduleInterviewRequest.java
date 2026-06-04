@@ -39,4 +39,10 @@ public class ScheduleInterviewRequest {
     private String meetingUrl;
 
     private String candidateNotes;
+
+    /** Phase 2 — IANA timezone string for the Zoom invite (default UTC). */
+    private String timezone;
+
+    /** Phase 2 — applicant-facing prep instructions rendered on the hero card. */
+    private String prepInstructions;
 }

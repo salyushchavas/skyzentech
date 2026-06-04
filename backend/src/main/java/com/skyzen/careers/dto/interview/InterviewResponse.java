@@ -43,4 +43,24 @@ public class InterviewResponse {
     private String feedbackSubmittedByName;
     private Instant createdAt;
     private String createdByName;
+
+    // ── Phase 2 doc-spec fields ─────────────────────────────────────────────
+    //
+    // This DTO is ERM-facing (returned by GET /api/v1/interviews + /{id} when
+    // caller is ERM/MANAGER/SUPER_ADMIN); applicants get CandidateInterviewResponse
+    // which omits zoom_start_url + internal_notes.
+
+    private String timezone;
+    private Long zoomMeetingId;
+    private String zoomJoinUrl;
+    /** HOST-ONLY — populated only when the caller is ERM/MANAGER/SUPER_ADMIN. */
+    private String zoomStartUrl;
+    private String zoomPassword;
+    /** SELECTED | HOLD | REJECTED — null until /complete is called. */
+    private String decision;
+    /** Applicant-safe outcome message. */
+    private String applicantVisibleNotes;
+    /** ERM/manager-only notes — populated only for staff callers. */
+    private String internalNotes;
+    private String prepInstructions;
 }

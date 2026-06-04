@@ -229,6 +229,10 @@ export interface ApplicationResponse {
   recruiterNotes?: string;
   /** Recruiter's 1-5 rating from the review screen (nullable). */
   recruiterRating?: number;
+  /** Phase 2 — applicant-typed motivation captured at apply time. */
+  statementOfInterest?: string;
+  /** Phase 2 — applicant-safe outcome message; populated by ERM. */
+  applicantVisibleFeedback?: string;
 }
 
 export interface RecruiterDecisionRequest {
@@ -330,15 +334,28 @@ export interface InterviewSummaryResponse {
   hasFeedback: boolean;
 }
 
+export type InterviewDecision = 'SELECTED' | 'HOLD' | 'REJECTED';
+
 export interface CandidateInterviewResponse {
   id: Uuid;
+  applicationId?: Uuid;
+  jobPostingTitle?: string;
   scheduledAt: IsoDateTime;
   durationMinutes: number;
+  timezone?: string;
   type: InterviewType;
   status: InterviewStatus;
+  /** Applicant-safe meeting URL (zoom_join_url or legacy meeting_url). */
   meetingUrl?: string;
+  zoomJoinUrl?: string;
+  zoomPassword?: string;
   candidateNotes?: string;
+  prepInstructions?: string;
   interviewerName?: string;
+  /** SELECTED | HOLD | REJECTED — null until ERM completes the interview. */
+  decision?: InterviewDecision;
+  /** Applicant-safe outcome message. */
+  applicantVisibleNotes?: string;
 }
 
 export interface ScheduleInterviewRequest {

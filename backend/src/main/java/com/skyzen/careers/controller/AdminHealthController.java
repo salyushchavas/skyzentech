@@ -1,6 +1,7 @@
 package com.skyzen.careers.controller;
 
 import com.skyzen.careers.github.GitHubService;
+import com.skyzen.careers.integration.zoom.ZoomService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -32,6 +33,7 @@ import java.util.Map;
 public class AdminHealthController {
 
     private final GitHubService gitHubService;
+    private final ZoomService zoomService;
 
     @GetMapping("/github")
     @PreAuthorize("hasRole('SUPER_ADMIN')")
@@ -48,6 +50,32 @@ public class AdminHealthController {
                 : Instant.ofEpochSecond(snap.rateLimitResetAtEpochSeconds()).toString());
         if (snap.error() != null) {
             body.put("error", snap.error());
+        }
+        return body;
+    }
+
+    /**
+     * Live Zoom probe — calls {@code GET /users/me} with the configured
+     * Server-to-Server OAuth credentials. {@code authenticated=true} means
+     * the token works AND the host email is resolvable.
+     */
+    @GetMapping("/zoom")
+    @PreAuthorize("hasRole('SUPER_ADMIN')")
+    public Map<String, Object> zoom() {
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("enabled", zoomService.isReady());
+        if (!zoomService.isReady()) {
+            body.put("authenticated", false);
+            body.put("error", "Zoom integration disabled or credentials missing");
+            return body;
+        }
+        try {
+            String host = zoomService.probeUsersMe();
+            body.put("authenticated", host != null);
+            body.put("host", host);
+        } catch (Exception e) {
+            body.put("authenticated", false);
+            body.put("error", e.getMessage());
         }
         return body;
     }

@@ -70,13 +70,35 @@ public class InterviewController {
         return interviewService.listForCandidate(user);
     }
 
+    /** Phase 2 — doc-spec alias for {@code /me}. */
+    @GetMapping("/mine")
+    @PreAuthorize("hasRole('INTERN')")
+    public List<CandidateInterviewResponse> listMineAlias(@AuthenticationPrincipal User user) {
+        return interviewService.listForCandidate(user);
+    }
+
+    /**
+     * Field-level RBAC: when an INTERN owns this interview, return the
+     * applicant-safe DTO (no zoomStartUrl, no internalNotes). Staff callers
+     * (ERM / TRAINER / MANAGER / SUPER_ADMIN) get the full
+     * {@link InterviewResponse}. The controller exposes both shapes via
+     * polymorphic {@code Object} so the same path works for both audiences.
+     */
     @GetMapping("/{id}")
-    @PreAuthorize("hasAnyRole('INTERN', 'ERM', 'TRAINER')")
-    public InterviewResponse getOne(@PathVariable UUID id,
-                                    @AuthenticationPrincipal User user) {
-        // Service-side check enforces candidate ownership / interviewer / staff
-        // privilege; the controller guard keeps unauthenticated calls out.
-        return interviewService.getDetail(id, user);
+    @PreAuthorize("hasAnyRole('INTERN', 'ERM', 'TRAINER', 'MANAGER', 'SUPER_ADMIN')")
+    public Object getOne(@PathVariable UUID id,
+                         @AuthenticationPrincipal User user) {
+        boolean staff = user != null && (
+                user.getRoles().contains(com.skyzen.careers.enums.UserRole.ERM)
+                || user.getRoles().contains(com.skyzen.careers.enums.UserRole.TRAINER)
+                || user.getRoles().contains(com.skyzen.careers.enums.UserRole.MANAGER)
+                || user.getRoles().contains(com.skyzen.careers.enums.UserRole.SUPER_ADMIN));
+        if (staff) {
+            return interviewService.getDetail(id, user);
+        }
+        // Intern path: applicant-safe view — service still does the ownership
+        // check so a non-owner intern gets 403.
+        return interviewService.getDetailForCandidate(id, user);
     }
 
     @PatchMapping("/{id}")
@@ -124,5 +146,38 @@ public class InterviewController {
                                        @AuthenticationPrincipal User user) {
         interviewService.delete(id, user);
         return ResponseEntity.noContent().build();
+    }
+
+    // ── Phase 2 doc-spec commands ───────────────────────────────────────────
+
+    /** Reschedule a SCHEDULED interview. Updates the Zoom meeting in place. */
+    @PostMapping("/{id}/reschedule")
+    @PreAuthorize("hasAnyRole('ERM', 'SUPER_ADMIN')")
+    public InterviewResponse reschedule(
+            @PathVariable UUID id,
+            @Valid @RequestBody com.skyzen.careers.dto.interview.RescheduleInterviewRequest req,
+            @AuthenticationPrincipal User user) {
+        return interviewService.reschedule(id, req, user);
+    }
+
+    /**
+     * Complete an interview with a doc-spec decision + applicant-safe note.
+     * Advances the application + applicant lifecycle in the same transaction.
+     */
+    @PostMapping("/{id}/complete")
+    @PreAuthorize("hasAnyRole('ERM', 'SUPER_ADMIN')")
+    public InterviewResponse complete(
+            @PathVariable UUID id,
+            @Valid @RequestBody com.skyzen.careers.dto.interview.CompleteInterviewRequest req,
+            @AuthenticationPrincipal User user) {
+        return interviewService.complete(id, req, user);
+    }
+
+    /** Cancel a SCHEDULED interview. Deletes the Zoom meeting best-effort. */
+    @PostMapping("/{id}/cancel")
+    @PreAuthorize("hasAnyRole('ERM', 'SUPER_ADMIN')")
+    public InterviewResponse cancel(@PathVariable UUID id,
+                                    @AuthenticationPrincipal User user) {
+        return interviewService.cancel(id, user);
     }
 }

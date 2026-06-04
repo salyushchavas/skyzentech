@@ -51,6 +51,27 @@ public class ApplicationController {
     }
 
     /**
+     * Phase 2 — doc-spec alias for {@code /me}. Both endpoints stay live so
+     * legacy callers continue to work; new intern frontend uses {@code /mine}.
+     */
+    @GetMapping("/mine")
+    @PreAuthorize("hasRole('INTERN')")
+    public List<ApplicationResponse> listMineAlias(@AuthenticationPrincipal User user) {
+        return applicationService.listForCandidate(user);
+    }
+
+    /**
+     * Phase 2 — applicant-initiated withdrawal. Allowed only at APPLIED or
+     * SHORTLISTED; ApplicationService enforces ownership + stage guard.
+     */
+    @PatchMapping("/{id}/withdraw")
+    @PreAuthorize("hasRole('INTERN')")
+    public ApplicationResponse withdraw(@PathVariable UUID id,
+                                        @AuthenticationPrincipal User caller) {
+        return applicationService.withdraw(id, caller);
+    }
+
+    /**
      * Richer per-application journey for the candidate's My Applications page.
      * Same source-of-truth as {@code /me}, plus interview/offer/audit-derived
      * stage dates and an action-needed CTA when something is pending.

@@ -123,6 +123,14 @@ public class User {
     private String githubUsername;
 
     /**
+     * Zoom email for ERM members who host interviews. Used as the host
+     * user id when ZoomService creates a meeting. Null for non-ERM users
+     * and for ERM members who haven't been provisioned in Zoom yet.
+     */
+    @Column(name = "zoom_email", length = 100)
+    private String zoomEmail;
+
+    /**
      * Email notification opt-outs. Both default TRUE (opt-in) — transactional
      * emails ignore these flags entirely (per CAN-SPAM + sensibility). Set to
      * FALSE in the user's preferences page to silence reminders / engagement

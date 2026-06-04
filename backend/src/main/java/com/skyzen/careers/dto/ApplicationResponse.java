@@ -25,4 +25,10 @@ public class ApplicationResponse {
     private String recruiterNotes;
     /** 1-5 from the review screen, nullable. */
     private Integer recruiterRating;
+
+    /** Phase 2 — applicant-typed motivation captured at apply time. */
+    private String statementOfInterest;
+
+    /** Phase 2 — applicant-safe outcome message; null until ERM sets it. */
+    private String applicantVisibleFeedback;
 }

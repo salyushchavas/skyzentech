@@ -59,6 +59,23 @@ public class Application {
     @Column(name = "recruiter_rating")
     private Integer recruiterRating;
 
+    /** Phase 2: applicant-typed motivation captured at apply time. ≤ 500 chars. */
+    @Column(name = "statement_of_interest", columnDefinition = "TEXT")
+    private String statementOfInterest;
+
+    /**
+     * Phase 2: applicant-safe feedback string set by ERM at SHORTLIST/REJECT/
+     * interview-complete. Surfaced verbatim on the applicant's My Applications
+     * detail page when stage is INTERVIEW_COMPLETED. Internal notes live on
+     * {@code recruiter_notes} / {@code interviews.internal_notes} — never here.
+     */
+    @Column(name = "applicant_visible_feedback", columnDefinition = "TEXT")
+    private String applicantVisibleFeedback;
+
+    /** ERM owner who shortlisted or last touched the application. Nullable. */
+    @Column(name = "erm_owner_id")
+    private UUID ermOwnerId;
+
     @PrePersist
     void onCreate() {
         Instant now = Instant.now();

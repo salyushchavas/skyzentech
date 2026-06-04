@@ -673,6 +673,64 @@ public class SchemaFixupRunner implements CommandLineRunner {
         } catch (Exception e) {
             log.debug("applications.operations_owner_id rename skipped: {}", e.getMessage());
         }
+
+        // ── Phase 2 (pre-offer modules + Zoom) ─────────────────────────────
+        //
+        // Additive columns only — idempotent ADD COLUMN IF NOT EXISTS.
+
+        // users.zoom_email — ERM members who host Zoom interviews. The Zoom
+        // user id used as host when creating a meeting; falls back to "me"
+        // (the service-account host) when null.
+        try {
+            jdbcTemplate.execute(
+                    "ALTER TABLE users ADD COLUMN IF NOT EXISTS zoom_email VARCHAR(100)");
+            log.info("Ensured users.zoom_email column exists.");
+        } catch (Exception e) {
+            log.warn("users.zoom_email add failed (non-fatal): {}", e.getMessage(), e);
+        }
+
+        // applications doc-spec fields added in Phase 2.
+        try {
+            jdbcTemplate.execute(
+                    "ALTER TABLE applications ADD COLUMN IF NOT EXISTS statement_of_interest TEXT");
+            jdbcTemplate.execute(
+                    "ALTER TABLE applications ADD COLUMN IF NOT EXISTS applicant_visible_feedback TEXT");
+            jdbcTemplate.execute(
+                    "ALTER TABLE applications ADD COLUMN IF NOT EXISTS erm_owner_id UUID");
+            log.info("Ensured applications statement_of_interest + applicant_visible_feedback + erm_owner_id columns exist.");
+        } catch (Exception e) {
+            log.warn("applications Phase 2 columns add failed (non-fatal): {}", e.getMessage(), e);
+        }
+
+        // interviews doc-spec fields. zoom_start_url is HOST-ONLY — never
+        // returned to applicants (enforced in the DTO mapper).
+        try {
+            jdbcTemplate.execute(
+                    "ALTER TABLE interviews ADD COLUMN IF NOT EXISTS timezone VARCHAR(50) "
+                            + "NOT NULL DEFAULT 'UTC'");
+            jdbcTemplate.execute(
+                    "ALTER TABLE interviews ADD COLUMN IF NOT EXISTS zoom_join_url TEXT");
+            jdbcTemplate.execute(
+                    "ALTER TABLE interviews ADD COLUMN IF NOT EXISTS zoom_start_url TEXT");
+            jdbcTemplate.execute(
+                    "ALTER TABLE interviews ADD COLUMN IF NOT EXISTS zoom_password VARCHAR(40)");
+            jdbcTemplate.execute(
+                    "ALTER TABLE interviews ADD COLUMN IF NOT EXISTS decision VARCHAR(20)");
+            jdbcTemplate.execute(
+                    "ALTER TABLE interviews ADD COLUMN IF NOT EXISTS internal_notes TEXT");
+            jdbcTemplate.execute(
+                    "ALTER TABLE interviews ADD COLUMN IF NOT EXISTS prep_instructions TEXT");
+            // zoom_meeting_id added in Phase 0 — kept here defensively.
+            jdbcTemplate.execute(
+                    "ALTER TABLE interviews ADD COLUMN IF NOT EXISTS zoom_meeting_id BIGINT");
+            // applicant_visible_notes added in Phase 0 — defensive.
+            jdbcTemplate.execute(
+                    "ALTER TABLE interviews ADD COLUMN IF NOT EXISTS applicant_visible_notes TEXT");
+            log.info("Ensured interviews Phase 2 columns exist "
+                    + "(timezone, zoom_*, decision, internal_notes, prep_instructions).");
+        } catch (Exception e) {
+            log.warn("interviews Phase 2 columns add failed (non-fatal): {}", e.getMessage(), e);
+        }
     }
 
     /**

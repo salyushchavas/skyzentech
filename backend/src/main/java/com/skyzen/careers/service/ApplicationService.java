@@ -62,6 +62,7 @@ public class ApplicationService {
     private final ObjectMapper objectMapper;
     private final NotificationStub notificationStub;
     private final NotificationService notificationService;
+    private final com.skyzen.careers.intern.InternLifecycleService internLifecycleService;
 
     @Transactional
     public ApplicationResponse apply(User user, ApplicationCreateRequest req) {
@@ -102,8 +103,16 @@ public class ApplicationService {
                 .jobPosting(posting)
                 .resume(resume)
                 .status(ApplicationStatus.APPLIED)
+                .statementOfInterest(trimToNull(req.getStatementOfInterest()))
                 .build();
         application = applicationRepository.save(application);
+
+        // Phase 2: advance the applicant's lifecycle to APPLICATION_SUBMITTED
+        // inside the same transaction. Monotonic — additional applications
+        // from the same user are no-ops here (already past EMAIL_VERIFIED).
+        internLifecycleService.advance(user,
+                com.skyzen.careers.enums.InternLifecycleStatus.APPLICATION_SUBMITTED,
+                user.getId());
 
         // Batch-1 notification — applicant receives a confirmation. Best-effort:
         // a send failure must NOT block submission.
@@ -114,6 +123,12 @@ public class ApplicationService {
                     application.getId(), e.getMessage());
         }
         return toResponse(application);
+    }
+
+    private static String trimToNull(String s) {
+        if (s == null) return null;
+        String t = s.trim();
+        return t.isEmpty() ? null : t;
     }
 
     @Transactional(readOnly = true)
@@ -241,6 +256,24 @@ public class ApplicationService {
             }
         } catch (Exception e) {
             log.warn("Lifecycle notify failed (non-fatal) for {} -> {} on {}: {}",
+                    from, target, saved.getId(), e.getMessage());
+        }
+
+        // Phase 2: advance the APPLICANT's lifecycle status atomically with
+        // the stage change. Monotonic — past INTERVIEW_COMPLETED won't regress
+        // when ERM shortlists another application by the same user.
+        try {
+            com.skyzen.careers.entity.User applicantUser =
+                    saved.getCandidate() != null ? saved.getCandidate().getUser() : null;
+            if (applicantUser != null) {
+                if (target == ApplicationStatus.SHORTLISTED) {
+                    internLifecycleService.advance(applicantUser,
+                            com.skyzen.careers.enums.InternLifecycleStatus.SHORTLISTED,
+                            actorId);
+                }
+            }
+        } catch (Exception e) {
+            log.warn("Lifecycle advance failed (non-fatal) for {} -> {} on {}: {}",
                     from, target, saved.getId(), e.getMessage());
         }
         return saved;
@@ -412,9 +445,44 @@ public class ApplicationService {
             // duplicate state. The wire DTO names match the spec; the storage name doesn't.
             app.setRecruiterNotes(decision.getNote());
         }
+        if (decision.getApplicantVisibleFeedback() != null
+                && !decision.getApplicantVisibleFeedback().isBlank()) {
+            app.setApplicantVisibleFeedback(decision.getApplicantVisibleFeedback().trim());
+        }
         if (caller != null) {
             app.setStatusUpdatedBy(caller.getId());
+            // ERM ownership stamps when the actor is staff and the field is unset.
+            if (app.getErmOwnerId() == null) {
+                app.setErmOwnerId(caller.getId());
+            }
         }
+    }
+
+    /**
+     * Phase 2 — applicant-initiated withdrawal. Allowed only at APPLIED or
+     * SHORTLISTED stages; ERM-initiated rejection / past-INTERVIEW states
+     * are out of bounds. Idempotent: a re-call on a WITHDRAWN row is a no-op.
+     */
+    @Transactional
+    public ApplicationResponse withdraw(UUID id, User caller) {
+        Application application = applicationRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Application not found: " + id));
+        // Owner check
+        if (caller == null
+                || application.getCandidate() == null
+                || application.getCandidate().getUser() == null
+                || !caller.getId().equals(application.getCandidate().getUser().getId())) {
+            throw new ForbiddenException("Only the applicant may withdraw their application");
+        }
+        if (application.getStatus() == ApplicationStatus.WITHDRAWN) {
+            return toResponse(application);
+        }
+        if (application.getStatus() != ApplicationStatus.APPLIED
+                && application.getStatus() != ApplicationStatus.SHORTLISTED) {
+            throw new ConflictException("Application can only be withdrawn at APPLIED or SHORTLISTED");
+        }
+        transitionTo(application, ApplicationStatus.WITHDRAWN, "WITHDRAW", caller);
+        return toResponse(application);
     }
 
     private void writeStatusAudit(UUID applicationId, String action, UUID userId,
@@ -479,6 +547,8 @@ public class ApplicationService {
                 .statusUpdatedAt(a.getStatusUpdatedAt())
                 .recruiterNotes(a.getRecruiterNotes())
                 .recruiterRating(a.getRecruiterRating())
+                .statementOfInterest(a.getStatementOfInterest())
+                .applicantVisibleFeedback(a.getApplicantVisibleFeedback())
                 .build();
     }
 }

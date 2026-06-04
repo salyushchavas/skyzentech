@@ -1,6 +1,7 @@
 package com.skyzen.careers.dto;
 
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Size;
 import lombok.Getter;
 import lombok.Setter;
 
@@ -15,4 +16,8 @@ public class ApplicationCreateRequest {
 
     @NotNull(message = "resumeId is required")
     private UUID resumeId;
+
+    /** Phase 2 — optional motivation typed in the apply modal. ≤ 500 chars. */
+    @Size(max = 500, message = "statementOfInterest must be ≤ 500 characters")
+    private String statementOfInterest;
 }

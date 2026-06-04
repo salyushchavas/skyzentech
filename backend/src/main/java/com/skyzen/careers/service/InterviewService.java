@@ -60,6 +60,8 @@ public class InterviewService {
     private final ApplicationService applicationService;
     private final NotificationService notificationService;
     private final ApplicationEventPublisher eventPublisher;
+    private final com.skyzen.careers.integration.zoom.ZoomService zoomService;
+    private final com.skyzen.careers.intern.InternLifecycleService internLifecycleService;
 
     // ── Commands ────────────────────────────────────────────────────────────
 
@@ -94,6 +96,55 @@ public class InterviewService {
                 .candidateNotes(req.getCandidateNotes())
                 .createdBy(scheduler.getId())
                 .build();
+
+        // Phase 2 doc-spec fields (timezone, prep, applicant-safe outcome).
+        if (req.getTimezone() != null && !req.getTimezone().isBlank()) {
+            interview.setTimezone(req.getTimezone());
+        }
+        if (req.getPrepInstructions() != null && !req.getPrepInstructions().isBlank()) {
+            interview.setPrepInstructions(req.getPrepInstructions());
+        }
+
+        // Phase 2 — real Zoom meeting create. Best-effort: if Zoom fails (or
+        // the integration is disabled) the interview persists without Zoom
+        // fields and the caller can populate them manually. The HTTP response
+        // header X-Zoom-Status=degraded is set by the controller in that case.
+        if (zoomService.isReady()) {
+            try {
+                String hostId = interviewer.getZoomEmail() != null
+                        && !interviewer.getZoomEmail().isBlank()
+                        ? interviewer.getZoomEmail()
+                        : "me";
+                String topic = "Skyzen interview — "
+                        + (application.getJobPosting() != null
+                                ? application.getJobPosting().getTitle() : "Application");
+                com.skyzen.careers.integration.zoom.ZoomMeetingResponse meeting =
+                        zoomService.createMeeting(
+                                new com.skyzen.careers.integration.zoom.ZoomMeetingRequest(
+                                        hostId,
+                                        topic,
+                                        req.getScheduledAt(),
+                                        interview.getDurationMinutes(),
+                                        interview.getTimezone(),
+                                        req.getPrepInstructions()));
+                interview.setZoomMeetingId(meeting.meetingId());
+                interview.setZoomJoinUrl(meeting.joinUrl());
+                interview.setZoomStartUrl(meeting.startUrl());
+                interview.setZoomPassword(meeting.password());
+                // Keep the legacy meeting_url in sync — frontend hero card
+                // falls back to it when zoom_join_url isn't populated.
+                if (interview.getMeetingUrl() == null || interview.getMeetingUrl().isBlank()) {
+                    interview.setMeetingUrl(meeting.joinUrl());
+                }
+                log.info("[Zoom] meeting created id={} for interview application={}",
+                        meeting.meetingId(), application.getId());
+            } catch (Exception e) {
+                log.warn("[Zoom] createMeeting failed for application={} — interview "
+                        + "persists without Zoom fields: {}",
+                        application.getId(), e.getMessage());
+            }
+        }
+
         interview = interviewRepository.save(interview);
 
         if (application.getStatus() == ApplicationStatus.SHORTLISTED) {
@@ -101,6 +152,21 @@ public class InterviewService {
             // transitionTo writes the single STATUS_CHANGE audit row.
             applicationService.transitionTo(application, ApplicationStatus.INTERVIEW_SCHEDULED,
                     "STATUS_CHANGE", scheduler);
+        }
+
+        // Phase 2 — advance the applicant's lifecycle to INTERVIEW_SCHEDULED
+        // atomically. Monotonic; subsequent reschedules are no-ops.
+        try {
+            User applicantUser = application.getCandidate() != null
+                    ? application.getCandidate().getUser() : null;
+            if (applicantUser != null) {
+                internLifecycleService.advance(applicantUser,
+                        com.skyzen.careers.enums.InternLifecycleStatus.INTERVIEW_SCHEDULED,
+                        scheduler != null ? scheduler.getId() : null);
+            }
+        } catch (Exception e) {
+            log.warn("Lifecycle advance failed (non-fatal) on schedule for app {}: {}",
+                    application.getId(), e.getMessage());
         }
 
         writeAudit("Interview", interview.getId(), "SCHEDULE", scheduler.getId(),
@@ -115,6 +181,190 @@ public class InterviewService {
                     interview.getId(), e.getMessage());
         }
         return toResponse(interview);
+    }
+
+    // ── Phase 2 doc-spec commands ───────────────────────────────────────────
+
+    /**
+     * Phase 2 — ERM marks an interview complete with a doc-spec decision and
+     * an applicant-safe message. Atomically:
+     *   1. status=COMPLETED, decision, applicant_visible_notes, internal_notes
+     *   2. application stage advances to INTERVIEWED (Phase 0/1 mapping)
+     *   3. application.applicant_visible_feedback mirrors the message so the
+     *      detail page shows the same copy without an extra fetch
+     *   4. applicant's lifecycle status advances to INTERVIEW_COMPLETED
+     *   5. InterviewCompletedEvent published for the existing notification chain
+     */
+    @Transactional
+    public InterviewResponse complete(UUID interviewId,
+                                      com.skyzen.careers.dto.interview.CompleteInterviewRequest req,
+                                      User actor) {
+        Interview interview = interviewRepository.findById(interviewId)
+                .orElseThrow(() -> new ResourceNotFoundException("Interview not found: " + interviewId));
+
+        if (interview.getStatus() != InterviewStatus.SCHEDULED) {
+            throw new BadRequestException(
+                    "Cannot complete interview in status " + interview.getStatus());
+        }
+        if (req == null || req.getDecision() == null) {
+            throw new BadRequestException("decision is required (SELECTED | HOLD | REJECTED)");
+        }
+        if (req.getApplicantVisibleNotes() == null
+                || req.getApplicantVisibleNotes().trim().length() < 20) {
+            throw new BadRequestException("applicantVisibleNotes must be at least 20 characters");
+        }
+
+        Map<String, Object> before = snapshot(interview);
+        interview.setStatus(InterviewStatus.COMPLETED);
+        interview.setDecision(req.getDecision().name());
+        interview.setApplicantVisibleNotes(req.getApplicantVisibleNotes().trim());
+        if (req.getInternalNotes() != null && !req.getInternalNotes().isBlank()) {
+            interview.setInternalNotes(req.getInternalNotes().trim());
+        }
+        Interview saved = interviewRepository.save(interview);
+
+        Application application = saved.getApplication();
+        if (application != null) {
+            application.setApplicantVisibleFeedback(saved.getApplicantVisibleNotes());
+            if (application.getStatus() == ApplicationStatus.INTERVIEW_SCHEDULED
+                    || application.getStatus() == ApplicationStatus.SHORTLISTED) {
+                applicationService.transitionTo(application, ApplicationStatus.INTERVIEWED,
+                        "STATUS_CHANGE", actor);
+            } else {
+                applicationRepository.save(application);
+            }
+            try {
+                User applicantUser = application.getCandidate() != null
+                        ? application.getCandidate().getUser() : null;
+                if (applicantUser != null) {
+                    internLifecycleService.advance(applicantUser,
+                            com.skyzen.careers.enums.InternLifecycleStatus.INTERVIEW_COMPLETED,
+                            actor != null ? actor.getId() : null);
+                }
+            } catch (Exception e) {
+                log.warn("Lifecycle advance failed (non-fatal) on complete for interview {}: {}",
+                        saved.getId(), e.getMessage());
+            }
+        }
+
+        writeAudit("Interview", saved.getId(), "COMPLETE",
+                actor != null ? actor.getId() : null, before, snapshot(saved));
+
+        try {
+            Candidate cand = application != null ? application.getCandidate() : null;
+            User candidateUser = cand != null ? cand.getUser() : null;
+            // Map doc-spec decision (SELECTED|HOLD|REJECTED) onto the existing
+            // InterviewRecommendation enum the event already carries.
+            // HOLD has no first-class recommendation enum value; pass null so
+            // downstream listeners can decide how to fan out.
+            com.skyzen.careers.enums.InterviewRecommendation rec =
+                    switch (req.getDecision()) {
+                        case SELECTED -> com.skyzen.careers.enums.InterviewRecommendation.HIRE;
+                        case HOLD     -> null;
+                        case REJECTED -> com.skyzen.careers.enums.InterviewRecommendation.NO_HIRE;
+                    };
+            eventPublisher.publishEvent(new InterviewCompletedEvent(
+                    saved.getId(),
+                    application != null ? application.getId() : null,
+                    candidateUser != null ? candidateUser.getId() : null,
+                    candidateUser != null ? candidateUser.getEmail() : null,
+                    rec,
+                    Instant.now(),
+                    actor != null ? actor.getId() : null));
+        } catch (Exception e) {
+            log.warn("InterviewCompletedEvent publish failed (non-fatal) for {}: {}",
+                    saved.getId(), e.getMessage());
+        }
+        return toResponse(saved);
+    }
+
+    /**
+     * Phase 2 — ERM cancels a SCHEDULED interview. Deletes the Zoom meeting
+     * best-effort and writes a CANCEL audit row. Lifecycle status is NOT
+     * regressed — once an applicant has been interview-scheduled, that's
+     * recorded; the dashboard simply shows the cancellation.
+     */
+    @Transactional
+    public InterviewResponse cancel(UUID interviewId, User actor) {
+        Interview interview = interviewRepository.findById(interviewId)
+                .orElseThrow(() -> new ResourceNotFoundException("Interview not found: " + interviewId));
+        if (interview.getStatus() != InterviewStatus.SCHEDULED) {
+            throw new BadRequestException("Only SCHEDULED interviews can be cancelled");
+        }
+        Map<String, Object> before = snapshot(interview);
+
+        Long zoomId = interview.getZoomMeetingId();
+        if (zoomId != null && zoomService.isReady()) {
+            try {
+                zoomService.deleteMeeting(zoomId);
+            } catch (Exception e) {
+                log.warn("[Zoom] deleteMeeting failed (non-fatal) for interview {}: {}",
+                        interview.getId(), e.getMessage());
+            }
+        }
+
+        interview.setStatus(InterviewStatus.CANCELLED);
+        Interview saved = interviewRepository.save(interview);
+        writeAudit("Interview", saved.getId(), "CANCEL",
+                actor != null ? actor.getId() : null, before, snapshot(saved));
+        return toResponse(saved);
+    }
+
+    /**
+     * Phase 2 — ERM reschedules a SCHEDULED interview. New time + duration
+     * pushed to Zoom; lifecycle status untouched (already INTERVIEW_SCHEDULED).
+     */
+    @Transactional
+    public InterviewResponse reschedule(UUID interviewId,
+                                        com.skyzen.careers.dto.interview.RescheduleInterviewRequest req,
+                                        User actor) {
+        Interview interview = interviewRepository.findById(interviewId)
+                .orElseThrow(() -> new ResourceNotFoundException("Interview not found: " + interviewId));
+        if (interview.getStatus() != InterviewStatus.SCHEDULED) {
+            throw new BadRequestException("Only SCHEDULED interviews can be rescheduled");
+        }
+        if (req == null || req.getScheduledAt() == null) {
+            throw new BadRequestException("scheduledAt is required");
+        }
+        if (req.getScheduledAt().isBefore(Instant.now())) {
+            throw new BadRequestException("scheduledAt must be in the future");
+        }
+        Map<String, Object> before = snapshot(interview);
+
+        interview.setScheduledAt(req.getScheduledAt());
+        if (req.getDurationMinutes() != null) {
+            interview.setDurationMinutes(req.getDurationMinutes());
+        }
+        if (req.getTimezone() != null && !req.getTimezone().isBlank()) {
+            interview.setTimezone(req.getTimezone());
+        }
+
+        Long zoomId = interview.getZoomMeetingId();
+        if (zoomId != null && zoomService.isReady()) {
+            try {
+                String topic = "Skyzen interview — "
+                        + (interview.getApplication() != null
+                                && interview.getApplication().getJobPosting() != null
+                                ? interview.getApplication().getJobPosting().getTitle()
+                                : "Application");
+                zoomService.updateMeeting(zoomId,
+                        new com.skyzen.careers.integration.zoom.ZoomMeetingRequest(
+                                null,
+                                topic,
+                                interview.getScheduledAt(),
+                                interview.getDurationMinutes(),
+                                interview.getTimezone(),
+                                interview.getPrepInstructions()));
+            } catch (Exception e) {
+                log.warn("[Zoom] updateMeeting failed (non-fatal) for interview {}: {}",
+                        interview.getId(), e.getMessage());
+            }
+        }
+
+        Interview saved = interviewRepository.save(interview);
+        writeAudit("Interview", saved.getId(), "RESCHEDULE",
+                actor != null ? actor.getId() : null, before, snapshot(saved));
+        return toResponse(saved);
     }
 
     @Transactional
@@ -362,6 +612,25 @@ public class InterviewService {
     }
 
     /**
+     * Phase 2 — applicant-safe detail. Returns the
+     * {@link CandidateInterviewResponse} (no zoomStartUrl, no internalNotes)
+     * when the caller is the applicant the interview belongs to. Throws
+     * 403 / 404 otherwise.
+     */
+    @Transactional(readOnly = true)
+    public CandidateInterviewResponse getDetailForCandidate(UUID interviewId, User caller) {
+        Interview interview = interviewRepository.findByIdWithGraph(interviewId)
+                .orElseThrow(() -> new ResourceNotFoundException("Interview not found: " + interviewId));
+        if (caller == null) {
+            throw new ForbiddenException("Authentication required");
+        }
+        if (!belongsToCandidate(interview, caller)) {
+            throw new ForbiddenException("Not allowed to view this interview");
+        }
+        return toCandidateResponse(interview);
+    }
+
+    /**
      * Phase 2.2 — latest submitted scorecard for the application, used by the
      * recruiter review screen to surface the recommendation + scores so the
      * advance-vs-reject decision is informed. Returns {@code null} when no
@@ -487,6 +756,18 @@ public class InterviewService {
                 .feedbackSubmittedByName(lookupUserName(i.getFeedbackSubmittedBy()))
                 .createdAt(i.getCreatedAt())
                 .createdByName(lookupUserName(i.getCreatedBy()))
+                // Phase 2 doc-spec fields. ERM/MANAGER/SUPER_ADMIN-facing DTO
+                // includes zoom_start_url + internal_notes; the applicant
+                // DTO (toCandidateResponse) deliberately omits both.
+                .timezone(i.getTimezone())
+                .zoomMeetingId(i.getZoomMeetingId())
+                .zoomJoinUrl(i.getZoomJoinUrl())
+                .zoomStartUrl(i.getZoomStartUrl())
+                .zoomPassword(i.getZoomPassword())
+                .decision(i.getDecision())
+                .applicantVisibleNotes(i.getApplicantVisibleNotes())
+                .internalNotes(i.getInternalNotes())
+                .prepInstructions(i.getPrepInstructions())
                 .build();
     }
 
@@ -510,16 +791,29 @@ public class InterviewService {
     }
 
     private CandidateInterviewResponse toCandidateResponse(Interview i) {
+        Application app = i.getApplication();
+        JobPosting jp = app != null ? app.getJobPosting() : null;
         User interviewer = i.getInterviewer();
+        // Applicant-safe — by construction never includes zoomStartUrl or
+        // internalNotes. Adding host-only state here is a bug; route those
+        // through InterviewResponse instead.
         return CandidateInterviewResponse.builder()
                 .id(i.getId())
+                .applicationId(app != null ? app.getId() : null)
+                .jobPostingTitle(jp != null ? jp.getTitle() : null)
                 .scheduledAt(i.getScheduledAt())
                 .durationMinutes(i.getDurationMinutes())
+                .timezone(i.getTimezone())
                 .type(i.getType())
                 .status(i.getStatus())
-                .meetingUrl(i.getMeetingUrl())
+                .meetingUrl(i.getZoomJoinUrl() != null ? i.getZoomJoinUrl() : i.getMeetingUrl())
+                .zoomJoinUrl(i.getZoomJoinUrl())
+                .zoomPassword(i.getZoomPassword())
                 .candidateNotes(i.getCandidateNotes())
+                .prepInstructions(i.getPrepInstructions())
                 .interviewerName(interviewer != null ? interviewer.getFullName() : null)
+                .decision(i.getDecision())
+                .applicantVisibleNotes(i.getApplicantVisibleNotes())
                 .build();
     }
 
