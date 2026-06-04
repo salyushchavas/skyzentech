@@ -964,6 +964,84 @@ public class SchemaFixupRunner implements CommandLineRunner {
             log.warn("project_submissions Phase 5 columns add failed (non-fatal): {}", e.getMessage(), e);
         }
 
+        // ── Phase 6 (evaluation cycle) ─────────────────────────────────────
+
+        // intern_evaluations table — distinct from the legacy `evaluations`
+        // table (DRAFT → FINALIZED supervisor model). Phase 6's full
+        // DRAFT → SCHEDULED → IN_PROGRESS → PUBLISHED → ACKNOWLEDGED →
+        // AMENDED lifecycle lives here.
+        try {
+            jdbcTemplate.execute(
+                    "CREATE TABLE IF NOT EXISTS intern_evaluations ("
+                            + "  id UUID PRIMARY KEY,"
+                            + "  intern_lifecycle_id UUID NOT NULL,"
+                            + "  intern_id UUID NOT NULL,"
+                            + "  evaluator_id UUID NOT NULL,"
+                            + "  evaluation_type VARCHAR(30) NOT NULL,"
+                            + "  linked_project_id UUID,"
+                            + "  linked_i983_id UUID,"
+                            + "  period_start DATE,"
+                            + "  period_end DATE,"
+                            + "  scheduled_for TIMESTAMP,"
+                            + "  duration_minutes INTEGER,"
+                            + "  timezone VARCHAR(50),"
+                            + "  zoom_meeting_id BIGINT,"
+                            + "  zoom_join_url TEXT,"
+                            + "  zoom_start_url TEXT,"
+                            + "  zoom_password VARCHAR(40),"
+                            + "  status VARCHAR(20) NOT NULL DEFAULT 'DRAFT',"
+                            + "  overall_score INTEGER,"
+                            + "  technical_skills_score INTEGER,"
+                            + "  communication_score INTEGER,"
+                            + "  professionalism_score INTEGER,"
+                            + "  learning_application_score INTEGER,"
+                            + "  strengths_narrative TEXT,"
+                            + "  areas_for_improvement_narrative TEXT,"
+                            + "  improvement_plan TEXT,"
+                            + "  intern_acknowledged_at TIMESTAMP,"
+                            + "  intern_response TEXT,"
+                            + "  published_at TIMESTAMP,"
+                            + "  amended_at TIMESTAMP,"
+                            + "  amendment_reason TEXT,"
+                            + "  version INTEGER NOT NULL DEFAULT 1,"
+                            + "  internal_notes TEXT,"
+                            + "  created_at TIMESTAMP NOT NULL DEFAULT NOW(),"
+                            + "  updated_at TIMESTAMP NOT NULL DEFAULT NOW()"
+                            + ")");
+            jdbcTemplate.execute(
+                    "CREATE INDEX IF NOT EXISTS idx_intern_eval_lifecycle_type "
+                            + "ON intern_evaluations(intern_lifecycle_id, evaluation_type)");
+            jdbcTemplate.execute(
+                    "CREATE INDEX IF NOT EXISTS idx_intern_eval_intern_status "
+                            + "ON intern_evaluations(intern_id, status)");
+            jdbcTemplate.execute(
+                    "CREATE INDEX IF NOT EXISTS idx_intern_eval_evaluator_status "
+                            + "ON intern_evaluations(evaluator_id, status)");
+            log.info("Ensured intern_evaluations table + indexes exist.");
+        } catch (Exception e) {
+            log.warn("intern_evaluations table ensure failed (non-fatal): {}", e.getMessage(), e);
+        }
+
+        try {
+            jdbcTemplate.execute(
+                    "CREATE TABLE IF NOT EXISTS evaluation_amendments ("
+                            + "  id UUID PRIMARY KEY,"
+                            + "  evaluation_id UUID NOT NULL,"
+                            + "  amended_by_id UUID NOT NULL,"
+                            + "  amendment_reason TEXT NOT NULL,"
+                            + "  previous_version INTEGER NOT NULL,"
+                            + "  new_version INTEGER NOT NULL,"
+                            + "  snapshot_json TEXT NOT NULL,"
+                            + "  amended_at TIMESTAMP NOT NULL"
+                            + ")");
+            jdbcTemplate.execute(
+                    "CREATE INDEX IF NOT EXISTS idx_eval_amendments_eval_at "
+                            + "ON evaluation_amendments(evaluation_id, amended_at)");
+            log.info("Ensured evaluation_amendments table + index exist.");
+        } catch (Exception e) {
+            log.warn("evaluation_amendments table ensure failed (non-fatal): {}", e.getMessage(), e);
+        }
+
         // interviews doc-spec fields. zoom_start_url is HOST-ONLY — never
         // returned to applicants (enforced in the DTO mapper).
         try {

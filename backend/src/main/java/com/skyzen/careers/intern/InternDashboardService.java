@@ -33,6 +33,7 @@ public class InternDashboardService {
 
     private final InternLifecycleRepository internLifecycleRepository;
     private final UserRepository userRepository;
+    private final InternEvaluationService internEvaluationService;
 
     public InternDashboardResponse getDashboard(User caller) {
         InternLifecycleStatus status = caller.getLifecycleStatus() != null
@@ -40,13 +41,23 @@ public class InternDashboardService {
                 : InternLifecycleStatus.REGISTERED;
         String mode = deriveMode(status);
         boolean emailVerified = Boolean.TRUE.equals(caller.getEmailVerified());
+        // Phase 6: Step 8 "Evaluation Cycle" completes on first PUBLISHED /
+        // ACKNOWLEDGED / AMENDED evaluation for this intern.
+        boolean hasPublishedEval = false;
+        try {
+            hasPublishedEval = internEvaluationService
+                    .internHasPublishedEvaluation(caller.getId());
+        } catch (Exception e) {
+            log.warn("evaluation check failed (non-fatal) for {}: {}",
+                    caller.getId(), e.getMessage());
+        }
 
         return new InternDashboardResponse(
                 userSummary(caller),
                 status,
                 mode,
                 emailVerified,
-                buildStepper(status),
+                buildStepper(status, hasPublishedEval),
                 buildModules(mode),
                 buildNextAction(status, mode, emailVerified),
                 buildContacts(caller),
@@ -81,7 +92,7 @@ public class InternDashboardService {
             {"completed",        "Completed / Inactive"},
     };
 
-    private List<StepperStep> buildStepper(InternLifecycleStatus s) {
+    private List<StepperStep> buildStepper(InternLifecycleStatus s, boolean hasPublishedEval) {
         // For each step compute the done-predicate. Active = first not-done.
         boolean[] done = new boolean[STEPS.length];
         done[0] = true; // Step 1 — user exists by virtue of being logged in
@@ -91,9 +102,9 @@ public class InternDashboardService {
         done[4] = atLeast(s, InternLifecycleStatus.OFFER_SIGNED);
         done[5] = atLeast(s, InternLifecycleStatus.ONBOARDING_ACCEPTED);
         done[6] = atLeast(s, InternLifecycleStatus.ACTIVE_INTERN);
-        // Step 8 — Evaluation Cycle — Phase 5 wiring; for now always upcoming
-        //          unless the intern is INACTIVE (cycle implicitly finished).
-        done[7] = s == InternLifecycleStatus.INACTIVE_INTERN;
+        // Phase 6: Step 8 completes on first PUBLISHED evaluation. Also marked
+        // DONE if the intern is INACTIVE (cycle implicitly finished).
+        done[7] = hasPublishedEval || s == InternLifecycleStatus.INACTIVE_INTERN;
         done[8] = s == InternLifecycleStatus.INACTIVE_INTERN;
 
         int firstActive = -1;
