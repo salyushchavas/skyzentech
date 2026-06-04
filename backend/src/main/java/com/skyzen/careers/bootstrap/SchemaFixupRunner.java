@@ -1300,6 +1300,83 @@ public class SchemaFixupRunner implements CommandLineRunner {
         // ERM Phase 1 — KPI/exception query indexes. These keep the dashboard
         // call under 500ms p95 as the dataset grows. All IF NOT EXISTS.
         ensureErmDashboardIndexes();
+
+        // ERM Phase 2 — application inbox columns + decision log table +
+        // additional indexes for the inbox/shortlist queries.
+        ensureErmApplicationInboxSchema();
+    }
+
+    /**
+     * ERM Phase 2 — application inbox + decision-flow storage. Adds the 7
+     * new decision-context columns idempotently, creates
+     * {@code application_decision_logs}, and indexes the inbox queries.
+     */
+    private void ensureErmApplicationInboxSchema() {
+        String[] alters = {
+                "ALTER TABLE applications ADD COLUMN IF NOT EXISTS last_decision_reason_code VARCHAR(80)",
+                "ALTER TABLE applications ADD COLUMN IF NOT EXISTS last_decision_reason_text TEXT",
+                "ALTER TABLE applications ADD COLUMN IF NOT EXISTS last_decision_at TIMESTAMP",
+                "ALTER TABLE applications ADD COLUMN IF NOT EXISTS last_decision_by_id UUID",
+                "ALTER TABLE applications ADD COLUMN IF NOT EXISTS info_requested_fields_csv VARCHAR(500)",
+                "ALTER TABLE applications ADD COLUMN IF NOT EXISTS info_requested_at TIMESTAMP",
+                "ALTER TABLE applications ADD COLUMN IF NOT EXISTS internal_notes TEXT"
+        };
+        for (String sql : alters) {
+            try {
+                jdbcTemplate.execute(sql);
+            } catch (Exception e) {
+                log.warn("[SchemaFixupRunner] ERM application ALTER skipped (non-fatal): {} — {}",
+                        sql, e.getMessage());
+            }
+        }
+        // Hibernate may have created a CHECK constraint on applications.status
+        // before HOLD + INFO_REQUESTED were added to the enum. Drop the stale
+        // one so the new values persist cleanly. (SchemaFixupRunner already
+        // drops it earlier in this run, but we belt-and-brace here too.)
+        try {
+            jdbcTemplate.execute(
+                    "ALTER TABLE applications DROP CONSTRAINT IF EXISTS applications_status_check");
+        } catch (Exception e) {
+            log.debug("[SchemaFixupRunner] applications_status_check re-drop skipped: {}",
+                    e.getMessage());
+        }
+        try {
+            jdbcTemplate.execute(
+                    "CREATE TABLE IF NOT EXISTS application_decision_logs ("
+                            + "  id UUID PRIMARY KEY,"
+                            + "  application_id UUID NOT NULL,"
+                            + "  decided_by_id UUID NOT NULL,"
+                            + "  decision VARCHAR(30) NOT NULL,"
+                            + "  reason_code VARCHAR(80),"
+                            + "  reason_text TEXT,"
+                            + "  previous_stage VARCHAR(40) NOT NULL,"
+                            + "  new_stage VARCHAR(40) NOT NULL,"
+                            + "  applicant_visible_message TEXT,"
+                            + "  decided_at TIMESTAMP NOT NULL,"
+                            + "  created_at TIMESTAMP NOT NULL DEFAULT NOW()"
+                            + ")");
+            jdbcTemplate.execute(
+                    "CREATE INDEX IF NOT EXISTS idx_app_decision_logs_app_at "
+                            + "ON application_decision_logs(application_id, decided_at)");
+        } catch (Exception e) {
+            log.warn("[SchemaFixupRunner] application_decision_logs ensure failed (non-fatal): {}",
+                    e.getMessage());
+        }
+        String[] idxs = {
+                "CREATE INDEX IF NOT EXISTS idx_applications_status_created "
+                        + "ON applications (status, applied_at DESC)",
+                "CREATE INDEX IF NOT EXISTS idx_applications_erm_owner_status "
+                        + "ON applications (erm_owner_id, status)"
+        };
+        for (String sql : idxs) {
+            try {
+                jdbcTemplate.execute(sql);
+            } catch (Exception e) {
+                log.warn("[SchemaFixupRunner] ERM inbox index skipped (non-fatal): {} — {}",
+                        sql, e.getMessage());
+            }
+        }
+        log.info("[SchemaFixupRunner] ensured ERM Phase 2 application inbox schema");
     }
 
     /**

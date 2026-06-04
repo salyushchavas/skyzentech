@@ -21,6 +21,14 @@ import java.time.LocalDate;
  */
 public interface EmailProvider {
 
+    /**
+     * ERM Phase 2 — generic send seam for pre-rendered template bodies.
+     * Subject + body come from {@link com.skyzen.careers.erm.CommunicationTemplateService}
+     * after variable substitution. SMTP implementation wraps the body in the
+     * shared branded template; log implementation just records.
+     */
+    void sendRendered(String email, String subject, String body);
+
     // ── Auth flow (existing) ────────────────────────────────────────────────
 
     void sendVerificationCode(String email, String code, Instant expiresAt);

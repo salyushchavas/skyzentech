@@ -43,7 +43,10 @@ public final class ApplicationLifecycle {
     public static int stageIndexOf(ApplicationStatus s) {
         if (s == null) return 0;
         return switch (s) {
-            case APPLIED -> 0;
+            // ERM Phase 2 — HOLD and INFO_REQUESTED stay in the Applied band:
+            // the applicant hasn't yet been shortlisted, just paused or pinged
+            // for more info.
+            case APPLIED, HOLD, INFO_REQUESTED -> 0;
             // Screening is a sub-stage of Shortlisted in the 5-stage stepper —
             // the candidate has been picked out of "Applied" but not yet
             // formally shortlisted, so band=1 keeps the visual progression honest.
@@ -94,7 +97,23 @@ public final class ApplicationLifecycle {
             Map.entry(ApplicationStatus.APPLIED, EnumSet.of(
                     ApplicationStatus.SCREENING_SENT,
                     ApplicationStatus.SHORTLISTED,
+                    // ERM Phase 2 — decision-flow holding states.
+                    ApplicationStatus.HOLD,
+                    ApplicationStatus.INFO_REQUESTED,
                     // GAP A3: OFFERED removed — must go via INTERVIEWED first.
+                    ApplicationStatus.REJECTED,
+                    ApplicationStatus.WITHDRAWN)),
+            // ERM Phase 2 — HOLD legal exits: resume to APPLIED, or terminal
+            // exit. Cannot leap straight to SHORTLISTED; ERM must resume first
+            // so the row re-enters the inbox queue cleanly.
+            Map.entry(ApplicationStatus.HOLD, EnumSet.of(
+                    ApplicationStatus.APPLIED,
+                    ApplicationStatus.REJECTED,
+                    ApplicationStatus.WITHDRAWN)),
+            // ERM Phase 2 — INFO_REQUESTED legal exits: intern provides info
+            // (→ APPLIED), or terminal exit.
+            Map.entry(ApplicationStatus.INFO_REQUESTED, EnumSet.of(
+                    ApplicationStatus.APPLIED,
                     ApplicationStatus.REJECTED,
                     ApplicationStatus.WITHDRAWN)),
             // Phase 2.1 screening. SHORTLISTED is NOT reachable from

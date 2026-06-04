@@ -31,4 +31,12 @@ public class ApplicationResponse {
 
     /** Phase 2 — applicant-safe outcome message; null until ERM sets it. */
     private String applicantVisibleFeedback;
+
+    /**
+     * ERM Phase 2 — CSV of field keys (resume,workAuth,education,other) the
+     * intern must provide when stage is INFO_REQUESTED. Drives the amber
+     * banner + ProvideInfoModal on the intern detail page. NEVER carries
+     * ERM-only fields like internal_notes / last_decision_reason_text.
+     */
+    private String infoRequestedFieldsCsv;
 }

@@ -130,6 +130,9 @@ export interface Page<T> {
 
 export type ApplicationStatus =
   | 'APPLIED'
+  // ERM Phase 2 — decision-flow holding states (Applied band).
+  | 'HOLD'
+  | 'INFO_REQUESTED'
   // Phase 2.1 — lightweight web screening sits between Applied and Shortlisted.
   | 'SCREENING_SENT'
   | 'SCREENING_COMPLETED'
@@ -233,7 +236,10 @@ export interface ApplicationResponse {
   statementOfInterest?: string;
   /** Phase 2 — applicant-safe outcome message; populated by ERM. */
   applicantVisibleFeedback?: string;
+  /** ERM Phase 2 — CSV of field keys the intern must provide when stage is INFO_REQUESTED. */
+  infoRequestedFieldsCsv?: string;
 }
+
 
 export interface RecruiterDecisionRequest {
   rating?: number;

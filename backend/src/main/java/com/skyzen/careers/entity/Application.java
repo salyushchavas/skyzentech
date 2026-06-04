@@ -76,6 +76,40 @@ public class Application {
     @Column(name = "erm_owner_id")
     private UUID ermOwnerId;
 
+    // ── ERM Phase 2 — decision-flow context ────────────────────────────────
+    // Captures the most recent ERM decision (HOLD / REQUEST_INFO / REJECT /
+    // SHORTLIST) so the inbox row can render reason chips without joining
+    // application_decision_logs. Full immutable history lives on that table.
+
+    /** Most recent {@code ReasonCode} value, e.g. {@code REJECT_NO_WORK_AUTH}. */
+    @Column(name = "last_decision_reason_code", length = 80)
+    private String lastDecisionReasonCode;
+
+    /** ERM-only free text accompanying the decision. NEVER returned to INTERN/MANAGER. */
+    @Column(name = "last_decision_reason_text", columnDefinition = "TEXT")
+    private String lastDecisionReasonText;
+
+    @Column(name = "last_decision_at")
+    private Instant lastDecisionAt;
+
+    @Column(name = "last_decision_by_id")
+    private UUID lastDecisionById;
+
+    /** CSV of fields the applicant must update (resume,workAuth,education,other). */
+    @Column(name = "info_requested_fields_csv", length = 500)
+    private String infoRequestedFieldsCsv;
+
+    @Column(name = "info_requested_at")
+    private Instant infoRequestedAt;
+
+    /**
+     * Free-form ERM-only notes appended over time. Distinct from
+     * {@code recruiter_notes} (legacy single-field) — internal_notes is the
+     * doc-spec'd Phase 2 notes column that the detail tab edits.
+     */
+    @Column(name = "internal_notes", columnDefinition = "TEXT")
+    private String internalNotes;
+
     @PrePersist
     void onCreate() {
         Instant now = Instant.now();

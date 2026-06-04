@@ -126,6 +126,17 @@ public class ErmRightPanelService {
                 "Exit checklist",
                 "/careers/erm/exits",
                 exitChecklistOpen));
+        // ERM Phase 2 — Hold follow-up. Counts applications on HOLD; ERM uses
+        // this queue to revisit paused candidates without leaving the inbox.
+        long holdCount = safeCount(
+                "SELECT COUNT(*) FROM applications "
+                        + "WHERE status = 'HOLD' "
+                        + "  AND (erm_owner_id IS NULL OR erm_owner_id = ?)",
+                callerId);
+        actions.add(qa("hold-followup",
+                "Hold queue",
+                "/careers/erm/applications?stage=HOLD",
+                holdCount));
         actions.add(qa("reports",
                 "Export report",
                 "/careers/erm/reports",

@@ -203,4 +203,18 @@ public class ApplicationController {
             @AuthenticationPrincipal User user) {
         return applicationService.bulkAction(req, user);
     }
+
+    /**
+     * ERM Phase 2 — intern closes the loop on INFO_REQUESTED by providing
+     * the fields ERM asked for. Stage transitions INFO_REQUESTED → APPLIED;
+     * ERM owner notified via in-app dispatch.
+     */
+    @PostMapping("/{id}/provide-info")
+    @PreAuthorize("hasRole('INTERN')")
+    public ApplicationResponse provideInfo(
+            @PathVariable UUID id,
+            @RequestBody com.skyzen.careers.erm.application.ErmApplicationDtos.ProvideInfoRequest req,
+            @AuthenticationPrincipal User caller) {
+        return applicationService.provideInfo(id, req, caller);
+    }
 }

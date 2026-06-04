@@ -2,6 +2,12 @@ package com.skyzen.careers.enums;
 
 public enum ApplicationStatus {
     APPLIED,
+    // ERM Phase 2 — decision-flow holding states. Both stay in the "Applied"
+    // band of the 5-stage stepper; neither advances users.lifecycle_status.
+    // INFO_REQUESTED → APPLIED on intern provide-info; HOLD → APPLIED on
+    // ERM resume-from-hold.
+    HOLD,
+    INFO_REQUESTED,
     // Phase 2.1: optional lightweight web screening between Apply and Shortlist.
     // Both states sit in the "Shortlisted" band of the 5-stage stepper.
     SCREENING_SENT,

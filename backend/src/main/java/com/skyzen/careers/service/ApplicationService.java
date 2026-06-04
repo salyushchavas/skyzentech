@@ -63,6 +63,7 @@ public class ApplicationService {
     private final NotificationStub notificationStub;
     private final NotificationService notificationService;
     private final com.skyzen.careers.intern.InternLifecycleService internLifecycleService;
+    private final org.springframework.context.ApplicationEventPublisher eventPublisher;
 
     @Transactional
     public ApplicationResponse apply(User user, ApplicationCreateRequest req) {
@@ -549,6 +550,109 @@ public class ApplicationService {
                 .recruiterRating(a.getRecruiterRating())
                 .statementOfInterest(a.getStatementOfInterest())
                 .applicantVisibleFeedback(a.getApplicantVisibleFeedback())
+                .infoRequestedFieldsCsv(a.getInfoRequestedFieldsCsv())
                 .build();
+    }
+
+    // ── ERM Phase 2 — intern closes INFO_REQUESTED loop ─────────────────────
+
+    /**
+     * Stage INFO_REQUESTED → APPLIED. Caller must own the application.
+     * Every field in {@code info_requested_fields_csv} must be addressed
+     * in the request body; otherwise 400 with the missing fields listed.
+     * Fires {@link com.skyzen.careers.event.ApplicationInfoProvidedEvent}
+     * for the ERM owner.
+     */
+    @Transactional
+    public ApplicationResponse provideInfo(
+            UUID applicationId,
+            com.skyzen.careers.erm.application.ErmApplicationDtos.ProvideInfoRequest req,
+            User caller) {
+        Application app = applicationRepository.findById(applicationId)
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "Application not found: " + applicationId));
+        if (app.getCandidate() == null || app.getCandidate().getUser() == null
+                || !app.getCandidate().getUser().getId().equals(caller.getId())) {
+            throw new ForbiddenException("Application does not belong to this user");
+        }
+        if (app.getStatus() != ApplicationStatus.INFO_REQUESTED) {
+            throw new ConflictException(
+                    "Provide-info only allowed from INFO_REQUESTED (current: "
+                            + app.getStatus() + ")");
+        }
+        String csv = app.getInfoRequestedFieldsCsv();
+        if (csv != null && !csv.isBlank()) {
+            List<String> required = java.util.Arrays.stream(csv.split(","))
+                    .map(String::trim).filter(s -> !s.isEmpty()).toList();
+            List<String> missing = new java.util.ArrayList<>();
+            for (String f : required) {
+                boolean ok = switch (f) {
+                    case "resume" -> req != null && req.resumeFileId() != null;
+                    case "workAuth" -> req != null && req.workAuthUpdate() != null
+                            && !req.workAuthUpdate().isEmpty();
+                    case "education" -> req != null && req.educationUpdate() != null
+                            && !req.educationUpdate().isEmpty();
+                    case "other" -> req != null && req.freeTextResponse() != null
+                            && !req.freeTextResponse().trim().isEmpty();
+                    default -> true;
+                };
+                if (!ok) missing.add(f);
+            }
+            if (!missing.isEmpty()) {
+                throw new BadRequestException(
+                        "Missing required fields in provide-info: " + missing);
+            }
+        }
+        if (req != null && req.resumeFileId() != null) {
+            resumeRepository.findById(req.resumeFileId())
+                    .ifPresent(app::setResume);
+        }
+        // workAuth/education/other are persisted into the decision log narrative
+        // for ERM review; we don't mutate candidate profile fields here to keep
+        // the change minimal and reversible (ERM can ask again).
+        ApplicationStatus previous = app.getStatus();
+        app.setStatus(ApplicationStatus.APPLIED);
+        app.setStatusUpdatedBy(caller.getId());
+        app.setInfoRequestedFieldsCsv(null);
+        app.setInfoRequestedAt(null);
+        applicationRepository.save(app);
+
+        // Fire the info-provided event for ERM owner dispatch.
+        try {
+            eventPublisher.publishEvent(
+                    new com.skyzen.careers.event.ApplicationInfoProvidedEvent(
+                            app.getId(),
+                            caller.getId(),
+                            app.getErmOwnerId()));
+        } catch (Exception e) {
+            log.warn("ApplicationInfoProvidedEvent publish failed (non-fatal): {}",
+                    e.getMessage());
+        }
+
+        writeAudit("APPLICATION_INFO_PROVIDED", app.getId(),
+                Map.of("status", previous.name()),
+                Map.of("status", app.getStatus().name()), caller.getId());
+
+        return toResponse(app);
+    }
+
+    private void writeAudit(String action, UUID entityId,
+                             Map<String, Object> before, Map<String, Object> after,
+                             UUID actorId) {
+        try {
+            AuditLog row = AuditLog.builder()
+                    .userId(actorId)
+                    .entityType("Application")
+                    .entityId(entityId)
+                    .action(action)
+                    .beforeJson(before != null ? objectMapper.writeValueAsString(before) : null)
+                    .afterJson(after != null ? objectMapper.writeValueAsString(after) : null)
+                    .build();
+            auditLogRepository.save(row);
+        } catch (JsonProcessingException jpe) {
+            log.warn("Audit JSON failed for {}: {}", action, jpe.getMessage());
+        } catch (Exception e) {
+            log.warn("Audit write failed for {}: {}", action, e.getMessage());
+        }
     }
 }

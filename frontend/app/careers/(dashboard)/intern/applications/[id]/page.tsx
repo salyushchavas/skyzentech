@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { ChevronLeft } from 'lucide-react';
 import api from '@/lib/api';
 import InternPageShell from '@/components/intern/InternPageShell';
+import InfoRequestedBanner from '@/components/intern/applications/InfoRequestedBanner';
 import type { ApplicationResponse } from '@/types';
 
 const STAGE_STYLE: Record<string, string> = {
@@ -76,6 +77,14 @@ export default function InternApplicationDetailPage() {
       >
         <ChevronLeft className="h-4 w-4" strokeWidth={2} /> All applications
       </Link>
+
+      {app.status === 'INFO_REQUESTED' && (
+        <InfoRequestedBanner
+          applicationId={app.id}
+          infoRequestedFieldsCsv={app.infoRequestedFieldsCsv ?? null}
+          onProvided={() => void load()}
+        />
+      )}
 
       {showFeedback && (
         <section className="mb-6 rounded-lg border border-emerald-200 bg-emerald-50 p-5">

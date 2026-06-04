@@ -18,6 +18,14 @@ import java.time.LocalDate;
 public class LogEmailProvider implements EmailProvider {
 
     @Override
+    public void sendRendered(String email, String subject, String body) {
+        log.info("[LOG EMAIL] To: {} | Subject: {} | Body: {}",
+                email, subject,
+                body == null ? "(empty)"
+                        : body.length() > 200 ? body.substring(0, 200) + "…" : body);
+    }
+
+    @Override
     public void sendVerificationCode(String email, String code, Instant expiresAt) {
         log.info("[LOG EMAIL] Verification code for {}: {} (expires {})",
                 email, code, expiresAt);

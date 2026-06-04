@@ -95,6 +95,23 @@ public class SmtpEmailProvider implements EmailProvider {
     }
 
     @Override
+    public void sendRendered(String email, String subject, String body) {
+        if (email == null || email.isBlank()) return;
+        String safeSubject = subject != null ? subject : "Skyzen Tech update";
+        String plain = body != null ? body : "";
+        // Body comes from CommunicationTemplate — already plain text. Convert
+        // line breaks for HTML preservation; do NOT trust the body as HTML.
+        String html = wrapHtml(
+                escape(safeSubject),
+                "<div style=\"margin:0;font-size:15px;line-height:1.55;color:"
+                        + COLOR_TEXT_BODY + ";white-space:pre-wrap;\">"
+                        + escape(plain)
+                        + "</div>"
+        );
+        send(email, safeSubject, plain, html);
+    }
+
+    @Override
     public void sendVerificationCode(String email, String code, Instant expiresAt) {
         String expiryLabel = expiresAt != null ? EXPIRY_FORMAT.format(expiresAt) : "soon";
         String plain = ""
