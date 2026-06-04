@@ -51,7 +51,6 @@ public class ComplianceRoutingService {
     private static final String TASK_CPT_I20_VERIFY = "CPT_I20_VERIFY";
 
     private final EngagementService engagementService;
-    private final OnboardingService onboardingService;
     private final I9FormRepository i9FormRepository;
     private final I983PlanRepository i983PlanRepository;
     private final EVerifyCaseRepository everifyCaseRepository;
@@ -66,14 +65,12 @@ public class ComplianceRoutingService {
 
     public ComplianceRoutingService(
             EngagementService engagementService,
-            OnboardingService onboardingService,
             I9FormRepository i9FormRepository,
             I983PlanRepository i983PlanRepository,
             EVerifyCaseRepository everifyCaseRepository,
             OnboardingTaskRepository onboardingTaskRepository,
             @Value("${app.compliance.everify-non-stem:false}") boolean everifyEnabledForNonStem) {
         this.engagementService = engagementService;
-        this.onboardingService = onboardingService;
         this.i9FormRepository = i9FormRepository;
         this.i983PlanRepository = i983PlanRepository;
         this.everifyCaseRepository = everifyCaseRepository;
@@ -100,8 +97,6 @@ public class ComplianceRoutingService {
             Boolean authorized = candidate.getAuthorizedToWork();
 
             if (isBlocked(authorized, track)) {
-                onboardingService.augmentTasksForTrack(
-                        engagement, List.of(TASK_HR_AUTHORIZATION_REVIEW));
                 UUID actorId = actor != null ? actor.getId() : null;
                 engagementService.transitionToSystem(engagement,
                         EngagementStatus.BLOCKED_NO_AUTHORIZATION,
@@ -113,9 +108,6 @@ public class ComplianceRoutingService {
             }
 
             List<String> extras = trackSpecificTaskKeys(track);
-            if (!extras.isEmpty()) {
-                onboardingService.augmentTasksForTrack(engagement, extras);
-            }
             log.info("Engagement {} routed (track={}, extras={})",
                     engagement.getId(), track, extras);
             // Status stays PENDING_COMPLIANCE — set by EngagementService.createForAcceptedOffer.

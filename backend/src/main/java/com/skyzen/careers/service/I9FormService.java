@@ -79,7 +79,6 @@ public class I9FormService {
     private final UserRepository userRepository;
     private final AuditLogRepository auditLogRepository;
     private final EngagementRepository engagementRepository;
-    private final OnboardingService onboardingService;
     private final ObjectMapper objectMapper;
     private final com.skyzen.careers.notification.NotificationService notificationService;
 
@@ -243,11 +242,6 @@ public class I9FormService {
         writeAudit(form.getId(),
                 req.isDraft() ? "SECTION_1_DRAFT_SAVE" : "SECTION_1_SUBMIT",
                 actor.getId(), before, snapshot(form));
-        // Reconcile the onboarding checklist so the candidate's I9_SECTION_1
-        // task flips to COMPLETED in the same transaction as the submit.
-        if (!req.isDraft() && form.getCandidate() != null) {
-            onboardingService.reconcileFromCompliance(form.getCandidate().getId(), actor);
-        }
         // Batch-2 — HR gets a §2-pending heads-up exactly when the form
         // transitions into SECTION_2_PENDING (i.e. on the real submit, not on
         // re-saves or drafts). Idempotent per (event, form_id); best-effort.
@@ -349,12 +343,6 @@ public class I9FormService {
         writeAudit(form.getId(),
                 req.isDraft() ? "SECTION_2_DRAFT_SAVE" : "SECTION_2_SUBMIT",
                 actor.getId(), before, snapshot(form));
-        // After a successful (non-draft) submit, the form is COMPLETED — flip
-        // the I9_SECTION_2 onboarding task so the candidate dashboard's count
-        // and "Upcoming" list reflect the real compliance state immediately.
-        if (!req.isDraft() && form.getCandidate() != null) {
-            onboardingService.reconcileFromCompliance(form.getCandidate().getId(), actor);
-        }
         return form;
     }
 

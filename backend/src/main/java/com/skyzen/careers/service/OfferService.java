@@ -90,7 +90,6 @@ public class OfferService {
     private final AuditLogRepository auditLogRepository;
     private final OfferLetterTemplate letterTemplate;
     private final ObjectMapper objectMapper;
-    private final OnboardingService onboardingService;
     private final ApplicationService applicationService;
     private final EngagementService engagementService;
     private final ComplianceRoutingService complianceRoutingService;
@@ -302,17 +301,6 @@ public class OfferService {
             engagement = engagementService.createForAcceptedOffer(offer, candidateUser);
         } catch (Exception e) {
             log.warn("Failed to create engagement for accepted offer {}: {}",
-                    offer.getId(), e.getMessage(), e);
-        }
-
-        // Seed onboarding tasks. Wrapped in try/catch so a downstream onboarding
-        // bug never prevents a candidate from accepting their offer. With step 8,
-        // the seed resolves the just-created engagement via offer_id and links it
-        // onto each task.
-        try {
-            onboardingService.seedTasksForAcceptedOffer(offer);
-        } catch (Exception e) {
-            log.warn("Failed to seed onboarding tasks for accepted offer {}: {}",
                     offer.getId(), e.getMessage(), e);
         }
 
