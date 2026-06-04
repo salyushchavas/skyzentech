@@ -1,0 +1,174 @@
+'use client';
+
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useRef,
+  useState,
+  type ReactNode,
+} from 'react';
+import api from '@/lib/api';
+import type { InternStepperStep } from './InternStepper';
+
+// ── Types ─────────────────────────────────────────────────────────────────
+
+export type InternLifecycleStatus =
+  | 'REGISTERED'
+  | 'EMAIL_VERIFIED'
+  | 'APPLICATION_SUBMITTED'
+  | 'SHORTLISTED'
+  | 'INTERVIEW_SCHEDULED'
+  | 'INTERVIEW_COMPLETED'
+  | 'OFFER_SENT'
+  | 'OFFER_SIGNED'
+  | 'EMPLOYEE_ID_CREATED'
+  | 'ONBOARDING_ASSIGNED'
+  | 'ONBOARDING_ACCEPTED'
+  | 'ACTIVE_INTERN'
+  | 'INACTIVE_INTERN';
+
+export type InternMode =
+  | 'APPLICANT'
+  | 'INTERVIEW'
+  | 'OFFER'
+  | 'NEW_HIRE'
+  | 'ACTIVE_INTERN'
+  | 'INACTIVE';
+
+export interface InternModuleState {
+  visible: boolean;
+  locked?: boolean;
+  readOnly?: boolean;
+}
+
+export interface InternModulesMap {
+  home: InternModuleState;
+  jobPostings: InternModuleState;
+  myApplications: InternModuleState;
+  interviewCenter: InternModuleState;
+  offerLetter: InternModuleState;
+  onboarding: InternModuleState;
+  myProjects: InternModuleState;
+  timesheets: InternModuleState;
+  evaluations: InternModuleState;
+  documents: InternModuleState;
+  messages: InternModuleState;
+  help: InternModuleState;
+}
+
+export interface InternNextAction {
+  title: string;
+  description: string;
+  ctaLabel: string | null;
+  ctaHref: string | null;
+  waiting: boolean;
+  waitingFor: string | null;
+}
+
+export interface InternContact {
+  name: string;
+  email: string;
+}
+
+export interface InternContacts {
+  erm: InternContact | null;
+  trainer: InternContact | null;
+  evaluator: InternContact | null;
+  manager: InternContact | null;
+}
+
+export interface InternDashboardResponse {
+  user: {
+    firstName: string;
+    lastName: string;
+    email: string;
+    applicantId: string | null;
+    employeeId: string | null;
+  };
+  lifecycleStatus: InternLifecycleStatus;
+  mode: InternMode;
+  emailVerified: boolean;
+  stepper: InternStepperStep[];
+  modules: InternModulesMap;
+  nextAction: InternNextAction;
+  contacts: InternContacts;
+  lastUpdatedAt: string;
+}
+
+// ── Context ───────────────────────────────────────────────────────────────
+
+interface InternDashboardContextValue {
+  data: InternDashboardResponse | null;
+  loading: boolean;
+  error: string | null;
+  refresh: () => Promise<void>;
+}
+
+const InternDashboardContext = createContext<InternDashboardContextValue | null>(
+  null,
+);
+
+const POLL_MS = 30_000;
+
+export function InternDashboardProvider({ children }: { children: ReactNode }) {
+  const [data, setData] = useState<InternDashboardResponse | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const mountedRef = useRef(true);
+
+  const load = useCallback(async () => {
+    try {
+      const res = await api.get<InternDashboardResponse>('/api/v1/intern/dashboard');
+      if (!mountedRef.current) return;
+      setData(res.data);
+      setError(null);
+    } catch (e) {
+      if (!mountedRef.current) return;
+      const msg = e instanceof Error ? e.message : 'Failed to load dashboard';
+      setError(msg);
+    } finally {
+      if (mountedRef.current) setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    mountedRef.current = true;
+    void load();
+    const t = window.setInterval(() => {
+      void load();
+    }, POLL_MS);
+    return () => {
+      mountedRef.current = false;
+      window.clearInterval(t);
+    };
+  }, [load]);
+
+  return (
+    <InternDashboardContext.Provider
+      value={{ data, loading, error, refresh: load }}
+    >
+      {children}
+    </InternDashboardContext.Provider>
+  );
+}
+
+export function useInternDashboard(): InternDashboardContextValue {
+  const ctx = useContext(InternDashboardContext);
+  if (!ctx) {
+    throw new Error(
+      'useInternDashboard must be used inside InternDashboardProvider',
+    );
+  }
+  return ctx;
+}
+
+/**
+ * Soft accessor — returns null when used outside the provider rather than
+ * throwing. Useful for components (e.g. the global sidebar) that render
+ * for every role and only adapt when an intern is logged in.
+ */
+export function useInternDashboardOptional(): InternDashboardContextValue | null {
+  return useContext(InternDashboardContext);
+}

@@ -5,7 +5,6 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
   Briefcase,
-  CalendarClock,
   ClipboardList,
   FileSignature,
   FileText,
@@ -15,18 +14,28 @@ import {
   Home,
   LayoutDashboard,
   ListChecks,
+  Lock,
   MessagesSquare,
   Star,
   Video,
   type LucideIcon,
 } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
+import {
+  useInternDashboardOptional,
+  type InternModulesMap,
+} from '@/components/intern/InternDashboardContext';
 import type { UserRole } from '@/types';
 
 interface StaffLink {
   icon: LucideIcon;
   label: string;
   href: string;
+  /**
+   * Key into {@link InternModulesMap}. Only INTERN links carry this; staff
+   * links omit it and always render plain.
+   */
+  moduleKey?: keyof InternModulesMap;
 }
 
 // Six-role taxonomy. INTERN's 12-item sidebar is the doc-specified order from
@@ -34,18 +43,18 @@ interface StaffLink {
 // sub-nav filled in by per-role prompts; each is a single landing entry today.
 const STAFF_ROLE_LINKS: Record<UserRole, StaffLink[]> = {
   INTERN: [
-    { icon: Home,           label: 'Home',              href: '/careers/intern' },
-    { icon: Briefcase,      label: 'Job Postings',      href: '/careers/intern/jobs' },
-    { icon: ListChecks,     label: 'My Applications',   href: '/careers/intern/applications' },
-    { icon: Video,          label: 'Interview Center',  href: '/careers/intern/interviews' },
-    { icon: FileSignature,  label: 'Offer Letter',      href: '/careers/intern/offer' },
-    { icon: ClipboardList,  label: 'Onboarding',        href: '/careers/intern/onboarding' },
-    { icon: FolderArchive,  label: 'My Projects',       href: '/careers/intern/projects' },
-    { icon: Hammer,         label: 'Timesheets',        href: '/careers/intern/timesheets' },
-    { icon: Star,           label: 'Evaluations',       href: '/careers/intern/evaluations' },
-    { icon: FileText,       label: 'Documents',         href: '/careers/intern/documents' },
-    { icon: MessagesSquare, label: 'Messages',          href: '/careers/intern/messages' },
-    { icon: HelpCircle,     label: 'Help',              href: '/careers/intern/help' },
+    { icon: Home,           label: 'Home',              href: '/careers/intern',             moduleKey: 'home' },
+    { icon: Briefcase,      label: 'Job Postings',      href: '/careers/intern/jobs',        moduleKey: 'jobPostings' },
+    { icon: ListChecks,     label: 'My Applications',   href: '/careers/intern/applications', moduleKey: 'myApplications' },
+    { icon: Video,          label: 'Interview Center',  href: '/careers/intern/interviews',  moduleKey: 'interviewCenter' },
+    { icon: FileSignature,  label: 'Offer Letter',      href: '/careers/intern/offer',       moduleKey: 'offerLetter' },
+    { icon: ClipboardList,  label: 'Onboarding',        href: '/careers/intern/onboarding',  moduleKey: 'onboarding' },
+    { icon: FolderArchive,  label: 'My Projects',       href: '/careers/intern/projects',    moduleKey: 'myProjects' },
+    { icon: Hammer,         label: 'Timesheets',        href: '/careers/intern/timesheets',  moduleKey: 'timesheets' },
+    { icon: Star,           label: 'Evaluations',       href: '/careers/intern/evaluations', moduleKey: 'evaluations' },
+    { icon: FileText,       label: 'Documents',         href: '/careers/intern/documents',   moduleKey: 'documents' },
+    { icon: MessagesSquare, label: 'Messages',          href: '/careers/intern/messages',    moduleKey: 'messages' },
+    { icon: HelpCircle,     label: 'Help',              href: '/careers/intern/help',        moduleKey: 'help' },
   ],
   TRAINER: [
     { icon: LayoutDashboard, label: 'Trainer Dashboard', href: '/careers/trainer' },
@@ -64,6 +73,19 @@ const STAFF_ROLE_LINKS: Record<UserRole, StaffLink[]> = {
   ],
 };
 
+// Mode that "unlocks" each module — used for the lock-tooltip copy. Falls
+// back to a generic message for keys that have no single unlocking mode.
+const MODULE_UNLOCK_MODE: Partial<Record<keyof InternModulesMap, string>> = {
+  jobPostings: 'Applicant',
+  interviewCenter: 'Interview',
+  offerLetter: 'Offer',
+  onboarding: 'New Hire',
+  myProjects: 'Active Intern',
+  timesheets: 'Active Intern',
+  evaluations: 'Active Intern',
+  messages: 'Applicant',
+};
+
 function pickActiveByRoute(pathname: string, routes: string[]): string | null {
   const matches = routes
     .filter((r) => pathname === r || pathname.startsWith(r + '/'))
@@ -78,6 +100,8 @@ interface Props {
 export default function DashboardSidebar({ onNavigate }: Props) {
   const pathname = usePathname() ?? '';
   const { user } = useAuth();
+  const internDashboard = useInternDashboardOptional();
+  const internModules = internDashboard?.data?.modules ?? null;
 
   // Pick the first role with a defined sidebar. Users with multiple roles
   // (rare) land on the first match in the declared role order.
@@ -105,7 +129,12 @@ export default function DashboardSidebar({ onNavigate }: Props) {
 
       <div className="flex-1 overflow-y-auto px-3 py-4">
         {links ? (
-          <StaffNav links={links} pathname={pathname} onNavigate={onNavigate} />
+          <StaffNav
+            links={links}
+            pathname={pathname}
+            onNavigate={onNavigate}
+            internModules={internModules}
+          />
         ) : (
           <SidebarSkeleton rows={4} />
         )}
@@ -128,10 +157,12 @@ function StaffNav({
   links,
   pathname,
   onNavigate,
+  internModules,
 }: {
   links: StaffLink[];
   pathname: string;
   onNavigate?: () => void;
+  internModules: InternModulesMap | null;
 }) {
   const activeHref = pickActiveByRoute(
     pathname,
@@ -142,6 +173,34 @@ function StaffNav({
       {links.map((link) => {
         const Icon = link.icon;
         const active = link.href === activeHref;
+        const moduleState = link.moduleKey && internModules
+          ? internModules[link.moduleKey]
+          : null;
+
+        if (moduleState && !moduleState.visible) return null;
+
+        const locked = Boolean(moduleState?.locked);
+        const readOnly = Boolean(moduleState?.readOnly);
+
+        if (locked) {
+          const unlockMode = link.moduleKey
+            ? MODULE_UNLOCK_MODE[link.moduleKey]
+            : undefined;
+          return (
+            <li key={link.href}>
+              <span
+                title={unlockMode ? `Unlocks at ${unlockMode}` : 'Locked'}
+                aria-disabled="true"
+                className="relative flex cursor-not-allowed items-center gap-3 rounded-md px-3 py-2 text-sm font-medium text-slate-400 opacity-60"
+              >
+                <Icon className="h-[18px] w-[18px]" strokeWidth={2} />
+                <span className="flex-1">{link.label}</span>
+                <Lock className="h-3.5 w-3.5" strokeWidth={2} aria-hidden />
+              </span>
+            </li>
+          );
+        }
+
         return (
           <li key={link.href}>
             <Link
@@ -156,7 +215,12 @@ function StaffNav({
               aria-current={active ? 'page' : undefined}
             >
               <Icon className="h-[18px] w-[18px]" strokeWidth={2} />
-              {link.label}
+              <span className="flex-1">{link.label}</span>
+              {readOnly && (
+                <span className="text-[10px] uppercase tracking-wide text-slate-400">
+                  view only
+                </span>
+              )}
             </Link>
           </li>
         );

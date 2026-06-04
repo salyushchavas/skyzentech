@@ -1,23 +1,18 @@
 'use client';
 
-import DashboardLayout from '@/components/dashboard/DashboardLayout';
-import ProtectedRoute from '@/components/ProtectedRoute';
-import PageHeader from '@/components/ui/PageHeader';
+import InternPageShell from '@/components/intern/InternPageShell';
 
 export default function InternDocumentsPage() {
   return (
-    <ProtectedRoute requiredRoles={['INTERN']}>
-      <DashboardLayout>
-        <PageHeader title="Documents" />
-        <section className="rounded-lg border border-dashed border-slate-300 bg-white p-10 text-center">
-          <h2 className="text-base font-semibold text-slate-900">
-            Coming in Phase 1
-          </h2>
-          <p className="mt-2 text-sm text-slate-600">
-            This surface is under construction.
-          </p>
-        </section>
-      </DashboardLayout>
-    </ProtectedRoute>
+    <InternPageShell title="Documents">
+      <section className="rounded-lg border border-dashed border-slate-300 bg-white p-10 text-center">
+        <h2 className="text-base font-semibold text-slate-900">
+          Coming in Phase 4
+        </h2>
+        <p className="mt-2 text-sm text-slate-600">
+          This surface is under construction.
+        </p>
+      </section>
+    </InternPageShell>
   );
 }

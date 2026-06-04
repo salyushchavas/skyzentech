@@ -1,34 +1,39 @@
 package com.skyzen.careers.controller;
 
+import com.skyzen.careers.entity.User;
+import com.skyzen.careers.intern.InternDashboardResponse;
+import com.skyzen.careers.intern.InternDashboardService;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.util.Map;
 
 /**
- * Stub controller exposing the doc-spec intern API surface. Every endpoint
- * returns HTTP 501 NOT_IMPLEMENTED today — Phase 1+ wires in real handlers.
- *
- * <p>The doc lists these endpoints as the canonical intern API. Existing
- * intern-callable endpoints elsewhere (e.g. {@code /api/v1/applications/me},
- * {@code /api/v1/users/me}) keep working until those callers are migrated.
- * This controller is the placeholder so the routes claim their final paths
- * now and frontend wiring in later phases doesn't churn.</p>
+ * Intern-surface controller. The {@code GET /dashboard} endpoint is the
+ * canonical payload driving the mode engine, stepper, sidebar visibility,
+ * and Home-page next-action card — see
+ * {@link com.skyzen.careers.intern.InternDashboardService}. All other
+ * intern endpoints remain 501 stubs until the phase that owns them ships.
  */
 @RestController
 @RequestMapping("/api/v1/intern")
+@RequiredArgsConstructor
 @Slf4j
 public class InternController {
 
     private static final String NOT_YET = "Intern surface is being rebuilt in Phase 1+.";
 
+    private final InternDashboardService dashboardService;
+
     @GetMapping("/dashboard")
     @PreAuthorize("hasRole('INTERN')")
-    public Map<String, Object> dashboard() {
-        throw notImplemented();
+    public InternDashboardResponse dashboard(@AuthenticationPrincipal User caller) {
+        return dashboardService.getDashboard(caller);
     }
 
     @GetMapping("/profile")
