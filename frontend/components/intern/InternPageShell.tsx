@@ -4,6 +4,7 @@ import type { ReactNode } from 'react';
 import PageHeader from '@/components/ui/PageHeader';
 import InternStepper from './InternStepper';
 import RightSidePanel from './RightSidePanel';
+import InactiveBanner from '@/components/exit/InactiveBanner';
 import { useInternDashboard } from './InternDashboardContext';
 
 interface Props {
@@ -26,8 +27,10 @@ interface Props {
 export default function InternPageShell({ title, subtitle, children }: Props) {
   const { data, loading } = useInternDashboard();
 
+  const inactive = data?.mode === 'INACTIVE';
   return (
     <>
+      {inactive && <InactiveBanner exitSummary={data?.exitSummary ?? null} />}
       <PageHeader title={title} subtitle={subtitle} />
       {data && <InternStepper steps={data.stepper} />}
       {!data && loading && (

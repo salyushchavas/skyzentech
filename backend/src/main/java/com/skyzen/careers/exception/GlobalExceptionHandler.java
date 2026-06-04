@@ -36,6 +36,19 @@ public class GlobalExceptionHandler {
         return error(HttpStatus.CONFLICT, ex.getMessage(), null);
     }
 
+    /**
+     * Phase 8 — write attempted against an exited / terminal lifecycle.
+     * 409 with a stable {@code code = "LIFECYCLE_CLOSED"} so the frontend
+     * can render a clean "Internship is inactive" toast.
+     */
+    @ExceptionHandler(LifecycleClosedException.class)
+    public ResponseEntity<Map<String, Object>> handleLifecycleClosed(LifecycleClosedException ex) {
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("error", ex.getMessage());
+        body.put("code", "LIFECYCLE_CLOSED");
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(body);
+    }
+
     @ExceptionHandler(ForbiddenException.class)
     public ResponseEntity<Map<String, Object>> handleForbidden(ForbiddenException ex) {
         return error(HttpStatus.FORBIDDEN, ex.getMessage(), null);

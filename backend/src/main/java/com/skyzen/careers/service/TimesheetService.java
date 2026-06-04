@@ -44,9 +44,13 @@ public class TimesheetService {
     private final TimesheetDayRepository timesheetDayRepository;
     private final CandidateRepository candidateRepository;
     private final EngagementService engagementService;
+    private final LifecycleAccessPolicy lifecycleAccessPolicy;
 
     @Transactional
     public TimesheetResponse logHours(LogTimesheetRequest req, User caller) {
+        // Phase 8: block new timesheet creation for inactive interns.
+        lifecycleAccessPolicy.ensureCanWrite(caller, caller.getId(),
+                LifecycleAccessPolicy.WriteIntent.CREATE_NEW);
         validateHours(req.getHours());
         Candidate intern = candidateRepository.findByUserId(caller.getId())
                 .orElseThrow(() -> new ResourceNotFoundException(
@@ -88,6 +92,9 @@ public class TimesheetService {
 
     @Transactional
     public TimesheetResponse submit(UUID id, User caller) {
+        // Phase 8: intern submit blocked when lifecycle inactive.
+        lifecycleAccessPolicy.ensureCanWrite(caller, caller.getId(),
+                LifecycleAccessPolicy.WriteIntent.CREATE_NEW);
         Timesheet t = loadOwned(id, caller);
         if (t.getStatus() == TimesheetStatus.SUBMITTED || t.getStatus() == TimesheetStatus.APPROVED) {
             // Idempotent for SUBMITTED; APPROVED is a no-op too.
@@ -133,6 +140,13 @@ public class TimesheetService {
     public TimesheetResponse approve(UUID id, User caller) {
         Timesheet t = timesheetRepository.findByIdWithGraph(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Timesheet not found: " + id));
+        // Phase 8: approver action on an exited intern is RESOLVE_EXISTING — allowed
+        // for 30 days post-exit (cleanup window).
+        Candidate ownerForCheck = t.getIntern();
+        UUID ownerUserId = ownerForCheck != null && ownerForCheck.getUser() != null
+                ? ownerForCheck.getUser().getId() : null;
+        lifecycleAccessPolicy.ensureCanWrite(caller, ownerUserId,
+                LifecycleAccessPolicy.WriteIntent.RESOLVE_EXISTING);
         if (t.getStatus() != TimesheetStatus.SUBMITTED) {
             throw new BadRequestException(
                     "Only SUBMITTED timesheets can be approved (current: " + t.getStatus() + ")");
@@ -149,6 +163,11 @@ public class TimesheetService {
     public TimesheetResponse reject(UUID id, RejectTimesheetRequest req, User caller) {
         Timesheet t = timesheetRepository.findByIdWithGraph(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Timesheet not found: " + id));
+        Candidate ownerForCheck = t.getIntern();
+        UUID ownerUserId = ownerForCheck != null && ownerForCheck.getUser() != null
+                ? ownerForCheck.getUser().getId() : null;
+        lifecycleAccessPolicy.ensureCanWrite(caller, ownerUserId,
+                LifecycleAccessPolicy.WriteIntent.RESOLVE_EXISTING);
         if (t.getStatus() != TimesheetStatus.SUBMITTED) {
             throw new BadRequestException(
                     "Only SUBMITTED timesheets can be rejected (current: " + t.getStatus() + ")");
@@ -254,6 +273,9 @@ public class TimesheetService {
     @Transactional
     public TimesheetWeekResponse patchDay(UUID timesheetId, DayOfWeek dayOfWeek,
                                           BigDecimal hours, String notes, User caller) {
+        // Phase 8: intern editing daily cells blocked when inactive.
+        lifecycleAccessPolicy.ensureCanWrite(caller, caller.getId(),
+                LifecycleAccessPolicy.WriteIntent.CREATE_NEW);
         if (dayOfWeek == null) {
             throw new BadRequestException("dayOfWeek is required.");
         }

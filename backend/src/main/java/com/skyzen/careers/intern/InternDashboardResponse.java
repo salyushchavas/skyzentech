@@ -2,13 +2,18 @@ package com.skyzen.careers.intern;
 
 import com.skyzen.careers.enums.InternLifecycleStatus;
 
+import java.math.BigDecimal;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.util.List;
+import java.util.UUID;
 
 /**
  * Single payload that drives the entire intern surface — mode, stepper,
- * module visibility, the Home page's next-action card, and the right-side
- * contact panel. Shape mirrors the Phase 1 doc (§3 + §4).
+ * module visibility, the Home page's next-action card, the right-side
+ * contact panel, and (Phase 8) the exit summary block when the intern is
+ * INACTIVE. Shape mirrors the Phase 1 doc (§3 + §4) plus the Phase 8
+ * exit extensions.
  */
 public record InternDashboardResponse(
         UserSummary user,
@@ -19,6 +24,7 @@ public record InternDashboardResponse(
         Modules modules,
         NextAction nextAction,
         Contacts contacts,
+        ExitSummary exitSummary,
         Instant lastUpdatedAt
 ) {
     public record UserSummary(
@@ -75,5 +81,23 @@ public record InternDashboardResponse(
     public record Contact(
             String name,
             String email
+    ) {}
+
+    /**
+     * Phase 8 — present only when {@code mode == "INACTIVE"}. Powers the
+     * Home exit-summary card and the /careers/intern/exit/summary page.
+     */
+    public record ExitSummary(
+            String exitType,
+            LocalDate exitDate,
+            long durationDays,
+            long projectsCompleted,
+            long evaluationsCount,
+            Double averageScore,
+            long timesheetsApproved,
+            BigDecimal totalApprovedHours,
+            boolean feedbackSubmitted,
+            String internVisibleSummary,
+            UUID finalEvaluationId
     ) {}
 }

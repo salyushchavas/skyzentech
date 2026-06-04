@@ -342,6 +342,78 @@ public class GitHubService {
                 "GitHub returned " + status + " when adding collaborator");
     }
 
+    /**
+     * Phase 8 — remove a GitHub user as collaborator from {@code owner/repo}.
+     * Idempotent: a 204 is the canonical success; a 404 means the user was
+     * never a collaborator (or the repo is gone) and is treated as success
+     * because the desired end-state already holds. Returns {@code true} on
+     * any of those outcomes; {@code false} on 403 (App lacks permission) or
+     * non-2xx unexpected statuses. Network or token failures throw
+     * {@link GitHubIntegrationException} so the caller can capture the
+     * reason in the exit-record summary.
+     */
+    public boolean removeCollaborator(String owner, String repo, String githubUsername) {
+        String safeOwner = trimToNull(owner);
+        String safeRepo = trimToNull(repo);
+        String safeUser = trimToNull(githubUsername);
+        if (safeOwner == null || safeRepo == null || safeUser == null) {
+            throw new GitHubIntegrationException(
+                    "owner, repo, and githubUsername are all required");
+        }
+
+        log.info("[GitHub] removing collaborator {} from {}/{}", safeUser, safeOwner, safeRepo);
+
+        String token;
+        try {
+            token = getInstallationToken();
+        } catch (Exception e) {
+            log.error("[GitHub] token mint failed before remove-collaborator for {}/{}: {}",
+                    safeOwner, safeRepo, e.getMessage());
+            throw new GitHubIntegrationException(
+                    "GitHub App authentication failed — check installation id and private key");
+        }
+
+        String url = "https://api.github.com/repos/" + safeOwner + "/" + safeRepo
+                + "/collaborators/" + safeUser;
+        HttpRequest req = HttpRequest.newBuilder(URI.create(url))
+                .timeout(Duration.ofSeconds(10))
+                .header("Authorization", "Bearer " + token)
+                .header("Accept", "application/vnd.github+json")
+                .header("X-GitHub-Api-Version", "2022-11-28")
+                .DELETE()
+                .build();
+        HttpResponse<String> res;
+        try {
+            res = http.send(req, HttpResponse.BodyHandlers.ofString());
+        } catch (Exception e) {
+            log.error("[GitHub] remove-collaborator network error {}/{} -> {}: {}",
+                    safeOwner, safeRepo, safeUser, e.getMessage());
+            throw new GitHubIntegrationException(
+                    "GitHub API call failed: " + e.getMessage());
+        }
+        int status = res.statusCode();
+        if (status == 204) {
+            log.info("[GitHub] collaborator removed: {} from {}/{}",
+                    safeUser, safeOwner, safeRepo);
+            return true;
+        }
+        if (status == 404) {
+            // Either the user was never a collaborator or the repo no longer
+            // exists — either way the desired end-state holds.
+            log.info("[GitHub] remove-collaborator 404 for {}/{} -> {} (treated as success)",
+                    safeOwner, safeRepo, safeUser);
+            return true;
+        }
+        if (status == 403) {
+            log.warn("[GitHub] remove-collaborator 403 for {}/{} — App lacks permission",
+                    safeOwner, safeRepo);
+            return false;
+        }
+        log.warn("[GitHub] remove-collaborator unexpected {} for {}/{} -> {}: {}",
+                status, safeOwner, safeRepo, safeUser, truncate(res.body(), 200));
+        return false;
+    }
+
     private Long readInvitationId(String body) {
         if (body == null || body.isBlank()) return null;
         try {

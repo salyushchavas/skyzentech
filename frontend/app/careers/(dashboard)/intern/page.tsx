@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { Mail, Sparkles } from 'lucide-react';
 import api from '@/lib/api';
 import InternPageShell from '@/components/intern/InternPageShell';
+import ExitSummaryCard from '@/components/exit/ExitSummaryCard';
 import {
   useInternDashboard,
   type InternContact,
@@ -58,6 +59,8 @@ export default function InternHomePage() {
   const modeLabel = MODE_LABEL[data.mode] ?? data.mode;
   const subtitle = `Mode: ${modeLabel} · ${humanizeStatus(data.lifecycleStatus)}`;
 
+  const isInactive = data.mode === 'INACTIVE';
+
   return (
     <InternPageShell title={`Welcome, ${firstName}`} subtitle={subtitle}>
       {data.lifecycleStatus === 'REGISTERED' && (
@@ -66,12 +69,21 @@ export default function InternHomePage() {
         </div>
       )}
 
-      <NextActionCard action={data.nextAction} />
-
-      <div className="mt-6 grid gap-6 lg:grid-cols-2">
-        <ContactsCard contacts={data.contacts} />
-        <ActivityCard />
-      </div>
+      {isInactive && data.exitSummary ? (
+        <div className="space-y-6">
+          <NextActionCard action={data.nextAction} />
+          <ExitSummaryCard summary={data.exitSummary} />
+          <ContactsCard contacts={data.contacts} />
+        </div>
+      ) : (
+        <>
+          <NextActionCard action={data.nextAction} />
+          <div className="mt-6 grid gap-6 lg:grid-cols-2">
+            <ContactsCard contacts={data.contacts} />
+            <ActivityCard />
+          </div>
+        </>
+      )}
     </InternPageShell>
   );
 }

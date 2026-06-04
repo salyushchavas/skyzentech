@@ -64,6 +64,7 @@ public class InternEvaluationService {
     private final ZoomService zoomService;
     private final ApplicationEventPublisher eventPublisher;
     private final ObjectMapper objectMapper;
+    private final com.skyzen.careers.service.LifecycleAccessPolicy lifecycleAccessPolicy;
 
     // ── Evaluator commands ────────────────────────────────────────────────
 
@@ -291,6 +292,10 @@ public class InternEvaluationService {
         }
         InternEvaluation eval = mustGet(evalId);
         ensureEvaluatorScope(mustGetLifecycle(eval.getInternLifecycleId()), actor);
+        // Phase 8: amendments to PUBLISHED evals on an exited intern are
+        // RESOLVE_EXISTING — allowed inside the 30-day cleanup window.
+        lifecycleAccessPolicy.ensureCanWrite(actor, eval.getInternId(),
+                com.skyzen.careers.service.LifecycleAccessPolicy.WriteIntent.RESOLVE_EXISTING);
         if (!"PUBLISHED".equals(eval.getStatus())
                 && !"ACKNOWLEDGED".equals(eval.getStatus())
                 && !"AMENDED".equals(eval.getStatus())) {

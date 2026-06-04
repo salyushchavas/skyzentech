@@ -1285,5 +1285,81 @@ public class SchemaFixupRunner implements CommandLineRunner {
 
         log.info("[SchemaFixupRunner] repo-backfill done. scanned={} created={} no-github-url={} failed={}",
                 scanned, created, skippedNoGithub, skippedFailed);
+
+        // Phase 8 — exit_records + exit_feedback tables. ddl-auto=update will
+        // also create these via the JPA entities, but this idempotent CREATE
+        // ensures the columns + indexes match the entity contract on every
+        // boot path (including environments that disable ddl-auto).
+        ensureExitTables();
+    }
+
+    /**
+     * Phase 8 — terminal exit lifecycle storage. UNIQUE per intern_lifecycle
+     * row enforces "one exit per lifecycle"; UNIQUE on (exit_record_id) on
+     * exit_feedback enforces "one feedback per exit".
+     */
+    private void ensureExitTables() {
+        try {
+            jdbcTemplate.execute(
+                    "CREATE TABLE IF NOT EXISTS exit_records ("
+                            + "  id UUID PRIMARY KEY,"
+                            + "  intern_lifecycle_id UUID NOT NULL UNIQUE,"
+                            + "  intern_id UUID NOT NULL,"
+                            + "  exit_type VARCHAR(20) NOT NULL,"
+                            + "  exit_date DATE NOT NULL,"
+                            + "  exit_reason TEXT,"
+                            + "  initiated_by_id UUID NOT NULL,"
+                            + "  final_evaluation_id UUID,"
+                            + "  rehire_eligible BOOLEAN NOT NULL DEFAULT TRUE,"
+                            + "  access_revocation_done BOOLEAN NOT NULL DEFAULT FALSE,"
+                            + "  access_revocation_attempted_at TIMESTAMP,"
+                            + "  access_revocation_summary TEXT,"
+                            + "  final_documents_archived BOOLEAN NOT NULL DEFAULT FALSE,"
+                            + "  intern_visible_summary TEXT,"
+                            + "  internal_notes TEXT,"
+                            + "  amended_at TIMESTAMP,"
+                            + "  created_at TIMESTAMP NOT NULL DEFAULT NOW(),"
+                            + "  updated_at TIMESTAMP NOT NULL DEFAULT NOW()"
+                            + ")");
+            jdbcTemplate.execute(
+                    "CREATE INDEX IF NOT EXISTS idx_exit_records_intern "
+                            + "ON exit_records(intern_id)");
+            jdbcTemplate.execute(
+                    "CREATE INDEX IF NOT EXISTS idx_exit_records_type_date "
+                            + "ON exit_records(exit_type, exit_date)");
+            jdbcTemplate.execute(
+                    "CREATE INDEX IF NOT EXISTS idx_exit_records_initiator "
+                            + "ON exit_records(initiated_by_id)");
+            log.info("[SchemaFixupRunner] ensured exit_records table + indexes");
+        } catch (Exception e) {
+            log.warn("[SchemaFixupRunner] exit_records ensure failed (non-fatal): {}",
+                    e.getMessage(), e);
+        }
+
+        try {
+            jdbcTemplate.execute(
+                    "CREATE TABLE IF NOT EXISTS exit_feedback ("
+                            + "  id UUID PRIMARY KEY,"
+                            + "  exit_record_id UUID NOT NULL UNIQUE,"
+                            + "  intern_id UUID NOT NULL,"
+                            + "  overall_rating INTEGER NOT NULL,"
+                            + "  learning_rating INTEGER NOT NULL,"
+                            + "  mentorship_rating INTEGER NOT NULL,"
+                            + "  work_environment_rating INTEGER NOT NULL,"
+                            + "  what_went_well TEXT NOT NULL,"
+                            + "  what_could_improve TEXT NOT NULL,"
+                            + "  would_recommend BOOLEAN NOT NULL,"
+                            + "  additional_comments TEXT,"
+                            + "  submitted_at TIMESTAMP NOT NULL,"
+                            + "  created_at TIMESTAMP NOT NULL DEFAULT NOW()"
+                            + ")");
+            jdbcTemplate.execute(
+                    "CREATE INDEX IF NOT EXISTS idx_exit_feedback_intern "
+                            + "ON exit_feedback(intern_id)");
+            log.info("[SchemaFixupRunner] ensured exit_feedback table + index");
+        } catch (Exception e) {
+            log.warn("[SchemaFixupRunner] exit_feedback ensure failed (non-fatal): {}",
+                    e.getMessage(), e);
+        }
     }
 }

@@ -59,6 +59,7 @@ public class ProjectAssignmentService {
     private final com.skyzen.careers.repository.ProjectRepositoryLinkRepository
             repositoryLinkRepository;
     private final GitHubService gitHubService;
+    private final LifecycleAccessPolicy lifecycleAccessPolicy;
 
     /**
      * GitHub repo URL parsing — same shape as the legacy resource-link mirror
@@ -110,6 +111,13 @@ public class ProjectAssignmentService {
                     failures.add(new AssignProjectResultResponse.Failure(
                             internId,
                             "User is not a hired intern (no active engagement)"));
+                    continue;
+                }
+                // Phase 8: don't assign new projects to an exited intern.
+                if (!lifecycleAccessPolicy.canWrite(actor, internId,
+                        LifecycleAccessPolicy.WriteIntent.CREATE_NEW)) {
+                    failures.add(new AssignProjectResultResponse.Failure(
+                            internId, "Internship is inactive"));
                     continue;
                 }
                 ProjectAssignment a = ProjectAssignment.builder()

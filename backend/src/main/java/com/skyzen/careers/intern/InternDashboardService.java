@@ -5,6 +5,7 @@ import com.skyzen.careers.entity.User;
 import com.skyzen.careers.enums.InternLifecycleStatus;
 import com.skyzen.careers.repository.InternLifecycleRepository;
 import com.skyzen.careers.repository.UserRepository;
+import com.skyzen.careers.service.ExitService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -34,6 +35,7 @@ public class InternDashboardService {
     private final InternLifecycleRepository internLifecycleRepository;
     private final UserRepository userRepository;
     private final InternEvaluationService internEvaluationService;
+    private final ExitService exitService;
 
     public InternDashboardResponse getDashboard(User caller) {
         InternLifecycleStatus status = caller.getLifecycleStatus() != null
@@ -52,6 +54,10 @@ public class InternDashboardService {
                     caller.getId(), e.getMessage());
         }
 
+        // Phase 8 — exit summary block only when intern is INACTIVE.
+        ExitSummary exitSummary = "INACTIVE".equals(mode) ? loadExitSummary(caller) : null;
+        boolean feedbackSubmitted = exitSummary != null && exitSummary.feedbackSubmitted();
+
         return new InternDashboardResponse(
                 userSummary(caller),
                 status,
@@ -59,10 +65,34 @@ public class InternDashboardService {
                 emailVerified,
                 buildStepper(status, hasPublishedEval),
                 buildModules(mode),
-                buildNextAction(status, mode, emailVerified),
+                buildNextAction(status, mode, emailVerified, exitSummary, feedbackSubmitted),
                 buildContacts(caller),
+                exitSummary,
                 Instant.now()
         );
+    }
+
+    private ExitSummary loadExitSummary(User caller) {
+        try {
+            return exitService.getInternSummary(caller)
+                    .map(s -> new ExitSummary(
+                            s.exitType(),
+                            s.exitDate(),
+                            s.durationDays(),
+                            s.projectsCompleted(),
+                            s.evaluationsCount(),
+                            s.averageScore(),
+                            s.timesheetsApproved(),
+                            s.totalApprovedHours(),
+                            s.feedbackSubmitted(),
+                            s.internVisibleSummary(),
+                            s.finalEvaluationId()))
+                    .orElse(null);
+        } catch (Exception e) {
+            log.warn("[Dashboard] exit summary lookup failed (non-fatal) for {}: {}",
+                    caller.getId(), e.getMessage());
+            return null;
+        }
     }
 
     // ── Mode derivation ─────────────────────────────────────────────────────
@@ -195,7 +225,28 @@ public class InternDashboardService {
     // ── Next-action card ────────────────────────────────────────────────────
 
     private NextAction buildNextAction(InternLifecycleStatus s, String mode,
-                                       boolean emailVerified) {
+                                       boolean emailVerified,
+                                       ExitSummary exitSummary,
+                                       boolean feedbackSubmitted) {
+        if (s == InternLifecycleStatus.INACTIVE_INTERN) {
+            if (!feedbackSubmitted) {
+                return action(
+                        "Share your exit feedback",
+                        "Help us improve future internships — takes about 3 minutes.",
+                        "Open feedback form",
+                        "/careers/intern/exit/feedback",
+                        false, null);
+            }
+            String description = exitSummary != null && exitSummary.internVisibleSummary() != null
+                    ? exitSummary.internVisibleSummary()
+                    : "Your record is read-only. Download signed forms and feedback any time.";
+            return action(
+                    "Internship concluded",
+                    description,
+                    "View exit summary",
+                    "/careers/intern/exit/summary",
+                    false, null);
+        }
         return switch (s) {
             case REGISTERED -> action(
                     "Verify your email",
@@ -252,10 +303,12 @@ public class InternDashboardService {
                     "Check projects, weekly meetings, timesheets, and evaluations.",
                     "Open work", "/careers/intern/projects",
                     false, null);
+            // INACTIVE_INTERN handled above (Phase 8 branch) — kept here to
+            // satisfy exhaustive switch even though never reached.
             case INACTIVE_INTERN -> action(
-                    "Internship completed",
-                    "Your record is read-only. Download signed forms and feedback any time.",
-                    "Open records", "/careers/intern/documents",
+                    "Internship concluded",
+                    "Your record is read-only.",
+                    "View exit summary", "/careers/intern/exit/summary",
                     false, null);
         };
     }

@@ -79,6 +79,20 @@ export interface InternContacts {
   manager: InternContact | null;
 }
 
+export interface InternExitSummary {
+  exitType: string;
+  exitDate: string;
+  durationDays: number;
+  projectsCompleted: number;
+  evaluationsCount: number;
+  averageScore: number | null;
+  timesheetsApproved: number;
+  totalApprovedHours: number | string;
+  feedbackSubmitted: boolean;
+  internVisibleSummary: string | null;
+  finalEvaluationId: string | null;
+}
+
 export interface InternDashboardResponse {
   user: {
     firstName: string;
@@ -94,7 +108,14 @@ export interface InternDashboardResponse {
   modules: InternModulesMap;
   nextAction: InternNextAction;
   contacts: InternContacts;
+  exitSummary: InternExitSummary | null;
   lastUpdatedAt: string;
+}
+
+/** Phase 8 — convenience flag for any form/button that needs to lock when inactive. */
+export function useInternFormsDisabled(): boolean {
+  const ctx = useContext(InternDashboardContext);
+  return ctx?.data?.mode === 'INACTIVE';
 }
 
 // ── Context ───────────────────────────────────────────────────────────────

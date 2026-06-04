@@ -15,6 +15,7 @@ import {
   LayoutDashboard,
   ListChecks,
   Lock,
+  LogOut,
   MessagesSquare,
   Star,
   Video,
@@ -67,6 +68,7 @@ const STAFF_ROLE_LINKS: Record<UserRole, StaffLink[]> = {
   ],
   ERM: [
     { icon: LayoutDashboard, label: 'ERM Dashboard', href: '/careers/erm' },
+    { icon: LogOut,          label: 'Exits',         href: '/careers/erm/exits' },
   ],
   SUPER_ADMIN: [
     { icon: LayoutDashboard, label: 'Super Admin Dashboard', href: '/careers/admin' },
