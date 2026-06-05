@@ -99,6 +99,8 @@ public class ExitService {
     private final AuditLogRepository auditLogRepository;
     private final ApplicationEventPublisher eventPublisher;
     private final ObjectMapper objectMapper;
+    // ERM Phase 7 — auto-seed 8 checklist rows on exit initiation.
+    private final com.skyzen.careers.repository.ExitChecklistItemRepository exitChecklistItemRepository;
 
     // ── Commands ───────────────────────────────────────────────────────────
 
@@ -154,6 +156,12 @@ public class ExitService {
                 .internVisibleSummary(trimOrNull(req.internVisibleSummary()))
                 .build();
         record = exitRecordRepository.save(record);
+
+        // ERM Phase 7 — seed the 8 checklist items so the ERM exit detail
+        // page has rows to render and downstream listeners have rows to
+        // flip. Idempotent — only seeds rows that don't already exist
+        // (re-running initiate would error out higher up anyway).
+        seedChecklistItems(record.getId());
 
         // Flip lifecycle state.
         String newActive = mapToLifecycleActiveStatus(exitType);
@@ -344,6 +352,12 @@ public class ExitService {
         } catch (Exception e) {
             log.warn("[Exit] feedback event publish failed (non-fatal): {}", e.getMessage());
         }
+        // ERM Phase 7 — flip the EXIT_FEEDBACK_SUBMITTED checklist item.
+        flipChecklistItem(record.getId(),
+                com.skyzen.careers.erm.exit.ExitChecklistItemRegistry.EXIT_FEEDBACK_SUBMITTED,
+                com.skyzen.careers.erm.exit.ExitChecklistItemRegistry.STATUS_COMPLETE,
+                intern.getId(),
+                "Auto-completed by intern feedback submission.");
         return toFeedbackResponse(fb);
     }
 
@@ -555,7 +569,61 @@ public class ExitService {
         record.setAccessRevocationAttemptedAt(attemptedAt);
         record.setAccessRevocationSummary(summary);
         record.setAccessRevocationDone(allSucceeded);
+        if (allSucceeded) {
+            record.setAccessRevocationCompletedAt(attemptedAt);
+        }
         exitRecordRepository.save(record);
+
+        // ERM Phase 7 — flip the checklist item iff revocation fully
+        // succeeded. Partial failures leave the row PENDING so the ERM
+        // sees the "Retry revocation" CTA on the detail page.
+        if (allSucceeded) {
+            flipChecklistItem(exitRecordId,
+                    com.skyzen.careers.erm.exit.ExitChecklistItemRegistry.GITHUB_REVOKED,
+                    com.skyzen.careers.erm.exit.ExitChecklistItemRegistry.STATUS_COMPLETE,
+                    null,
+                    "Auto-completed by GithubRevocationListener.");
+        }
+    }
+
+    /**
+     * ERM Phase 7 — UPSERT-style helper for flipping a single checklist
+     * row. Used by listeners (system-actor → completedById=null) and by
+     * {@code submitFeedback} below.
+     */
+    @Transactional
+    public void flipChecklistItem(UUID exitRecordId, String itemKey,
+                                   String newStatus, UUID actorId, String note) {
+        try {
+            var existing = exitChecklistItemRepository
+                    .findByExitRecordIdAndItemKey(exitRecordId, itemKey);
+            com.skyzen.careers.entity.ExitChecklistItem row = existing.orElseGet(
+                    () -> com.skyzen.careers.entity.ExitChecklistItem.builder()
+                            .exitRecordId(exitRecordId)
+                            .itemKey(itemKey)
+                            .status(com.skyzen.careers.erm.exit
+                                    .ExitChecklistItemRegistry.STATUS_PENDING)
+                            .build());
+            // Don't downgrade a manually COMPLETE/WAIVED row back to PENDING
+            // — keeps the ERM's intent sticky against scheduler / listener noise.
+            if (com.skyzen.careers.erm.exit.ExitChecklistItemRegistry
+                    .STATUS_PENDING.equals(newStatus)
+                    && !com.skyzen.careers.erm.exit.ExitChecklistItemRegistry
+                            .STATUS_PENDING.equals(row.getStatus())) {
+                return;
+            }
+            row.setStatus(newStatus);
+            if (com.skyzen.careers.erm.exit.ExitChecklistItemRegistry
+                    .STATUS_COMPLETE.equals(newStatus)) {
+                row.setCompletedAt(Instant.now());
+                row.setCompletedById(actorId);
+            }
+            if (note != null && !note.isBlank()) row.setNote(note);
+            exitChecklistItemRepository.save(row);
+        } catch (Exception e) {
+            log.warn("[Exit] flipChecklistItem failed for record {} item {}: {}",
+                    exitRecordId, itemKey, e.getMessage());
+        }
     }
 
     // ── Mapping helpers ─────────────────────────────────────────────────────
@@ -663,6 +731,33 @@ public class ExitService {
         if (s == null) return null;
         String t = s.trim();
         return t.isEmpty() ? null : t;
+    }
+
+    /**
+     * ERM Phase 7 — seed the 8 standard checklist items as PENDING on
+     * exit creation. Best-effort: a failure here doesn't block initiate
+     * (the ERM detail page tolerates missing rows and we can backfill
+     * via a follow-up if needed).
+     */
+    private void seedChecklistItems(UUID exitRecordId) {
+        try {
+            for (String key : com.skyzen.careers.erm.exit.ExitChecklistItemRegistry.ALL_ITEMS) {
+                if (exitChecklistItemRepository
+                        .findByExitRecordIdAndItemKey(exitRecordId, key).isPresent()) {
+                    continue;
+                }
+                exitChecklistItemRepository.save(
+                        com.skyzen.careers.entity.ExitChecklistItem.builder()
+                                .exitRecordId(exitRecordId)
+                                .itemKey(key)
+                                .status(com.skyzen.careers.erm.exit
+                                        .ExitChecklistItemRegistry.STATUS_PENDING)
+                                .build());
+            }
+        } catch (Exception e) {
+            log.warn("[Exit] checklist seed failed for record {}: {}",
+                    exitRecordId, e.getMessage());
+        }
     }
 
     private Map<String, Object> snapshotForAudit(ExitRecord r) {

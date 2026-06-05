@@ -102,7 +102,20 @@ public enum ReasonCode {
     EXCEPTION_DISMISSED_OUT_OF_SCOPE(Category.EXCEPTION_DISMISS,
             "Out of ERM scope", false),
     EXCEPTION_DISMISSED_DUPLICATE(Category.EXCEPTION_DISMISS,
-            "Duplicate of existing exception", false);
+            "Duplicate of existing exception", false),
+
+    // ── Exit manager override (ERM Phase 7) ────────────────────────────────
+    EXIT_OVERRIDE_BUSINESS_NECESSITY(Category.EXIT_OVERRIDE,
+            "Business necessity", true),
+    EXIT_OVERRIDE_COMPLIANCE_REQUIRED(Category.EXIT_OVERRIDE,
+            "Compliance requirement", true),
+    EXIT_OVERRIDE_OTHER(Category.EXIT_OVERRIDE,
+            "Other (specify)", true),
+
+    // ── Asset status (ERM Phase 7) ─────────────────────────────────────────
+    ASSET_RETURNED(Category.ASSET, "Returned", false),
+    ASSET_NOT_APPLICABLE(Category.ASSET, "Not applicable", false),
+    ASSET_PENDING(Category.ASSET, "Pending return", false);
 
     public enum Category {
         APPLICATION_REJECT,
@@ -116,7 +129,9 @@ public enum ReasonCode {
         DOCUMENT_REJECT,
         EXIT,
         EXCEPTION_RESOLVE,
-        EXCEPTION_DISMISS
+        EXCEPTION_DISMISS,
+        EXIT_OVERRIDE,
+        ASSET
     }
 
     private final Category category;

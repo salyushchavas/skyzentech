@@ -23,5 +23,8 @@ public enum ExceptionType {
     /** ERM Phase 6 — project IN_PROGRESS &gt; 75% of duration with no submissions. */
     LOW_PROJECT_PROGRESS,
     /** ERM Phase 6 — ≥2 consecutive timesheet REJECTIONS in the last 4 weeks. */
-    REPEATED_TIMESHEET_REJECTION
+    REPEATED_TIMESHEET_REJECTION,
+    /** ERM Phase 7 — intern is INACTIVE_INTERN &gt; 30 days but exit checklist
+     *  still has ≥1 PENDING item (no manager override). */
+    EXIT_OVERDUE
 }

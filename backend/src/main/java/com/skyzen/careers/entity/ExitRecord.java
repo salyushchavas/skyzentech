@@ -90,6 +90,44 @@ public class ExitRecord {
     @Column(name = "amended_at")
     private Instant amendedAt;
 
+    // ── ERM Phase 7 — operational columns ──────────────────────────────────
+
+    /** Structured ReasonCode (EXIT_* family). Complements the legacy
+     *  free-text {@link #exitReason} so the ERM flow can enforce taxonomy. */
+    @Column(name = "reason_code", length = 80)
+    private String reasonCode;
+
+    /** Actual last day the intern worked — may differ from
+     *  {@link #exitDate} which is the record-keeping date. */
+    @Column(name = "last_working_day")
+    private LocalDate lastWorkingDay;
+
+    /** ERM-only — JSON snapshot of the asset check-off
+     *  (laptop, badge, building access, parking, keys, other). */
+    @Column(name = "asset_status_json", columnDefinition = "TEXT")
+    private String assetStatusJson;
+
+    /** ALL_APPROVED | PENDING | WAIVED — final timesheet posture. */
+    @Column(name = "final_timesheet_status", length = 20)
+    private String finalTimesheetStatus;
+
+    @Column(name = "final_documents_archived_at")
+    private Instant finalDocumentsArchivedAt;
+
+    @Column(name = "access_revocation_completed_at")
+    private Instant accessRevocationCompletedAt;
+
+    /** Manager (or SUPER_ADMIN) who approved closing the exit early. */
+    @Column(name = "manager_override_id")
+    private UUID managerOverrideId;
+
+    /** ERM-only. */
+    @Column(name = "manager_override_reason", columnDefinition = "TEXT")
+    private String managerOverrideReason;
+
+    @Column(name = "manager_override_at")
+    private Instant managerOverrideAt;
+
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;

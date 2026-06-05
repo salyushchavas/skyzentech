@@ -1,335 +1,581 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
-import { useParams } from 'next/navigation';
+import { use, useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
-import { ChevronLeft } from 'lucide-react';
 import api from '@/lib/api';
+import ProtectedRoute from '@/components/ProtectedRoute';
+import DashboardLayout from '@/components/dashboard/DashboardLayout';
 import PageHeader from '@/components/ui/PageHeader';
-import ExitTypePill from '@/components/exit/ExitTypePill';
+import AssetStatusModal from '@/components/erm/exits/AssetStatusModal';
+import ManagerOverrideModal from '@/components/erm/exits/ManagerOverrideModal';
+import {
+  CHECKLIST_LABEL,
+  EXIT_TYPE_TONE,
+  type AssetStatus,
+  type ChecklistItemRow,
+  type ChecklistStatus,
+  type ErmExitDetail,
+} from '@/components/erm/exits/types';
 
-interface ExitRecord {
-  id: string;
-  internLifecycleId: string;
-  internId: string;
-  internName: string | null;
-  internEmail: string | null;
-  exitType: string;
-  exitDate: string;
-  exitReason: string | null;
-  initiatedById: string;
-  initiatedByName: string | null;
-  finalEvaluationId: string | null;
-  rehireEligible: boolean | null;
-  accessRevocationDone: boolean | null;
-  accessRevocationAttemptedAt: string | null;
-  accessRevocationSummary: string | null;
-  finalDocumentsArchived: boolean | null;
-  internVisibleSummary: string | null;
-  internalNotes: string | null;
-  amendedAt: string | null;
-  createdAt: string;
+type RouteParams = { id: string };
+
+const POLL_MS = 60_000;
+
+export default function ExitDetailPage(props: {
+  params: Promise<RouteParams>;
+}) {
+  const { id } = use(props.params);
+  return (
+    <ProtectedRoute requiredRoles={['ERM', 'SUPER_ADMIN', 'MANAGER']}>
+      <DashboardLayout>
+        <Body id={id} />
+      </DashboardLayout>
+    </ProtectedRoute>
+  );
 }
 
-interface FeedbackResponse {
-  overallRating: number;
-  learningRating: number;
-  mentorshipRating: number;
-  workEnvironmentRating: number;
-  whatWentWell: string;
-  whatCouldImprove: string;
-  wouldRecommend: boolean;
-  additionalComments: string | null;
-  submittedAt: string;
-}
-
-export default function ExitRecordDetailPage() {
-  const params = useParams<{ id: string }>();
-  const id = params?.id;
-  const [record, setRecord] = useState<ExitRecord | null>(null);
-  const [feedback, setFeedback] = useState<FeedbackResponse | null>(null);
-  const [loading, setLoading] = useState(true);
+function Body({ id }: { id: string }) {
+  const [d, setD] = useState<ErmExitDetail | null>(null);
   const [err, setErr] = useState<string | null>(null);
-  const [notesDraft, setNotesDraft] = useState('');
-  const [savingNotes, setSavingNotes] = useState(false);
-  const [evalIdInput, setEvalIdInput] = useState('');
+  const [showAssets, setShowAssets] = useState(false);
+  const [showOverride, setShowOverride] = useState(false);
+  const [showLinkEval, setShowLinkEval] = useState(false);
+  const [noteDraft, setNoteDraft] = useState('');
+  const [savingNote, setSavingNote] = useState(false);
 
   const load = useCallback(async () => {
-    if (!id) return;
-    setLoading(true);
     try {
-      const r = await api.get<ExitRecord>(`/api/v1/exit/records/${id}`);
-      setRecord(r.data);
-      setNotesDraft(r.data.internalNotes ?? '');
+      const res = await api.get<ErmExitDetail>(`/api/v1/erm/exits/${id}`);
+      setD(res.data);
       setErr(null);
-      try {
-        const f = await api.get<FeedbackResponse>(
-          `/api/v1/exit/feedback/mine?internId=${r.data.internId}`,
-        );
-        setFeedback(f.data);
-      } catch {
-        setFeedback(null);
-      }
-    } catch (e) {
-      setErr(e instanceof Error ? e.message : 'Failed to load exit record');
-    } finally {
-      setLoading(false);
+    } catch (e: any) {
+      setErr(e?.response?.data?.error ?? 'Failed to load exit');
     }
   }, [id]);
 
-  useEffect(() => { void load(); }, [load]);
+  useEffect(() => {
+    void load();
+    const t = setInterval(() => {
+      void load();
+    }, POLL_MS);
+    return () => clearInterval(t);
+  }, [load]);
 
-  async function saveNotes() {
-    if (!id) return;
-    setSavingNotes(true);
+  async function updateItem(
+    itemKey: string,
+    status: ChecklistStatus,
+    note?: string,
+  ) {
     try {
-      await api.patch(`/api/v1/exit/records/${id}`, { internalNotes: notesDraft });
-      await load();
-    } catch (e) {
-      const ax = e as { response?: { data?: { error?: string } } };
-      setErr(ax.response?.data?.error ?? 'Failed to save notes');
-    } finally {
-      setSavingNotes(false);
-    }
-  }
-
-  async function toggleChecklist(itemKey: 'access-revocation' | 'documents-archived',
-                                  done: boolean) {
-    if (!id) return;
-    try {
-      await api.post(`/api/v1/exit/records/${id}/checklist/${itemKey}`, { done });
-      await load();
-    } catch (e) {
-      const ax = e as { response?: { data?: { error?: string } } };
-      setErr(ax.response?.data?.error ?? 'Failed to update checklist item');
+      const res = await api.post<ErmExitDetail>(
+        `/api/v1/erm/exits/${id}/checklist/${itemKey}`,
+        { status, note },
+      );
+      setD(res.data);
+    } catch (e: any) {
+      setErr(e?.response?.data?.error ?? 'Update failed');
     }
   }
 
   async function retryRevocation() {
-    if (!id) return;
     try {
-      await api.post(`/api/v1/exit/records/${id}/retry-revocation`, {});
-      await load();
-    } catch (e) {
-      const ax = e as { response?: { data?: { error?: string } } };
-      setErr(ax.response?.data?.error ?? 'Retry failed');
+      const res = await api.post<ErmExitDetail>(
+        `/api/v1/erm/exits/${id}/retry-revocation`,
+      );
+      setD(res.data);
+    } catch (e: any) {
+      setErr(e?.response?.data?.error ?? 'Retry failed');
     }
   }
 
-  async function linkFinalEval() {
-    if (!id) return;
-    if (!evalIdInput.trim()) return;
+  async function saveNote() {
+    if (noteDraft.trim().length < 5) return;
+    setSavingNote(true);
     try {
-      await api.post(`/api/v1/exit/records/${id}/final-evaluation`, {
-        evaluationId: evalIdInput.trim(),
+      await api.post(`/api/v1/erm/exits/${id}/internal-note`, {
+        note: noteDraft.trim(),
       });
-      setEvalIdInput('');
+      setNoteDraft('');
       await load();
-    } catch (e) {
-      const ax = e as { response?: { data?: { error?: string } } };
-      setErr(ax.response?.data?.error ?? 'Failed to link evaluation');
+    } catch (e: any) {
+      setErr(e?.response?.data?.error ?? 'Note add failed');
+    } finally {
+      setSavingNote(false);
     }
   }
 
-  if (loading) {
+  if (err && !d) {
     return (
-      <>
-        <PageHeader title="Exit record" />
-        <div className="h-32 animate-pulse rounded-lg bg-slate-50" aria-hidden />
-      </>
+      <p className="rounded-md border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800">
+        {err}
+      </p>
     );
   }
-  if (err || !record) {
-    return (
-      <>
-        <PageHeader title="Exit record" />
-        <p className="rounded-md border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800">
-          {err ?? 'Exit record not found'}
-        </p>
-      </>
-    );
-  }
+  if (!d) return <div className="h-64 animate-pulse rounded-lg bg-slate-100" />;
 
-  const checklist = [
-    {
-      label: 'Final evaluation linked',
-      done: !!record.finalEvaluationId,
-    },
-    {
-      label: 'GitHub access revoked',
-      done: !!record.accessRevocationDone,
-    },
-    {
-      label: 'Documents archived',
-      done: !!record.finalDocumentsArchived,
-    },
-  ];
+  const pendingCount = d.checklist.filter((c) => c.status === 'PENDING').length;
+  const completeCount = d.checklist.filter((c) =>
+    ['COMPLETE', 'NOT_APPLICABLE', 'WAIVED'].includes(c.status),
+  ).length;
+  const totalCount = d.checklist.length;
+  const assets: AssetStatus | null = (() => {
+    if (!d.assetStatusJson) return null;
+    try { return JSON.parse(d.assetStatusJson) as AssetStatus; }
+    catch { return null; }
+  })();
 
   return (
     <>
-      <Link
-        href="/careers/erm/exits"
-        className="mb-3 inline-flex items-center gap-1 text-sm text-slate-500 hover:text-slate-700"
-      >
-        <ChevronLeft className="h-4 w-4" /> Back to Exits
-      </Link>
       <PageHeader
-        title={record.internName ?? 'Exit record'}
-        subtitle={record.internEmail ?? undefined}
+        title={d.internName ?? 'Exit record'}
+        subtitle={`${d.employeeId ?? ''} · ${d.internEmail ?? ''} · ${d.daysSinceInitiate}d since initiate`}
       />
 
-      <section className="mb-6 rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
-        <div className="flex items-center gap-2">
-          <ExitTypePill exitType={record.exitType} />
-          <span className="text-sm text-slate-700">Effective {record.exitDate}</span>
-          <span className="text-xs text-slate-500">
-            · Initiated {new Date(record.createdAt).toLocaleString()}
-            {record.initiatedByName ? ` by ${record.initiatedByName}` : ''}
+      <div className="mb-4 flex flex-wrap items-center gap-3 rounded-lg border border-slate-200 bg-white px-4 py-3">
+        <span
+          className={
+            'rounded-full px-2 py-0.5 text-[11px] font-semibold ' +
+            EXIT_TYPE_TONE[d.exitType]
+          }
+        >
+          {d.exitType}
+        </span>
+        <span className="text-xs text-slate-700">
+          Exit {d.exitDate ?? '—'}
+          {d.lastWorkingDay && d.lastWorkingDay !== d.exitDate && (
+            <span className="ml-1 text-[11px] text-slate-500">
+              (LWD {d.lastWorkingDay})
+            </span>
+          )}
+        </span>
+        {d.reasonCode && (
+          <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] text-slate-700">
+            {d.reasonCode}
           </span>
+        )}
+        {d.managerOverrideAt && (
+          <span className="rounded-full bg-rose-100 px-2 py-0.5 text-[11px] text-rose-700">
+            Manager override active
+          </span>
+        )}
+        <div className="ml-auto flex gap-2">
+          <Link
+            href="/careers/erm/exits"
+            className="rounded-md border border-slate-200 px-3 py-1 text-xs text-slate-700 hover:bg-slate-50"
+          >
+            ← Queue
+          </Link>
+          <Link
+            href={`/careers/erm/exits/${id}/feedback`}
+            className="rounded-md border border-slate-200 px-3 py-1 text-xs text-slate-700 hover:bg-slate-50"
+          >
+            Feedback
+          </Link>
         </div>
-        {record.internVisibleSummary && (
-          <p className="mt-3 text-sm text-slate-700">
-            <span className="text-[11px] uppercase text-slate-500">Intern-visible summary</span>
-            <br />
-            {record.internVisibleSummary}
-          </p>
-        )}
-        {record.exitReason && (
-          <p className="mt-3 text-sm text-slate-700">
-            <span className="text-[11px] uppercase text-slate-500">Reason</span>
-            <br />
-            {record.exitReason}
-          </p>
-        )}
-        <p className="mt-3 text-xs text-slate-500">
-          Rehire eligible: {record.rehireEligible ? 'Yes' : 'No'}
-        </p>
-      </section>
+      </div>
 
-      <section className="mb-6 rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
-        <h3 className="text-sm font-semibold text-slate-900">Checklist</h3>
-        <ul className="mt-3 space-y-3">
-          {checklist.map((c) => (
-            <li key={c.label} className="flex items-center gap-2 text-sm">
-              <span
-                className={
-                  'inline-flex h-5 w-5 items-center justify-center rounded-full border ' +
-                  (c.done
-                    ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
-                    : 'border-slate-200 bg-slate-50 text-slate-400')
-                }
-              >
-                {c.done ? '✓' : '•'}
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+        <section className="lg:col-span-2 space-y-4">
+          <div className="rounded-lg border border-slate-200 bg-white p-4">
+            <div className="mb-3 flex items-center justify-between">
+              <h3 className="text-sm font-semibold text-slate-900">
+                Exit checklist
+              </h3>
+              <span className="text-xs text-slate-500">
+                {completeCount} of {totalCount} resolved · {pendingCount} pending
               </span>
-              <span className={c.done ? 'text-slate-700' : 'text-slate-500'}>{c.label}</span>
-            </li>
-          ))}
-        </ul>
-
-        <div className="mt-4 grid gap-3 sm:grid-cols-2">
-          <div className="rounded-md border border-slate-100 bg-slate-50 p-3">
-            <p className="text-[11px] uppercase text-slate-500">GitHub revocation</p>
-            <p className="mt-1 text-xs text-slate-700">
-              {record.accessRevocationSummary ?? 'Not yet attempted.'}
-            </p>
-            <button
-              type="button"
-              onClick={retryRevocation}
-              className="mt-2 rounded-md border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-100"
-            >
-              Retry revocation
-            </button>
+            </div>
+            <ul className="space-y-2">
+              {d.checklist.map((c) => (
+                <ChecklistRow
+                  key={c.id}
+                  item={c}
+                  onMark={(s, n) => updateItem(c.itemKey, s, n)}
+                  onOpenAssets={
+                    c.itemKey === 'ASSETS_RETURNED'
+                      ? () => setShowAssets(true)
+                      : undefined
+                  }
+                  onOpenLinkEval={
+                    c.itemKey === 'FINAL_EVALUATION'
+                      ? () => setShowLinkEval(true)
+                      : undefined
+                  }
+                  onRetryRevocation={
+                    c.itemKey === 'GITHUB_REVOKED'
+                      ? () => void retryRevocation()
+                      : undefined
+                  }
+                  revocationSummary={
+                    c.itemKey === 'GITHUB_REVOKED'
+                      ? d.accessRevocationSummary
+                      : null
+                  }
+                  feedbackSubmitted={
+                    c.itemKey === 'EXIT_FEEDBACK_SUBMITTED'
+                      ? d.feedbackSubmitted
+                      : null
+                  }
+                />
+              ))}
+            </ul>
           </div>
-          <div className="rounded-md border border-slate-100 bg-slate-50 p-3">
-            <p className="text-[11px] uppercase text-slate-500">Documents archived</p>
-            <button
-              type="button"
-              onClick={() => toggleChecklist('documents-archived', !record.finalDocumentsArchived)}
-              className="mt-2 rounded-md border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-100"
-            >
-              Mark {record.finalDocumentsArchived ? 'not archived' : 'archived'}
-            </button>
-          </div>
-        </div>
 
-        <div className="mt-4 rounded-md border border-slate-100 bg-slate-50 p-3">
-          <p className="text-[11px] uppercase text-slate-500">Final evaluation</p>
-          {record.finalEvaluationId ? (
-            <p className="mt-1 text-xs text-slate-700">
-              Linked: <span className="font-mono">{record.finalEvaluationId}</span>
-            </p>
-          ) : (
-            <div className="mt-2 flex gap-2">
-              <input
-                value={evalIdInput}
-                onChange={(e) => setEvalIdInput(e.target.value)}
-                placeholder="Final evaluation UUID"
-                className="flex-1 rounded-md border border-slate-200 px-3 py-1.5 text-xs"
-              />
+          {pendingCount > 0 && (
+            <div className="rounded-lg border border-amber-200 bg-amber-50 p-4">
+              <h3 className="mb-2 text-sm font-semibold text-amber-900">
+                Manager override
+              </h3>
+              <p className="mb-2 text-xs text-amber-800">
+                If business needs require closing this exit before every item
+                resolves, a MANAGER (this intern's reporting manager) or
+                SUPER_ADMIN can waive the remaining {pendingCount} PENDING
+                item{pendingCount === 1 ? '' : 's'} with a documented reason.
+              </p>
               <button
                 type="button"
-                onClick={linkFinalEval}
-                className="rounded-md bg-teal-700 px-3 py-1.5 text-xs font-semibold text-white hover:bg-teal-800"
+                onClick={() => setShowOverride(true)}
+                className="rounded-md bg-rose-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-rose-700"
               >
-                Link
+                Manager override…
               </button>
             </div>
           )}
-        </div>
-      </section>
 
-      <section className="mb-6 rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
-        <h3 className="text-sm font-semibold text-slate-900">Intern feedback</h3>
-        {!feedback && (
-          <p className="mt-2 text-sm text-slate-500">Awaiting intern submission.</p>
-        )}
-        {feedback && (
-          <div className="mt-2 text-sm text-slate-700">
-            <div className="flex flex-wrap gap-3 text-xs">
-              <span>Overall: <b>{feedback.overallRating}/5</b></span>
-              <span>Learning: <b>{feedback.learningRating}/5</b></span>
-              <span>Mentorship: <b>{feedback.mentorshipRating}/5</b></span>
-              <span>Environment: <b>{feedback.workEnvironmentRating}/5</b></span>
-              <span>Would recommend: <b>{feedback.wouldRecommend ? 'Yes' : 'No'}</b></span>
+          {d.managerOverrideReason && (
+            <div className="rounded-lg border border-slate-300 bg-slate-50 p-4">
+              <p className="text-xs font-semibold uppercase text-slate-600">
+                Override reason
+              </p>
+              <p className="mt-1 whitespace-pre-wrap text-sm text-slate-800">
+                {d.managerOverrideReason}
+              </p>
+              <p className="mt-1 text-[11px] text-slate-500">
+                {d.managerOverrideAt &&
+                  new Date(d.managerOverrideAt).toLocaleString()}
+              </p>
             </div>
-            <div className="mt-3">
-              <p className="text-[11px] uppercase text-slate-500">What went well</p>
-              <p className="mt-1 whitespace-pre-wrap">{feedback.whatWentWell}</p>
+          )}
+
+          <div className="rounded-lg border border-slate-200 bg-white p-4">
+            <h3 className="mb-2 text-sm font-semibold text-slate-900">
+              Add internal note
+              <span className="ml-2 text-[10px] font-normal text-rose-600">
+                ERM-only
+              </span>
+            </h3>
+            <textarea
+              rows={2}
+              value={noteDraft}
+              onChange={(e) => setNoteDraft(e.target.value)}
+              placeholder="At least 5 characters — appended to the internal log"
+              className="block w-full rounded-md border border-slate-200 px-2 py-1.5 text-sm"
+            />
+            <div className="mt-2 flex justify-end">
+              <button
+                type="button"
+                disabled={savingNote || noteDraft.trim().length < 5}
+                onClick={() => void saveNote()}
+                className="rounded-md border border-slate-300 bg-white px-3 py-1 text-xs font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+              >
+                {savingNote ? 'Saving…' : 'Append note'}
+              </button>
             </div>
-            <div className="mt-3">
-              <p className="text-[11px] uppercase text-slate-500">What could improve</p>
-              <p className="mt-1 whitespace-pre-wrap">{feedback.whatCouldImprove}</p>
-            </div>
-            {feedback.additionalComments && (
-              <div className="mt-3">
-                <p className="text-[11px] uppercase text-slate-500">Additional comments</p>
-                <p className="mt-1 whitespace-pre-wrap">{feedback.additionalComments}</p>
-              </div>
+            {d.internalNotes && (
+              <pre className="mt-3 max-h-48 overflow-auto whitespace-pre-wrap rounded bg-slate-50 p-2 text-[11px] text-slate-700">
+                {d.internalNotes}
+              </pre>
             )}
           </div>
-        )}
-      </section>
+        </section>
 
-      <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
-        <h3 className="text-sm font-semibold text-slate-900">Internal notes</h3>
-        <p className="text-xs text-slate-500">Visible to ERM/Manager only.</p>
-        <textarea
-          value={notesDraft}
-          onChange={(e) => setNotesDraft(e.target.value)}
-          rows={4}
-          className="mt-2 w-full resize-y rounded-md border border-slate-200 px-3 py-2 text-sm"
+        <aside className="space-y-3">
+          <section className="rounded-lg border border-slate-200 bg-white p-4">
+            <h3 className="mb-2 text-sm font-semibold text-slate-900">
+              Intern summary
+            </h3>
+            <dl className="space-y-1 text-xs text-slate-700">
+              <Row k="Intern" v={d.internName} />
+              <Row k="Email" v={d.internEmail} />
+              <Row k="Employee ID" v={d.employeeId} />
+              <Row k="Final timesheets" v={d.finalTimesheetStatus} />
+              <Row k="Rehire eligible" v={d.rehireEligible ? 'Yes' : 'No'} />
+              <Row k="Initiated by" v={d.initiatedByName} />
+              <Row
+                k="Created"
+                v={d.createdAt ? new Date(d.createdAt).toLocaleString() : null}
+              />
+            </dl>
+            <div className="mt-3 space-y-1 text-[11px]">
+              <Link
+                href={`/careers/erm/active-interns/${d.internLifecycleId}`}
+                className="block text-teal-700 hover:underline"
+              >
+                Active intern monitor →
+              </Link>
+              <Link
+                href={`/careers/erm/compliance/${d.internUserId}`}
+                className="block text-teal-700 hover:underline"
+              >
+                Compliance tracker →
+              </Link>
+            </div>
+          </section>
+
+          {assets && (
+            <section className="rounded-lg border border-slate-200 bg-white p-4">
+              <h3 className="mb-2 text-sm font-semibold text-slate-900">
+                Asset status
+              </h3>
+              <dl className="space-y-1 text-xs">
+                <Row k="Laptop" v={assets.laptopReturned ? '✓' : '—'} />
+                <Row k="Badge" v={assets.badgeReturned ? '✓' : '—'} />
+                <Row
+                  k="Building"
+                  v={assets.buildingAccessRemoved ? '✓' : '—'}
+                />
+                <Row k="Parking" v={assets.parkingPassReturned ? '✓' : '—'} />
+                <Row k="Keys" v={assets.keysReturned ? '✓' : '—'} />
+              </dl>
+              {assets.otherNotes && (
+                <p className="mt-2 rounded bg-slate-50 p-2 text-[11px] text-slate-700">
+                  {assets.otherNotes}
+                </p>
+              )}
+            </section>
+          )}
+        </aside>
+      </div>
+
+      {showAssets && (
+        <AssetStatusModal
+          exitRecordId={id}
+          initial={assets}
+          onClose={() => setShowAssets(false)}
+          onSaved={(u) => {
+            setD(u);
+            setShowAssets(false);
+          }}
         />
-        <div className="mt-3 flex justify-end">
+      )}
+      {showOverride && (
+        <ManagerOverrideModal
+          exitRecordId={id}
+          pendingCount={pendingCount}
+          onClose={() => setShowOverride(false)}
+          onDone={(u) => {
+            setD(u);
+            setShowOverride(false);
+          }}
+        />
+      )}
+      {showLinkEval && (
+        <LinkEvaluationModal
+          exitRecordId={id}
+          internLifecycleId={d.internLifecycleId}
+          onClose={() => setShowLinkEval(false)}
+          onLinked={(u) => {
+            setD(u);
+            setShowLinkEval(false);
+          }}
+        />
+      )}
+    </>
+  );
+}
+
+function ChecklistRow({
+  item,
+  onMark,
+  onOpenAssets,
+  onOpenLinkEval,
+  onRetryRevocation,
+  revocationSummary,
+  feedbackSubmitted,
+}: {
+  item: ChecklistItemRow;
+  onMark: (s: ChecklistStatus, n?: string) => void;
+  onOpenAssets?: () => void;
+  onOpenLinkEval?: () => void;
+  onRetryRevocation?: () => void;
+  revocationSummary: string | null;
+  feedbackSubmitted: boolean | null;
+}) {
+  const tone =
+    item.status === 'COMPLETE'
+      ? 'bg-emerald-50 border-emerald-200'
+      : item.status === 'WAIVED'
+        ? 'bg-slate-50 border-slate-200'
+        : item.status === 'NOT_APPLICABLE'
+          ? 'bg-sky-50 border-sky-200'
+          : 'bg-white border-amber-200';
+  return (
+    <li className={'rounded-md border px-3 py-2 ' + tone}>
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="min-w-0 flex-1">
+          <div className="text-sm font-medium text-slate-900">
+            {CHECKLIST_LABEL[item.itemKey] ?? item.itemKey}
+          </div>
+          <div className="text-[11px] text-slate-500">
+            {item.status}
+            {item.completedAt && (
+              <span>
+                {' '}
+                · {new Date(item.completedAt).toLocaleString()}
+                {item.completedByName && ' by ' + item.completedByName}
+              </span>
+            )}
+          </div>
+          {item.note && (
+            <p className="mt-1 text-[11px] text-slate-700">{item.note}</p>
+          )}
+          {revocationSummary && (
+            <p className="mt-1 rounded bg-slate-100 p-1 text-[11px] text-slate-700">
+              {revocationSummary}
+            </p>
+          )}
+          {feedbackSubmitted === false && (
+            <p className="mt-1 text-[11px] text-amber-700">
+              Intern has not yet submitted exit feedback.
+            </p>
+          )}
+        </div>
+        <div className="flex gap-1">
+          {onOpenLinkEval && item.status !== 'COMPLETE' && (
+            <button
+              type="button"
+              onClick={onOpenLinkEval}
+              className="rounded-md border border-slate-300 px-2 py-0.5 text-[11px] text-slate-700 hover:bg-slate-50"
+            >
+              Link evaluation
+            </button>
+          )}
+          {onOpenAssets && (
+            <button
+              type="button"
+              onClick={onOpenAssets}
+              className="rounded-md border border-slate-300 px-2 py-0.5 text-[11px] text-slate-700 hover:bg-slate-50"
+            >
+              Edit assets
+            </button>
+          )}
+          {onRetryRevocation && item.status !== 'COMPLETE' && (
+            <button
+              type="button"
+              onClick={onRetryRevocation}
+              className="rounded-md border border-amber-300 px-2 py-0.5 text-[11px] text-amber-700 hover:bg-amber-100"
+            >
+              Retry revocation
+            </button>
+          )}
+          {item.status !== 'COMPLETE' && !onOpenAssets && !onOpenLinkEval && (
+            <button
+              type="button"
+              onClick={() => onMark('COMPLETE')}
+              className="rounded-md bg-emerald-600 px-2 py-0.5 text-[11px] font-semibold text-white hover:bg-emerald-700"
+            >
+              Mark complete
+            </button>
+          )}
+          {item.status !== 'NOT_APPLICABLE' && item.status !== 'WAIVED' && (
+            <button
+              type="button"
+              onClick={() => onMark('NOT_APPLICABLE')}
+              className="rounded-md border border-slate-300 px-2 py-0.5 text-[11px] text-slate-700 hover:bg-slate-50"
+            >
+              N/A
+            </button>
+          )}
+        </div>
+      </div>
+    </li>
+  );
+}
+
+function LinkEvaluationModal({
+  exitRecordId,
+  internLifecycleId,
+  onClose,
+  onLinked,
+}: {
+  exitRecordId: string;
+  internLifecycleId: string;
+  onClose: () => void;
+  onLinked: (d: ErmExitDetail) => void;
+}) {
+  const [evaluationId, setEvaluationId] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  async function submit() {
+    if (!evaluationId.trim()) return;
+    setSubmitting(true);
+    setErr(null);
+    try {
+      const res = await api.post<ErmExitDetail>(
+        `/api/v1/erm/exits/${exitRecordId}/link-evaluation`,
+        { evaluationId: evaluationId.trim() },
+      );
+      onLinked(res.data);
+    } catch (e: any) {
+      setErr(e?.response?.data?.error ?? 'Link failed');
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4">
+      <div className="w-full max-w-md rounded-lg bg-white shadow-xl">
+        <div className="border-b border-slate-200 px-5 py-3">
+          <h3 className="text-sm font-semibold text-slate-900">
+            Link FINAL evaluation
+          </h3>
+          <p className="text-xs text-slate-500">
+            Paste the FINAL evaluation UUID for this intern lifecycle
+            ({internLifecycleId.slice(0, 8)}). Must be PUBLISHED.
+          </p>
+        </div>
+        <div className="px-5 py-4">
+          <input
+            value={evaluationId}
+            onChange={(e) => setEvaluationId(e.target.value)}
+            placeholder="Evaluation UUID"
+            className="block w-full rounded-md border border-slate-200 px-2 py-1.5 text-sm"
+          />
+          {err && (
+            <p className="mt-2 rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-700">
+              {err}
+            </p>
+          )}
+        </div>
+        <div className="flex items-center justify-end gap-2 border-t border-slate-200 px-5 py-3">
           <button
             type="button"
-            onClick={saveNotes}
-            disabled={savingNotes}
-            className="rounded-md bg-teal-700 px-3 py-1.5 text-xs font-semibold text-white hover:bg-teal-800 disabled:opacity-60"
+            onClick={onClose}
+            className="rounded-md border border-slate-200 px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-50"
           >
-            {savingNotes ? 'Saving…' : 'Save notes'}
+            Cancel
+          </button>
+          <button
+            type="button"
+            disabled={submitting || !evaluationId.trim()}
+            onClick={() => void submit()}
+            className="rounded-md bg-teal-700 px-3 py-1.5 text-sm font-semibold text-white disabled:opacity-50"
+          >
+            {submitting ? 'Linking…' : 'Link'}
           </button>
         </div>
-      </section>
-    </>
+      </div>
+    </div>
+  );
+}
+
+function Row({ k, v }: { k: string; v: string | null | undefined }) {
+  return (
+    <div className="flex justify-between border-b border-slate-100 pb-0.5">
+      <span className="text-slate-500">{k}</span>
+      <span className="text-slate-800">{v ?? '—'}</span>
+    </div>
   );
 }

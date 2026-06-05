@@ -22,9 +22,18 @@ public class CommunicationTemplateSeeder implements CommandLineRunner {
 
     private final CommunicationTemplateRepository repository;
 
-    private record Seed(
+    public record Seed(
             String key, String channel, String subject, String body, String vars
     ) {}
+
+    /** ERM Phase 7 — exposed so the Settings "Restore default" flow can
+     *  fetch the originally-seeded values for a given (key, channel). */
+    public java.util.Optional<Seed> findSeed(String key, String channel) {
+        if (key == null || channel == null) return java.util.Optional.empty();
+        return SEEDS.stream()
+                .filter(s -> key.equals(s.key()) && channel.equals(s.channel()))
+                .findFirst();
+    }
 
     private static final List<Seed> SEEDS = List.of(
             new Seed(

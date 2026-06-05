@@ -57,6 +57,7 @@ public class ExceptionDetectionService {
         SEVERITY.put(ExceptionType.MISSED_TRAINER_MEETING,        ExceptionSeverity.WARN);
         SEVERITY.put(ExceptionType.LOW_PROJECT_PROGRESS,          ExceptionSeverity.WARN);
         SEVERITY.put(ExceptionType.REPEATED_TIMESHEET_REJECTION,  ExceptionSeverity.URGENT);
+        SEVERITY.put(ExceptionType.EXIT_OVERDUE,                  ExceptionSeverity.WARN);
     }
 
     private static final int TOP_URGENT_LIMIT = 5;
@@ -97,6 +98,8 @@ public class ExceptionDetectionService {
                 this::lowProjectProgress, scope, callerId, counts, all);
         runDetector(ExceptionType.REPEATED_TIMESHEET_REJECTION,
                 this::repeatedTimesheetRejection, scope, callerId, counts, all);
+        runDetector(ExceptionType.EXIT_OVERDUE,
+                this::exitOverdue, scope, callerId, counts, all);
 
         // Guarantee every enum value is keyed (zeros for empty detectors).
         for (ExceptionType t : ExceptionType.values()) {
@@ -645,6 +648,37 @@ public class ExceptionDetectionService {
                         nullableUuid(rs.getString("resource_id"))));
     }
 
+    // ── Detector 16: exit stuck > 30 days with PENDING checklist (Phase 7) ─
+
+    private List<ExceptionRow> exitOverdue(ErmScope scope, UUID callerId) {
+        StringBuilder sql = new StringBuilder()
+                .append("SELECT er.id AS resource_id, u.id AS intern_id, u.full_name AS intern_name, ")
+                .append("       (CURRENT_DATE - er.exit_date) AS days_overdue ")
+                .append("  FROM exit_records er ")
+                .append("  JOIN intern_lifecycles il ON il.id = er.intern_lifecycle_id ")
+                .append("  JOIN users u ON u.id = il.user_id ")
+                .append(" WHERE er.exit_date < CURRENT_DATE - INTERVAL '30 days' ")
+                .append("   AND er.manager_override_at IS NULL ")
+                .append("   AND EXISTS (SELECT 1 FROM exit_checklist_items ci ")
+                .append("                  WHERE ci.exit_record_id = er.id ")
+                .append("                    AND ci.status = 'PENDING') ");
+        List<Object> params = new ArrayList<>();
+        if (scope == ErmScope.MINE) {
+            sql.append(" AND il.erm_id = ? ");
+            params.add(callerId);
+        }
+        sql.append(" ORDER BY er.exit_date ASC");
+        return jdbc.query(sql.toString(), params.toArray(),
+                (rs, n) -> new ExceptionRow(
+                        ExceptionType.EXIT_OVERDUE,
+                        ExceptionSeverity.WARN,
+                        nullableUuid(rs.getString("intern_id")),
+                        rs.getString("intern_name"),
+                        Math.max(0, rs.getInt("days_overdue")),
+                        "/careers/erm/exits",
+                        nullableUuid(rs.getString("resource_id"))));
+    }
+
     // ── Dashboard read-from-table (Phase 6) ────────────────────────────────
 
     /**
@@ -786,6 +820,7 @@ public class ExceptionDetectionService {
             case MISSED_TRAINER_MEETING         -> missedTrainerMeeting(ErmScope.ALL, null);
             case LOW_PROJECT_PROGRESS           -> lowProjectProgress(ErmScope.ALL, null);
             case REPEATED_TIMESHEET_REJECTION   -> repeatedTimesheetRejection(ErmScope.ALL, null);
+            case EXIT_OVERDUE                   -> exitOverdue(ErmScope.ALL, null);
         };
     }
 
@@ -812,7 +847,8 @@ public class ExceptionDetectionService {
             case EVALUATION_OVERDUE                     -> "EVALUATION";
             case TIMESHEET_MISSING,
                  REPEATED_TIMESHEET_REJECTION           -> "TIMESHEET";
-            case EXIT_CHECKLIST_PENDING                 -> "EXIT";
+            case EXIT_CHECKLIST_PENDING,
+                 EXIT_OVERDUE                          -> "EXIT";
             case REPORTING_STRUCTURE_INCOMPLETE         -> "APPLICATION";
             case WORK_AUTH_EXPIRING_30                  -> "EVERIFY";
             case EVERIFY_NONCONFIRMATION                -> "EVERIFY";

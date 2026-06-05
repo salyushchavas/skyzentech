@@ -201,8 +201,10 @@ public class ErmRightPanelService {
                 "Hold queue",
                 "/careers/erm/applications?stage=HOLD",
                 holdCount));
+        // ERM Phase 7 — direct shortcut to the Reports center. Badge
+        // stays 0; this is a pure navigation aid.
         actions.add(qa("reports",
-                "Export report",
+                "Open reports",
                 "/careers/erm/reports",
                 0L));
 

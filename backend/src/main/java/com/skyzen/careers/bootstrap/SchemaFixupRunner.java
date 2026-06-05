@@ -1325,6 +1325,11 @@ public class SchemaFixupRunner implements CommandLineRunner {
         // Escalations queue. Partial UNIQUE keeps "at most one OPEN per
         // (intern, type)" enforced by Postgres regardless of UPSERT race.
         ensureErmExceptionSchema();
+
+        // ERM Phase 7 — exit_records ERM operational columns + the
+        // exit_checklist_items table that converts the implicit Phase 8
+        // checklist into 8 auditable rows per ExitRecord.
+        ensureErmExitOperationsSchema();
     }
 
     /**
@@ -1651,6 +1656,58 @@ public class SchemaFixupRunner implements CommandLineRunner {
                     e.getMessage());
         }
         log.info("[SchemaFixupRunner] ensured ERM Phase 6 exception schema");
+    }
+
+    /**
+     * ERM Phase 7 — exit_records ERM operations columns + the
+     * exit_checklist_items table. Structured reason_code is added
+     * alongside the legacy free-text {@code exit_reason} so the ERM flow
+     * can enforce ReasonCode taxonomy while preserving Phase 8 intern
+     * compatibility (legacy reads of {@code exit_reason} keep working).
+     */
+    private void ensureErmExitOperationsSchema() {
+        String[] exitAlters = {
+                "ALTER TABLE exit_records ADD COLUMN IF NOT EXISTS reason_code VARCHAR(80)",
+                "ALTER TABLE exit_records ADD COLUMN IF NOT EXISTS last_working_day DATE",
+                "ALTER TABLE exit_records ADD COLUMN IF NOT EXISTS asset_status_json TEXT",
+                "ALTER TABLE exit_records ADD COLUMN IF NOT EXISTS final_timesheet_status VARCHAR(20)",
+                "ALTER TABLE exit_records ADD COLUMN IF NOT EXISTS final_documents_archived_at TIMESTAMP",
+                "ALTER TABLE exit_records ADD COLUMN IF NOT EXISTS access_revocation_completed_at TIMESTAMP",
+                "ALTER TABLE exit_records ADD COLUMN IF NOT EXISTS manager_override_id UUID",
+                "ALTER TABLE exit_records ADD COLUMN IF NOT EXISTS manager_override_reason TEXT",
+                "ALTER TABLE exit_records ADD COLUMN IF NOT EXISTS manager_override_at TIMESTAMP"
+        };
+        for (String sql : exitAlters) {
+            try {
+                jdbcTemplate.execute(sql);
+            } catch (Exception e) {
+                log.warn("[SchemaFixupRunner] ERM Phase 7 exit_records ALTER skipped (non-fatal): {} — {}",
+                        sql, e.getMessage());
+            }
+        }
+        try {
+            jdbcTemplate.execute(
+                    "CREATE TABLE IF NOT EXISTS exit_checklist_items ("
+                            + "  id UUID PRIMARY KEY,"
+                            + "  exit_record_id UUID NOT NULL,"
+                            + "  item_key VARCHAR(60) NOT NULL,"
+                            + "  status VARCHAR(20) NOT NULL DEFAULT 'PENDING',"
+                            + "  completed_at TIMESTAMP,"
+                            + "  completed_by_id UUID,"
+                            + "  note TEXT,"
+                            + "  created_at TIMESTAMP NOT NULL DEFAULT NOW(),"
+                            + "  updated_at TIMESTAMP NOT NULL DEFAULT NOW(),"
+                            + "  CONSTRAINT uk_exit_checklist_items_record_key "
+                            + "      UNIQUE (exit_record_id, item_key)"
+                            + ")");
+            jdbcTemplate.execute(
+                    "CREATE INDEX IF NOT EXISTS idx_exit_checklist_items_record_status "
+                            + "ON exit_checklist_items (exit_record_id, status)");
+        } catch (Exception e) {
+            log.warn("[SchemaFixupRunner] exit_checklist_items ensure failed (non-fatal): {}",
+                    e.getMessage());
+        }
+        log.info("[SchemaFixupRunner] ensured ERM Phase 7 exit operations schema");
     }
 
     /**
