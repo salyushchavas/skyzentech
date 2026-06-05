@@ -40,12 +40,15 @@ public class ErmRightPanelService {
                         + "  AND (erm_owner_id IS NULL OR erm_owner_id = ?)",
                 callerId);
 
+        // ERM Phase 3 — count applications truly ready to schedule: status
+        // SHORTLISTED AND no SCHEDULED or COMPLETED interview exists. A
+        // CANCELLED interview should not block re-scheduling.
         long shortlistedNeedingInterview = safeCount(
                 "SELECT COUNT(*) FROM applications a "
                         + "WHERE a.status = 'SHORTLISTED' "
                         + "  AND NOT EXISTS (SELECT 1 FROM interviews i "
                         + "                    WHERE i.application_id = a.id "
-                        + "                      AND i.status = 'SCHEDULED') "
+                        + "                      AND i.status IN ('SCHEDULED','COMPLETED')) "
                         + "  AND (a.erm_owner_id IS NULL OR a.erm_owner_id = ?)",
                 callerId);
 

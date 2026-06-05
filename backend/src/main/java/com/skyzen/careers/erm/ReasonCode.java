@@ -39,6 +39,26 @@ public enum ReasonCode {
     INTERVIEW_REJECT_COMMUNICATION(Category.INTERVIEW_DECISION, "Reject — communication", false),
     INTERVIEW_REJECT_OTHER(Category.INTERVIEW_DECISION, "Reject — other (specify)", true),
 
+    // ── Interview reschedule (ERM Phase 3) ─────────────────────────────────
+    INTERVIEW_RESCHEDULE_APPLICANT_REQUEST(Category.INTERVIEW_RESCHEDULE,
+            "Applicant requested reschedule", false),
+    INTERVIEW_RESCHEDULE_INTERVIEWER_CONFLICT(Category.INTERVIEW_RESCHEDULE,
+            "Interviewer conflict", false),
+    INTERVIEW_RESCHEDULE_TECHNICAL_ISSUE(Category.INTERVIEW_RESCHEDULE,
+            "Technical issue / no-go", false),
+    INTERVIEW_RESCHEDULE_OTHER(Category.INTERVIEW_RESCHEDULE,
+            "Other (specify)", true),
+
+    // ── Interview cancel (ERM Phase 3) ─────────────────────────────────────
+    INTERVIEW_CANCEL_APPLICANT_WITHDREW(Category.INTERVIEW_CANCEL,
+            "Applicant withdrew", false),
+    INTERVIEW_CANCEL_BUSINESS_DECISION(Category.INTERVIEW_CANCEL,
+            "Business decision", false),
+    INTERVIEW_CANCEL_NO_SHOW(Category.INTERVIEW_CANCEL,
+            "No-show", false),
+    INTERVIEW_CANCEL_OTHER(Category.INTERVIEW_CANCEL,
+            "Other (specify)", true),
+
     // ── Offer voids ────────────────────────────────────────────────────────
     OFFER_VOID_DECLINED_VERBALLY(Category.OFFER_VOID, "Candidate declined verbally", false),
     OFFER_VOID_BUSINESS_CHANGE(Category.OFFER_VOID, "Business change", false),
@@ -68,6 +88,8 @@ public enum ReasonCode {
         APPLICATION_HOLD,
         APPLICATION_REQUEST_INFO,
         INTERVIEW_DECISION,
+        INTERVIEW_RESCHEDULE,
+        INTERVIEW_CANCEL,
         OFFER_VOID,
         DOCUMENT_REJECT,
         EXIT

@@ -143,6 +143,62 @@ public class Interview {
     @Column(name = "feedback_submitted_by")
     private UUID feedbackSubmittedBy;
 
+    // ── ERM Phase 3 — scheduler + decision center columns ──────────────────
+
+    /** Optional list of panel interviewer user IDs (JSON-serialized UUIDs). */
+    @Column(name = "panel_interviewer_ids", columnDefinition = "TEXT")
+    private String panelInterviewerIdsJson;
+
+    @Column(name = "reschedule_count", nullable = false,
+            columnDefinition = "integer not null default 0")
+    @Builder.Default
+    private Integer rescheduleCount = 0;
+
+    @Column(name = "last_reschedule_reason_code", length = 80)
+    private String lastRescheduleReasonCode;
+
+    @Column(name = "last_reschedule_reason_text", columnDefinition = "TEXT")
+    private String lastRescheduleReasonText;
+
+    @Column(name = "last_rescheduled_at")
+    private Instant lastRescheduledAt;
+
+    @Column(name = "last_rescheduled_by_id")
+    private UUID lastRescheduledById;
+
+    @Column(name = "cancellation_reason_code", length = 80)
+    private String cancellationReasonCode;
+
+    @Column(name = "cancellation_reason_text", columnDefinition = "TEXT")
+    private String cancellationReasonText;
+
+    @Column(name = "cancelled_at")
+    private Instant cancelledAt;
+
+    @Column(name = "cancelled_by_id")
+    private UUID cancelledById;
+
+    /** ERM Phase 3 — 1-10 rubric, ERM/Manager-visible only. */
+    @Column(name = "technical_score")
+    private Integer technicalScore;
+
+    @Column(name = "communication_score")
+    private Integer communicationScore;
+
+    @Column(name = "cultural_fit_score")
+    private Integer culturalFitScore;
+
+    /** STRONG_HIRE | HIRE | NO_HIRE | STRONG_NO_HIRE. */
+    @Column(name = "overall_recommendation", length = 20)
+    private String overallRecommendation;
+
+    @Column(name = "decision_reason_code", length = 80)
+    private String decisionReasonCode;
+
+    /** ERM-only — never returned to INTERN. */
+    @Column(name = "decision_reason_text", columnDefinition = "TEXT")
+    private String decisionReasonText;
+
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;

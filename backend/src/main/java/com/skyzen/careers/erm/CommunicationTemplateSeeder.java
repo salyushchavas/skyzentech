@@ -109,7 +109,41 @@ public class CommunicationTemplateSeeder implements CommandLineRunner {
                             + "{{exitDate}}. Thank you for your contributions. Records remain "
                             + "accessible in your dashboard; please share your exit feedback "
                             + "when you have a moment.\n\n— Skyzen ERM",
-                    "firstName,exitDate")
+                    "firstName,exitDate"),
+            // ── ERM Phase 3 — interview lifecycle templates ─────────────────
+            new Seed(
+                    "INTERVIEW_SCHEDULED", "EMAIL",
+                    "Your Skyzen interview is scheduled for {{scheduledForLocal}}",
+                    "Hello {{firstName}},\n\n"
+                            + "Your interview for {{jobTitle}} is scheduled for "
+                            + "{{scheduledForLocal}} {{timezone}}.\n\n"
+                            + "Join via this link: {{zoomJoinUrl}}\n"
+                            + "Interviewer: {{interviewerName}}\n\n"
+                            + "Prep: {{prepInstructions}}\n\n"
+                            + "Reply to this email if you need to reschedule.\n\n"
+                            + "— Skyzen ERM",
+                    "firstName,jobTitle,scheduledForLocal,timezone,zoomJoinUrl,"
+                            + "interviewerName,prepInstructions"),
+            new Seed(
+                    "INTERVIEW_RESCHEDULED", "EMAIL",
+                    "Your Skyzen interview has been rescheduled",
+                    "Hello {{firstName}},\n\n"
+                            + "Your interview for {{jobTitle}} has been rescheduled to "
+                            + "{{newScheduledForLocal}} {{timezone}}.\n\n"
+                            + "Reason: {{rescheduleReasonHuman}}\n"
+                            + "Updated link: {{zoomJoinUrl}}\n\n"
+                            + "— Skyzen ERM",
+                    "firstName,jobTitle,newScheduledForLocal,timezone,"
+                            + "rescheduleReasonHuman,zoomJoinUrl"),
+            new Seed(
+                    "INTERVIEW_CANCELLED", "EMAIL",
+                    "Your Skyzen interview has been cancelled",
+                    "Hello {{firstName}},\n\n"
+                            + "Your interview for {{jobTitle}} has been cancelled.\n\n"
+                            + "{{cancellationMessage}}\n\n"
+                            + "We will follow up shortly with next steps.\n\n"
+                            + "— Skyzen ERM",
+                    "firstName,jobTitle,cancellationMessage")
     );
 
     @Override

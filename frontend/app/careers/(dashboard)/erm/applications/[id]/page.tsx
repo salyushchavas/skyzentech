@@ -332,6 +332,15 @@ export default function ApplicationDetailPage() {
                     Resume from Hold
                   </button>
                 )}
+                {/* ERM Phase 3 — Schedule interview CTA only when SHORTLISTED. */}
+                {a.stage === 'SHORTLISTED' && (
+                  <Link
+                    href={`/careers/erm/interviews/new?applicationId=${a.id}`}
+                    className="block w-full rounded-md bg-amber-600 px-3 py-2 text-center text-sm font-semibold text-white hover:bg-amber-700"
+                  >
+                    Schedule interview
+                  </Link>
+                )}
               </div>
             </section>
 

@@ -1,459 +1,406 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import Link from 'next/link';
+import { useCallback, useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
-import { ArrowLeft, ExternalLink, Mail, User as UserIcon } from 'lucide-react';
-import toast from 'react-hot-toast';
+import Link from 'next/link';
+import { ChevronLeft, ExternalLink } from 'lucide-react';
 import api from '@/lib/api';
-import { useAuth } from '@/lib/auth-context';
-import DashboardLayout from '@/components/dashboard/DashboardLayout';
 import ProtectedRoute from '@/components/ProtectedRoute';
-import ApplicationStatusBadge from '@/components/ApplicationStatusBadge';
-import InterviewStatusBadge from '@/components/interviews/InterviewStatusBadge';
-import FeedbackForm from '@/components/interviews/FeedbackForm';
-import { formatFull } from '@/lib/format-date';
-import type {
-  InterviewRecommendation,
-  InterviewResponse,
-  UserRole,
-} from '@/types';
+import DashboardLayout from '@/components/dashboard/DashboardLayout';
+import PageHeader from '@/components/ui/PageHeader';
+import InterviewStatusPill from '@/components/erm/interviews/InterviewStatusPill';
+import DecisionPill from '@/components/erm/interviews/DecisionPill';
+import CompleteInterviewModal from '@/components/erm/interviews/CompleteInterviewModal';
+import RescheduleModal from '@/components/erm/interviews/RescheduleModal';
+import CancelModal from '@/components/erm/interviews/CancelModal';
+import ChangeInterviewerModal from '@/components/erm/interviews/ChangeInterviewerModal';
+import type { InterviewDetail } from '@/components/erm/interviews/types';
 
-const READ_ROLES: UserRole[] = [
-  'ERM',
-  'ERM',
-  'ERM',
-  'ERM',
-  'TRAINER',
-];
-const ADMIN_ERM: UserRole[] = ['ERM'];
-
-const TYPE_LABEL: Record<string, string> = {
-  INITIAL_SCREEN: 'Initial Screen',
-  TECHNICAL: 'Technical',
-  BEHAVIORAL: 'Behavioral',
-  CULTURE_FIT: 'Culture Fit',
-  FINAL_ROUND: 'Final Round',
-};
-
-const RECOMMENDATION_LABEL: Record<InterviewRecommendation, string> = {
-  STRONG_HIRE: 'Strong Hire',
-  HIRE: 'Hire',
-  NO_HIRE: 'No Hire',
-  STRONG_NO_HIRE: 'Strong No Hire',
-};
-
-const RECOMMENDATION_COLOR: Record<InterviewRecommendation, string> = {
-  STRONG_HIRE: 'bg-green-100 text-green-800',
-  HIRE: 'bg-teal-100 text-teal-800',
-  NO_HIRE: 'bg-amber-100 text-amber-800',
-  STRONG_NO_HIRE: 'bg-red-100 text-red-700',
-};
+type Tab = 'overview' | 'decision' | 'notes' | 'history';
 
 export default function InterviewDetailPage() {
-  return (
-    <ProtectedRoute requiredRoles={READ_ROLES}>
-      <DashboardLayout title="Interview Details">
-        <Body />
-      </DashboardLayout>
-    </ProtectedRoute>
-  );
-}
-
-function Body() {
-  const params = useParams();
-  const id = typeof params?.id === 'string' ? params.id : Array.isArray(params?.id) ? params.id[0] : null;
-  const { user } = useAuth();
-
-  const [interview, setInterview] = useState<InterviewResponse | null>(null);
+  const params = useParams<{ id: string }>();
+  const id = params?.id;
+  const [data, setData] = useState<InterviewDetail | null>(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [editingFeedback, setEditingFeedback] = useState(false);
-  const [statusBusy, setStatusBusy] = useState<'CANCELLED' | 'NO_SHOW' | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+  const [tab, setTab] = useState<Tab>('overview');
+  const [modal, setModal] = useState<'complete' | 'reschedule' | 'cancel' | 'change' | null>(null);
+  const [notesDraft, setNotesDraft] = useState({
+    applicantVisibleNotes: '',
+    internalNotes: '',
+  });
+  const [savingNotes, setSavingNotes] = useState(false);
 
   const load = useCallback(async () => {
     if (!id) return;
     setLoading(true);
-    setError(null);
     try {
-      const res = await api.get<InterviewResponse>(`/api/v1/interviews/${id}`);
-      setInterview(res.data);
-    } catch (err: any) {
-      setError(err?.response?.data?.error ?? 'Could not load interview');
-      setInterview(null);
+      const res = await api.get<InterviewDetail>(`/api/v1/erm/interviews/${id}`);
+      setData(res.data);
+      setNotesDraft({
+        applicantVisibleNotes: res.data.applicantVisibleNotes ?? '',
+        internalNotes: res.data.internalNotes ?? '',
+      });
+      setErr(null);
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : 'Failed to load interview');
     } finally {
       setLoading(false);
     }
   }, [id]);
 
-  useEffect(() => {
-    void load();
-  }, [load]);
+  useEffect(() => { void load(); }, [load]);
 
-  const isAdminErm = useMemo(
-    () => user?.roles?.some((r) => ADMIN_ERM.includes(r)) ?? false,
-    [user]
-  );
-  const isInterviewer = useMemo(
-    () =>
-      Boolean(
-        interview?.interviewerId &&
-          user?.userId &&
-          interview.interviewerId === user.userId
-      ),
-    [interview, user]
-  );
-  const canSubmitFeedback = isAdminErm || isInterviewer;
-
-  async function updateStatus(target: 'CANCELLED' | 'NO_SHOW') {
+  async function saveNotes() {
     if (!id) return;
-    if (typeof window !== 'undefined') {
-      const msg =
-        target === 'CANCELLED'
-          ? 'Cancel this interview? This cannot be undone.'
-          : 'Mark this interview as a no-show?';
-      if (!window.confirm(msg)) return;
-    }
-    setStatusBusy(target);
+    setSavingNotes(true);
     try {
-      const res = await api.patch<InterviewResponse>(
-        `/api/v1/interviews/${id}/status`,
-        { status: target }
-      );
-      setInterview(res.data);
-      toast.success(target === 'CANCELLED' ? 'Interview cancelled' : 'Marked as no-show');
-    } catch (err: any) {
-      toast.error(err?.response?.data?.error ?? 'Status update failed');
+      await api.post(`/api/v1/erm/interviews/${id}/notes`, notesDraft);
+      await load();
+    } catch (e) {
+      alert(e instanceof Error ? e.message : 'Failed to save notes');
     } finally {
-      setStatusBusy(null);
+      setSavingNotes(false);
     }
   }
 
-  if (loading) return <DetailSkeleton />;
-
-  if (error && !interview) {
+  if (loading && !data) {
     return (
-      <div className="rounded-md border border-red-200 bg-red-50 p-4 text-sm text-red-700">
-        <p className="mb-2">{error}</p>
-        <button
-          type="button"
-          onClick={() => void load()}
-          className="rounded border border-red-300 px-3 py-1 text-xs font-medium hover:bg-red-100"
-        >
-          Retry
-        </button>
-      </div>
+      <ProtectedRoute requiredRoles={['ERM', 'SUPER_ADMIN', 'MANAGER', 'TRAINER']}>
+        <DashboardLayout>
+          <PageHeader title="Interview" />
+          <div className="h-32 animate-pulse rounded-lg bg-slate-100" />
+        </DashboardLayout>
+      </ProtectedRoute>
+    );
+  }
+  if (err || !data) {
+    return (
+      <ProtectedRoute requiredRoles={['ERM', 'SUPER_ADMIN', 'MANAGER', 'TRAINER']}>
+        <DashboardLayout>
+          <PageHeader title="Interview" />
+          <p className="rounded-md border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800">
+            {err ?? 'Interview not found'}
+          </p>
+        </DashboardLayout>
+      </ProtectedRoute>
     );
   }
 
-  if (!interview) {
-    return <div className="text-sm text-gray-500">Interview not found.</div>;
-  }
-
-  const hasFeedback = Boolean(interview.feedbackSubmittedAt);
+  const ap = data.applicant;
+  const title = ap ? `${ap.firstName} ${ap.lastName}`.trim() : 'Interview';
+  const d = new Date(data.scheduledAt);
 
   return (
-    <>
-      <Link
-        href="/careers/erm/interviews"
-        className="mb-4 inline-flex items-center gap-1 text-sm text-gray-600 hover:text-gray-900"
-      >
-        <ArrowLeft className="h-4 w-4" strokeWidth={2} />
-        Back to interviews
-      </Link>
-
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-        {/* LEFT — Interview info */}
-        <section className="rounded-lg border border-gray-200 bg-white p-6">
-          <div className="mb-5 flex items-start justify-between gap-3">
-            <h2 className="text-base font-semibold text-gray-900">
-              Interview information
-            </h2>
-            <InterviewStatusBadge status={interview.status} size="md" />
-          </div>
-
-          <FieldGroup label="Candidate">
-            <div className="text-lg font-semibold text-gray-900">
-              {interview.candidateName ?? '(unnamed)'}
-            </div>
-            {interview.candidateEmail && (
-              <div className="flex items-center gap-1 text-sm text-gray-500">
-                <Mail className="h-3.5 w-3.5" strokeWidth={2} />
-                {interview.candidateEmail}
-              </div>
-            )}
-          </FieldGroup>
-
-          <FieldGroup label="Position">
-            <div className="text-sm text-gray-700">
-              {interview.jobPostingTitle ?? '—'}
-            </div>
-            {interview.applicationStatus && (
-              <div className="mt-1.5 inline-flex items-center gap-2 text-xs text-gray-500">
-                Application:&nbsp;
-                <ApplicationStatusBadge status={interview.applicationStatus} />
-              </div>
-            )}
-          </FieldGroup>
-
-          <FieldGroup label="Scheduled">
-            <div className="text-sm text-gray-700">
-              {formatFull(interview.scheduledAt)}
-            </div>
-            <div className="text-xs text-gray-500">
-              Duration: {interview.durationMinutes} min
-            </div>
-          </FieldGroup>
-
-          <FieldGroup label="Type">
-            <span className="inline-block rounded bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-700">
-              {TYPE_LABEL[interview.type] ?? interview.type}
-            </span>
-          </FieldGroup>
-
-          <FieldGroup label="Interviewer">
-            <div className="flex items-center gap-1 text-sm text-gray-700">
-              <UserIcon className="h-3.5 w-3.5" strokeWidth={2} />
-              {interview.interviewerName ?? '—'}
-            </div>
-          </FieldGroup>
-
-          <FieldGroup label="Meeting link">
-            {interview.meetingUrl ? (
-              <a
-                href={interview.meetingUrl}
-                target="_blank"
-                rel="noreferrer"
-                className="inline-flex items-center gap-1 rounded-md bg-accent px-3 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-accent-dark"
-              >
-                Join Meet
-                <ExternalLink className="h-3 w-3" strokeWidth={2} />
-              </a>
-            ) : (
-              <span className="text-xs text-gray-400">No meeting URL set</span>
-            )}
-          </FieldGroup>
-
-          {interview.candidateNotes && (
-            <FieldGroup label="Notes for candidate">
-              <blockquote className="whitespace-pre-wrap rounded-md border-l-2 border-gray-300 bg-gray-50 px-3 py-2 text-sm text-gray-700">
-                {interview.candidateNotes}
-              </blockquote>
-            </FieldGroup>
-          )}
-
-          {isAdminErm && interview.status === 'SCHEDULED' && (
-            <div className="mt-6 flex flex-wrap items-center gap-2 border-t border-gray-100 pt-4">
-              <button
-                type="button"
-                onClick={() => void updateStatus('NO_SHOW')}
-                disabled={statusBusy !== null}
-                className="rounded-md border border-amber-200 px-3 py-1.5 text-xs font-medium text-amber-700 hover:bg-amber-50 disabled:opacity-50"
-              >
-                {statusBusy === 'NO_SHOW' ? 'Marking…' : 'Mark No-Show'}
-              </button>
-              <button
-                type="button"
-                onClick={() => void updateStatus('CANCELLED')}
-                disabled={statusBusy !== null}
-                className="rounded-md border border-red-200 px-3 py-1.5 text-xs font-medium text-red-600 hover:bg-red-50 disabled:opacity-50"
-              >
-                {statusBusy === 'CANCELLED' ? 'Cancelling…' : 'Cancel'}
-              </button>
-            </div>
-          )}
-        </section>
-
-        {/* RIGHT — Feedback */}
-        <section className="rounded-lg border border-gray-200 bg-white p-6">
-          <h2 className="mb-5 text-base font-semibold text-gray-900">Feedback</h2>
-
-          {interview.status === 'CANCELLED' || interview.status === 'NO_SHOW' ? (
-            <p className="text-sm text-gray-500">
-              No feedback for {interview.status.toLowerCase().replace('_', '-')} interviews.
-            </p>
-          ) : hasFeedback && !editingFeedback ? (
-            <FeedbackDisplay
-              interview={interview}
-              canEdit={canSubmitFeedback}
-              onEdit={() => setEditingFeedback(true)}
-            />
-          ) : canSubmitFeedback ? (
-            <FeedbackForm
-              interviewId={interview.id}
-              initial={
-                hasFeedback
-                  ? {
-                      technicalRating: interview.feedbackTechnicalRating ?? undefined,
-                      communicationRating:
-                        interview.feedbackCommunicationRating ?? undefined,
-                      problemSolvingRating:
-                        interview.feedbackProblemSolvingRating ?? undefined,
-                      // Phase 2.2 stores unified comments on a new column.
-                      // Legacy rows back-fill from strengths so prior feedback
-                      // survives an edit without manual re-entry.
-                      comments:
-                        interview.feedbackComments
-                          ?? interview.feedbackStrengths
-                          ?? undefined,
-                      recommendation: interview.feedbackRecommendation ?? undefined,
-                    }
-                  : undefined
-              }
-              onSubmitted={(updated) => {
-                setInterview(updated);
-                setEditingFeedback(false);
-              }}
-              onCancel={editingFeedback ? () => setEditingFeedback(false) : undefined}
-            />
-          ) : (
-            <p className="text-sm text-gray-500">
-              Feedback can only be submitted by the assigned interviewer
-              {' '}
-              ({interview.interviewerName ?? '—'}).
-            </p>
-          )}
-        </section>
-      </div>
-    </>
-  );
-}
-
-function FieldGroup({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <div className="mb-4 last:mb-0">
-      <div className="mb-1 text-xs uppercase tracking-wide text-gray-500">{label}</div>
-      <div>{children}</div>
-    </div>
-  );
-}
-
-function FeedbackDisplay({
-  interview,
-  canEdit,
-  onEdit,
-}: {
-  interview: InterviewResponse;
-  canEdit: boolean;
-  onEdit: () => void;
-}) {
-  const rec = interview.feedbackRecommendation;
-  return (
-    <div className="space-y-5">
-      <div className="text-xs text-gray-500">
-        Submitted by{' '}
-        <span className="font-medium text-gray-700">
-          {interview.feedbackSubmittedByName ?? '—'}
-        </span>{' '}
-        on {formatFull(interview.feedbackSubmittedAt)}
-      </div>
-
-      <RatingRow label="Overall" value={interview.feedbackOverallRating} />
-      {interview.feedbackTechnicalRating != null && (
-        <RatingRow label="Technical" value={interview.feedbackTechnicalRating} />
-      )}
-      {interview.feedbackCommunicationRating != null && (
-        <RatingRow label="Communication" value={interview.feedbackCommunicationRating} />
-      )}
-      {interview.feedbackProblemSolvingRating != null && (
-        <RatingRow
-          label="Problem solving"
-          value={interview.feedbackProblemSolvingRating}
-        />
-      )}
-
-      {interview.feedbackComments && (
-        <div>
-          <div className="mb-1 text-xs uppercase tracking-wide text-gray-500">
-            Comments
-          </div>
-          <p className="whitespace-pre-wrap text-sm text-gray-700">
-            {interview.feedbackComments}
-          </p>
-        </div>
-      )}
-
-      {/* Legacy /feedback rows wrote into the strengths/concerns pair — keep
-          rendering them when present so historical scorecards remain visible. */}
-      {!interview.feedbackComments && interview.feedbackStrengths && (
-        <div>
-          <div className="mb-1 text-xs uppercase tracking-wide text-gray-500">
-            Strengths
-          </div>
-          <p className="whitespace-pre-wrap text-sm text-gray-700">
-            {interview.feedbackStrengths}
-          </p>
-        </div>
-      )}
-
-      {!interview.feedbackComments && interview.feedbackConcerns && (
-        <div>
-          <div className="mb-1 text-xs uppercase tracking-wide text-gray-500">
-            Concerns
-          </div>
-          <p className="whitespace-pre-wrap text-sm text-gray-700">
-            {interview.feedbackConcerns}
-          </p>
-        </div>
-      )}
-
-      {rec && (
-        <div>
-          <div className="mb-1.5 text-xs uppercase tracking-wide text-gray-500">
-            Recommendation
-          </div>
-          <span
-            className={
-              'inline-block rounded-full px-3 py-1 text-sm font-semibold ' +
-              RECOMMENDATION_COLOR[rec]
-            }
-          >
-            {RECOMMENDATION_LABEL[rec]}
-          </span>
-        </div>
-      )}
-
-      {canEdit && (
-        <div className="border-t border-gray-100 pt-4">
-          <button
-            type="button"
-            onClick={onEdit}
-            className="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50"
-          >
-            Edit feedback
-          </button>
-        </div>
-      )}
-    </div>
-  );
-}
-
-function RatingRow({ label, value }: { label: string; value?: number | null }) {
-  return (
-    <div className="flex items-center justify-between">
-      <span className="text-sm text-gray-700">{label}</span>
-      <span className="inline-block rounded-md bg-gray-100 px-2.5 py-1 text-sm font-semibold text-gray-800">
-        {value ?? '—'} / 5
-      </span>
-    </div>
-  );
-}
-
-function DetailSkeleton() {
-  return (
-    <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-      {[0, 1].map((i) => (
-        <div
-          key={i}
-          className="space-y-3 rounded-lg border border-gray-200 bg-white p-6"
+    <ProtectedRoute requiredRoles={['ERM', 'SUPER_ADMIN', 'MANAGER', 'TRAINER']}>
+      <DashboardLayout>
+        <Link
+          href="/careers/erm/interviews"
+          className="mb-3 inline-flex items-center gap-1 text-sm text-slate-500 hover:text-slate-700"
         >
-          <div className="h-5 w-40 animate-pulse rounded bg-gray-200" />
-          <div className="h-4 w-56 animate-pulse rounded bg-gray-200" />
-          <div className="h-4 w-32 animate-pulse rounded bg-gray-200" />
-          <div className="h-24 w-full animate-pulse rounded bg-gray-200" />
-          <div className="h-4 w-48 animate-pulse rounded bg-gray-200" />
+          <ChevronLeft className="h-4 w-4" /> Back to scheduler
+        </Link>
+        <PageHeader title={title} subtitle={data.job?.title ?? undefined} />
+
+        <div className="mb-4 flex flex-wrap items-center gap-2">
+          <InterviewStatusPill status={data.status} />
+          <DecisionPill decision={data.decision} />
+          <span className="text-xs text-slate-500">
+            {d.toLocaleString()} · {data.durationMinutes ?? 60} min · {data.timezone}
+          </span>
+          {data.rescheduleCount > 0 && (
+            <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] text-slate-600">
+              rescheduled {data.rescheduleCount}×
+            </span>
+          )}
         </div>
-      ))}
+
+        <div className="grid gap-6 lg:grid-cols-3">
+          <main className="lg:col-span-2">
+            <div className="mb-4 flex gap-1 border-b border-slate-200 text-sm">
+              {(['overview', 'decision', 'notes', 'history'] as Tab[]).map((t) => (
+                <button
+                  key={t}
+                  type="button"
+                  onClick={() => setTab(t)}
+                  className={
+                    'border-b-2 px-3 py-2 font-medium capitalize ' +
+                    (tab === t
+                      ? 'border-teal-700 text-teal-700'
+                      : 'border-transparent text-slate-500 hover:text-slate-800')
+                  }
+                >
+                  {t}
+                </button>
+              ))}
+            </div>
+
+            {tab === 'overview' && (
+              <section className="space-y-4">
+                <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+                  <h3 className="text-sm font-semibold text-slate-900">Applicant</h3>
+                  <p className="mt-2 text-sm text-slate-800">
+                    {ap?.firstName} {ap?.lastName} · {ap?.email}
+                  </p>
+                  <p className="text-[11px] text-slate-500">
+                    {ap?.applicantId} · Application: {ap?.applicationStatus}
+                  </p>
+                  {ap?.applicationId && (
+                    <Link
+                      href={`/careers/erm/applications/${ap.applicationId}`}
+                      className="mt-3 inline-flex items-center gap-1 text-xs font-medium text-teal-700 hover:underline"
+                    >
+                      Open application <ExternalLink className="h-3 w-3" />
+                    </Link>
+                  )}
+                </div>
+                <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+                  <h3 className="text-sm font-semibold text-slate-900">Meeting</h3>
+                  <p className="mt-2 text-sm text-slate-700">
+                    Interviewer: <b>{data.interviewer?.fullName ?? '—'}</b>
+                  </p>
+                  {data.zoomJoinUrl && (
+                    <p className="mt-1 text-xs text-slate-600 break-all">
+                      Join link:{' '}
+                      <a className="text-teal-700 underline" href={data.zoomJoinUrl} target="_blank" rel="noreferrer">
+                        {data.zoomJoinUrl}
+                      </a>
+                    </p>
+                  )}
+                  {data.zoomStartUrl && (
+                    <p className="mt-1 text-xs text-slate-600 break-all">
+                      Host link (ERM-only):{' '}
+                      <a className="text-teal-700 underline" href={data.zoomStartUrl} target="_blank" rel="noreferrer">
+                        {data.zoomStartUrl}
+                      </a>
+                    </p>
+                  )}
+                  {data.prepInstructions && (
+                    <div className="mt-3 rounded-md border border-slate-100 bg-slate-50 p-3 text-xs text-slate-700">
+                      <p className="font-semibold">Prep:</p>
+                      <p className="mt-1 whitespace-pre-wrap">{data.prepInstructions}</p>
+                    </div>
+                  )}
+                </div>
+              </section>
+            )}
+
+            {tab === 'decision' && (
+              <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+                {data.status !== 'COMPLETED' ? (
+                  <p className="text-sm text-slate-500">No decision recorded yet.</p>
+                ) : (
+                  <>
+                    <div className="flex items-center gap-2">
+                      <DecisionPill decision={data.decision} />
+                      {data.overallRecommendation && (
+                        <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] text-slate-700">
+                          {data.overallRecommendation.replaceAll('_', ' ')}
+                        </span>
+                      )}
+                    </div>
+                    <div className="mt-3 grid grid-cols-3 gap-3 text-sm">
+                      <Score label="Technical" value={data.technicalScore} />
+                      <Score label="Communication" value={data.communicationScore} />
+                      <Score label="Cultural fit" value={data.culturalFitScore} />
+                    </div>
+                    {data.applicantVisibleNotes && (
+                      <div className="mt-4">
+                        <p className="text-[11px] uppercase text-slate-500">Applicant-visible notes</p>
+                        <p className="mt-1 whitespace-pre-wrap text-sm text-slate-800">
+                          {data.applicantVisibleNotes}
+                        </p>
+                      </div>
+                    )}
+                    {data.internalNotes && (
+                      <div className="mt-4">
+                        <p className="text-[11px] uppercase text-slate-500">Internal notes (ERM-only)</p>
+                        <p className="mt-1 whitespace-pre-wrap text-sm text-slate-800">
+                          {data.internalNotes}
+                        </p>
+                      </div>
+                    )}
+                  </>
+                )}
+              </section>
+            )}
+
+            {tab === 'notes' && (
+              <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+                <p className="text-xs text-slate-500">
+                  Internal notes are ERM-only. Applicant-visible notes show in the
+                  intern's My Applications detail.
+                </p>
+                <div className="mt-3 space-y-3">
+                  <div>
+                    <label className="text-sm font-medium text-slate-800">
+                      Applicant-visible notes
+                    </label>
+                    <textarea
+                      value={notesDraft.applicantVisibleNotes}
+                      onChange={(e) =>
+                        setNotesDraft((s) => ({ ...s, applicantVisibleNotes: e.target.value }))
+                      }
+                      rows={4}
+                      className="mt-1 w-full resize-y rounded-md border border-slate-200 px-3 py-2 text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium text-slate-800">
+                      Internal notes (ERM-only)
+                    </label>
+                    <textarea
+                      value={notesDraft.internalNotes}
+                      onChange={(e) =>
+                        setNotesDraft((s) => ({ ...s, internalNotes: e.target.value }))
+                      }
+                      rows={4}
+                      maxLength={5000}
+                      className="mt-1 w-full resize-y rounded-md border border-slate-200 px-3 py-2 text-sm"
+                    />
+                  </div>
+                  <div className="flex justify-end">
+                    <button
+                      type="button"
+                      onClick={saveNotes}
+                      disabled={savingNotes}
+                      className="rounded-md bg-teal-700 px-3 py-1.5 text-xs font-semibold text-white hover:bg-teal-800 disabled:opacity-60"
+                    >
+                      {savingNotes ? 'Saving…' : 'Save notes'}
+                    </button>
+                  </div>
+                </div>
+              </section>
+            )}
+
+            {tab === 'history' && (
+              <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+                {data.history.length === 0 ? (
+                  <p className="text-sm text-slate-500">No history yet.</p>
+                ) : (
+                  <ul className="space-y-3">
+                    {data.history.map((h) => (
+                      <li
+                        key={h.id}
+                        className="rounded-md border border-slate-100 bg-slate-50 p-3 text-sm"
+                      >
+                        <div className="flex items-center justify-between">
+                          <span className="font-semibold text-slate-900">
+                            {h.eventType.replaceAll('_', ' ')}
+                          </span>
+                          <span className="text-[11px] text-slate-500">
+                            {new Date(h.createdAt).toLocaleString()}
+                          </span>
+                        </div>
+                        <p className="mt-1 text-[12px] text-slate-600">
+                          by {h.actorName ?? 'system'}
+                          {h.reasonCode ? ` · ${h.reasonCode}` : ''}
+                        </p>
+                        {h.reasonText && (
+                          <p className="mt-1 text-[12px] italic text-slate-600">
+                            {h.reasonText}
+                          </p>
+                        )}
+                        {h.payloadJson && (
+                          <details className="mt-2">
+                            <summary className="cursor-pointer text-[11px] text-teal-700">
+                              payload
+                            </summary>
+                            <pre className="mt-1 whitespace-pre-wrap rounded-md border border-slate-200 bg-white p-2 text-[11px] text-slate-700">
+                              {h.payloadJson}
+                            </pre>
+                          </details>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </section>
+            )}
+          </main>
+
+          <aside className="space-y-4">
+            <section className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+              <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-500">Actions</h3>
+              <div className="mt-3 space-y-2">
+                <Btn label="Complete" enabled={data.availableActions.canComplete}
+                  onClick={() => setModal('complete')} primary />
+                <Btn label="Reschedule" enabled={data.availableActions.canReschedule}
+                  onClick={() => setModal('reschedule')} />
+                <Btn label="Change interviewer" enabled={data.availableActions.canChangeInterviewer}
+                  onClick={() => setModal('change')} />
+                <Btn label="Cancel" enabled={data.availableActions.canCancel}
+                  onClick={() => setModal('cancel')} danger />
+              </div>
+            </section>
+
+            <section className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+              <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-500">Compliance</h3>
+              <p className="mt-2 text-xs text-slate-600">
+                Internal notes are ERM-only. Applicant-visible notes go in the
+                dedicated field on the Decision tab.
+              </p>
+            </section>
+          </aside>
+        </div>
+
+        {modal === 'complete' && (
+          <CompleteInterviewModal open interview={data} onClose={() => setModal(null)} onApplied={() => void load()} />
+        )}
+        {modal === 'reschedule' && (
+          <RescheduleModal open interview={data} onClose={() => setModal(null)} onApplied={() => void load()} />
+        )}
+        {modal === 'cancel' && (
+          <CancelModal open interview={data} onClose={() => setModal(null)} onApplied={() => void load()} />
+        )}
+        {modal === 'change' && (
+          <ChangeInterviewerModal open interview={data} onClose={() => setModal(null)} onApplied={() => void load()} />
+        )}
+      </DashboardLayout>
+    </ProtectedRoute>
+  );
+}
+
+function Score({ label, value }: { label: string; value: number | null }) {
+  return (
+    <div className="rounded-md border border-slate-100 bg-slate-50 p-3 text-center">
+      <p className="text-[11px] uppercase text-slate-500">{label}</p>
+      <p className="mt-1 text-lg font-semibold text-slate-900">
+        {value ?? '—'}{value != null ? <span className="text-xs text-slate-400">/10</span> : ''}
+      </p>
     </div>
+  );
+}
+
+function Btn({
+  label,
+  enabled,
+  onClick,
+  primary,
+  danger,
+}: {
+  label: string;
+  enabled: boolean;
+  onClick: () => void;
+  primary?: boolean;
+  danger?: boolean;
+}) {
+  return (
+    <button
+      type="button"
+      disabled={!enabled}
+      onClick={onClick}
+      className={
+        'w-full rounded-md px-3 py-2 text-sm font-semibold transition-colors ' +
+        (primary
+          ? 'bg-teal-700 text-white hover:bg-teal-800 disabled:bg-slate-300'
+          : danger
+            ? 'border border-rose-200 text-rose-700 hover:bg-rose-50 disabled:opacity-50'
+            : 'border border-slate-200 text-slate-700 hover:bg-slate-50 disabled:opacity-50')
+      }
+    >
+      {label}
+    </button>
   );
 }

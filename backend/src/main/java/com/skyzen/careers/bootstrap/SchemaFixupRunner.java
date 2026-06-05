@@ -1304,6 +1304,78 @@ public class SchemaFixupRunner implements CommandLineRunner {
         // ERM Phase 2 — application inbox columns + decision log table +
         // additional indexes for the inbox/shortlist queries.
         ensureErmApplicationInboxSchema();
+
+        // ERM Phase 3 — interview scheduler + decision center columns +
+        // event log table + 2 indexes.
+        ensureErmInterviewSchema();
+    }
+
+    /**
+     * ERM Phase 3 — interview scheduler + decision center storage. Adds the
+     * new decision-context columns idempotently, creates
+     * {@code interview_event_logs}, and indexes the scheduler queries.
+     */
+    private void ensureErmInterviewSchema() {
+        String[] alters = {
+                "ALTER TABLE interviews ADD COLUMN IF NOT EXISTS panel_interviewer_ids TEXT",
+                "ALTER TABLE interviews ADD COLUMN IF NOT EXISTS reschedule_count INTEGER NOT NULL DEFAULT 0",
+                "ALTER TABLE interviews ADD COLUMN IF NOT EXISTS last_reschedule_reason_code VARCHAR(80)",
+                "ALTER TABLE interviews ADD COLUMN IF NOT EXISTS last_reschedule_reason_text TEXT",
+                "ALTER TABLE interviews ADD COLUMN IF NOT EXISTS last_rescheduled_at TIMESTAMP",
+                "ALTER TABLE interviews ADD COLUMN IF NOT EXISTS last_rescheduled_by_id UUID",
+                "ALTER TABLE interviews ADD COLUMN IF NOT EXISTS cancellation_reason_code VARCHAR(80)",
+                "ALTER TABLE interviews ADD COLUMN IF NOT EXISTS cancellation_reason_text TEXT",
+                "ALTER TABLE interviews ADD COLUMN IF NOT EXISTS cancelled_at TIMESTAMP",
+                "ALTER TABLE interviews ADD COLUMN IF NOT EXISTS cancelled_by_id UUID",
+                "ALTER TABLE interviews ADD COLUMN IF NOT EXISTS technical_score INTEGER",
+                "ALTER TABLE interviews ADD COLUMN IF NOT EXISTS communication_score INTEGER",
+                "ALTER TABLE interviews ADD COLUMN IF NOT EXISTS cultural_fit_score INTEGER",
+                "ALTER TABLE interviews ADD COLUMN IF NOT EXISTS overall_recommendation VARCHAR(20)",
+                "ALTER TABLE interviews ADD COLUMN IF NOT EXISTS decision_reason_code VARCHAR(80)",
+                "ALTER TABLE interviews ADD COLUMN IF NOT EXISTS decision_reason_text TEXT"
+        };
+        for (String sql : alters) {
+            try {
+                jdbcTemplate.execute(sql);
+            } catch (Exception e) {
+                log.warn("[SchemaFixupRunner] ERM interview ALTER skipped (non-fatal): {} — {}",
+                        sql, e.getMessage());
+            }
+        }
+        try {
+            jdbcTemplate.execute(
+                    "CREATE TABLE IF NOT EXISTS interview_event_logs ("
+                            + "  id UUID PRIMARY KEY,"
+                            + "  interview_id UUID NOT NULL,"
+                            + "  actor_user_id UUID NOT NULL,"
+                            + "  event_type VARCHAR(40) NOT NULL,"
+                            + "  reason_code VARCHAR(80),"
+                            + "  reason_text TEXT,"
+                            + "  payload_json TEXT,"
+                            + "  created_at TIMESTAMP NOT NULL DEFAULT NOW()"
+                            + ")");
+            jdbcTemplate.execute(
+                    "CREATE INDEX IF NOT EXISTS idx_interview_event_logs_interview_at "
+                            + "ON interview_event_logs(interview_id, created_at)");
+        } catch (Exception e) {
+            log.warn("[SchemaFixupRunner] interview_event_logs ensure failed (non-fatal): {}",
+                    e.getMessage());
+        }
+        String[] idxs = {
+                "CREATE INDEX IF NOT EXISTS idx_interviews_status_scheduled "
+                        + "ON interviews (status, scheduled_at)",
+                "CREATE INDEX IF NOT EXISTS idx_interviews_application "
+                        + "ON interviews (application_id)"
+        };
+        for (String sql : idxs) {
+            try {
+                jdbcTemplate.execute(sql);
+            } catch (Exception e) {
+                log.warn("[SchemaFixupRunner] ERM interview index skipped (non-fatal): {} — {}",
+                        sql, e.getMessage());
+            }
+        }
+        log.info("[SchemaFixupRunner] ensured ERM Phase 3 interview scheduler schema");
     }
 
     /**
