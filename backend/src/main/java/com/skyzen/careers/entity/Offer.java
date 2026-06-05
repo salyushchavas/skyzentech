@@ -131,4 +131,34 @@ public class Offer {
     @UpdateTimestamp
     @Column(name = "updated_at", nullable = false)
     private Instant updatedAt;
+
+    // ── ERM Phase 4 — decision-context + re-offer + reminders ──────────────
+
+    /** Coded reason for a VOID. Distinct from legacy {@code voided_reason} free text. */
+    @Column(name = "void_reason_code", length = 80)
+    private String voidReasonCode;
+
+    /** ERM-only structured void reason; never returned to INTERN. */
+    @Column(name = "void_reason_text", columnDefinition = "TEXT")
+    private String voidReasonText;
+
+    /** ERM-only appendable notes. */
+    @Column(name = "internal_notes", columnDefinition = "TEXT")
+    private String internalNotes;
+
+    @Column(name = "reminder_count", nullable = false,
+            columnDefinition = "integer not null default 0")
+    @Builder.Default
+    private Integer reminderCount = 0;
+
+    @Column(name = "last_reminder_at")
+    private Instant lastReminderAt;
+
+    /**
+     * Soft-archive timestamp set by {@code clear-for-reoffer} so the
+     * partial UNIQUE on (application_id) WHERE archived_at IS NULL still
+     * allows a fresh active offer per application.
+     */
+    @Column(name = "archived_at")
+    private Instant archivedAt;
 }

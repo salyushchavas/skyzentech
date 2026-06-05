@@ -49,6 +49,8 @@ public class ExceptionDetectionService {
         SEVERITY.put(ExceptionType.EVALUATION_OVERDUE,      ExceptionSeverity.WARN);
         SEVERITY.put(ExceptionType.TIMESHEET_MISSING,       ExceptionSeverity.INFO);
         SEVERITY.put(ExceptionType.EXIT_CHECKLIST_PENDING,  ExceptionSeverity.WARN);
+        SEVERITY.put(ExceptionType.REPORTING_STRUCTURE_INCOMPLETE,
+                ExceptionSeverity.URGENT);
     }
 
     private static final int TOP_URGENT_LIMIT = 5;
@@ -75,6 +77,8 @@ public class ExceptionDetectionService {
                 this::timesheetMissing, scope, callerId, counts, all);
         runDetector(ExceptionType.EXIT_CHECKLIST_PENDING,
                 this::exitChecklistPending, scope, callerId, counts, all);
+        runDetector(ExceptionType.REPORTING_STRUCTURE_INCOMPLETE,
+                this::reportingStructureIncomplete, scope, callerId, counts, all);
 
         // Guarantee every enum value is keyed (zeros for empty detectors).
         for (ExceptionType t : ExceptionType.values()) {
@@ -385,6 +389,38 @@ public class ExceptionDetectionService {
                         rs.getString("intern_name"),
                         Math.max(0, rs.getInt("days_overdue")),
                         "/careers/erm/exits",
+                        nullableUuid(rs.getString("resource_id"))));
+    }
+
+    // ── Detector 9: reporting structure incomplete (ERM Phase 4) ──────────
+
+    private List<ExceptionRow> reportingStructureIncomplete(ErmScope scope, UUID callerId) {
+        // New hires whose offer is signed but ERM has not yet wired the
+        // mandatory Trainer + Evaluator + Manager triad. Filter to those
+        // signed > 24h ago so brand-new arrivals don't immediately scream.
+        StringBuilder sql = new StringBuilder()
+                .append("SELECT il.id AS resource_id, il.user_id AS intern_id, ")
+                .append("       u.full_name AS intern_name, ")
+                .append("       EXTRACT(EPOCH FROM (NOW() - il.hired_at))/86400 AS days_overdue ")
+                .append("  FROM intern_lifecycles il ")
+                .append("  JOIN users u ON u.id = il.user_id ")
+                .append(" WHERE il.active_status = 'PROSPECTIVE' ")
+                .append("   AND il.reporting_structure_complete = FALSE ")
+                .append("   AND il.hired_at < NOW() - INTERVAL '1 day' ");
+        List<Object> params = new ArrayList<>();
+        if (scope == ErmScope.MINE) {
+            sql.append(" AND il.erm_id = ? ");
+            params.add(callerId);
+        }
+        sql.append(" ORDER BY il.hired_at ASC");
+        return jdbc.query(sql.toString(), params.toArray(),
+                (rs, n) -> new ExceptionRow(
+                        ExceptionType.REPORTING_STRUCTURE_INCOMPLETE,
+                        ExceptionSeverity.URGENT,
+                        nullableUuid(rs.getString("intern_id")),
+                        rs.getString("intern_name"),
+                        Math.max(0, (int) rs.getDouble("days_overdue")),
+                        "/careers/erm/new-hire?tab=pending",
                         nullableUuid(rs.getString("resource_id"))));
     }
 

@@ -1308,6 +1308,86 @@ public class SchemaFixupRunner implements CommandLineRunner {
         // ERM Phase 3 — interview scheduler + decision center columns +
         // event log table + 2 indexes.
         ensureErmInterviewSchema();
+
+        // ERM Phase 4 — offer event log + offer + intern_lifecycles ALTERs +
+        // partial UNIQUE on offers(application_id) WHERE archived_at IS NULL.
+        ensureErmOfferAndNewHireSchema();
+    }
+
+    /**
+     * ERM Phase 4 — offer-control + new-hire columns + event log table +
+     * partial unique index that allows the void → clear-for-reoffer flow
+     * to land a fresh active offer per application.
+     */
+    private void ensureErmOfferAndNewHireSchema() {
+        String[] alters = {
+                "ALTER TABLE offers ADD COLUMN IF NOT EXISTS void_reason_code VARCHAR(80)",
+                "ALTER TABLE offers ADD COLUMN IF NOT EXISTS void_reason_text TEXT",
+                "ALTER TABLE offers ADD COLUMN IF NOT EXISTS internal_notes TEXT",
+                "ALTER TABLE offers ADD COLUMN IF NOT EXISTS reminder_count INTEGER NOT NULL DEFAULT 0",
+                "ALTER TABLE offers ADD COLUMN IF NOT EXISTS last_reminder_at TIMESTAMP",
+                "ALTER TABLE offers ADD COLUMN IF NOT EXISTS archived_at TIMESTAMP",
+                "ALTER TABLE intern_lifecycles ADD COLUMN IF NOT EXISTS tentative_start_date DATE",
+                "ALTER TABLE intern_lifecycles ADD COLUMN IF NOT EXISTS reporting_structure_complete BOOLEAN NOT NULL DEFAULT FALSE",
+                "ALTER TABLE intern_lifecycles ADD COLUMN IF NOT EXISTS reporting_structure_completed_at TIMESTAMP",
+                "ALTER TABLE intern_lifecycles ADD COLUMN IF NOT EXISTS reporting_structure_completed_by_id UUID"
+        };
+        for (String sql : alters) {
+            try {
+                jdbcTemplate.execute(sql);
+            } catch (Exception e) {
+                log.warn("[SchemaFixupRunner] ERM Phase 4 ALTER skipped (non-fatal): {} — {}",
+                        sql, e.getMessage());
+            }
+        }
+        try {
+            jdbcTemplate.execute(
+                    "ALTER TABLE offers DROP CONSTRAINT IF EXISTS uq_offers_application_id");
+            jdbcTemplate.execute(
+                    "ALTER TABLE offers DROP CONSTRAINT IF EXISTS offers_application_id_key");
+            jdbcTemplate.execute(
+                    "CREATE UNIQUE INDEX IF NOT EXISTS uq_offers_active_per_app "
+                            + "ON offers (application_id) WHERE archived_at IS NULL");
+            log.info("[SchemaFixupRunner] ensured offers partial UNIQUE "
+                    + "(application_id) WHERE archived_at IS NULL");
+        } catch (Exception e) {
+            log.warn("[SchemaFixupRunner] partial unique index ensure failed (non-fatal): {}",
+                    e.getMessage());
+        }
+        try {
+            jdbcTemplate.execute(
+                    "CREATE TABLE IF NOT EXISTS offer_event_logs ("
+                            + "  id UUID PRIMARY KEY,"
+                            + "  offer_id UUID NOT NULL,"
+                            + "  actor_user_id UUID NOT NULL,"
+                            + "  event_type VARCHAR(40) NOT NULL,"
+                            + "  reason_code VARCHAR(80),"
+                            + "  reason_text TEXT,"
+                            + "  payload_json TEXT,"
+                            + "  created_at TIMESTAMP NOT NULL DEFAULT NOW()"
+                            + ")");
+            jdbcTemplate.execute(
+                    "CREATE INDEX IF NOT EXISTS idx_offer_event_logs_offer "
+                            + "ON offer_event_logs(offer_id, created_at)");
+        } catch (Exception e) {
+            log.warn("[SchemaFixupRunner] offer_event_logs ensure failed (non-fatal): {}",
+                    e.getMessage());
+        }
+        String[] idxs = {
+                "CREATE INDEX IF NOT EXISTS idx_offers_status_sent_at "
+                        + "ON offers (status, sent_at)",
+                "CREATE INDEX IF NOT EXISTS idx_intern_lifecycles_active_reporting "
+                        + "ON intern_lifecycles (active_status, reporting_structure_complete)"
+        };
+        for (String sql : idxs) {
+            try {
+                jdbcTemplate.execute(sql);
+            } catch (Exception e) {
+                log.warn("[SchemaFixupRunner] ERM Phase 4 index skipped (non-fatal): {} — {}",
+                        sql, e.getMessage());
+            }
+        }
+        log.info("[SchemaFixupRunner] ensured ERM Phase 4 offer + new-hire schema");
     }
 
     /**

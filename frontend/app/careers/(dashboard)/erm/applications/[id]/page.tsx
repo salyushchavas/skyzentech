@@ -341,6 +341,17 @@ export default function ApplicationDetailPage() {
                     Schedule interview
                   </Link>
                 )}
+                {/* ERM Phase 4 — Send offer CTA only when INTERVIEWED. The
+                    server-side gate also enforces SELECTED interview decision;
+                    if last interview wasn't SELECTED, the POST will 409. */}
+                {a.stage === 'INTERVIEWED' && (
+                  <Link
+                    href={`/careers/erm/offers/new?applicationId=${a.id}`}
+                    className="block w-full rounded-md bg-teal-700 px-3 py-2 text-center text-sm font-semibold text-white hover:bg-teal-800"
+                  >
+                    Send offer
+                  </Link>
+                )}
               </div>
             </section>
 

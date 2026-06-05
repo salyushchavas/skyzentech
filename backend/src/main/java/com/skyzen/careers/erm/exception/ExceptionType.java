@@ -9,5 +9,7 @@ public enum ExceptionType {
     TRAINER_MEETING_MISSING,
     EVALUATION_OVERDUE,
     TIMESHEET_MISSING,
-    EXIT_CHECKLIST_PENDING
+    EXIT_CHECKLIST_PENDING,
+    /** ERM Phase 4 — new hire signed offer but reporting structure not assigned. */
+    REPORTING_STRUCTURE_INCOMPLETE
 }

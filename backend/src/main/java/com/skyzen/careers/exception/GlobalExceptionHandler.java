@@ -49,6 +49,21 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.CONFLICT).body(body);
     }
 
+    /**
+     * ERM Phase 4 — onboarding assignment attempted before Trainer +
+     * Evaluator + Manager all set. 409 with a structured {@code missing}
+     * array so the ERM UI can highlight which slots are blank.
+     */
+    @ExceptionHandler(ReportingStructureIncompleteException.class)
+    public ResponseEntity<Map<String, Object>> handleReportingStructureIncomplete(
+            ReportingStructureIncompleteException ex) {
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("error", ex.getMessage());
+        body.put("code", "REPORTING_STRUCTURE_INCOMPLETE");
+        body.put("missing", ex.getMissing());
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(body);
+    }
+
     @ExceptionHandler(ForbiddenException.class)
     public ResponseEntity<Map<String, Object>> handleForbidden(ForbiddenException ex) {
         return error(HttpStatus.FORBIDDEN, ex.getMessage(), null);

@@ -143,7 +143,59 @@ public class CommunicationTemplateSeeder implements CommandLineRunner {
                             + "{{cancellationMessage}}\n\n"
                             + "We will follow up shortly with next steps.\n\n"
                             + "— Skyzen ERM",
-                    "firstName,jobTitle,cancellationMessage")
+                    "firstName,jobTitle,cancellationMessage"),
+            // ── ERM Phase 4 — offer + new-hire templates ────────────────────
+            new Seed(
+                    "OFFER_LETTER", "EMAIL",
+                    "Your offer from Skyzen Tech — {{roleTitle}}",
+                    "Hello {{firstName}},\n\n"
+                            + "We're delighted to extend an offer for the {{roleTitle}} role at "
+                            + "Skyzen Tech.\n\n"
+                            + "Tentative start: {{tentativeStartDate}}\n"
+                            + "Compensation: {{compensationSummary}}\n"
+                            + "Worksite: {{worksite}}\n"
+                            + "Expected hours: {{expectedHoursPerWeek}}/week\n\n"
+                            + "{{contingencies}}\n\n"
+                            + "Please review and sign via the DocuSign link in the separate "
+                            + "DocuSign email within {{expiryDays}} days.\n\n"
+                            + "— {{ermName}}",
+                    "firstName,roleTitle,tentativeStartDate,compensationSummary,"
+                            + "worksite,expectedHoursPerWeek,contingencies,expiryDays,ermName"),
+            new Seed(
+                    "OFFER_REMINDER", "EMAIL",
+                    "Reminder: your Skyzen offer is awaiting signature",
+                    "Hello {{firstName}},\n\n"
+                            + "This is a reminder that your offer for {{roleTitle}} is awaiting "
+                            + "your signature. The offer expires on {{expiryDate}}.\n\n"
+                            + "Please complete via the original DocuSign link.\n\n"
+                            + "— {{ermName}}",
+                    "firstName,roleTitle,expiryDate,ermName"),
+            new Seed(
+                    "OFFER_VOIDED", "EMAIL",
+                    "Your Skyzen offer has been withdrawn",
+                    "Hello {{firstName}},\n\n"
+                            + "We regret to inform you that the offer extended to you for "
+                            + "{{roleTitle}} has been withdrawn.\n\n"
+                            + "{{voidReasonHuman}}\n\n"
+                            + "If you have questions, please reach out.\n\n"
+                            + "— {{ermName}}",
+                    "firstName,roleTitle,voidReasonHuman,ermName"),
+            new Seed(
+                    "REPORTING_STRUCTURE_ASSIGNED", "EMAIL",
+                    "You've been assigned to a new intern at Skyzen",
+                    "Hello {{recipientFirstName}},\n\n"
+                            + "You've been assigned as the {{role}} for {{internName}} "
+                            + "({{employeeId}}). Internship starts {{tentativeStartDate}}.\n\n"
+                            + "Open your dashboard to view their profile and prepare for "
+                            + "onboarding.\n\n— Skyzen ERM",
+                    "recipientFirstName,role,internName,employeeId,tentativeStartDate"),
+            new Seed(
+                    "START_DATE_UPDATED", "EMAIL",
+                    "Your Skyzen start date has been updated",
+                    "Hello {{firstName}},\n\n"
+                            + "Your tentative start date is now {{newDate}}. Please update "
+                            + "your calendar.\n\n— {{ermName}}",
+                    "firstName,newDate,ermName")
     );
 
     @Override

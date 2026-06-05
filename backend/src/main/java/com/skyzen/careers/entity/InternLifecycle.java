@@ -71,6 +71,23 @@ public class InternLifecycle {
     @Column(name = "ended_at")
     private Instant endedAt;
 
+    // ── ERM Phase 4 — denormalized for the New Hire List ────────────────────
+
+    /** Mirrored from signed offer for fast inbox queries. */
+    @Column(name = "tentative_start_date")
+    private java.time.LocalDate tentativeStartDate;
+
+    /** True when trainer_id + evaluator_id + manager_id are all populated. */
+    @Column(name = "reporting_structure_complete", nullable = false)
+    @Builder.Default
+    private Boolean reportingStructureComplete = Boolean.FALSE;
+
+    @Column(name = "reporting_structure_completed_at")
+    private Instant reportingStructureCompletedAt;
+
+    @Column(name = "reporting_structure_completed_by_id")
+    private UUID reportingStructureCompletedById;
+
     @Column(nullable = false, updatable = false)
     private Instant createdAt;
 

@@ -112,6 +112,20 @@ public class OnboardingService {
                         "InternLifecycle missing for user " + applicantUserId
                                 + " — Phase 3 should have created it on offer signature"));
 
+        // ── ERM Phase 4 — mandatory reporting structure gate ──────────────
+        // Per doc §3 New Hire flow, ERM must assign Trainer + Evaluator +
+        // Manager BEFORE the onboarding packet can be created. This is the
+        // single enforcement point — UI gating is best-effort, this is the
+        // real bouncer.
+        List<String> missingRoles = new ArrayList<>();
+        if (lc.getTrainerId() == null) missingRoles.add("trainer");
+        if (lc.getEvaluatorId() == null) missingRoles.add("evaluator");
+        if (lc.getManagerId() == null) missingRoles.add("manager");
+        if (!missingRoles.isEmpty()) {
+            throw new com.skyzen.careers.exception.ReportingStructureIncompleteException(
+                    missingRoles);
+        }
+
         Candidate candidate = candidateRepository.findByUserId(applicantUserId).orElse(null);
         boolean stemOpt = candidate != null
                 && candidate.getExpectedTrack() == WorkAuthTrack.STEM_OPT;

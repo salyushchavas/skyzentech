@@ -65,6 +65,11 @@ public enum ReasonCode {
     OFFER_VOID_TERMS_REVISED(Category.OFFER_VOID, "Terms revised — re-issuing", false),
     OFFER_VOID_OTHER(Category.OFFER_VOID, "Other (specify)", true),
 
+    // ── Offer resend (ERM Phase 4) ─────────────────────────────────────────
+    OFFER_RESEND_NO_RESPONSE(Category.OFFER_RESEND, "No response yet", false),
+    OFFER_RESEND_TECHNICAL_ISSUE(Category.OFFER_RESEND, "Technical issue — link not delivered", false),
+    OFFER_RESEND_OTHER(Category.OFFER_RESEND, "Other (specify)", true),
+
     // ── Document rejections ────────────────────────────────────────────────
     DOC_REJECT_INCOMPLETE(Category.DOCUMENT_REJECT, "Incomplete document", false),
     DOC_REJECT_WRONG_FILE(Category.DOCUMENT_REJECT, "Wrong file uploaded", false),
@@ -91,6 +96,7 @@ public enum ReasonCode {
         INTERVIEW_RESCHEDULE,
         INTERVIEW_CANCEL,
         OFFER_VOID,
+        OFFER_RESEND,
         DOCUMENT_REJECT,
         EXIT
     }

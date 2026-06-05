@@ -1,546 +1,366 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
+import { useParams } from 'next/navigation';
 import Link from 'next/link';
-import { useParams, useRouter } from 'next/navigation';
-import {
-  ArrowLeft,
-  Ban,
-  Bell,
-  Download,
-  Edit,
-  Mail,
-  Send,
-  Trash2,
-} from 'lucide-react';
-import toast from 'react-hot-toast';
+import { ChevronLeft, Download, ExternalLink } from 'lucide-react';
 import api from '@/lib/api';
-import DashboardLayout from '@/components/dashboard/DashboardLayout';
 import ProtectedRoute from '@/components/ProtectedRoute';
-import OfferStatusBadge from '@/components/offers/OfferStatusBadge';
-import CompensationDisplay from '@/components/offers/CompensationDisplay';
-import ConfirmDialog from '@/components/ConfirmDialog';
-import { formatDateOnly, formatFull, formatRelative, isPast } from '@/lib/format-date';
-import type { OfferResponse } from '@/types';
+import DashboardLayout from '@/components/dashboard/DashboardLayout';
+import PageHeader from '@/components/ui/PageHeader';
+import OfferStatusPill from '@/components/erm/offers/OfferStatusPill';
+import VoidOfferModal from '@/components/erm/offers/VoidOfferModal';
+import ResendOfferModal from '@/components/erm/offers/ResendOfferModal';
+import UpdateStartDateModal from '@/components/erm/offers/UpdateStartDateModal';
+import type { OfferDetail } from '@/components/erm/offers/types';
 
-type ActionKind = 'send' | 'revoke' | 'delete';
+type Tab = 'overview' | 'docusign' | 'history' | 'notes';
 
 export default function OfferDetailPage() {
-  return (
-    <ProtectedRoute requiredRoles={['ERM']}>
-      <DashboardLayout title="Offer Details">
-        <Body />
-      </DashboardLayout>
-    </ProtectedRoute>
-  );
-}
-
-function Body() {
-  const params = useParams();
-  const router = useRouter();
-  const id =
-    typeof params?.id === 'string'
-      ? params.id
-      : Array.isArray(params?.id)
-        ? params.id[0]
-        : null;
-
-  const [offer, setOffer] = useState<OfferResponse | null>(null);
+  const params = useParams<{ id: string }>();
+  const id = params?.id;
+  const [data, setData] = useState<OfferDetail | null>(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [confirm, setConfirm] = useState<ActionKind | null>(null);
-  const [downloading, setDownloading] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const [tab, setTab] = useState<Tab>('overview');
+  const [modal, setModal] = useState<'void' | 'resend' | 'startdate' | null>(null);
+  const [noteDraft, setNoteDraft] = useState('');
+  const [savingNote, setSavingNote] = useState(false);
 
   const load = useCallback(async () => {
     if (!id) return;
     setLoading(true);
-    setError(null);
     try {
-      const res = await api.get<OfferResponse>(`/api/v1/offers/${id}`);
-      setOffer(res.data);
-    } catch (err: any) {
-      setError(err?.response?.data?.error ?? 'Could not load offer');
-      setOffer(null);
+      const res = await api.get<OfferDetail>(`/api/v1/erm/offers/${id}`);
+      setData(res.data);
+      setErr(null);
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : 'Failed to load offer');
     } finally {
       setLoading(false);
     }
   }, [id]);
 
-  useEffect(() => {
-    void load();
-  }, [load]);
+  useEffect(() => { void load(); }, [load]);
 
-  async function runConfirmedAction() {
-    if (!offer || !confirm) return;
+  async function sendReminder() {
+    if (!id) return;
     try {
-      if (confirm === 'send') {
-        await api.post(`/api/v1/offers/${offer.id}/send`);
-        toast.success('Offer sent');
-        await load();
-      } else if (confirm === 'revoke') {
-        await api.post(`/api/v1/offers/${offer.id}/revoke`);
-        toast.success('Offer revoked');
-        await load();
-      } else if (confirm === 'delete') {
-        await api.delete(`/api/v1/offers/${offer.id}`);
-        toast.success('Draft deleted');
-        router.push('/careers/erm/offers');
-        return;
-      }
-    } catch (err: any) {
-      toast.error(err?.response?.data?.error ?? 'Action failed');
-    } finally {
-      setConfirm(null);
+      await api.post(`/api/v1/erm/offers/${id}/reminder`, {});
+      await load();
+    } catch (e) {
+      alert(e instanceof Error ? e.message : 'Reminder failed');
     }
   }
 
-  async function downloadLetter() {
-    if (!offer) return;
-    setDownloading(true);
+  async function clearForReoffer() {
+    if (!id) return;
+    if (!confirm('Archive this voided offer and unlock a fresh offer for the application?')) return;
     try {
-      const res = await api.get(`/api/v1/offers/${offer.id}/download`, {
-        responseType: 'blob',
-      });
-      const ctRaw = res.headers['content-type'];
-      const contentType =
-        typeof ctRaw === 'string' ? ctRaw : 'text/plain; charset=utf-8';
-      const blob = new Blob([res.data], { type: contentType });
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      const cdRaw = res.headers['content-disposition'];
-      const cd = typeof cdRaw === 'string' ? cdRaw : '';
-      const m = cd.match(/filename="?([^";]+)"?/);
-      a.download = m?.[1] ?? `Offer-${offer.id.slice(0, 8)}.txt`;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      window.URL.revokeObjectURL(url);
-    } catch (err: any) {
-      toast.error(err?.response?.data?.error ?? 'Download failed');
-    } finally {
-      setDownloading(false);
+      await api.post(`/api/v1/erm/offers/${id}/clear-for-reoffer`, {});
+      await load();
+    } catch (e) {
+      const ax = e as { response?: { data?: { error?: string } } };
+      alert(ax.response?.data?.error ?? (e instanceof Error ? e.message : 'Failed'));
     }
   }
 
-  if (loading) return <DetailSkeleton />;
+  async function addNote() {
+    if (!id || noteDraft.trim().length < 5) return;
+    setSavingNote(true);
+    try {
+      await api.post(`/api/v1/erm/offers/${id}/internal-note`, { note: noteDraft.trim() });
+      setNoteDraft('');
+      await load();
+    } catch (e) {
+      alert(e instanceof Error ? e.message : 'Note save failed');
+    } finally {
+      setSavingNote(false);
+    }
+  }
 
-  if (error && !offer) {
+  async function refreshStatus() {
+    if (!id) return;
+    try {
+      await api.post(`/api/v1/offers/${id}/refresh-status`, {});
+      await load();
+    } catch (e) {
+      alert(e instanceof Error ? e.message : 'Refresh failed');
+    }
+  }
+
+  if (loading && !data) {
     return (
-      <div className="rounded-md border border-red-200 bg-red-50 p-4 text-sm text-red-700">
-        <p className="mb-2">{error}</p>
-        <div className="flex gap-2">
-          <button
-            type="button"
-            onClick={() => void load()}
-            className="rounded border border-red-300 px-3 py-1 text-xs font-medium hover:bg-red-100"
-          >
-            Retry
-          </button>
-          <Link
-            href="/careers/erm/offers"
-            className="rounded border border-red-300 px-3 py-1 text-xs font-medium hover:bg-red-100"
-          >
-            Back to offers
-          </Link>
-        </div>
-      </div>
+      <ProtectedRoute requiredRoles={['ERM', 'SUPER_ADMIN']}>
+        <DashboardLayout>
+          <PageHeader title="Offer" />
+          <div className="h-32 animate-pulse rounded-lg bg-slate-100" />
+        </DashboardLayout>
+      </ProtectedRoute>
+    );
+  }
+  if (err || !data) {
+    return (
+      <ProtectedRoute requiredRoles={['ERM', 'SUPER_ADMIN']}>
+        <DashboardLayout>
+          <PageHeader title="Offer" />
+          <p className="rounded-md border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800">
+            {err ?? 'Offer not found'}
+          </p>
+        </DashboardLayout>
+      </ProtectedRoute>
     );
   }
 
-  if (!offer) {
-    return (
-      <div className="rounded-lg border border-dashed border-gray-300 bg-white p-12 text-center">
-        <p className="mb-4 text-base font-medium text-gray-700">Offer not found.</p>
+  const expiringSoon =
+    data.status === 'SENT' &&
+    data.expiresAt &&
+    new Date(data.expiresAt).getTime() - Date.now() < 24 * 3600 * 1000;
+
+  return (
+    <ProtectedRoute requiredRoles={['ERM', 'SUPER_ADMIN']}>
+      <DashboardLayout>
         <Link
           href="/careers/erm/offers"
-          className="inline-flex items-center gap-1 text-sm text-accent hover:underline"
+          className="mb-3 inline-flex items-center gap-1 text-sm text-slate-500 hover:text-slate-700"
         >
-          <ArrowLeft className="h-4 w-4" strokeWidth={2} />
-          Back to offers
+          <ChevronLeft className="h-4 w-4" /> Back to offers
         </Link>
-      </div>
-    );
-  }
+        <PageHeader
+          title={data.applicantName ?? 'Offer'}
+          subtitle={data.roleTitle ?? data.jobTitle ?? undefined}
+        />
 
-  return (
-    <>
-      <Link
-        href="/careers/erm/offers"
-        className="mb-4 inline-flex items-center gap-1 text-sm text-gray-600 hover:text-gray-900"
-      >
-        <ArrowLeft className="h-4 w-4" strokeWidth={2} />
-        Back to offers
-      </Link>
+        <div className="mb-4 flex flex-wrap items-center gap-2">
+          <OfferStatusPill status={data.status} />
+          {data.expiresAt && (
+            <span className={expiringSoon
+              ? 'rounded-full bg-rose-100 px-2 py-0.5 text-[11px] font-semibold text-rose-700'
+              : 'text-xs text-slate-500'}>
+              Expires {new Date(data.expiresAt).toLocaleString()}
+            </span>
+          )}
+          {data.reminderCount > 0 && (
+            <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] text-slate-600">
+              {data.reminderCount} reminder{data.reminderCount === 1 ? '' : 's'}
+            </span>
+          )}
+          {data.archivedAt && (
+            <span className="rounded-full bg-slate-200 px-2 py-0.5 text-[11px] text-slate-700">
+              archived
+            </span>
+          )}
+        </div>
 
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-        {/* LEFT — info card */}
-        <aside className="lg:col-span-1 lg:sticky lg:top-8 lg:self-start">
-          <div className="rounded-lg border border-gray-200 bg-white p-6">
-            <div className="flex items-start justify-between gap-3">
-              <OfferStatusBadge status={offer.status} size="md" />
-              <div className="text-xs text-gray-400">
-                Offer #{offer.id.slice(0, 8)}
-              </div>
+        <div className="grid gap-6 lg:grid-cols-3">
+          <main className="lg:col-span-2">
+            <div className="mb-4 flex gap-1 border-b border-slate-200 text-sm">
+              {(['overview', 'docusign', 'history', 'notes'] as Tab[]).map((t) => (
+                <button
+                  key={t}
+                  type="button"
+                  onClick={() => setTab(t)}
+                  className={
+                    'border-b-2 px-3 py-2 font-medium capitalize ' +
+                    (tab === t
+                      ? 'border-teal-700 text-teal-700'
+                      : 'border-transparent text-slate-500 hover:text-slate-800')
+                  }
+                >
+                  {t}
+                </button>
+              ))}
             </div>
 
-            <div className="my-4 h-px bg-gray-100" />
-
-            <FieldGroup label="Candidate">
-              <div className="text-lg font-semibold text-gray-900">
-                {offer.candidateName ?? '(unnamed)'}
-              </div>
-              {offer.candidateEmail && (
-                <div className="flex items-center gap-1 text-sm text-gray-500">
-                  <Mail className="h-3.5 w-3.5" strokeWidth={2} />
-                  {offer.candidateEmail}
+            {tab === 'overview' && (
+              <section className="space-y-4">
+                <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+                  <Row label="Applicant" value={`${data.applicantName} · ${data.applicantEmail}`} />
+                  <Row label="Applicant ID" value={data.applicantId} />
+                  <Row label="Job" value={`${data.jobTitle} (${data.jobType})`} />
+                  <Row label="Role title" value={data.roleTitle} />
+                  <Row label="Compensation" value={data.compensationSummary} />
+                  <Row label="Worksite" value={data.worksite} />
+                  <Row label="Hours / week" value={data.expectedHoursPerWeek?.toString()} />
+                  <Row label="Tentative start" value={data.tentativeStartDate} />
                 </div>
-              )}
-            </FieldGroup>
-
-            <FieldGroup label="Position">
-              <div className="text-sm text-gray-700">
-                {offer.jobPostingTitle ?? '—'}
-              </div>
-              {offer.entityName && (
-                <span className="mt-1.5 inline-block rounded bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-700">
-                  {offer.entityName}
-                </span>
-              )}
-            </FieldGroup>
-
-            <FieldGroup label="Compensation">
-              <CompensationDisplay
-                amount={offer.compensationAmount}
-                frequency={offer.compensationFrequency}
-                currency={offer.compensationCurrency}
-                variant="large"
-              />
-            </FieldGroup>
-
-            <FieldGroup label="Start date">
-              <div className="text-sm text-gray-700">
-                {formatDateOnly(offer.startDate)}
-              </div>
-            </FieldGroup>
-
-            {offer.expectedEndDate && (
-              <FieldGroup label="End date">
-                <div className="text-sm text-gray-700">
-                  {formatDateOnly(offer.expectedEndDate)}
-                </div>
-              </FieldGroup>
+                {data.signedPdfDocumentId && (
+                  <a
+                    href={`/api/v1/offers/${data.id}/signed-pdf`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex items-center gap-1 rounded-md border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
+                  >
+                    <Download className="h-3 w-3" /> Download signed PDF
+                  </a>
+                )}
+              </section>
             )}
 
-            <FieldGroup label="Lifecycle">
-              <LifecycleRow offer={offer} />
-            </FieldGroup>
+            {tab === 'docusign' && (
+              <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+                <Row label="Envelope ID" value={data.docusignEnvelopeId ?? '(not configured)'} />
+                <Row label="Sent" value={data.sentAt ?? '—'} />
+                <Row label="Signed" value={data.signedAt ?? '—'} />
+                <Row label="Voided" value={data.voidedAt ?? '—'} />
+                <button
+                  type="button"
+                  onClick={refreshStatus}
+                  className="mt-3 inline-flex items-center gap-1 rounded-md border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
+                >
+                  Refresh from DocuSign
+                </button>
+              </section>
+            )}
 
-            <div className="my-4 h-px bg-gray-100" />
+            {tab === 'history' && (
+              <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+                {data.history.length === 0 ? (
+                  <p className="text-sm text-slate-500">No history yet.</p>
+                ) : (
+                  <ul className="space-y-3">
+                    {data.history.map((h) => (
+                      <li
+                        key={h.id}
+                        className="rounded-md border border-slate-100 bg-slate-50 p-3 text-sm"
+                      >
+                        <div className="flex items-center justify-between">
+                          <span className="font-semibold text-slate-900">
+                            {h.eventType.replaceAll('_', ' ')}
+                          </span>
+                          <span className="text-[11px] text-slate-500">
+                            {new Date(h.createdAt).toLocaleString()}
+                          </span>
+                        </div>
+                        <p className="mt-1 text-[12px] text-slate-600">
+                          by {h.actorName ?? 'system'}
+                          {h.reasonCode ? ` · ${h.reasonCode}` : ''}
+                        </p>
+                        {h.reasonText && (
+                          <p className="mt-1 text-[12px] italic text-slate-600">{h.reasonText}</p>
+                        )}
+                        {h.payloadJson && (
+                          <details className="mt-2">
+                            <summary className="cursor-pointer text-[11px] text-teal-700">payload</summary>
+                            <pre className="mt-1 whitespace-pre-wrap rounded-md border border-slate-200 bg-white p-2 text-[11px] text-slate-700">
+                              {h.payloadJson}
+                            </pre>
+                          </details>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </section>
+            )}
 
-            <div className="space-y-1 text-xs text-gray-400">
-              <div>
-                Created by{' '}
-                <span className="text-gray-600">
-                  {offer.createdByName ?? '—'}
-                </span>{' '}
-                on {formatFull(offer.createdAt)}
+            {tab === 'notes' && (
+              <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+                <p className="text-xs text-slate-500">Internal notes — ERM only.</p>
+                <pre className="mt-3 max-h-96 overflow-auto whitespace-pre-wrap rounded-md border border-slate-200 bg-slate-50 p-3 text-[12px] text-slate-800">
+                  {data.internalNotes ?? '(no notes yet)'}
+                </pre>
+                <div className="mt-3">
+                  <textarea
+                    value={noteDraft}
+                    onChange={(e) => setNoteDraft(e.target.value)}
+                    rows={3}
+                    placeholder="Add a note (min 5 chars)…"
+                    className="w-full resize-y rounded-md border border-slate-200 px-3 py-2 text-sm"
+                  />
+                  <div className="mt-2 flex justify-end">
+                    <button
+                      type="button"
+                      onClick={addNote}
+                      disabled={savingNote}
+                      className="rounded-md bg-teal-700 px-3 py-1.5 text-xs font-semibold text-white hover:bg-teal-800 disabled:opacity-60"
+                    >
+                      {savingNote ? 'Saving…' : 'Add note'}
+                    </button>
+                  </div>
+                </div>
+              </section>
+            )}
+          </main>
+
+          <aside className="space-y-4">
+            <section className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+              <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-500">Actions</h3>
+              <div className="mt-3 space-y-2">
+                {data.status === 'SENT' && (
+                  <>
+                    <button
+                      type="button"
+                      onClick={sendReminder}
+                      className="w-full rounded-md border border-slate-200 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+                    >
+                      Send reminder
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setModal('resend')}
+                      className="w-full rounded-md border border-slate-200 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+                    >
+                      Resend (extend expiry)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setModal('startdate')}
+                      className="w-full rounded-md border border-slate-200 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+                    >
+                      Update start date
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setModal('void')}
+                      className="w-full rounded-md border border-rose-200 px-3 py-2 text-sm font-semibold text-rose-700 hover:bg-rose-50"
+                    >
+                      Void offer
+                    </button>
+                  </>
+                )}
+                {data.status === 'VOIDED' && !data.archivedAt && (
+                  <button
+                    type="button"
+                    onClick={clearForReoffer}
+                    className="w-full rounded-md border border-slate-200 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+                  >
+                    Clear for re-offer (24h cooldown)
+                  </button>
+                )}
+                {data.status === 'SIGNED' && data.applicationId && (
+                  <Link
+                    href={`/careers/erm/applications/${data.applicationId}`}
+                    className="inline-flex w-full items-center justify-center gap-1 rounded-md border border-slate-200 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+                  >
+                    View application <ExternalLink className="h-3 w-3" />
+                  </Link>
+                )}
               </div>
-              <div>Last updated {formatFull(offer.updatedAt)}</div>
-            </div>
-          </div>
-        </aside>
-
-        {/* RIGHT — letter + actions */}
-        <div className="lg:col-span-2">
-          {/* Letter preview */}
-          <section className="rounded-lg border border-gray-200 bg-white p-8">
-            <div className="mb-4 flex items-center justify-between gap-3">
-              <h2 className="text-base font-semibold text-gray-900">
-                Offer Letter
-              </h2>
-              <button
-                type="button"
-                onClick={() => void downloadLetter()}
-                disabled={downloading}
-                className="inline-flex items-center gap-1.5 rounded-md border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
-              >
-                <Download className="h-3.5 w-3.5" strokeWidth={2} />
-                {downloading ? 'Downloading…' : 'Download'}
-              </button>
-            </div>
-            <LetterPreview content={offer.letterContent} />
-          </section>
-
-          {/* Actions */}
-          <section className="mt-6 rounded-lg border border-gray-200 bg-white p-6">
-            <h3 className="mb-3 text-sm font-medium text-gray-900">Actions</h3>
-            <ActionPanel
-              offer={offer}
-              onAction={(kind) => setConfirm(kind)}
-              onResendNote={() =>
-                toast('Email reminders coming soon', { icon: '📨' })
-              }
-            />
-          </section>
+            </section>
+          </aside>
         </div>
-      </div>
 
-      <ConfirmDialog
-        open={confirm !== null}
-        onClose={() => setConfirm(null)}
-        onConfirm={runConfirmedAction}
-        title={
-          confirm === 'send'
-            ? 'Send this offer?'
-            : confirm === 'revoke'
-              ? 'Revoke this offer?'
-              : 'Delete this draft?'
-        }
-        description={
-          confirm === 'send'
-            ? `${offer.candidateName ?? 'The candidate'} will have until ${formatFull(
-                offer.expiresAt
-              )} to respond. The offer cannot be edited after sending. Revoke is available if needed.`
-            : confirm === 'revoke'
-              ? `This will withdraw the offer to ${
-                  offer.candidateName ?? 'the candidate'
-                }. The candidate will see the offer as revoked.`
-              : 'This will permanently delete the draft offer. This action cannot be undone.'
-        }
-        confirmLabel={
-          confirm === 'send'
-            ? 'Send Offer'
-            : confirm === 'revoke'
-              ? 'Revoke'
-              : 'Delete'
-        }
-        variant={confirm === 'send' ? 'primary' : 'danger'}
-      />
-    </>
-  );
-}
-
-function FieldGroup({
-  label,
-  children,
-}: {
-  label: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <div className="mb-4 last:mb-0">
-      <div className="mb-1 text-xs uppercase tracking-wide text-gray-500">
-        {label}
-      </div>
-      <div>{children}</div>
-    </div>
-  );
-}
-
-function LifecycleRow({ offer }: { offer: OfferResponse }) {
-  if (offer.status === 'SENT') {
-    const expired = isPast(offer.expiresAt);
-    const closeSoon = new Date(offer.expiresAt).getTime() < Date.now() + 2 * 86_400_000;
-    return (
-      <div
-        className={
-          'text-sm ' +
-          (expired
-            ? 'text-amber-700'
-            : closeSoon
-              ? 'text-amber-600'
-              : 'text-gray-700')
-        }
-      >
-        Expires {formatRelative(offer.expiresAt)}
-      </div>
-    );
-  }
-  if (offer.status === 'ACCEPTED') {
-    return (
-      <div className="text-sm text-gray-700">
-        Accepted on {formatFull(offer.respondedAt)}
-      </div>
-    );
-  }
-  if (offer.status === 'DECLINED') {
-    return (
-      <div className="text-sm text-gray-700">
-        <div>Declined on {formatFull(offer.respondedAt)}</div>
-        {offer.declineReason && (
-          <p className="mt-1.5 whitespace-pre-wrap border-l-2 border-gray-300 bg-gray-50 px-3 py-2 text-xs italic text-gray-600">
-            {offer.declineReason}
-          </p>
+        {modal === 'void' && (
+          <VoidOfferModal open offer={data} onClose={() => setModal(null)} onApplied={() => void load()} />
         )}
-      </div>
-    );
-  }
-  if (offer.status === 'EXPIRED') {
-    return (
-      <div className="text-sm text-gray-700">
-        Expired {formatFull(offer.expiresAt)}
-      </div>
-    );
-  }
-  if (offer.status === 'REVOKED') {
-    return (
-      <div className="text-sm text-gray-700">
-        Revoked on {formatFull(offer.revokedAt)}
-      </div>
-    );
-  }
-  // DRAFT
-  return (
-    <div className="text-sm text-gray-700">
-      Not sent yet — will expire {formatRelative(offer.expiresAt)}
-    </div>
+        {modal === 'resend' && (
+          <ResendOfferModal open offer={data} onClose={() => setModal(null)} onApplied={() => void load()} />
+        )}
+        {modal === 'startdate' && (
+          <UpdateStartDateModal open offerId={data.id} currentDate={data.tentativeStartDate}
+            onClose={() => setModal(null)} onApplied={() => void load()} />
+        )}
+      </DashboardLayout>
+    </ProtectedRoute>
   );
 }
 
-function LetterPreview({ content }: { content: string }) {
-  const paragraphs = useMemo(() => (content ?? '').split(/\n\n+/), [content]);
+function Row({ label, value }: { label: string; value: string | null | undefined }) {
   return (
-    <article className="mx-auto max-w-prose space-y-4 text-sm leading-relaxed text-gray-800">
-      {paragraphs.map((p, i) => {
-        const lines = p.split('\n');
-        const isBulletList = lines.every(
-          (l) => l.trim().startsWith('•') || l.trim() === ''
-        );
-        if (isBulletList) {
-          return (
-            <ul key={i} className="ml-2 space-y-1">
-              {lines
-                .filter((l) => l.trim() !== '')
-                .map((l, j) => (
-                  <li key={j} className="flex gap-2">
-                    <span className="text-gray-400">•</span>
-                    <span>{l.replace(/^\s*•\s*/, '')}</span>
-                  </li>
-                ))}
-            </ul>
-          );
-        }
-        return (
-          <p key={i} className="whitespace-pre-wrap">
-            {p}
-          </p>
-        );
-      })}
-    </article>
-  );
-}
-
-function ActionPanel({
-  offer,
-  onAction,
-  onResendNote,
-}: {
-  offer: OfferResponse;
-  onAction: (kind: ActionKind) => void;
-  onResendNote: () => void;
-}) {
-  if (offer.status === 'DRAFT') {
-    return (
-      <div className="space-y-2">
-        <Link
-          href={`/careers/erm/offers/${offer.id}/edit`}
-          className="flex w-full items-center justify-between rounded-md bg-accent px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-accent-dark"
-        >
-          <span className="inline-flex items-center gap-2">
-            <Edit className="h-4 w-4" strokeWidth={2} />
-            Edit Offer
-          </span>
-        </Link>
-        <button
-          type="button"
-          onClick={() => onAction('send')}
-          className="flex w-full items-center justify-between rounded-md bg-accent px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-accent-dark"
-        >
-          <span className="inline-flex items-center gap-2">
-            <Send className="h-4 w-4" strokeWidth={2} />
-            Send to Candidate
-          </span>
-        </button>
-        <button
-          type="button"
-          onClick={() => onAction('delete')}
-          className="flex w-full items-center justify-between rounded-md border border-red-200 bg-white px-4 py-2 text-sm font-medium text-red-600 transition-colors hover:bg-red-50"
-        >
-          <span className="inline-flex items-center gap-2">
-            <Trash2 className="h-4 w-4" strokeWidth={2} />
-            Delete Offer
-          </span>
-        </button>
-      </div>
-    );
-  }
-  if (offer.status === 'SENT') {
-    return (
-      <div className="space-y-2">
-        <button
-          type="button"
-          onClick={() => onAction('revoke')}
-          className="flex w-full items-center justify-between rounded-md border border-red-200 bg-white px-4 py-2 text-sm font-medium text-red-600 transition-colors hover:bg-red-50"
-        >
-          <span className="inline-flex items-center gap-2">
-            <Ban className="h-4 w-4" strokeWidth={2} />
-            Revoke Offer
-          </span>
-        </button>
-        <button
-          type="button"
-          onClick={onResendNote}
-          className="flex w-full items-center justify-between rounded-md bg-accent px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-accent-dark"
-        >
-          <span className="inline-flex items-center gap-2">
-            <Bell className="h-4 w-4" strokeWidth={2} />
-            Resend Reminder
-          </span>
-        </button>
-      </div>
-    );
-  }
-  // ACCEPTED / DECLINED / EXPIRED / REVOKED
-  return (
-    <div className="space-y-3">
-      <p className="text-sm text-gray-500">
-        This offer is in a terminal state and cannot be modified.
-      </p>
-      <Link
-        href={`/careers/erm/offers/new?fromApplication=${offer.applicationId}`}
-        className="inline-flex items-center gap-1.5 rounded-md border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50"
-      >
-        Create a new offer
-      </Link>
-    </div>
-  );
-}
-
-function DetailSkeleton() {
-  return (
-    <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-      <div className="space-y-3 rounded-lg border border-gray-200 bg-white p-6">
-        <div className="h-6 w-24 animate-pulse rounded bg-gray-200" />
-        <div className="h-4 w-32 animate-pulse rounded bg-gray-200" />
-        <div className="h-5 w-48 animate-pulse rounded bg-gray-200" />
-        <div className="h-4 w-40 animate-pulse rounded bg-gray-200" />
-        <div className="h-4 w-36 animate-pulse rounded bg-gray-200" />
-      </div>
-      <div className="space-y-6 lg:col-span-2">
-        <div className="space-y-3 rounded-lg border border-gray-200 bg-white p-8">
-          <div className="h-5 w-32 animate-pulse rounded bg-gray-200" />
-          <div className="h-3 w-full animate-pulse rounded bg-gray-200" />
-          <div className="h-3 w-11/12 animate-pulse rounded bg-gray-200" />
-          <div className="h-3 w-10/12 animate-pulse rounded bg-gray-200" />
-          <div className="h-3 w-full animate-pulse rounded bg-gray-200" />
-        </div>
-        <div className="space-y-2 rounded-lg border border-gray-200 bg-white p-6">
-          <div className="h-4 w-20 animate-pulse rounded bg-gray-200" />
-          <div className="h-9 w-full animate-pulse rounded bg-gray-200" />
-          <div className="h-9 w-full animate-pulse rounded bg-gray-200" />
-        </div>
-      </div>
+    <div className="mb-2 grid grid-cols-3 gap-2 text-sm">
+      <p className="text-[11px] uppercase text-slate-500">{label}</p>
+      <p className="col-span-2 text-slate-800">{value && value !== 'null' ? value : '—'}</p>
     </div>
   );
 }

@@ -1,0 +1,154 @@
+// ERM Phase 4 — shared types for offer control + new-hire surfaces.
+
+export type OfferStatus =
+  | 'DRAFT'
+  | 'SENT'
+  | 'SIGNED'
+  | 'VOIDED'
+  | 'EXPIRED'
+  | 'DECLINED';
+
+export interface OfferRow {
+  offerId: string;
+  applicationId: string;
+  applicantName: string | null;
+  applicantId: string | null;
+  applicantEmail: string | null;
+  jobTitle: string | null;
+  jobType: string | null;
+  status: OfferStatus;
+  roleTitle: string | null;
+  compensationSummary: string | null;
+  tentativeStartDate: string | null;
+  sentAt: string | null;
+  expiresAt: string | null;
+  signedAt: string | null;
+  voidedAt: string | null;
+  voidReasonCode: string | null;
+  reminderCount: number;
+  docusignEnvelopeId: string | null;
+  archived: boolean;
+}
+
+export interface OfferListPage {
+  items: OfferRow[];
+  page: number;
+  pageSize: number;
+  totalElements: number;
+  totalPages: number;
+}
+
+export interface EventLogEntry {
+  id: string;
+  eventType: string;
+  reasonCode: string | null;
+  reasonText: string | null;
+  payloadJson: string | null;
+  actorUserId: string | null;
+  actorName: string | null;
+  createdAt: string;
+}
+
+export interface OfferDetail {
+  id: string;
+  status: OfferStatus;
+  applicationId: string;
+  applicantName: string | null;
+  applicantEmail: string | null;
+  applicantId: string | null;
+  jobTitle: string | null;
+  jobType: string | null;
+  roleTitle: string | null;
+  compensationSummary: string | null;
+  worksite: string | null;
+  expectedHoursPerWeek: number | null;
+  tentativeStartDate: string | null;
+  sentAt: string | null;
+  expiresAt: string | null;
+  signedAt: string | null;
+  voidedAt: string | null;
+  voidReasonCode: string | null;
+  voidReasonText: string | null;
+  reminderCount: number;
+  lastReminderAt: string | null;
+  docusignEnvelopeId: string | null;
+  signedPdfDocumentId: string | null;
+  internalNotes: string | null;
+  archivedAt: string | null;
+  createdBy: string;
+  createdAt: string;
+  updatedAt: string;
+  history: EventLogEntry[];
+}
+
+export interface ReasonOption {
+  code: string;
+  label: string;
+  requiresFreeText: boolean;
+}
+
+export interface ReasonGroup {
+  category: string;
+  options: ReasonOption[];
+}
+
+export interface UserStub {
+  userId: string;
+  fullName: string | null;
+  email: string | null;
+  role: string | null;
+  currentInternCount: number;
+}
+
+export interface NewHireRow {
+  internLifecycleId: string;
+  internUserId: string;
+  internName: string | null;
+  internEmail: string | null;
+  employeeId: string | null;
+  signedAt: string | null;
+  tentativeStartDate: string | null;
+  trainerName: string | null;
+  evaluatorName: string | null;
+  managerName: string | null;
+  reportingStructureComplete: boolean;
+  onboardingAssigned: boolean;
+}
+
+export interface NewHireListPage {
+  items: NewHireRow[];
+  page: number;
+  pageSize: number;
+  totalElements: number;
+  totalPages: number;
+}
+
+export interface NewHireDetail {
+  internLifecycleId: string;
+  internUserId: string;
+  internName: string | null;
+  internEmail: string | null;
+  employeeId: string | null;
+  activeStatus: string;
+  hiredAt: string | null;
+  startedAt: string | null;
+  tentativeStartDate: string | null;
+  reportingStructureComplete: boolean;
+  reportingStructureCompletedAt: string | null;
+  reportingStructureCompletedById: string | null;
+  trainer: UserStub | null;
+  evaluator: UserStub | null;
+  manager: UserStub | null;
+  erm: UserStub | null;
+  signedOffer: {
+    offerId: string;
+    roleTitle: string | null;
+    compensationSummary: string | null;
+    worksite: string | null;
+    expectedHoursPerWeek: number | null;
+    tentativeStartDate: string | null;
+    signedAt: string | null;
+    signedPdfDocumentId: string | null;
+  } | null;
+  onboardingAssigned: boolean;
+}
