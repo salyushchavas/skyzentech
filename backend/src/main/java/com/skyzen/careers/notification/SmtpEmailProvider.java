@@ -852,58 +852,8 @@ public class SmtpEmailProvider implements EmailProvider {
     }
 
     // ── Batch 3 — intern weekly cycle ───────────────────────────────────────
-
-    @Override
-    public void sendWeeklyMaterialReleased(String email, String internName,
-                                           Integer weekNo, String materialTitle,
-                                           String dashboardUrl) {
-        String greet = greeting(internName);
-        String label = materialTitle != null ? materialTitle : "this week's reading";
-        String wkLabel = weekNo != null ? ("Week " + weekNo) : "This week";
-        String plain = ""
-                + greet + "\n\n"
-                + wkLabel + " is published: \"" + label + "\".\n\n"
-                + "Read it before your weekly check-in:\n"
-                + (dashboardUrl != null ? dashboardUrl + "\n\n" : "\n")
-                + "— The Skyzen Tech team\n";
-        String html = wrapHtml(
-                wkLabel + " is published",
-                "<p style=\"margin:0 0 12px;font-size:15px;color:" + COLOR_TEXT_BODY + ";\">"
-                        + escape(greet) + "</p>"
-                        + "<p style=\"margin:0 0 12px;font-size:15px;color:" + COLOR_TEXT_BODY + ";\">"
-                        + "<strong>" + escape(wkLabel) + "</strong> is now available: "
-                        + "<strong>" + escape(label) + "</strong>."
-                        + "</p>"
-                        + (dashboardUrl != null ? buttonBlock("Open this week's reading", dashboardUrl) : "")
-        );
-        send(email, wkLabel + " released — Skyzen Tech", plain, html);
-    }
-
-    @Override
-    public void sendMaterialUnreadReminder(String email, String internName,
-                                           Integer weekNo, String materialTitle,
-                                           String dashboardUrl) {
-        String greet = greeting(internName);
-        String label = materialTitle != null ? materialTitle : "this week's reading";
-        String wkLabel = weekNo != null ? ("Week " + weekNo) : "Your weekly material";
-        String plain = ""
-                + greet + "\n\n"
-                + "Reminder — " + wkLabel + " (\"" + label + "\") is still unread.\n\n"
-                + "Open your dashboard to acknowledge it:\n"
-                + (dashboardUrl != null ? dashboardUrl + "\n\n" : "\n")
-                + "— The Skyzen Tech team\n";
-        String html = wrapHtml(
-                wkLabel + " — still unread",
-                "<p style=\"margin:0 0 12px;font-size:15px;color:" + COLOR_TEXT_BODY + ";\">"
-                        + escape(greet) + "</p>"
-                        + "<p style=\"margin:0 0 12px;font-size:15px;color:" + COLOR_TEXT_BODY + ";\">"
-                        + "Reminder — <strong>" + escape(wkLabel) + "</strong> "
-                        + "(<strong>" + escape(label) + "</strong>) is still unread."
-                        + "</p>"
-                        + (dashboardUrl != null ? buttonBlock("Open and acknowledge", dashboardUrl) : "")
-        );
-        send(email, "Reminder: " + wkLabel + " unread — Skyzen Tech", plain, html);
-    }
+    // sendWeeklyMaterialReleased + sendMaterialUnreadReminder removed in
+    // Trainer Phase 0 (concept not in Trainer doc spec).
 
     @Override
     public void sendWeeklyReportDue(String email, String internName,

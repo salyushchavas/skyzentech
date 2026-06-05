@@ -9,27 +9,22 @@ import com.skyzen.careers.entity.AuditLog;
 import com.skyzen.careers.entity.Candidate;
 import com.skyzen.careers.entity.Engagement;
 import com.skyzen.careers.entity.EvaluationSession;
-import com.skyzen.careers.entity.MaterialAcknowledgement;
 import com.skyzen.careers.entity.Timesheet;
 import com.skyzen.careers.entity.User;
-import com.skyzen.careers.entity.WeeklyMaterial;
 import com.skyzen.careers.entity.WeeklyReport;
 import com.skyzen.careers.enums.EngagementStatus;
 import com.skyzen.careers.enums.EvaluationSessionStatus;
 import com.skyzen.careers.enums.EvaluationStatus;
 import com.skyzen.careers.enums.TimesheetStatus;
 import com.skyzen.careers.enums.UserRole;
-import com.skyzen.careers.enums.WeeklyMaterialStatus;
 import com.skyzen.careers.enums.WeeklyReportStatus;
 import com.skyzen.careers.enums.ProjectStatus;
 import com.skyzen.careers.repository.AuditLogRepository;
 import com.skyzen.careers.repository.EngagementRepository;
 import com.skyzen.careers.repository.EvaluationRepository;
 import com.skyzen.careers.repository.EvaluationSessionRepository;
-import com.skyzen.careers.repository.MaterialAcknowledgementRepository;
 import com.skyzen.careers.repository.ProjectRepository;
 import com.skyzen.careers.repository.TimesheetRepository;
-import com.skyzen.careers.repository.WeeklyMaterialRepository;
 import com.skyzen.careers.repository.WeeklyReportRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
@@ -88,8 +83,8 @@ public class SupervisorDashboardService {
     private final EngagementRepository engagementRepository;
     private final WeeklyReportRepository weeklyReportRepository;
     private final TimesheetRepository timesheetRepository;
-    private final WeeklyMaterialRepository weeklyMaterialRepository;
-    private final MaterialAcknowledgementRepository materialAcknowledgementRepository;
+    // WeeklyMaterial + MaterialAcknowledgement repositories removed in
+    // Trainer Phase 0 — the concept is not in the Trainer doc spec.
     private final EvaluationSessionRepository evaluationSessionRepository;
     private final EvaluationRepository evaluationRepository;
     private final AuditLogRepository auditLogRepository;
@@ -120,6 +115,9 @@ public class SupervisorDashboardService {
         long reportsToReview = 0L;
         long timesheetsPending = 0L;
         long evaluationsDue = 0L;
+        // materialsNotPublished removed in Trainer Phase 0 — kept the field
+        // name local so the count-card below renders 0 until the supervisor
+        // dashboard is replaced by the Trainer dashboard in Phase 1.
         long materialsNotPublished = 0L;
 
         List<InternRosterRowResponse> roster = new ArrayList<>(engagements.size());
@@ -166,24 +164,11 @@ public class SupervisorDashboardService {
                 timesheetsPending++;
             }
 
-            // Material — newest RELEASED visible to this engagement. If none
-            // was released this week we count it as "needs to be published".
-            List<WeeklyMaterial> visible = weeklyMaterialRepository.findVisibleForEngagement(
-                    WeeklyMaterialStatus.RELEASED, e.getId());
-            WeeklyMaterial topMaterial = visible.isEmpty() ? null : visible.get(0);
+            // Material lookup removed in Trainer Phase 0 — the WeeklyMaterial
+            // concept is not in the Trainer doc spec. The roster row keeps
+            // its materialAcknowledged field set to null until Trainer Phase
+            // 1 replaces this DTO with the doc-spec'd nine-column variant.
             Boolean materialAcked = null;
-            if (topMaterial != null) {
-                materialAcked = materialAcknowledgementRepository
-                        .findByMaterialIdAndInternId(topMaterial.getId(), candidateId)
-                        .isPresent();
-            }
-            // "Not yet published this week" — topMaterial null OR its release
-            // is older than the current Monday.
-            boolean publishedThisWeek = topMaterial != null
-                    && topMaterial.getReleaseDate() != null
-                    && !topMaterial.getReleaseDate()
-                            .atZone(ZoneOffset.UTC).toLocalDate().isBefore(weekStart);
-            if (!publishedThisWeek) materialsNotPublished++;
 
             // Last activity — soonest of {report.updated, timesheet.updated,
             // material ack}. Cheap proxy; refine later if needed.

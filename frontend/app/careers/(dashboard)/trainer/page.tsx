@@ -1,23 +1,11 @@
-'use client';
+import StubPage from '@/components/trainer/StubPage';
 
-import DashboardLayout from '@/components/dashboard/DashboardLayout';
-import ProtectedRoute from '@/components/ProtectedRoute';
-import PageHeader from '@/components/ui/PageHeader';
-
-export default function TrainerDashboardPage() {
+export default function TrainerHomePage() {
   return (
-    <ProtectedRoute requiredRoles={['TRAINER', 'SUPER_ADMIN']}>
-      <DashboardLayout>
-        <PageHeader title="Trainer Dashboard" />
-        <section className="rounded-lg border border-dashed border-slate-300 bg-white p-10 text-center">
-          <h2 className="text-base font-semibold text-slate-900">
-            Dashboard under construction
-          </h2>
-          <p className="mt-2 text-sm text-slate-600">
-            Functionality coming in next iteration.
-          </p>
-        </section>
-      </DashboardLayout>
-    </ProtectedRoute>
+    <StubPage
+      title="Trainer Home"
+      description="6 KPI cards (active interns, projects due, submissions pending, meetings due, overdue feedback, revision requests) + recent activity feed + quick actions."
+      phase={1}
+    />
   );
 }

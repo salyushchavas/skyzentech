@@ -26,5 +26,11 @@ public enum ExceptionType {
     REPEATED_TIMESHEET_REJECTION,
     /** ERM Phase 7 — intern is INACTIVE_INTERN &gt; 30 days but exit checklist
      *  still has ≥1 PENDING item (no manager override). */
-    EXIT_OVERDUE
+    EXIT_OVERDUE,
+    /** Trainer Phase 0 — Trainer escalated a project submission for
+     *  ERM / Manager review (decision = ESCALATE in
+     *  {@link com.skyzen.careers.enums.ProjectReviewDecision}). Detector
+     *  method is registered in Trainer Phase 3 alongside the review flow;
+     *  inert until then. */
+    TRAINER_ESCALATION
 }

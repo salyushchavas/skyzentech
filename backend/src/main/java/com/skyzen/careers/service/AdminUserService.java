@@ -214,8 +214,8 @@ public class AdminUserService {
             auditLogRepository.save(entry);
         } catch (Exception e) {
             // Audit failure is best-effort — never block the user-management
-            // mutation itself. (Mirrors the pattern used in WeeklyMaterial /
-            // WeeklyReport / SuperAdminPromotionRunner.)
+            // mutation itself. (Same pattern as WeeklyReport +
+            // SuperAdminPromotionRunner.)
             log.warn("Failed to write {} audit row (non-fatal): {}", action, e.getMessage());
         }
     }

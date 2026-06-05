@@ -279,7 +279,80 @@ public class CommunicationTemplateSeeder implements CommandLineRunner {
                             + "Please connect with {{ermName}} as soon as possible to "
                             + "share updated documentation or discuss extension "
                             + "options.\n\n— Skyzen ERM",
-                    "firstName,workAuthType,expirationDate,daysUntilExpiration,ermName")
+                    "firstName,workAuthType,expirationDate,daysUntilExpiration,ermName"),
+            // ── Trainer Phase 0 — doc §10 + §8 notification matrix (7 templates).
+            new Seed(
+                    "PROJECT_ASSIGNED", "EMAIL",
+                    "New project assigned: {{projectTitle}}",
+                    "Hello {{firstName}},\n\n"
+                            + "Your trainer {{trainerName}} has assigned a new project: "
+                            + "{{projectTitle}} ({{technologyArea}}).\n\n"
+                            + "Due: {{dueDateLocal}}\n\n"
+                            + "Open your dashboard to view instructions, attached files, "
+                            + "and GitHub setup:\n{{deepLink}}\n\n— Skyzen Tech",
+                    "firstName,trainerName,projectTitle,technologyArea,dueDateLocal,deepLink"),
+            new Seed(
+                    "WEEKLY_MEETING_SCHEDULED", "EMAIL",
+                    "Weekly meeting scheduled: {{meetingDateLocal}}",
+                    "Hello {{firstName}},\n\n"
+                            + "Your trainer {{trainerName}} has scheduled a weekly support "
+                            + "meeting on {{meetingDateLocal}} {{timezone}}.\n\n"
+                            + "Topic: {{topic}}\nAgenda: {{agenda}}\n\n"
+                            + "Join: {{zoomJoinUrl}}\n\n— Skyzen Tech",
+                    "firstName,trainerName,meetingDateLocal,timezone,topic,zoomJoinUrl,agenda"),
+            new Seed(
+                    "WEEKLY_MEETING_COMPLETED", "EMAIL",
+                    "Weekly meeting notes: {{meetingDateLocal}}",
+                    "Hello {{firstName}},\n\n"
+                            + "The weekly meeting on {{meetingDateLocal}} with "
+                            + "{{trainerName}} has been recorded.\n\n"
+                            + "Attendance: {{attendance}}\n"
+                            + "Notes: {{notes}}\n"
+                            + "Action items: {{actionItems}}\n\n— Skyzen Tech",
+                    "firstName,trainerName,meetingDateLocal,attendance,notes,actionItems"),
+            new Seed(
+                    "WEEKLY_MEETING_MISSED", "EMAIL",
+                    "Weekly meeting marked missed: {{meetingDateLocal}}",
+                    "Hello {{firstName}},\n\n"
+                            + "Your scheduled meeting on {{meetingDateLocal}} with "
+                            + "{{trainerName}} was marked missed.\n\n"
+                            + "Reason: {{missedReason}}\n\n"
+                            + "Please contact {{trainerName}} to reschedule.\n\n"
+                            + "— Skyzen Tech",
+                    "firstName,trainerName,meetingDateLocal,missedReason"),
+            new Seed(
+                    "SUBMISSION_UPLOADED", "EMAIL",
+                    "Submission ready for review: {{projectTitle}}",
+                    "Hello {{trainerFirstName}},\n\n"
+                            + "{{internName}} has submitted work on {{projectTitle}}.\n\n"
+                            + "Open the Pending Reviews queue:\n{{deepLink}}\n\n"
+                            + "— Skyzen Tech",
+                    "trainerFirstName,internName,projectTitle,deepLink"),
+            new Seed(
+                    "FEEDBACK_PUBLISHED", "EMAIL",
+                    "Feedback published: {{projectTitle}} — {{decisionLabel}}",
+                    "Hello {{firstName}},\n\n"
+                            + "Your trainer {{trainerName}} has published feedback on "
+                            + "{{projectTitle}}.\n\n"
+                            + "Decision: {{decisionLabel}}\n"
+                            + "Technical: {{technicalScore}}/5\n"
+                            + "Communication: {{communicationScore}}/5\n\n"
+                            + "Notes: {{reviewNotes}}\n\n"
+                            + "{{nextActionBlurb}}\n\n"
+                            + "View full feedback:\n{{deepLink}}\n\n"
+                            + "— Skyzen Tech",
+                    "firstName,trainerName,projectTitle,decisionLabel,technicalScore,"
+                            + "communicationScore,reviewNotes,nextActionBlurb,deepLink"),
+            new Seed(
+                    "PROJECT_OVERDUE", "EMAIL",
+                    "Project overdue: {{projectTitle}}",
+                    "Hello {{firstName}},\n\n"
+                            + "The project {{projectTitle}} was due {{dueDateLocal}} and "
+                            + "has not been submitted.\n\n"
+                            + "Please submit, or contact your trainer {{trainerName}}. "
+                            + "Escalation may follow if not resolved.\n\n"
+                            + "— Skyzen Tech",
+                    "firstName,trainerName,projectTitle,dueDateLocal")
     );
 
     @Override

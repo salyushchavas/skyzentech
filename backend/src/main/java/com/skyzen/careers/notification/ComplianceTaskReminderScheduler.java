@@ -3,20 +3,16 @@ package com.skyzen.careers.notification;
 import com.skyzen.careers.entity.Candidate;
 import com.skyzen.careers.entity.Engagement;
 import com.skyzen.careers.entity.Evaluation;
-import com.skyzen.careers.entity.MaterialAcknowledgement;
 import com.skyzen.careers.entity.OnboardingTask;
 import com.skyzen.careers.entity.Timesheet;
-import com.skyzen.careers.entity.WeeklyMaterial;
 import com.skyzen.careers.entity.WeeklyReport;
 import com.skyzen.careers.enums.EngagementStatus;
 import com.skyzen.careers.enums.WeeklyReportStatus;
 import com.skyzen.careers.enums.TimesheetStatus;
 import com.skyzen.careers.repository.EngagementRepository;
 import com.skyzen.careers.repository.EvaluationRepository;
-import com.skyzen.careers.repository.MaterialAcknowledgementRepository;
 import com.skyzen.careers.repository.OnboardingTaskRepository;
 import com.skyzen.careers.repository.TimesheetRepository;
-import com.skyzen.careers.repository.WeeklyMaterialRepository;
 import com.skyzen.careers.repository.WeeklyReportRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -49,18 +45,10 @@ import java.util.UUID;
 @Slf4j
 public class ComplianceTaskReminderScheduler {
 
-    /** A material is "still unread" only after this many days have passed since release. */
-    private static final long MATERIAL_UNREAD_GRACE_DAYS = 3L;
-
-    /** A material is no longer in the unread-reminder window after this many days. */
-    private static final long MATERIAL_UNREAD_WINDOW_DAYS = 21L;
-
     /** A DRAFT evaluation needs a supervisor nudge after this many days. */
     private static final long EVALUATION_DRAFT_NUDGE_DAYS = 7L;
 
     private final OnboardingTaskRepository onboardingTaskRepository;
-    private final WeeklyMaterialRepository weeklyMaterialRepository;
-    private final MaterialAcknowledgementRepository materialAcknowledgementRepository;
     private final EngagementRepository engagementRepository;
     private final WeeklyReportRepository weeklyReportRepository;
     private final TimesheetRepository timesheetRepository;
@@ -79,7 +67,7 @@ public class ComplianceTaskReminderScheduler {
     @Scheduled(cron = "0 0 7 * * *")
     public void fireDueReminders() {
         scanComplianceTasks();      // batch-2 (existing)
-        scanMaterialUnread();       // batch-3
+        // scanMaterialUnread removed in Trainer Phase 0 (not in doc spec)
         scanWeeklyReportsDue();     // batch-3
         scanTimesheetsDue();        // batch-3
         scanEvaluationsDue();       // batch-3
@@ -113,60 +101,8 @@ public class ComplianceTaskReminderScheduler {
         }
     }
 
-    // ── Batch 3: material unread reminders ──────────────────────────────────
-
-    /**
-     * Released materials between {@code [today − WINDOW, today − GRACE)} days
-     * ago that some intern in the audience hasn't acked yet.
-     */
-    private void scanMaterialUnread() {
-        Instant now = Instant.now();
-        Instant windowMin = now.minus(MATERIAL_UNREAD_WINDOW_DAYS, ChronoUnit.DAYS);
-        Instant windowMax = now.minus(MATERIAL_UNREAD_GRACE_DAYS, ChronoUnit.DAYS);
-        List<WeeklyMaterial> recent;
-        try {
-            recent = weeklyMaterialRepository.findReleasedBetween(windowMin, windowMax);
-        } catch (Exception e) {
-            log.warn("Material-unread scan failed (non-fatal): {}", e.getMessage());
-            return;
-        }
-        if (recent.isEmpty()) return;
-
-        // Resolve recipients on a per-material basis: scoped → just that
-        // engagement's intern; broadcast → all ACTIVE engagements' interns.
-        int sends = 0;
-        for (WeeklyMaterial material : recent) {
-            List<Candidate> audience = resolveAudience(material);
-            for (Candidate intern : audience) {
-                if (intern == null || intern.getId() == null) continue;
-                boolean acked = materialAcknowledgementRepository
-                        .findByMaterialIdAndInternId(material.getId(), intern.getId())
-                        .isPresent();
-                if (acked) continue;
-                try {
-                    notificationService.sendMaterialUnreadReminder(material, intern);
-                    sends++;
-                } catch (Exception e) {
-                    log.warn("Material-unread reminder failed for material {} intern {} (non-fatal): {}",
-                            material.getId(), intern.getId(), e.getMessage());
-                }
-            }
-        }
-        if (sends > 0) {
-            log.info("Material-unread pass — attempted {} send(s)", sends);
-        }
-    }
-
-    private List<Candidate> resolveAudience(WeeklyMaterial material) {
-        if (material.getEngagement() != null) {
-            Candidate c = material.getEngagement().getCandidate();
-            return c != null ? List.of(c) : List.of();
-        }
-        return engagementRepository.findByStatus(EngagementStatus.ACTIVE).stream()
-                .map(Engagement::getCandidate)
-                .filter(c -> c != null && c.getUser() != null)
-                .toList();
-    }
+    // scanMaterialUnread + resolveAudience removed in Trainer Phase 0 —
+    // the weekly-materials concept is not in the Trainer doc spec.
 
     // ── Batch 3: weekly report + timesheet due reminders ────────────────────
 

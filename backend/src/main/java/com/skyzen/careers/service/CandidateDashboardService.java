@@ -36,7 +36,6 @@ import com.skyzen.careers.repository.I9FormRepository;
 import com.skyzen.careers.repository.I983PlanRepository;
 import com.skyzen.careers.repository.InterviewRepository;
 import com.skyzen.careers.repository.OfferRepository;
-import com.skyzen.careers.repository.MaterialAcknowledgementRepository;
 import com.skyzen.careers.repository.OnboardingTaskRepository;
 import com.skyzen.careers.repository.ProjectRepository;
 import com.skyzen.careers.entity.Project;
@@ -46,13 +45,9 @@ import com.skyzen.careers.repository.ScreeningRepository;
 import com.skyzen.careers.repository.SentNotificationRepository;
 import com.skyzen.careers.repository.TimesheetRepository;
 import com.skyzen.careers.repository.UserRepository;
-import com.skyzen.careers.repository.WeeklyMaterialRepository;
 import com.skyzen.careers.repository.WeeklyReportRepository;
-import com.skyzen.careers.entity.MaterialAcknowledgement;
 import com.skyzen.careers.entity.Timesheet;
-import com.skyzen.careers.entity.WeeklyMaterial;
 import com.skyzen.careers.entity.WeeklyReport;
-import com.skyzen.careers.enums.WeeklyMaterialStatus;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
@@ -112,8 +107,8 @@ public class CandidateDashboardService {
     private final EVerifyCaseRepository everifyCaseRepository;
     private final UserRepository userRepository;
     // Phase-2 weekly-cycle reads — only used on the ACTIVE-engagement face.
-    private final WeeklyMaterialRepository weeklyMaterialRepository;
-    private final MaterialAcknowledgementRepository materialAcknowledgementRepository;
+    // WeeklyMaterial + MaterialAcknowledgement repositories removed in
+    // Trainer Phase 0 — the concept is not in the Trainer doc spec.
     private final WeeklyReportRepository weeklyReportRepository;
     private final TimesheetRepository timesheetRepository;
     private final ProjectRepository projectRepository;
@@ -1442,26 +1437,12 @@ public class CandidateDashboardService {
         UUID candidateId = candidate.getId();
         LocalDate weekStart = currentWeekStart();
 
-        // Material — newest RELEASED visible to this engagement (broadcast +
-        // scoped). The existing repo query already sorts by releaseDate desc.
+        // Material lookup removed in Trainer Phase 0 — the WeeklyMaterial
+        // concept is not in the Trainer doc spec. The MaterialCard slot in
+        // the dashboard response stays null; the Trainer-doc's
+        // Files / Templates feature lands via a different DTO in a later
+        // phase (no intern-facing read needed).
         CandidateDashboardResponse.MaterialCard materialCard = null;
-        List<WeeklyMaterial> visible = weeklyMaterialRepository
-                .findVisibleForEngagement(WeeklyMaterialStatus.RELEASED, engagement.getId());
-        if (!visible.isEmpty()) {
-            WeeklyMaterial top = visible.get(0);
-            MaterialAcknowledgement ack = materialAcknowledgementRepository
-                    .findByMaterialIdAndInternId(top.getId(), candidateId)
-                    .orElse(null);
-            materialCard = CandidateDashboardResponse.MaterialCard.builder()
-                    .id(top.getId())
-                    .weekNo(top.getWeekNo())
-                    .title(top.getTitle())
-                    .releaseDate(top.getReleaseDate())
-                    .acknowledged(ack != null)
-                    .acknowledgedAt(ack != null ? ack.getAcknowledgedAt() : null)
-                    .href("/careers/intern/weekly-materials")
-                    .build();
-        }
 
         // Report — exact match on (intern_id, week_start). Null when the
         // intern hasn't started a report for this week.

@@ -45,6 +45,36 @@ public class ProjectSubmission {
     @Column(name = "submitted_at", nullable = false, updatable = false)
     private Instant submittedAt;
 
+    // ── Trainer Phase 0 — doc Feedback Form columns ────────────────────────
+    // Phase 3 will populate these via the dedicated review service; Phase 0
+    // just adds the columns so the schema is doc-compliant.
+
+    /** Doc Feedback Form "Technical quality score" — 1-5. */
+    @Column(name = "technical_score")
+    private Short technicalScore;
+
+    /** Doc Feedback Form "Communication / clarity" — 1-5. */
+    @Column(name = "communication_score")
+    private Short communicationScore;
+
+    /** Doc Feedback Form "Blockers" textarea. */
+    @Column(name = "blockers_note", columnDefinition = "TEXT")
+    private String blockersNote;
+
+    /** Doc Feedback Form "Next action" dropdown —
+     *  REVISION | NEXT_PROJECT | EXTRA_TRAINING | ESCALATION. */
+    @Column(name = "next_action", length = 40)
+    private String nextAction;
+
+    @Column(name = "next_action_due_date")
+    private java.time.LocalDate nextActionDueDate;
+
+    /** Doc Feedback Form "Attachments / reviewed links" — external URLs
+     *  (e.g. GitHub PR links). Internal document ids go through the
+     *  existing attached_document_ids JSONB column added in Phase 5. */
+    @Column(name = "reviewed_links_csv", columnDefinition = "TEXT")
+    private String reviewedLinksCsv;
+
     @PrePersist
     void onCreate() {
         if (submittedAt == null) submittedAt = Instant.now();

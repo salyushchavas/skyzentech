@@ -210,21 +210,8 @@ public class LogEmailProvider implements EmailProvider {
                 internName, email, taskTitle, dueDate, daysOverdue, dashboardUrl);
     }
 
-    @Override
-    public void sendWeeklyMaterialReleased(String email, String internName,
-                                           Integer weekNo, String materialTitle,
-                                           String dashboardUrl) {
-        log.info("[LOG EMAIL] Weekly material released to {} ({}) — wk{} \"{}\" dashboard={}",
-                internName, email, weekNo, materialTitle, dashboardUrl);
-    }
-
-    @Override
-    public void sendMaterialUnreadReminder(String email, String internName,
-                                           Integer weekNo, String materialTitle,
-                                           String dashboardUrl) {
-        log.info("[LOG EMAIL] Material unread reminder to {} ({}) — wk{} \"{}\" dashboard={}",
-                internName, email, weekNo, materialTitle, dashboardUrl);
-    }
+    // sendWeeklyMaterialReleased + sendMaterialUnreadReminder removed in
+    // Trainer Phase 0 (concept not in Trainer doc spec).
 
     @Override
     public void sendWeeklyReportDue(String email, String internName,

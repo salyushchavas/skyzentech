@@ -19,7 +19,6 @@ import com.skyzen.careers.entity.Project;
 import com.skyzen.careers.entity.SentNotification;
 import com.skyzen.careers.entity.StaffingEntity;
 import com.skyzen.careers.entity.User;
-import com.skyzen.careers.entity.WeeklyMaterial;
 import com.skyzen.careers.entity.WeeklyReport;
 import com.skyzen.careers.enums.UserRole;
 import com.skyzen.careers.repository.AuditLogRepository;
@@ -637,62 +636,10 @@ public class NotificationService {
 
     // ── Batch 3 — intern weekly cycle ───────────────────────────────────────
 
-    /**
-     * Material released — one email per (material × intern). Broadcast
-     * materials fan out across all ACTIVE engagements; scoped materials
-     * email just the targeted engagement's intern. Caller supplies the list
-     * of recipient candidates so this method stays storage-shape-agnostic.
-     */
-    @Transactional(propagation = Propagation.REQUIRES_NEW)
-    public void sendWeeklyMaterialReleased(WeeklyMaterial material, Candidate intern) {
-        if (material == null || intern == null) return;
-        User u = intern.getUser();
-        String email = u != null ? u.getEmail() : null;
-        String name = u != null ? u.getFullName() : null;
-        if (email == null) return;
-
-        UUID targetId = weeklyTargetId("MATERIAL_RELEASED",
-                material.getId().toString(), intern.getId().toString());
-        if (alreadySent(NotificationEventType.WEEKLY_MATERIAL_RELEASED, targetId)) return;
-
-        deliver(NotificationEventType.WEEKLY_MATERIAL_RELEASED, targetId, email,
-                () -> emailProvider.sendWeeklyMaterialReleased(
-                        email, name, material.getWeekNo(), material.getTitle(),
-                        dashboardUrl));
-
-        dispatchInApp(applicantUserIdFromCandidate(intern),
-                NotificationEventType.WEEKLY_MATERIAL_RELEASED,
-                "New material: Week " + material.getWeekNo(),
-                nz(material.getTitle()) + " is now available.",
-                INTERN_DASH,
-                null, null, null);
-    }
-
-    /** Material still unread — fired by the daily scheduler. */
-    @Transactional(propagation = Propagation.REQUIRES_NEW)
-    public void sendMaterialUnreadReminder(WeeklyMaterial material, Candidate intern) {
-        if (material == null || intern == null) return;
-        User u = intern.getUser();
-        String email = u != null ? u.getEmail() : null;
-        String name = u != null ? u.getFullName() : null;
-        if (email == null) return;
-
-        UUID targetId = weeklyTargetId("MATERIAL_UNREAD",
-                material.getId().toString(), intern.getId().toString());
-        if (alreadySent(NotificationEventType.MATERIAL_UNREAD_REMINDER, targetId)) return;
-
-        deliver(NotificationEventType.MATERIAL_UNREAD_REMINDER, targetId, email,
-                () -> emailProvider.sendMaterialUnreadReminder(
-                        email, name, material.getWeekNo(), material.getTitle(),
-                        dashboardUrl));
-
-        dispatchInApp(applicantUserIdFromCandidate(intern),
-                NotificationEventType.MATERIAL_UNREAD_REMINDER,
-                "Reminder: Week " + material.getWeekNo() + " material unread",
-                nz(material.getTitle()) + " is still unread.",
-                INTERN_DASH,
-                null, null, null);
-    }
+    // WeeklyMaterial release + unread-reminder helpers removed in Trainer
+    // Phase 0 — the entire weekly-materials concept was retired (not in the
+    // Trainer doc spec). The Trainer-doc's "Files / Templates" module uses
+    // the new ProjectTemplate entity instead.
 
     /** Weekly report due — fired by the daily scheduler late in the week. */
     @Transactional(propagation = Propagation.REQUIRES_NEW)

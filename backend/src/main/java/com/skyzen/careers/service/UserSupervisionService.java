@@ -14,7 +14,6 @@ import com.skyzen.careers.entity.I9Form;
 import com.skyzen.careers.entity.JobPosting;
 import com.skyzen.careers.entity.Timesheet;
 import com.skyzen.careers.entity.User;
-import com.skyzen.careers.entity.WeeklyMaterial;
 import com.skyzen.careers.entity.WeeklyReport;
 import com.skyzen.careers.enums.EngagementStatus;
 import com.skyzen.careers.enums.EvaluationSessionStatus;
@@ -31,10 +30,8 @@ import com.skyzen.careers.repository.EngagementRepository;
 import com.skyzen.careers.repository.EvaluationSessionRepository;
 import com.skyzen.careers.repository.I983PlanRepository;
 import com.skyzen.careers.repository.I9FormRepository;
-import com.skyzen.careers.repository.MaterialAcknowledgementRepository;
 import com.skyzen.careers.repository.TimesheetRepository;
 import com.skyzen.careers.repository.UserRepository;
-import com.skyzen.careers.repository.WeeklyMaterialRepository;
 import com.skyzen.careers.repository.WeeklyReportRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -108,13 +105,13 @@ public class UserSupervisionService {
     private final EngagementRepository engagementRepository;
     private final WeeklyReportRepository weeklyReportRepository;
     private final TimesheetRepository timesheetRepository;
-    private final MaterialAcknowledgementRepository materialAcknowledgementRepository;
+    // MaterialAcknowledgementRepository removed in Trainer Phase 0.
     private final I9FormRepository i9FormRepository;
     private final I983PlanRepository i983PlanRepository;
     private final EVerifyCaseRepository everifyCaseRepository;
 
     // Supervisor-side
-    private final WeeklyMaterialRepository weeklyMaterialRepository;
+    // WeeklyMaterialRepository removed in Trainer Phase 0.
     private final EvaluationSessionRepository evaluationSessionRepository;
 
     // Per-user audit feed (L3 round-2) — resolves the subject-side entity ids
@@ -305,7 +302,9 @@ public class UserSupervisionService {
                     .build());
         }
 
-        long acks = materialAcknowledgementRepository.findByInternId(candidateId).size();
+        // MaterialAcknowledgement count removed in Trainer Phase 0 — the
+        // concept is not in the Trainer doc spec. The DTO field stays 0.
+        long acks = 0L;
 
         return UserSupervisionResponse.CandidateContext.builder()
                 .candidateId(candidateId)
@@ -396,8 +395,9 @@ public class UserSupervisionService {
                 .filter(s -> s.getStatus() == EvaluationSessionStatus.SCHEDULED)
                 .count();
 
-        long materialsPublished = weeklyMaterialRepository
-                .findByPublishedByIdOrderByCreatedAtDesc(target.getId()).size();
+        // WeeklyMaterial published-count removed in Trainer Phase 0 — the
+        // concept is not in the Trainer doc spec. DTO field stays 0.
+        long materialsPublished = 0L;
 
         return UserSupervisionResponse.SupervisorContext.builder()
                 .assignedInterns(roster)

@@ -58,6 +58,11 @@ public class ExceptionDetectionService {
         SEVERITY.put(ExceptionType.LOW_PROJECT_PROGRESS,          ExceptionSeverity.WARN);
         SEVERITY.put(ExceptionType.REPEATED_TIMESHEET_REJECTION,  ExceptionSeverity.URGENT);
         SEVERITY.put(ExceptionType.EXIT_OVERDUE,                  ExceptionSeverity.WARN);
+        // Trainer Phase 0 — detector method registered in Phase 3 alongside
+        // the ESCALATE review flow. Severity slot reserved so the
+        // dashboard + escalations queue render the row correctly when it
+        // starts being produced.
+        SEVERITY.put(ExceptionType.TRAINER_ESCALATION,            ExceptionSeverity.URGENT);
     }
 
     private static final int TOP_URGENT_LIMIT = 5;
@@ -821,6 +826,9 @@ public class ExceptionDetectionService {
             case LOW_PROJECT_PROGRESS           -> lowProjectProgress(ErmScope.ALL, null);
             case REPEATED_TIMESHEET_REJECTION   -> repeatedTimesheetRejection(ErmScope.ALL, null);
             case EXIT_OVERDUE                   -> exitOverdue(ErmScope.ALL, null);
+            // Trainer Phase 0 — detector method registered in Phase 3.
+            // For now return empty so the scan job stays inert for this type.
+            case TRAINER_ESCALATION             -> java.util.List.of();
         };
     }
 
@@ -850,6 +858,7 @@ public class ExceptionDetectionService {
             case EXIT_CHECKLIST_PENDING,
                  EXIT_OVERDUE                          -> "EXIT";
             case REPORTING_STRUCTURE_INCOMPLETE         -> "APPLICATION";
+            case TRAINER_ESCALATION                     -> "PROJECT";
             case WORK_AUTH_EXPIRING_30                  -> "EVERIFY";
             case EVERIFY_NONCONFIRMATION                -> "EVERIFY";
         };

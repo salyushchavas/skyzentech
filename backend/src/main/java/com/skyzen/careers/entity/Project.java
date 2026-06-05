@@ -164,6 +164,59 @@ public class Project {
     @Column(name = "created_by_id")
     private java.util.UUID createdById;
 
+    // ── Trainer Phase 0 — doc §7 Project Assignment Form columns ───────────
+
+    /** Denormalised lifecycle id — gives the partial UNIQUE
+     *  {@code uq_projects_active_per_slot} something to key on without
+     *  joining through {@code intern -> candidate -> intern_lifecycle}.
+     *  Populated by Trainer Phase 2's assign-project flow; legacy rows
+     *  stay null (tolerated). */
+    @Column(name = "intern_lifecycle_id")
+    private java.util.UUID internLifecycleId;
+
+    /** Doc §7 "Project 1 or Project 2" — DB-level CHECK enforces 1|2. */
+    @Column(name = "project_number")
+    private Short projectNumber;
+
+    /** Doc §7 month/year picker — YYYY-MM. Combined with
+     *  {@link #projectNumber} + {@link #internLifecycleId} drives the
+     *  partial UNIQUE "two monthly projects" rule. */
+    @Column(name = "month_year", length = 7)
+    private String monthYear;
+
+    /** Manager / ERM user id who authorised a backdated assignment. */
+    @Column(name = "backdate_authorized_by_id")
+    private java.util.UUID backdateAuthorizedById;
+
+    /** Free-text reason for the backdate (doc uses free-text, not codes). */
+    @Column(name = "backdate_reason", columnDefinition = "TEXT")
+    private String backdateReason;
+
+    @Column(name = "backdate_authorized_at")
+    private Instant backdateAuthorizedAt;
+
+    /** Doc §7 "Evaluation objective mapping" — Recommended, free-text. */
+    @Column(name = "learning_objective_label", length = 300)
+    private String learningObjectiveLabel;
+
+    /** Optional pointer into {@code i983_training_plans.objectives_json};
+     *  only meaningful when the intern's work-auth track is F1_STEM_OPT. */
+    @Column(name = "i983_objective_index")
+    private Short i983ObjectiveIndex;
+
+    /** Set when this assignment was instantiated from a
+     *  {@link ProjectTemplate}. */
+    @Column(name = "project_template_id")
+    private java.util.UUID projectTemplateId;
+
+    /** Doc §7 "Notify stakeholders" — internal fan-out toggle. Intern
+     *  notification always fires; ERM / manager / evaluator only when
+     *  this flag is true. */
+    @Column(name = "notify_stakeholders_internal", nullable = false,
+            columnDefinition = "boolean not null default true")
+    @Builder.Default
+    private Boolean notifyStakeholdersInternal = Boolean.TRUE;
+
     @UpdateTimestamp
     @Column(name = "updated_at", nullable = false)
     private Instant updatedAt;

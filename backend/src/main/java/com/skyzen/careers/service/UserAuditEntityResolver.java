@@ -5,7 +5,6 @@ import com.skyzen.careers.entity.Candidate;
 import com.skyzen.careers.entity.EvaluationSession;
 import com.skyzen.careers.entity.I983Plan;
 import com.skyzen.careers.entity.I9Form;
-import com.skyzen.careers.entity.MaterialAcknowledgement;
 import com.skyzen.careers.entity.Offer;
 import com.skyzen.careers.entity.OnboardingTask;
 import com.skyzen.careers.entity.Timesheet;
@@ -20,7 +19,6 @@ import com.skyzen.careers.repository.EvaluationSessionRepository;
 import com.skyzen.careers.repository.I9FormRepository;
 import com.skyzen.careers.repository.I983PlanRepository;
 import com.skyzen.careers.repository.InterviewRepository;
-import com.skyzen.careers.repository.MaterialAcknowledgementRepository;
 import com.skyzen.careers.repository.OfferRepository;
 import com.skyzen.careers.repository.OnboardingTaskRepository;
 import com.skyzen.careers.repository.ScreeningRepository;
@@ -65,9 +63,6 @@ import java.util.stream.Collectors;
  *       adding one is a follow-up). Audit rows on WorkAssignment will
  *       still surface via actor-side and via {@code subject_user_id} for
  *       new writes once those paths populate it.</li>
- *   <li>WeeklyMaterial broadcast rows have no single subject candidate;
- *       only scoped publishes do, and those flow through engagement-id
- *       resolution rather than material-id.</li>
  * </ul>
  */
 @Service
@@ -83,7 +78,7 @@ public class UserAuditEntityResolver {
     private final OfferRepository offerRepository;
     private final WeeklyReportRepository weeklyReportRepository;
     private final TimesheetRepository timesheetRepository;
-    private final MaterialAcknowledgementRepository materialAcknowledgementRepository;
+    // MaterialAcknowledgementRepository removed in Trainer Phase 0.
     private final InterviewRepository interviewRepository;
     private final OnboardingTaskRepository onboardingTaskRepository;
     private final EvaluationSessionRepository evaluationSessionRepository;
@@ -150,10 +145,8 @@ public class UserAuditEntityResolver {
                 .map(Timesheet::getId).collect(Collectors.toSet());
         if (!timesheetIds.isEmpty()) buckets.put("Timesheet", timesheetIds);
 
-        // Material acknowledgements
-        Set<UUID> ackIds = materialAcknowledgementRepository.findByInternId(candidateId).stream()
-                .map(MaterialAcknowledgement::getId).collect(Collectors.toSet());
-        if (!ackIds.isEmpty()) buckets.put("MaterialAcknowledgement", ackIds);
+        // MaterialAcknowledgement bucket removed in Trainer Phase 0 — the
+        // concept is not in the Trainer doc spec.
 
         // Interviews (via applications)
         Set<UUID> interviewIds = new HashSet<>();

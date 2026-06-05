@@ -61,7 +61,7 @@ public enum NotificationEventType {
     // Batch 3 — intern weekly cycle.
     //
     // Event-triggered (target_id = real row id):
-    WEEKLY_MATERIAL_RELEASED,    // intern (per material × intern via synthetic id)
+    // WEEKLY_MATERIAL_RELEASED — removed in Trainer Phase 0 (not in doc spec)
     WEEKLY_REPORT_RETURNED,      // intern; target_id = report_id
     WEEKLY_REPORT_APPROVED,      // intern; target_id = report_id
     PROJECT_ASSIGNED,            // intern; target_id = project_id
@@ -73,7 +73,7 @@ public enum NotificationEventType {
     // Scheduler-fired weekly / overdue reminders. The (event × intern × week)
     // grain is encoded into a deterministic UUID at send time (target_id =
     // UUIDv3 of "EVENT:owner:period"). See NotificationService.weeklyTargetId.
-    MATERIAL_UNREAD_REMINDER,    // intern (per material × intern, unread N+ days)
+    // MATERIAL_UNREAD_REMINDER — removed in Trainer Phase 0 (not in doc spec)
     WEEKLY_REPORT_DUE,           // intern (per engagement × weekStart)
     TIMESHEET_DUE,               // intern (per engagement × weekStart)
     EVALUATION_DUE,              // supervisor; target_id = evaluation_id (DRAFT N+ days)

@@ -65,7 +65,7 @@ final class NotificationEventCategories {
 
         // ── Intern weekly cycle. ─────────────────────────────────────────────
         // Engagement-updates (opt-outable):
-        MAP.put(NotificationEventType.WEEKLY_MATERIAL_RELEASED, NotificationCategory.ENGAGEMENT_UPDATES);
+        // WEEKLY_MATERIAL_RELEASED removed in Trainer Phase 0 (not in doc spec)
         MAP.put(NotificationEventType.WEEKLY_REPORT_RETURNED, NotificationCategory.ENGAGEMENT_UPDATES);
         MAP.put(NotificationEventType.WEEKLY_REPORT_APPROVED, NotificationCategory.ENGAGEMENT_UPDATES);
         MAP.put(NotificationEventType.PROJECT_ASSIGNED, NotificationCategory.ENGAGEMENT_UPDATES);
@@ -74,7 +74,7 @@ final class NotificationEventCategories {
         MAP.put(NotificationEventType.PROJECT_COMPLETED, NotificationCategory.ENGAGEMENT_UPDATES);
         MAP.put(NotificationEventType.EVALUATION_FINALIZED, NotificationCategory.ENGAGEMENT_UPDATES);
         // Reminders (opt-outable):
-        MAP.put(NotificationEventType.MATERIAL_UNREAD_REMINDER, NotificationCategory.REMINDERS);
+        // MATERIAL_UNREAD_REMINDER removed in Trainer Phase 0 (not in doc spec)
         MAP.put(NotificationEventType.WEEKLY_REPORT_DUE, NotificationCategory.REMINDERS);
         MAP.put(NotificationEventType.TIMESHEET_DUE, NotificationCategory.REMINDERS);
         MAP.put(NotificationEventType.EVALUATION_DUE, NotificationCategory.REMINDERS);

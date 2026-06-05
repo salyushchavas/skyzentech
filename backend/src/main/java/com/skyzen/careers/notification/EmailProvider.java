@@ -183,20 +183,8 @@ public interface EmailProvider {
                                     String dashboardUrl);
 
     // ── Batch 3 — intern weekly cycle ───────────────────────────────────────
-
-    /** Intern — a new weekly material has been released. */
-    void sendWeeklyMaterialReleased(String email,
-                                    String internName,
-                                    Integer weekNo,
-                                    String materialTitle,
-                                    String dashboardUrl);
-
-    /** Intern — released material still unacked. */
-    void sendMaterialUnreadReminder(String email,
-                                    String internName,
-                                    Integer weekNo,
-                                    String materialTitle,
-                                    String dashboardUrl);
+    // WeeklyMaterial release + unread-reminder removed in Trainer Phase 0
+    // (concept not in Trainer doc spec).
 
     /** Intern — end-of-week reminder to submit this week's report. */
     void sendWeeklyReportDue(String email,

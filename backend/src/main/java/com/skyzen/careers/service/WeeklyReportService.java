@@ -41,8 +41,7 @@ import java.util.UUID;
  * Weekly narrative reports — second piece of the Phase-2 weekly cycle.
  *
  * <h2>Active-engagement gate</h2>
- * Mirrors {@link WeeklyMaterialService#requireActiveEngagement} verbatim: a
- * caller must have a {@link Candidate} row with an Engagement in status
+ * A caller must have a {@link Candidate} row with an Engagement in status
  * {@link EngagementStatus#ACTIVE}. Pre-hire / pending / completed interns
  * cannot create or edit reports.
  *
@@ -62,8 +61,7 @@ import java.util.UUID;
  *   <li>REPORT_RETURNED — supervisor sent back with notes</li>
  *   <li>REPORT_APPROVED — supervisor approved (terminal)</li>
  * </ul>
- * No CREATE / UPDATE audit — same scope rule as WeeklyMaterials. The lifecycle
- * transitions are the events worth keeping.
+ * No CREATE / UPDATE audit — only lifecycle transitions are recorded.
  */
 @Service
 @RequiredArgsConstructor
@@ -280,8 +278,8 @@ public class WeeklyReportService {
     // ── Gate helpers ────────────────────────────────────────────────────────
 
     /**
-     * Active-engagement gate — same shape as {@link WeeklyMaterialService}.
-     * Returns the engagement so callers can read its candidate / id.
+     * Active-engagement gate. Returns the engagement so callers can read
+     * its candidate / id.
      */
     private Engagement requireActiveEngagement(User candidateUser) {
         Candidate candidate = candidateRepository.findByUserId(candidateUser.getId())

@@ -1330,6 +1330,12 @@ public class SchemaFixupRunner implements CommandLineRunner {
         // exit_checklist_items table that converts the implicit Phase 8
         // checklist into 8 auditable rows per ExitRecord.
         ensureErmExitOperationsSchema();
+
+        // Trainer Phase 0 — strip the weekly-materials concept (not in
+        // Trainer doc spec), scaffold the doc-required columns on projects
+        // + project_submissions, and add ProjectTemplate +
+        // ProjectAssignmentEventLog tables.
+        ensureTrainerPhase0Schema();
     }
 
     /**
@@ -1708,6 +1714,165 @@ public class SchemaFixupRunner implements CommandLineRunner {
                     e.getMessage());
         }
         log.info("[SchemaFixupRunner] ensured ERM Phase 7 exit operations schema");
+    }
+
+    /**
+     * Trainer Phase 0 — doc-spec'd clean slate. Drops the
+     * weekly-materials tables (concept not in the Trainer doc), adds the
+     * doc §7 assignment-form columns to {@code projects} and the doc
+     * Feedback Form columns to {@code project_submissions}, creates the
+     * {@code project_templates} + {@code project_assignment_event_logs}
+     * tables, and indexes everything. The partial UNIQUE
+     * {@code uq_projects_active_per_slot} enforces doc §7 "2 monthly
+     * projects" at the DB level.
+     */
+    private void ensureTrainerPhase0Schema() {
+        // 1) Drop weekly-materials tables — entity classes already gone.
+        //    Order matters: child (acknowledgements) before parent.
+        String[] drops = {
+                "DROP TABLE IF EXISTS material_acknowledgements CASCADE",
+                "DROP TABLE IF EXISTS weekly_materials CASCADE"
+        };
+        for (String sql : drops) {
+            try {
+                jdbcTemplate.execute(sql);
+                log.info("[SchemaFixupRunner] {}", sql);
+            } catch (Exception e) {
+                log.warn("[SchemaFixupRunner] Trainer Phase 0 drop skipped (non-fatal): {} — {}",
+                        sql, e.getMessage());
+            }
+        }
+
+        // 2) projects table — 10 ALTERs (9 doc-spec'd + intern_lifecycle_id
+        //    to support the partial UNIQUE scope filter).
+        String[] projectAlters = {
+                "ALTER TABLE projects ADD COLUMN IF NOT EXISTS intern_lifecycle_id UUID",
+                "ALTER TABLE projects ADD COLUMN IF NOT EXISTS project_number SMALLINT",
+                "ALTER TABLE projects ADD COLUMN IF NOT EXISTS month_year VARCHAR(7)",
+                "ALTER TABLE projects ADD COLUMN IF NOT EXISTS backdate_authorized_by_id UUID",
+                "ALTER TABLE projects ADD COLUMN IF NOT EXISTS backdate_reason TEXT",
+                "ALTER TABLE projects ADD COLUMN IF NOT EXISTS backdate_authorized_at TIMESTAMP",
+                "ALTER TABLE projects ADD COLUMN IF NOT EXISTS learning_objective_label VARCHAR(300)",
+                "ALTER TABLE projects ADD COLUMN IF NOT EXISTS i983_objective_index SMALLINT",
+                "ALTER TABLE projects ADD COLUMN IF NOT EXISTS project_template_id UUID",
+                "ALTER TABLE projects ADD COLUMN IF NOT EXISTS notify_stakeholders_internal "
+                        + "BOOLEAN NOT NULL DEFAULT TRUE"
+        };
+        for (String sql : projectAlters) {
+            try {
+                jdbcTemplate.execute(sql);
+            } catch (Exception e) {
+                log.warn("[SchemaFixupRunner] Trainer Phase 0 projects ALTER skipped (non-fatal): {} — {}",
+                        sql, e.getMessage());
+            }
+        }
+        // Doc §7 "Project 1 or 2" — CHECK constraint enforced when value present.
+        try {
+            jdbcTemplate.execute(
+                    "ALTER TABLE projects DROP CONSTRAINT IF EXISTS chk_projects_project_number");
+            jdbcTemplate.execute(
+                    "ALTER TABLE projects ADD CONSTRAINT chk_projects_project_number "
+                            + "CHECK (project_number IS NULL OR project_number IN (1, 2))");
+        } catch (Exception e) {
+            log.warn("[SchemaFixupRunner] Trainer Phase 0 project_number CHECK skipped (non-fatal): {}",
+                    e.getMessage());
+        }
+
+        // 3) project_submissions table — 6 doc Feedback-Form ALTERs.
+        String[] submissionAlters = {
+                "ALTER TABLE project_submissions ADD COLUMN IF NOT EXISTS technical_score SMALLINT",
+                "ALTER TABLE project_submissions ADD COLUMN IF NOT EXISTS communication_score SMALLINT",
+                "ALTER TABLE project_submissions ADD COLUMN IF NOT EXISTS blockers_note TEXT",
+                "ALTER TABLE project_submissions ADD COLUMN IF NOT EXISTS next_action VARCHAR(40)",
+                "ALTER TABLE project_submissions ADD COLUMN IF NOT EXISTS next_action_due_date DATE",
+                "ALTER TABLE project_submissions ADD COLUMN IF NOT EXISTS reviewed_links_csv TEXT"
+        };
+        for (String sql : submissionAlters) {
+            try {
+                jdbcTemplate.execute(sql);
+            } catch (Exception e) {
+                log.warn("[SchemaFixupRunner] Trainer Phase 0 project_submissions ALTER skipped (non-fatal): {} — {}",
+                        sql, e.getMessage());
+            }
+        }
+
+        // 4) project_templates table (doc Files/Templates + the
+        //    TrainingMaterial data object).
+        try {
+            jdbcTemplate.execute(
+                    "CREATE TABLE IF NOT EXISTS project_templates ("
+                            + "  id UUID PRIMARY KEY,"
+                            + "  title VARCHAR(200) NOT NULL,"
+                            + "  technology_area VARCHAR(100) NOT NULL,"
+                            + "  description TEXT,"
+                            + "  instructions_md TEXT NOT NULL,"
+                            + "  github_instructions_md TEXT,"
+                            + "  learning_objective_label VARCHAR(300),"
+                            + "  attached_document_ids JSONB,"
+                            + "  created_by_id UUID NOT NULL,"
+                            + "  published BOOLEAN NOT NULL DEFAULT FALSE,"
+                            + "  published_at TIMESTAMP,"
+                            + "  usage_count INTEGER NOT NULL DEFAULT 0,"
+                            + "  archived_at TIMESTAMP,"
+                            + "  created_at TIMESTAMP NOT NULL DEFAULT NOW(),"
+                            + "  updated_at TIMESTAMP NOT NULL DEFAULT NOW()"
+                            + ")");
+        } catch (Exception e) {
+            log.warn("[SchemaFixupRunner] Trainer Phase 0 project_templates create failed (non-fatal): {}",
+                    e.getMessage());
+        }
+
+        // 5) project_assignment_event_logs (doc §11 audit requirement).
+        try {
+            jdbcTemplate.execute(
+                    "CREATE TABLE IF NOT EXISTS project_assignment_event_logs ("
+                            + "  id UUID PRIMARY KEY,"
+                            + "  project_id UUID NOT NULL,"
+                            + "  actor_user_id UUID NOT NULL,"
+                            + "  event_type VARCHAR(40) NOT NULL,"
+                            + "  payload_json TEXT,"
+                            + "  comments TEXT,"
+                            + "  created_at TIMESTAMP NOT NULL DEFAULT NOW()"
+                            + ")");
+        } catch (Exception e) {
+            log.warn("[SchemaFixupRunner] Trainer Phase 0 project_assignment_event_logs create failed (non-fatal): {}",
+                    e.getMessage());
+        }
+
+        // 6) Indexes (5 regular + 1 partial UNIQUE).
+        String[] idxs = {
+                "CREATE INDEX IF NOT EXISTS idx_projects_lifecycle_month_number "
+                        + "ON projects (intern_lifecycle_id, month_year, project_number)",
+                "CREATE INDEX IF NOT EXISTS idx_projects_status_due_date "
+                        + "ON projects (status, due_date)",
+                "CREATE INDEX IF NOT EXISTS idx_project_submissions_status_submitted "
+                        + "ON project_submissions (status, submitted_at)",
+                "CREATE INDEX IF NOT EXISTS idx_project_templates_tech "
+                        + "ON project_templates (technology_area, published, archived_at)",
+                "CREATE INDEX IF NOT EXISTS idx_project_assignment_event_logs_project "
+                        + "ON project_assignment_event_logs (project_id, created_at)"
+        };
+        for (String sql : idxs) {
+            try {
+                jdbcTemplate.execute(sql);
+            } catch (Exception e) {
+                log.warn("[SchemaFixupRunner] Trainer Phase 0 index skipped (non-fatal): {} — {}",
+                        sql, e.getMessage());
+            }
+        }
+        // Partial UNIQUE — enforces "2 monthly projects" rule at DB level.
+        try {
+            jdbcTemplate.execute(
+                    "CREATE UNIQUE INDEX IF NOT EXISTS uq_projects_active_per_slot "
+                            + "ON projects (intern_lifecycle_id, month_year, project_number) "
+                            + "WHERE status <> 'CANCELLED'");
+            log.info("[SchemaFixupRunner] ensured projects partial UNIQUE "
+                    + "(intern_lifecycle_id, month_year, project_number) WHERE status<>'CANCELLED'");
+        } catch (Exception e) {
+            log.warn("[SchemaFixupRunner] Trainer Phase 0 partial UNIQUE ensure failed (non-fatal): {}",
+                    e.getMessage());
+        }
+        log.info("[SchemaFixupRunner] ensured Trainer Phase 0 schema");
     }
 
     /**
