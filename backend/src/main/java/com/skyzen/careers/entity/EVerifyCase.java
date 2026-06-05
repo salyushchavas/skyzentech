@@ -3,6 +3,7 @@ package com.skyzen.careers.entity;
 import com.skyzen.careers.enums.EVerifyClosureReason;
 import com.skyzen.careers.enums.EVerifyStatus;
 import com.skyzen.careers.enums.PhotoMatchResult;
+import com.skyzen.careers.security.AesGcmCryptoConverter;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
@@ -38,7 +39,13 @@ public class EVerifyCase {
     @JoinColumn(name = "i9_form_id", nullable = false, unique = true)
     private I9Form i9Form;
 
-    @Column(name = "case_number", length = 30)
+    /**
+     * AES-256-GCM envelope. ERM-entered case number from manual E-Verify
+     * session. Widened to TEXT to hold the encrypted blob. Masked in UI
+     * (E••••1234) — full reveal requires click-through with audit log.
+     */
+    @Column(name = "case_number", columnDefinition = "TEXT")
+    @Convert(converter = AesGcmCryptoConverter.class)
     private String caseNumber;
 
     @Enumerated(EnumType.STRING)
@@ -88,6 +95,24 @@ public class EVerifyCase {
 
     @Column(columnDefinition = "TEXT")
     private String notes;
+
+    /** ERM-only — never returned to INTERN. */
+    @Column(name = "erm_notes", columnDefinition = "TEXT")
+    private String ermNotes;
+
+    /**
+     * ERM-set business-day deadline (typically dueBy + 10 business days for
+     * TNC contests). Drives compliance alerts when status is still
+     * TENTATIVE_NONCONFIRMATION near or past this date.
+     */
+    @Column(name = "expected_close_by")
+    private LocalDate expectedCloseBy;
+
+    @Column(name = "last_updated_at")
+    private Instant lastUpdatedAt;
+
+    @Column(name = "last_updated_by_id")
+    private UUID lastUpdatedById;
 
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)

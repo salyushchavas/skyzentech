@@ -134,6 +134,39 @@ public class ErmRightPanelService {
                 "Review documents",
                 "/careers/erm/onboarding",
                 docsAwaitingReview));
+        // ERM Phase 5 — Compliance Tracker quick action. Badge sums
+        // I-9 §2 timing-risk + E-Verify TNC/overdue + work-auth ≤30 days,
+        // so the badge matches what the Compliance KPI mini-row shows.
+        long compliancePending = safeCount(
+                "SELECT ( "
+                        + "  (SELECT COUNT(*) FROM i9_forms f "
+                        + "     JOIN candidates c ON c.id = f.candidate_id "
+                        + "     JOIN intern_lifecycles il ON il.user_id = c.user_id "
+                        + "    WHERE f.first_day_of_employment IS NOT NULL "
+                        + "      AND f.section2_signed_at IS NULL "
+                        + "      AND f.first_day_of_employment + INTERVAL '3 days' <= CURRENT_DATE + INTERVAL '2 days' "
+                        + "      AND (il.erm_id IS NULL OR il.erm_id = ?)) + "
+                        + "  (SELECT COUNT(*) FROM everify_cases ec "
+                        + "     JOIN i9_forms f ON f.id = ec.i9_form_id "
+                        + "     JOIN candidates c ON c.id = f.candidate_id "
+                        + "     JOIN intern_lifecycles il ON il.user_id = c.user_id "
+                        + "    WHERE (ec.status = 'TENTATIVE_NONCONFIRMATION' "
+                        + "       OR (ec.status IN ('PENDING_SUBMISSION','OPEN') AND ec.due_by < CURRENT_DATE)) "
+                        + "      AND (il.erm_id IS NULL OR il.erm_id = ?)) + "
+                        + "  (SELECT COUNT(*) FROM work_authorization_records w "
+                        + "     JOIN intern_lifecycles il ON il.user_id = w.user_id "
+                        + "    WHERE il.active_status IN ('ACTIVE','PROSPECTIVE') "
+                        + "      AND LEAST(COALESCE(w.authorized_until, DATE '9999-12-31'), "
+                        + "                COALESCE(w.ead_expiration,    DATE '9999-12-31'), "
+                        + "                COALESCE(w.i20_expiration,    DATE '9999-12-31')) "
+                        + "          <= CURRENT_DATE + INTERVAL '30 days' "
+                        + "      AND (il.erm_id IS NULL OR il.erm_id = ?)) "
+                        + ") AS compliance_pending",
+                callerId, callerId, callerId);
+        actions.add(qa("compliance",
+                "Compliance Tracker",
+                "/careers/erm/compliance",
+                compliancePending));
         actions.add(qa("escalate",
                 "Open escalations",
                 "/careers/erm/escalations",

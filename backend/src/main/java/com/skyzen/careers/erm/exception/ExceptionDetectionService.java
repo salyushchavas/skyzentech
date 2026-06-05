@@ -51,6 +51,9 @@ public class ExceptionDetectionService {
         SEVERITY.put(ExceptionType.EXIT_CHECKLIST_PENDING,  ExceptionSeverity.WARN);
         SEVERITY.put(ExceptionType.REPORTING_STRUCTURE_INCOMPLETE,
                 ExceptionSeverity.URGENT);
+        SEVERITY.put(ExceptionType.WORK_AUTH_EXPIRING_30,   ExceptionSeverity.URGENT);
+        SEVERITY.put(ExceptionType.I983_EVALUATION_OVERDUE, ExceptionSeverity.WARN);
+        SEVERITY.put(ExceptionType.EVERIFY_NONCONFIRMATION, ExceptionSeverity.URGENT);
     }
 
     private static final int TOP_URGENT_LIMIT = 5;
@@ -79,6 +82,12 @@ public class ExceptionDetectionService {
                 this::exitChecklistPending, scope, callerId, counts, all);
         runDetector(ExceptionType.REPORTING_STRUCTURE_INCOMPLETE,
                 this::reportingStructureIncomplete, scope, callerId, counts, all);
+        runDetector(ExceptionType.WORK_AUTH_EXPIRING_30,
+                this::workAuthExpiring30, scope, callerId, counts, all);
+        runDetector(ExceptionType.I983_EVALUATION_OVERDUE,
+                this::i983EvaluationOverdue, scope, callerId, counts, all);
+        runDetector(ExceptionType.EVERIFY_NONCONFIRMATION,
+                this::everifyNonconfirmation, scope, callerId, counts, all);
 
         // Guarantee every enum value is keyed (zeros for empty detectors).
         for (ExceptionType t : ExceptionType.values()) {
@@ -421,6 +430,113 @@ public class ExceptionDetectionService {
                         rs.getString("intern_name"),
                         Math.max(0, (int) rs.getDouble("days_overdue")),
                         "/careers/erm/new-hire?tab=pending",
+                        nullableUuid(rs.getString("resource_id"))));
+    }
+
+    // ── Detector 10: work auth expiring within 30 days (ERM Phase 5) ──────
+
+    private List<ExceptionRow> workAuthExpiring30(ErmScope scope, UUID callerId) {
+        StringBuilder sql = new StringBuilder()
+                .append("SELECT w.id AS resource_id, u.id AS intern_id, u.full_name AS intern_name, ")
+                .append("       (CURRENT_DATE - LEAST( ")
+                .append("            COALESCE(w.authorized_until, CURRENT_DATE + INTERVAL '999 days')::date, ")
+                .append("            COALESCE(w.ead_expiration,    CURRENT_DATE + INTERVAL '999 days')::date, ")
+                .append("            COALESCE(w.i20_expiration,    CURRENT_DATE + INTERVAL '999 days')::date ")
+                .append("       )) AS days_overdue ")
+                .append("  FROM work_authorization_records w ")
+                .append("  JOIN users u ON u.id = w.user_id ")
+                .append("  JOIN intern_lifecycles il ON il.user_id = u.id ")
+                .append(" WHERE il.active_status IN ('ACTIVE','PROSPECTIVE') ")
+                .append("   AND LEAST( ")
+                .append("        COALESCE(w.authorized_until, CURRENT_DATE + INTERVAL '999 days')::date, ")
+                .append("        COALESCE(w.ead_expiration,    CURRENT_DATE + INTERVAL '999 days')::date, ")
+                .append("        COALESCE(w.i20_expiration,    CURRENT_DATE + INTERVAL '999 days')::date ")
+                .append("       ) <= CURRENT_DATE + INTERVAL '30 days' ");
+        List<Object> params = new ArrayList<>();
+        if (scope == ErmScope.MINE) {
+            sql.append(" AND il.erm_id = ? ");
+            params.add(callerId);
+        }
+        sql.append(" ORDER BY days_overdue DESC");
+        return jdbc.query(sql.toString(), params.toArray(),
+                (rs, n) -> new ExceptionRow(
+                        ExceptionType.WORK_AUTH_EXPIRING_30,
+                        ExceptionSeverity.URGENT,
+                        nullableUuid(rs.getString("intern_id")),
+                        rs.getString("intern_name"),
+                        rs.getInt("days_overdue"),
+                        "/careers/erm/compliance",
+                        nullableUuid(rs.getString("resource_id"))));
+    }
+
+    // ── Detector 11: F-1 CPT/OPT/STEM-OPT intern overdue I-983 evaluation ──
+
+    private List<ExceptionRow> i983EvaluationOverdue(ErmScope scope, UUID callerId) {
+        // STEM OPT requires a 6-month + 12-month evaluation. Surfaces any
+        // active intern with i983_required=TRUE whose latest published
+        // monthly evaluation (proxy for the 6-month checkpoint) is older
+        // than 180 days, OR who has none yet 180 days into the engagement.
+        StringBuilder sql = new StringBuilder()
+                .append("SELECT il.id AS resource_id, u.id AS intern_id, u.full_name AS intern_name, ")
+                .append("       GREATEST(EXTRACT(EPOCH FROM (NOW() - COALESCE(maxEval.published_at, il.started_at)))/86400 - 180, 0) ")
+                .append("         AS days_overdue ")
+                .append("  FROM work_authorization_records w ")
+                .append("  JOIN users u ON u.id = w.user_id ")
+                .append("  JOIN intern_lifecycles il ON il.user_id = u.id ")
+                .append("  LEFT JOIN ( ")
+                .append("    SELECT intern_lifecycle_id, MAX(published_at) AS published_at ")
+                .append("      FROM intern_evaluations ")
+                .append("     WHERE evaluation_type = 'MONTHLY' ")
+                .append("       AND status IN ('PUBLISHED','ACKNOWLEDGED','AMENDED') ")
+                .append("     GROUP BY intern_lifecycle_id ")
+                .append("  ) maxEval ON maxEval.intern_lifecycle_id = il.id ")
+                .append(" WHERE il.active_status = 'ACTIVE' ")
+                .append("   AND w.i983_required = TRUE ")
+                .append("   AND il.started_at IS NOT NULL ")
+                .append("   AND COALESCE(maxEval.published_at, il.started_at) < NOW() - INTERVAL '180 days' ");
+        List<Object> params = new ArrayList<>();
+        if (scope == ErmScope.MINE) {
+            sql.append(" AND il.erm_id = ? ");
+            params.add(callerId);
+        }
+        sql.append(" ORDER BY days_overdue DESC");
+        return jdbc.query(sql.toString(), params.toArray(),
+                (rs, n) -> new ExceptionRow(
+                        ExceptionType.I983_EVALUATION_OVERDUE,
+                        ExceptionSeverity.WARN,
+                        nullableUuid(rs.getString("intern_id")),
+                        rs.getString("intern_name"),
+                        Math.max(0, (int) rs.getDouble("days_overdue")),
+                        "/careers/erm/compliance",
+                        nullableUuid(rs.getString("resource_id"))));
+    }
+
+    // ── Detector 12: E-Verify case stuck in TENTATIVE_NONCONFIRMATION ──────
+
+    private List<ExceptionRow> everifyNonconfirmation(ErmScope scope, UUID callerId) {
+        StringBuilder sql = new StringBuilder()
+                .append("SELECT ec.id AS resource_id, u.id AS intern_id, u.full_name AS intern_name, ")
+                .append("       (CURRENT_DATE - COALESCE(ec.expected_close_by, ec.opened_at::date)) AS days_overdue ")
+                .append("  FROM everify_cases ec ")
+                .append("  JOIN i9_forms f       ON f.id = ec.i9_form_id ")
+                .append("  JOIN candidates c     ON c.id = f.candidate_id ")
+                .append("  JOIN users u          ON u.id = c.user_id ")
+                .append("  JOIN intern_lifecycles il ON il.user_id = u.id ")
+                .append(" WHERE ec.status = 'TENTATIVE_NONCONFIRMATION' ");
+        List<Object> params = new ArrayList<>();
+        if (scope == ErmScope.MINE) {
+            sql.append(" AND il.erm_id = ? ");
+            params.add(callerId);
+        }
+        sql.append(" ORDER BY days_overdue DESC");
+        return jdbc.query(sql.toString(), params.toArray(),
+                (rs, n) -> new ExceptionRow(
+                        ExceptionType.EVERIFY_NONCONFIRMATION,
+                        ExceptionSeverity.URGENT,
+                        nullableUuid(rs.getString("intern_id")),
+                        rs.getString("intern_name"),
+                        Math.max(0, rs.getInt("days_overdue")),
+                        "/careers/erm/compliance",
                         nullableUuid(rs.getString("resource_id"))));
     }
 

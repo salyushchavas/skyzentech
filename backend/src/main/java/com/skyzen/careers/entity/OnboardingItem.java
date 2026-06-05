@@ -87,6 +87,29 @@ public class OnboardingItem {
     @Builder.Default
     private Integer version = 1;
 
+    // ── ERM Phase 5 — review headline + audit denorm ───────────────────────
+    // The full immutable history lives on onboarding_review_logs; these
+    // columns mirror the latest decision so the queue rows don't have to
+    // join the log table for the common "show me the last reason" need.
+
+    @Column(name = "last_reviewed_at")
+    private Instant lastReviewedAt;
+
+    @Column(name = "last_reviewed_by_id")
+    private UUID lastReviewedById;
+
+    @Column(name = "last_review_reason_code", length = 80)
+    private String lastReviewReasonCode;
+
+    /** ERM-only structured free-text reason. NEVER returned to INTERN. */
+    @Column(name = "last_review_reason_text", columnDefinition = "TEXT")
+    private String lastReviewReasonText;
+
+    @Column(name = "review_count", nullable = false,
+            columnDefinition = "integer not null default 0")
+    @Builder.Default
+    private Integer reviewCount = 0;
+
     @Column(nullable = false, updatable = false)
     private Instant createdAt;
 

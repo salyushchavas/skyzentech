@@ -51,6 +51,7 @@ public class ErmDashboardService {
 
     private final JdbcTemplate jdbc;
     private final ExceptionDetectionService exceptionDetectionService;
+    private final com.skyzen.careers.erm.compliance.ComplianceCalculatorService complianceCalculator;
 
     private record CacheKey(UUID callerId, ErmScope scope) {}
     private record CacheEntry(ErmDashboardResponse value, Instant cachedAt) {}
@@ -228,27 +229,53 @@ public class ErmDashboardService {
     }
 
     private KpiSnapshot i9EverifyDue(boolean mine, UUID callerId) {
+        // ERM Phase 5 — refined to use ComplianceCalculatorService for the
+        // 3-business-day federal window. We scan ACTIVE interns whose first
+        // day of employment is set, the calculated I-9 §2 due-by has passed
+        // (or is ≤ 2 calendar days away), and either §2 hasn't been signed
+        // or E-Verify is not yet EMPLOYMENT_AUTHORIZED.
         StringBuilder sql = new StringBuilder()
-                .append("FROM i9_forms f ")
-                .append("JOIN candidates c ON c.id = f.candidate_id ")
-                .append("JOIN intern_lifecycles il ON il.user_id = c.user_id ")
-                .append("WHERE il.active_status = 'ACTIVE' ")
-                .append("  AND f.first_day_of_employment IS NOT NULL ")
-                .append("  AND f.first_day_of_employment + INTERVAL '")
-                .append(ErmThresholds.I9_EVERIFY_OVERDUE_DAYS).append(" days' < CURRENT_DATE ")
-                .append("  AND ( f.status <> 'COMPLETED' ")
-                .append("        OR NOT EXISTS (SELECT 1 FROM everify_cases ec ")
-                .append("                         WHERE ec.i9_form_id = f.id ")
-                .append("                           AND ec.status = 'EMPLOYMENT_AUTHORIZED') ) ");
+                .append("SELECT f.first_day_of_employment, f.section2_signed_at, ec.status AS ec_status ")
+                .append("  FROM i9_forms f ")
+                .append("  JOIN candidates c ON c.id = f.candidate_id ")
+                .append("  JOIN intern_lifecycles il ON il.user_id = c.user_id ")
+                .append("  LEFT JOIN everify_cases ec ON ec.i9_form_id = f.id ")
+                .append(" WHERE il.active_status = 'ACTIVE' ")
+                .append("   AND f.first_day_of_employment IS NOT NULL ");
         List<Object> params = new ArrayList<>();
         if (mine) { sql.append(" AND il.erm_id = ?"); params.add(callerId); }
-        long total = countWithParams(sql.toString(), params);
+
+        java.time.LocalDate today = java.time.LocalDate.now();
+        long total = 0;
+        long urgent = 0;
+        try {
+            List<Map<String, Object>> rows =
+                    jdbc.queryForList(sql.toString(), params.toArray());
+            for (Map<String, Object> row : rows) {
+                Object fdObj = row.get("first_day_of_employment");
+                if (!(fdObj instanceof java.sql.Date)) continue;
+                java.time.LocalDate firstDay = ((java.sql.Date) fdObj).toLocalDate();
+                Object signedAt = row.get("section2_signed_at");
+                Object ecStatus = row.get("ec_status");
+                boolean section2Pending = signedAt == null;
+                boolean everifyPending = !"EMPLOYMENT_AUTHORIZED".equals(ecStatus);
+                if (!section2Pending && !everifyPending) continue;
+                java.time.LocalDate dueBy = complianceCalculator.i9Section2DueBy(firstDay);
+                Integer daysUntil = complianceCalculator.daysUntil(dueBy, today);
+                if (daysUntil == null) continue;
+                if (daysUntil <= 2) total++;
+                if (daysUntil <= 0) urgent++;
+            }
+        } catch (Exception e) {
+            log.warn("[ErmDashboard] I-9/E-Verify KPI refined query failed (non-fatal): {}",
+                    e.getMessage());
+        }
         return new KpiSnapshot(
                 ErmKpiKey.I9_EVERIFY_DUE,
                 "I-9 / E-Verify due",
                 total,
-                total,
-                total > 0 ? "All past the federal 3-business-day window" : null,
+                urgent,
+                urgent > 0 ? urgent + " past federal 3-business-day window" : null,
                 "/careers/erm/compliance");
     }
 

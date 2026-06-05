@@ -195,7 +195,82 @@ public class CommunicationTemplateSeeder implements CommandLineRunner {
                     "Hello {{firstName}},\n\n"
                             + "Your tentative start date is now {{newDate}}. Please update "
                             + "your calendar.\n\n— {{ermName}}",
-                    "firstName,newDate,ermName")
+                    "firstName,newDate,ermName"),
+            // ── ERM Phase 5 — onboarding review + compliance templates ───────
+            new Seed(
+                    "ONBOARDING_ITEM_ACCEPTED", "EMAIL",
+                    "Your {{documentName}} has been accepted",
+                    "Hello {{firstName}},\n\n"
+                            + "Your {{documentName}} submission has been reviewed and "
+                            + "accepted. No further action is needed for this item.\n\n"
+                            + "Open your dashboard to track the remaining onboarding "
+                            + "documents.\n\n— Skyzen ERM",
+                    "firstName,documentName"),
+            new Seed(
+                    "ONBOARDING_ITEM_REJECTED", "EMAIL",
+                    "Action needed: {{documentName}} requires correction",
+                    "Hello {{firstName}},\n\n"
+                            + "Your {{documentName}} submission needs correction before it "
+                            + "can be accepted.\n\n"
+                            + "Reviewer comments: {{ermComments}}\n\n"
+                            + "Please update and resubmit from your dashboard.\n\n"
+                            + "— {{ermName}}",
+                    "firstName,documentName,ermComments,ermName"),
+            new Seed(
+                    "ONBOARDING_ITEM_RESEND", "EMAIL",
+                    "Please resend: {{documentName}}",
+                    "Hello {{firstName}},\n\n"
+                            + "We need a fresh copy of your {{documentName}}.\n\n"
+                            + "Reason: {{ermComments}}\n\n"
+                            + "Please re-upload from your dashboard at your earliest "
+                            + "convenience.\n\n— {{ermName}}",
+                    "firstName,documentName,ermComments,ermName"),
+            new Seed(
+                    "ONBOARDING_PACKET_ACCEPTED", "EMAIL",
+                    "Your Skyzen onboarding packet is complete",
+                    "Hello {{firstName}},\n\n"
+                            + "All required onboarding documents have been accepted. "
+                            + "Welcome aboard — your first day is {{firstDayOfEmployment}}.\n\n"
+                            + "Your reporting team will reach out with project details "
+                            + "shortly.\n\n— Skyzen ERM",
+                    "firstName,firstDayOfEmployment"),
+            new Seed(
+                    "EVERIFY_CASE_OPENED", "EMAIL",
+                    "Your E-Verify case has been opened",
+                    "Hello {{firstName}},\n\n"
+                            + "A federal E-Verify case has been opened to confirm your "
+                            + "employment eligibility. No action is required from you at "
+                            + "this time — we will contact you only if additional "
+                            + "verification is needed.\n\n— Skyzen ERM",
+                    "firstName"),
+            new Seed(
+                    "EVERIFY_TENTATIVE_NONCONFIRMATION", "EMAIL",
+                    "Action needed: your E-Verify case requires follow-up",
+                    "Hello {{firstName}},\n\n"
+                            + "Your E-Verify case returned a Tentative Nonconfirmation "
+                            + "(TNC). This often resolves quickly once we exchange "
+                            + "additional information.\n\n"
+                            + "Please reach out to {{ermName}} within 10 federal "
+                            + "business days to decide whether to contest. We will guide "
+                            + "you through the next steps.\n\n— Skyzen ERM",
+                    "firstName,ermName"),
+            new Seed(
+                    "EVERIFY_AUTHORIZED", "EMAIL",
+                    "Your E-Verify case is closed — employment authorized",
+                    "Hello {{firstName}},\n\n"
+                            + "Your E-Verify case has been closed with Employment "
+                            + "Authorized. No further action is needed.\n\n— Skyzen ERM",
+                    "firstName"),
+            new Seed(
+                    "WORK_AUTH_EXPIRING", "EMAIL",
+                    "Your work authorization expires on {{expirationDate}}",
+                    "Hello {{firstName}},\n\n"
+                            + "Our records show that your {{workAuthType}} expires on "
+                            + "{{expirationDate}} ({{daysUntilExpiration}} days away).\n\n"
+                            + "Please connect with {{ermName}} as soon as possible to "
+                            + "share updated documentation or discuss extension "
+                            + "options.\n\n— Skyzen ERM",
+                    "firstName,workAuthType,expirationDate,daysUntilExpiration,ermName")
     );
 
     @Override

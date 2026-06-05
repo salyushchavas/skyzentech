@@ -1312,6 +1312,13 @@ public class SchemaFixupRunner implements CommandLineRunner {
         // ERM Phase 4 — offer event log + offer + intern_lifecycles ALTERs +
         // partial UNIQUE on offers(application_id) WHERE archived_at IS NULL.
         ensureErmOfferAndNewHireSchema();
+
+        // ERM Phase 5 — onboarding review headline + onboarding_review_logs
+        // + work_authorization_records + everify_cases ERM columns +
+        // case_number widened to TEXT (now AES-256-GCM encrypted) +
+        // compliance/queue indexes + best-effort backfill of work-auth
+        // records from candidates(expected_track, validity_date).
+        ensureErmOnboardingAndComplianceSchema();
     }
 
     /**
@@ -1388,6 +1395,170 @@ public class SchemaFixupRunner implements CommandLineRunner {
             }
         }
         log.info("[SchemaFixupRunner] ensured ERM Phase 4 offer + new-hire schema");
+    }
+
+    /**
+     * ERM Phase 5 — onboarding review headline columns + immutable
+     * onboarding_review_logs + work_authorization_records + everify_cases
+     * ERM columns + case_number widened to TEXT (now AES-256-GCM encrypted).
+     * Also ensures supporting indexes + a best-effort backfill of
+     * work_authorization_records from candidates(expected_track,
+     * validity_date) so the Compliance Tracker has a row per intern as
+     * soon as an applicant declared work-auth on their application.
+     */
+    private void ensureErmOnboardingAndComplianceSchema() {
+        // onboarding_items review headline + counters.
+        String[] onbAlters = {
+                "ALTER TABLE onboarding_items ADD COLUMN IF NOT EXISTS last_reviewed_at TIMESTAMP",
+                "ALTER TABLE onboarding_items ADD COLUMN IF NOT EXISTS last_reviewed_by_id UUID",
+                "ALTER TABLE onboarding_items ADD COLUMN IF NOT EXISTS last_review_reason_code VARCHAR(80)",
+                "ALTER TABLE onboarding_items ADD COLUMN IF NOT EXISTS last_review_reason_text TEXT",
+                "ALTER TABLE onboarding_items ADD COLUMN IF NOT EXISTS review_count INTEGER NOT NULL DEFAULT 0"
+        };
+        for (String sql : onbAlters) {
+            try {
+                jdbcTemplate.execute(sql);
+            } catch (Exception e) {
+                log.warn("[SchemaFixupRunner] ERM Phase 5 onboarding_items ALTER skipped (non-fatal): {} — {}",
+                        sql, e.getMessage());
+            }
+        }
+
+        // everify_cases — widen case_number to TEXT (AES-256-GCM blob) +
+        // ERM-only columns. Order matters: widen TYPE before any insert path
+        // tries to write an encrypted blob.
+        try {
+            jdbcTemplate.execute(
+                    "ALTER TABLE everify_cases ALTER COLUMN case_number TYPE TEXT");
+        } catch (Exception e) {
+            log.warn("[SchemaFixupRunner] ERM Phase 5 widen everify_cases.case_number skipped (non-fatal): {}",
+                    e.getMessage());
+        }
+        String[] everifyAlters = {
+                "ALTER TABLE everify_cases ADD COLUMN IF NOT EXISTS erm_notes TEXT",
+                "ALTER TABLE everify_cases ADD COLUMN IF NOT EXISTS expected_close_by DATE",
+                "ALTER TABLE everify_cases ADD COLUMN IF NOT EXISTS last_updated_at TIMESTAMP",
+                "ALTER TABLE everify_cases ADD COLUMN IF NOT EXISTS last_updated_by_id UUID"
+        };
+        for (String sql : everifyAlters) {
+            try {
+                jdbcTemplate.execute(sql);
+            } catch (Exception e) {
+                log.warn("[SchemaFixupRunner] ERM Phase 5 everify_cases ALTER skipped (non-fatal): {} — {}",
+                        sql, e.getMessage());
+            }
+        }
+
+        // onboarding_review_logs — JPA also creates this, but the explicit
+        // CREATE keeps the contract visible + survives ddl-auto=none envs.
+        try {
+            jdbcTemplate.execute(
+                    "CREATE TABLE IF NOT EXISTS onboarding_review_logs ("
+                            + "  id UUID PRIMARY KEY,"
+                            + "  onboarding_item_id UUID NOT NULL,"
+                            + "  actor_user_id UUID NOT NULL,"
+                            + "  decision VARCHAR(20) NOT NULL,"
+                            + "  reason_code VARCHAR(80),"
+                            + "  reason_text TEXT,"
+                            + "  previous_status VARCHAR(20) NOT NULL,"
+                            + "  new_status VARCHAR(20) NOT NULL,"
+                            + "  erm_comments_snapshot TEXT,"
+                            + "  created_at TIMESTAMP NOT NULL DEFAULT NOW()"
+                            + ")");
+            jdbcTemplate.execute(
+                    "CREATE INDEX IF NOT EXISTS idx_onb_review_logs_item "
+                            + "ON onboarding_review_logs (onboarding_item_id, created_at)");
+            jdbcTemplate.execute(
+                    "CREATE INDEX IF NOT EXISTS idx_onb_review_logs_actor "
+                            + "ON onboarding_review_logs (actor_user_id, created_at)");
+        } catch (Exception e) {
+            log.warn("[SchemaFixupRunner] ERM Phase 5 onboarding_review_logs ensure failed (non-fatal): {}",
+                    e.getMessage());
+        }
+
+        // work_authorization_records — one row per user. Backfilled below.
+        try {
+            jdbcTemplate.execute(
+                    "CREATE TABLE IF NOT EXISTS work_authorization_records ("
+                            + "  id UUID PRIMARY KEY,"
+                            + "  user_id UUID NOT NULL,"
+                            + "  work_auth_type VARCHAR(40) NOT NULL,"
+                            + "  authorized_from DATE,"
+                            + "  authorized_until DATE,"
+                            + "  ead_card_number TEXT,"
+                            + "  ead_expiration DATE,"
+                            + "  i20_expiration DATE,"
+                            + "  i983_required BOOLEAN NOT NULL DEFAULT FALSE,"
+                            + "  i983_id UUID,"
+                            + "  dso_name VARCHAR(200),"
+                            + "  dso_email VARCHAR(150),"
+                            + "  dso_phone VARCHAR(30),"
+                            + "  erm_notes TEXT,"
+                            + "  last_updated_at TIMESTAMP NOT NULL DEFAULT NOW(),"
+                            + "  last_updated_by_id UUID NOT NULL,"
+                            + "  created_at TIMESTAMP NOT NULL DEFAULT NOW(),"
+                            + "  CONSTRAINT uk_work_auth_records_user UNIQUE (user_id)"
+                            + ")");
+            jdbcTemplate.execute(
+                    "CREATE INDEX IF NOT EXISTS idx_work_auth_records_type_expiration "
+                            + "ON work_authorization_records (work_auth_type, authorized_until)");
+        } catch (Exception e) {
+            log.warn("[SchemaFixupRunner] ERM Phase 5 work_authorization_records ensure failed (non-fatal): {}",
+                    e.getMessage());
+        }
+
+        // Queue + compliance indexes.
+        String[] idxs = {
+                "CREATE INDEX IF NOT EXISTS idx_onboarding_items_status_packet "
+                        + "ON onboarding_items (status, packet_id)",
+                "CREATE INDEX IF NOT EXISTS idx_onboarding_items_category_status "
+                        + "ON onboarding_items (category, status)",
+                "CREATE INDEX IF NOT EXISTS idx_everify_cases_status_close_by "
+                        + "ON everify_cases (status, expected_close_by)"
+        };
+        for (String sql : idxs) {
+            try {
+                jdbcTemplate.execute(sql);
+            } catch (Exception e) {
+                log.warn("[SchemaFixupRunner] ERM Phase 5 index skipped (non-fatal): {} — {}",
+                        sql, e.getMessage());
+            }
+        }
+
+        // Best-effort backfill — only seed users that have a candidate row
+        // with an expected_track AND no existing work_authorization_records
+        // entry. last_updated_by_id falls back to the user themself so the
+        // NOT NULL constraint holds without inventing a system actor.
+        try {
+            int seeded = jdbcTemplate.update(
+                    "INSERT INTO work_authorization_records ("
+                            + "  id, user_id, work_auth_type, authorized_until,"
+                            + "  i983_required, last_updated_at, last_updated_by_id, created_at"
+                            + ") "
+                            + "SELECT gen_random_uuid(),"
+                            + "       u.id,"
+                            + "       CASE c.expected_track "
+                            + "            WHEN 'CPT' THEN 'F1_CPT' "
+                            + "            WHEN 'OPT' THEN 'F1_OPT' "
+                            + "            WHEN 'STEM_OPT' THEN 'F1_STEM_OPT' "
+                            + "            ELSE 'OTHER' END,"
+                            + "       c.validity_date,"
+                            + "       CASE WHEN c.expected_track IN ('CPT','OPT','STEM_OPT') THEN TRUE ELSE FALSE END,"
+                            + "       NOW(), u.id, NOW() "
+                            + "  FROM candidates c "
+                            + "  JOIN users u ON u.id = c.user_id "
+                            + " WHERE c.expected_track IS NOT NULL "
+                            + "   AND NOT EXISTS (SELECT 1 FROM work_authorization_records w WHERE w.user_id = u.id)");
+            if (seeded > 0) {
+                log.info("[SchemaFixupRunner] ERM Phase 5 backfill seeded {} work_authorization_records rows",
+                        seeded);
+            }
+        } catch (Exception e) {
+            log.warn("[SchemaFixupRunner] ERM Phase 5 work-auth backfill skipped (non-fatal): {}",
+                    e.getMessage());
+        }
+
+        log.info("[SchemaFixupRunner] ensured ERM Phase 5 onboarding + compliance schema");
     }
 
     /**
