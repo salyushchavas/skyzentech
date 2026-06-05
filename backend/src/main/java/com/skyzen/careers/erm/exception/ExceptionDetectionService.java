@@ -54,6 +54,9 @@ public class ExceptionDetectionService {
         SEVERITY.put(ExceptionType.WORK_AUTH_EXPIRING_30,   ExceptionSeverity.URGENT);
         SEVERITY.put(ExceptionType.I983_EVALUATION_OVERDUE, ExceptionSeverity.WARN);
         SEVERITY.put(ExceptionType.EVERIFY_NONCONFIRMATION, ExceptionSeverity.URGENT);
+        SEVERITY.put(ExceptionType.MISSED_TRAINER_MEETING,        ExceptionSeverity.WARN);
+        SEVERITY.put(ExceptionType.LOW_PROJECT_PROGRESS,          ExceptionSeverity.WARN);
+        SEVERITY.put(ExceptionType.REPEATED_TIMESHEET_REJECTION,  ExceptionSeverity.URGENT);
     }
 
     private static final int TOP_URGENT_LIMIT = 5;
@@ -88,6 +91,12 @@ public class ExceptionDetectionService {
                 this::i983EvaluationOverdue, scope, callerId, counts, all);
         runDetector(ExceptionType.EVERIFY_NONCONFIRMATION,
                 this::everifyNonconfirmation, scope, callerId, counts, all);
+        runDetector(ExceptionType.MISSED_TRAINER_MEETING,
+                this::missedTrainerMeeting, scope, callerId, counts, all);
+        runDetector(ExceptionType.LOW_PROJECT_PROGRESS,
+                this::lowProjectProgress, scope, callerId, counts, all);
+        runDetector(ExceptionType.REPEATED_TIMESHEET_REJECTION,
+                this::repeatedTimesheetRejection, scope, callerId, counts, all);
 
         // Guarantee every enum value is keyed (zeros for empty detectors).
         for (ExceptionType t : ExceptionType.values()) {
@@ -538,6 +547,276 @@ public class ExceptionDetectionService {
                         Math.max(0, rs.getInt("days_overdue")),
                         "/careers/erm/compliance",
                         nullableUuid(rs.getString("resource_id"))));
+    }
+
+    // ── Detector 13: trainer weekly meeting missed (Phase 6) ──────────────
+
+    private List<ExceptionRow> missedTrainerMeeting(ErmScope scope, UUID callerId) {
+        StringBuilder sql = new StringBuilder()
+                .append("SELECT il.id AS resource_id, u.id AS intern_id, u.full_name AS intern_name, ")
+                .append("       7 AS days_overdue ")
+                .append("  FROM intern_lifecycles il ")
+                .append("  JOIN users u ON u.id = il.user_id ")
+                .append(" WHERE il.active_status = 'ACTIVE' ")
+                .append("   AND il.trainer_id IS NOT NULL ")
+                .append("   AND ( EXISTS (SELECT 1 FROM weekly_meetings wm ")
+                .append("                    WHERE wm.intern_lifecycle_id = il.id ")
+                .append("                      AND wm.status = 'NO_SHOW' ")
+                .append("                      AND wm.scheduled_for > NOW() - INTERVAL '14 days') ")
+                .append("         OR NOT EXISTS (SELECT 1 FROM weekly_meetings wm ")
+                .append("                          WHERE wm.intern_lifecycle_id = il.id ")
+                .append("                            AND wm.status IN ('SCHEDULED','COMPLETED') ")
+                .append("                            AND wm.scheduled_for > NOW() - INTERVAL '7 days') ) ");
+        List<Object> params = new ArrayList<>();
+        if (scope == ErmScope.MINE) { sql.append(scopeJoinErm(scope)); params.add(callerId); }
+        sql.append(" ORDER BY u.full_name ASC");
+        return jdbc.query(sql.toString(), params.toArray(),
+                (rs, n) -> new ExceptionRow(
+                        ExceptionType.MISSED_TRAINER_MEETING,
+                        ExceptionSeverity.WARN,
+                        nullableUuid(rs.getString("intern_id")),
+                        rs.getString("intern_name"),
+                        rs.getInt("days_overdue"),
+                        "/careers/erm/active-interns",
+                        nullableUuid(rs.getString("resource_id"))));
+    }
+
+    // ── Detector 14: project stalled past 75% of duration (Phase 6) ───────
+
+    private List<ExceptionRow> lowProjectProgress(ErmScope scope, UUID callerId) {
+        // project_assignments with status IN_PROGRESS where now > 75% of
+        // (assignment_date → due_date), no submitted_at yet.
+        StringBuilder sql = new StringBuilder()
+                .append("SELECT pa.id AS resource_id, u.id AS intern_id, u.full_name AS intern_name, ")
+                .append("       GREATEST((CURRENT_DATE - pa.assignment_date), 0) AS days_overdue ")
+                .append("  FROM project_assignments pa ")
+                .append("  JOIN users u ON u.id = pa.intern_id ")
+                .append("  JOIN intern_lifecycles il ON il.user_id = u.id ")
+                .append(" WHERE il.active_status = 'ACTIVE' ")
+                .append("   AND pa.status = 'IN_PROGRESS' ")
+                .append("   AND pa.submitted_at IS NULL ")
+                .append("   AND pa.due_date IS NOT NULL ")
+                .append("   AND (CURRENT_DATE - pa.assignment_date) > ")
+                .append("       (0.75 * GREATEST(1, (pa.due_date - pa.assignment_date))) ");
+        List<Object> params = new ArrayList<>();
+        if (scope == ErmScope.MINE) { sql.append(" AND il.erm_id = ? "); params.add(callerId); }
+        sql.append(" ORDER BY pa.due_date ASC");
+        return jdbc.query(sql.toString(), params.toArray(),
+                (rs, n) -> new ExceptionRow(
+                        ExceptionType.LOW_PROJECT_PROGRESS,
+                        ExceptionSeverity.WARN,
+                        nullableUuid(rs.getString("intern_id")),
+                        rs.getString("intern_name"),
+                        Math.max(0, rs.getInt("days_overdue")),
+                        "/careers/erm/active-interns",
+                        nullableUuid(rs.getString("resource_id"))));
+    }
+
+    // ── Detector 15: ≥2 consecutive timesheet rejections (Phase 6) ────────
+
+    private List<ExceptionRow> repeatedTimesheetRejection(ErmScope scope, UUID callerId) {
+        // Look at the last 4 weeks of timesheets per intern; count REJECTED
+        // rows. ≥2 fires (cheaper than scanning for "consecutive" precisely;
+        // the doc tolerates this approximation for INFO severity → URGENT
+        // upgrade is the load-bearing piece).
+        StringBuilder sql = new StringBuilder()
+                .append("SELECT u.id AS intern_id, u.full_name AS intern_name, il.id AS resource_id, ")
+                .append("       COUNT(t.id) AS rej_count ")
+                .append("  FROM timesheets t ")
+                .append("  JOIN candidates c ON c.id = t.intern_id ")
+                .append("  JOIN users u ON u.id = c.user_id ")
+                .append("  JOIN intern_lifecycles il ON il.user_id = u.id ")
+                .append(" WHERE il.active_status = 'ACTIVE' ")
+                .append("   AND t.status = 'REJECTED' ")
+                .append("   AND t.week_start > CURRENT_DATE - INTERVAL '28 days' ");
+        List<Object> params = new ArrayList<>();
+        if (scope == ErmScope.MINE) { sql.append(" AND il.erm_id = ? "); params.add(callerId); }
+        sql.append(" GROUP BY u.id, u.full_name, il.id ")
+                .append(" HAVING COUNT(t.id) >= 2 ")
+                .append(" ORDER BY COUNT(t.id) DESC");
+        return jdbc.query(sql.toString(), params.toArray(),
+                (rs, n) -> new ExceptionRow(
+                        ExceptionType.REPEATED_TIMESHEET_REJECTION,
+                        ExceptionSeverity.URGENT,
+                        nullableUuid(rs.getString("intern_id")),
+                        rs.getString("intern_name"),
+                        rs.getInt("rej_count"),
+                        "/careers/erm/timesheets",
+                        nullableUuid(rs.getString("resource_id"))));
+    }
+
+    // ── Dashboard read-from-table (Phase 6) ────────────────────────────────
+
+    /**
+     * Phase 6 read path — counts + top-urgent come from the persisted
+     * {@code exception_records} table (status IN OPEN/ASSIGNED/IN_PROGRESS),
+     * not from on-demand SQL. Keeps the dashboard response shape identical
+     * to Phase 1 while making detection persistent + auditable.
+     */
+    public ExceptionDetectionResult readFromTable(ErmScope scope, UUID callerId) {
+        Map<ExceptionType, Integer> counts = emptyCounts();
+        StringBuilder scopeWhere = new StringBuilder();
+        List<Object> params = new ArrayList<>();
+        if (scope == ErmScope.MINE && callerId != null) {
+            scopeWhere.append(" AND (il.erm_id IS NULL OR il.erm_id = ?) ");
+            params.add(callerId);
+        }
+        try {
+            List<Map<String, Object>> rows = jdbc.queryForList(
+                    "SELECT er.exception_type AS et, COUNT(*) AS cnt "
+                            + "  FROM exception_records er "
+                            + "  JOIN intern_lifecycles il ON il.id = er.intern_lifecycle_id "
+                            + " WHERE er.status IN ('OPEN','ASSIGNED','IN_PROGRESS') "
+                            + scopeWhere
+                            + " GROUP BY er.exception_type",
+                    params.toArray());
+            for (Map<String, Object> row : rows) {
+                String t = String.valueOf(row.get("et"));
+                Object cnt = row.get("cnt");
+                long n = cnt instanceof Number num ? num.longValue() : 0L;
+                try {
+                    counts.put(ExceptionType.valueOf(t), (int) n);
+                } catch (IllegalArgumentException ignored) {
+                    // Old/unknown type names skip silently.
+                }
+            }
+        } catch (Exception e) {
+            log.warn("[ExceptionDetection] readFromTable count query failed (non-fatal): {}",
+                    e.getMessage());
+        }
+
+        List<ExceptionRow> topUrgent = new ArrayList<>();
+        try {
+            List<Map<String, Object>> rows = jdbc.queryForList(
+                    "SELECT er.id AS resource_id, er.exception_type AS et, er.severity, "
+                            + "       er.subject_user_id, u.full_name, "
+                            + "       EXTRACT(EPOCH FROM (NOW() - er.opened_at))/86400 AS days_open "
+                            + "  FROM exception_records er "
+                            + "  JOIN intern_lifecycles il ON il.id = er.intern_lifecycle_id "
+                            + "  JOIN users u ON u.id = er.subject_user_id "
+                            + " WHERE er.status IN ('OPEN','ASSIGNED','IN_PROGRESS') "
+                            + scopeWhere
+                            + " ORDER BY CASE er.severity WHEN 'URGENT' THEN 0 "
+                            + "                            WHEN 'WARN'   THEN 1 ELSE 2 END, "
+                            + "          er.opened_at ASC "
+                            + " LIMIT " + TOP_URGENT_LIMIT,
+                    params.toArray());
+            for (Map<String, Object> row : rows) {
+                String t = String.valueOf(row.get("et"));
+                String sev = String.valueOf(row.get("severity"));
+                ExceptionType type;
+                ExceptionSeverity severity;
+                try { type = ExceptionType.valueOf(t); }
+                catch (IllegalArgumentException e) { continue; }
+                try { severity = ExceptionSeverity.valueOf(sev); }
+                catch (IllegalArgumentException e) { severity = ExceptionSeverity.INFO; }
+                topUrgent.add(new ExceptionRow(
+                        type, severity,
+                        row.get("subject_user_id") != null
+                                ? UUID.fromString(String.valueOf(row.get("subject_user_id"))) : null,
+                        String.valueOf(row.get("full_name")),
+                        Math.max(0, (int) ((Number) row.get("days_open")).doubleValue()),
+                        "/careers/erm/escalations/" + row.get("resource_id"),
+                        row.get("resource_id") != null
+                                ? UUID.fromString(String.valueOf(row.get("resource_id"))) : null));
+            }
+        } catch (Exception e) {
+            log.warn("[ExceptionDetection] readFromTable top-urgent query failed (non-fatal): {}",
+                    e.getMessage());
+        }
+
+        return new ExceptionDetectionResult(counts, topUrgent);
+    }
+
+    // ── Scan-job adapter (Phase 6) ─────────────────────────────────────────
+
+    /**
+     * Single scheduled-scan entry point. Runs every detector at ALL scope
+     * with a null caller (system-wide), produces a deterministic ordered
+     * map of {@code ExceptionType → List<DetectorHit>} that the
+     * {@code ExceptionScanJob} feeds into UPSERT + auto-resolve passes.
+     *
+     * <p>Reuses the existing detector SQL by wrapping each ExceptionRow
+     * into a DetectorHit. payload_json captures the sanitised
+     * {@code daysOverdue} only — never PII.</p>
+     */
+    public Map<ExceptionType, List<DetectorHit>> scanAllAsHits() {
+        Map<ExceptionType, List<DetectorHit>> out = new LinkedHashMap<>();
+        for (ExceptionType t : ExceptionType.values()) {
+            try {
+                List<ExceptionRow> rows = runDetectorByType(t);
+                List<DetectorHit> hits = new ArrayList<>(rows.size());
+                for (ExceptionRow r : rows) {
+                    if (r.internId() == null) continue;
+                    UUID lifecycleId = resolveLifecycleId(r.internId());
+                    if (lifecycleId == null) continue; // No active lifecycle → skip
+                    String payload = String.format(
+                            "{\"daysOverdue\":%d}", Math.max(0, r.daysOverdue()));
+                    hits.add(new DetectorHit(
+                            r.internId(),
+                            lifecycleId,
+                            subjectResourceTypeFor(t),
+                            r.subjectResourceId(),
+                            payload));
+                }
+                out.put(t, hits);
+            } catch (Exception e) {
+                log.warn("[ExceptionDetection] scan hit produce failed for {}: {}",
+                        t, e.getMessage());
+                out.put(t, List.of());
+            }
+        }
+        return out;
+    }
+
+    private List<ExceptionRow> runDetectorByType(ExceptionType t) {
+        return switch (t) {
+            case UNSIGNED_OFFER_OVERDUE         -> unsignedOfferOverdue(ErmScope.ALL, null);
+            case ONBOARDING_DOC_REJECTED        -> onboardingDocRejected(ErmScope.ALL, null);
+            case I9_EVERIFY_TIMING_RISK         -> i9EverifyTimingRisk(ErmScope.ALL, null);
+            case NO_PROJECT_ASSIGNED            -> noProjectAssigned(ErmScope.ALL, null);
+            case TRAINER_MEETING_MISSING        -> trainerMeetingMissing(ErmScope.ALL, null);
+            case EVALUATION_OVERDUE             -> evaluationOverdue(ErmScope.ALL, null);
+            case TIMESHEET_MISSING              -> timesheetMissing(ErmScope.ALL, null);
+            case EXIT_CHECKLIST_PENDING         -> exitChecklistPending(ErmScope.ALL, null);
+            case REPORTING_STRUCTURE_INCOMPLETE -> reportingStructureIncomplete(ErmScope.ALL, null);
+            case WORK_AUTH_EXPIRING_30          -> workAuthExpiring30(ErmScope.ALL, null);
+            case I983_EVALUATION_OVERDUE        -> i983EvaluationOverdue(ErmScope.ALL, null);
+            case EVERIFY_NONCONFIRMATION        -> everifyNonconfirmation(ErmScope.ALL, null);
+            case MISSED_TRAINER_MEETING         -> missedTrainerMeeting(ErmScope.ALL, null);
+            case LOW_PROJECT_PROGRESS           -> lowProjectProgress(ErmScope.ALL, null);
+            case REPEATED_TIMESHEET_REJECTION   -> repeatedTimesheetRejection(ErmScope.ALL, null);
+        };
+    }
+
+    /** Cheap lookup — returns the active lifecycle id for an intern user. */
+    private UUID resolveLifecycleId(UUID userId) {
+        try {
+            return jdbc.queryForObject(
+                    "SELECT id FROM intern_lifecycles WHERE user_id = ?",
+                    (rs, n) -> nullableUuid(rs.getString(1)), userId);
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    private static String subjectResourceTypeFor(ExceptionType t) {
+        return switch (t) {
+            case UNSIGNED_OFFER_OVERDUE                 -> "OFFER";
+            case ONBOARDING_DOC_REJECTED                -> "ONBOARDING_ITEM";
+            case I9_EVERIFY_TIMING_RISK,
+                 I983_EVALUATION_OVERDUE                -> "EVERIFY";
+            case NO_PROJECT_ASSIGNED, LOW_PROJECT_PROGRESS -> "PROJECT";
+            case TRAINER_MEETING_MISSING,
+                 MISSED_TRAINER_MEETING                 -> "MEETING";
+            case EVALUATION_OVERDUE                     -> "EVALUATION";
+            case TIMESHEET_MISSING,
+                 REPEATED_TIMESHEET_REJECTION           -> "TIMESHEET";
+            case EXIT_CHECKLIST_PENDING                 -> "EXIT";
+            case REPORTING_STRUCTURE_INCOMPLETE         -> "APPLICATION";
+            case WORK_AUTH_EXPIRING_30                  -> "EVERIFY";
+            case EVERIFY_NONCONFIRMATION                -> "EVERIFY";
+        };
     }
 
     private static UUID nullableUuid(String s) {

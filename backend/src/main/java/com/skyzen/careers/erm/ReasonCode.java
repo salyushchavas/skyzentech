@@ -86,7 +86,23 @@ public enum ReasonCode {
     EXIT_TERMINATED_CONDUCT(Category.EXIT, "Terminated — conduct", false),
     EXIT_TERMINATED_BUSINESS(Category.EXIT, "Terminated — business reasons", false),
     EXIT_EXTENDED_NEW_ROLE(Category.EXIT, "Extended — new role being created", false),
-    EXIT_OTHER(Category.EXIT, "Other (specify)", true);
+    EXIT_OTHER(Category.EXIT, "Other (specify)", true),
+
+    // ── Exception resolution (ERM Phase 6) ─────────────────────────────────
+    EXCEPTION_RESOLVED_FIXED(Category.EXCEPTION_RESOLVE,
+            "Underlying issue fixed", false),
+    EXCEPTION_RESOLVED_BY_NATURAL_FLOW(Category.EXCEPTION_RESOLVE,
+            "Resolved by natural workflow", false),
+    EXCEPTION_RESOLVED_OVERRIDE(Category.EXCEPTION_RESOLVE,
+            "Manager override (specify)", true),
+
+    // ── Exception dismissal (ERM Phase 6) ──────────────────────────────────
+    EXCEPTION_DISMISSED_FALSE_POSITIVE(Category.EXCEPTION_DISMISS,
+            "False positive", false),
+    EXCEPTION_DISMISSED_OUT_OF_SCOPE(Category.EXCEPTION_DISMISS,
+            "Out of ERM scope", false),
+    EXCEPTION_DISMISSED_DUPLICATE(Category.EXCEPTION_DISMISS,
+            "Duplicate of existing exception", false);
 
     public enum Category {
         APPLICATION_REJECT,
@@ -98,7 +114,9 @@ public enum ReasonCode {
         OFFER_VOID,
         OFFER_RESEND,
         DOCUMENT_REJECT,
-        EXIT
+        EXIT,
+        EXCEPTION_RESOLVE,
+        EXCEPTION_DISMISS
     }
 
     private final Category category;

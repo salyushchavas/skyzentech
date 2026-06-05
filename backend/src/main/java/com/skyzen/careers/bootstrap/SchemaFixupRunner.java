@@ -1319,6 +1319,12 @@ public class SchemaFixupRunner implements CommandLineRunner {
         // compliance/queue indexes + best-effort backfill of work-auth
         // records from candidates(expected_track, validity_date).
         ensureErmOnboardingAndComplianceSchema();
+
+        // ERM Phase 6 — persistent ExceptionRecord + ExceptionEventLog so
+        // the Phase 1 on-demand detection becomes a scheduled job + the
+        // Escalations queue. Partial UNIQUE keeps "at most one OPEN per
+        // (intern, type)" enforced by Postgres regardless of UPSERT race.
+        ensureErmExceptionSchema();
     }
 
     /**
@@ -1559,6 +1565,92 @@ public class SchemaFixupRunner implements CommandLineRunner {
         }
 
         log.info("[SchemaFixupRunner] ensured ERM Phase 5 onboarding + compliance schema");
+    }
+
+    /**
+     * ERM Phase 6 — exception_records + exception_event_logs. The partial
+     * UNIQUE index is the load-bearing piece — it guarantees at most one
+     * OPEN/ASSIGNED/IN_PROGRESS row per (subject_user_id, exception_type)
+     * regardless of UPSERT race. AUTO_RESOLVED/RESOLVED/DISMISSED rows are
+     * excluded from the constraint so reopen-after-resolve flows work.
+     */
+    private void ensureErmExceptionSchema() {
+        try {
+            jdbcTemplate.execute(
+                    "CREATE TABLE IF NOT EXISTS exception_records ("
+                            + "  id UUID PRIMARY KEY,"
+                            + "  intern_lifecycle_id UUID NOT NULL,"
+                            + "  subject_user_id UUID NOT NULL,"
+                            + "  exception_type VARCHAR(50) NOT NULL,"
+                            + "  severity VARCHAR(20) NOT NULL,"
+                            + "  status VARCHAR(20) NOT NULL DEFAULT 'OPEN',"
+                            + "  opened_at TIMESTAMP NOT NULL,"
+                            + "  last_seen_at TIMESTAMP NOT NULL,"
+                            + "  assigned_to_id UUID,"
+                            + "  assigned_at TIMESTAMP,"
+                            + "  assigned_by_id UUID,"
+                            + "  resolved_at TIMESTAMP,"
+                            + "  resolved_by_id UUID,"
+                            + "  resolution_note TEXT,"
+                            + "  resolution_reason_code VARCHAR(80),"
+                            + "  subject_resource_type VARCHAR(40),"
+                            + "  subject_resource_id UUID,"
+                            + "  payload_json TEXT,"
+                            + "  created_at TIMESTAMP NOT NULL DEFAULT NOW(),"
+                            + "  updated_at TIMESTAMP NOT NULL DEFAULT NOW()"
+                            + ")");
+        } catch (Exception e) {
+            log.warn("[SchemaFixupRunner] exception_records create failed (non-fatal): {}",
+                    e.getMessage());
+        }
+        try {
+            jdbcTemplate.execute(
+                    "CREATE TABLE IF NOT EXISTS exception_event_logs ("
+                            + "  id UUID PRIMARY KEY,"
+                            + "  exception_record_id UUID NOT NULL,"
+                            + "  actor_user_id UUID,"
+                            + "  event_type VARCHAR(40) NOT NULL,"
+                            + "  previous_status VARCHAR(20),"
+                            + "  new_status VARCHAR(20),"
+                            + "  reason_code VARCHAR(80),"
+                            + "  note TEXT,"
+                            + "  payload_json TEXT,"
+                            + "  created_at TIMESTAMP NOT NULL DEFAULT NOW()"
+                            + ")");
+        } catch (Exception e) {
+            log.warn("[SchemaFixupRunner] exception_event_logs create failed (non-fatal): {}",
+                    e.getMessage());
+        }
+        String[] idxs = {
+                "CREATE INDEX IF NOT EXISTS idx_exception_records_status_severity "
+                        + "ON exception_records (status, severity, opened_at)",
+                "CREATE INDEX IF NOT EXISTS idx_exception_records_assignee "
+                        + "ON exception_records (assigned_to_id, status)",
+                "CREATE INDEX IF NOT EXISTS idx_exception_records_subject "
+                        + "ON exception_records (subject_user_id, status, exception_type)",
+                "CREATE INDEX IF NOT EXISTS idx_exception_event_logs_record "
+                        + "ON exception_event_logs (exception_record_id, created_at)"
+        };
+        for (String sql : idxs) {
+            try {
+                jdbcTemplate.execute(sql);
+            } catch (Exception e) {
+                log.warn("[SchemaFixupRunner] ERM Phase 6 index skipped (non-fatal): {} — {}",
+                        sql, e.getMessage());
+            }
+        }
+        try {
+            jdbcTemplate.execute(
+                    "CREATE UNIQUE INDEX IF NOT EXISTS uq_exception_records_open_per_subject_type "
+                            + "ON exception_records (subject_user_id, exception_type) "
+                            + "WHERE status IN ('OPEN','ASSIGNED','IN_PROGRESS')");
+            log.info("[SchemaFixupRunner] ensured exception_records partial UNIQUE "
+                    + "(subject_user_id, exception_type) WHERE status IN OPEN/ASSIGNED/IN_PROGRESS");
+        } catch (Exception e) {
+            log.warn("[SchemaFixupRunner] exception_records partial UNIQUE ensure failed (non-fatal): {}",
+                    e.getMessage());
+        }
+        log.info("[SchemaFixupRunner] ensured ERM Phase 6 exception schema");
     }
 
     /**

@@ -1,9 +1,6 @@
 package com.skyzen.careers.erm.dashboard;
 
 import com.skyzen.careers.entity.User;
-import com.skyzen.careers.erm.exception.ExceptionDetectionResult;
-import com.skyzen.careers.erm.exception.ExceptionDetectionService;
-import com.skyzen.careers.erm.exception.ExceptionSeverity;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -28,7 +25,6 @@ import java.util.UUID;
 public class ErmRightPanelService {
 
     private final JdbcTemplate jdbc;
-    private final ExceptionDetectionService exceptionDetectionService;
 
     public ErmRightPanelResponse build(User caller) {
         UUID callerId = caller.getId();
@@ -86,13 +82,15 @@ public class ErmRightPanelService {
                         + "  AND il.erm_id = ?",
                 callerId);
 
-        ExceptionDetectionResult exceptions =
-                exceptionDetectionService.detect(ErmScope.MINE, callerId);
-        long urgentExceptionCount = exceptions.counts().entrySet().stream()
-                .filter(e -> exceptionDetectionService.severityOf(e.getKey())
-                        == ExceptionSeverity.URGENT)
-                .mapToLong(e -> e.getValue() != null ? e.getValue() : 0L)
-                .sum();
+        // ERM Phase 6 — read URGENT count directly from exception_records;
+        // detection runs in the scheduled scan job, not on every panel load.
+        long urgentExceptionCount = safeCount(
+                "SELECT COUNT(*) FROM exception_records er "
+                        + " JOIN intern_lifecycles il ON il.id = er.intern_lifecycle_id "
+                        + " WHERE er.status IN ('OPEN','ASSIGNED','IN_PROGRESS') "
+                        + "   AND er.severity = 'URGENT' "
+                        + "   AND (il.erm_id IS NULL OR il.erm_id = ?)",
+                callerId);
 
         long todayInterviews = todayInterviewsCount(callerId, now);
         long unreadNotifications = safeCount(
@@ -171,6 +169,23 @@ public class ErmRightPanelService {
                 "Open escalations",
                 "/careers/erm/escalations",
                 urgentExceptionCount));
+        // ERM Phase 6 — Active Intern Monitor quick action. Badge counts
+        // active interns who have ≥1 URGENT open exception (the cheapest
+        // proxy for "any URGENT card state" — matches the §9 escalation
+        // card severity rule).
+        long activeUrgent = safeCount(
+                "SELECT COUNT(DISTINCT er.subject_user_id) "
+                        + "  FROM exception_records er "
+                        + "  JOIN intern_lifecycles il ON il.id = er.intern_lifecycle_id "
+                        + " WHERE er.status IN ('OPEN','ASSIGNED','IN_PROGRESS') "
+                        + "   AND er.severity = 'URGENT' "
+                        + "   AND il.active_status = 'ACTIVE' "
+                        + "   AND (il.erm_id IS NULL OR il.erm_id = ?)",
+                callerId);
+        actions.add(qa("monitor",
+                "Active Interns",
+                "/careers/erm/active-interns",
+                activeUrgent));
         actions.add(qa("exit",
                 "Exit checklist",
                 "/careers/erm/exits",

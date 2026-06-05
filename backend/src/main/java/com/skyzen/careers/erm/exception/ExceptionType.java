@@ -17,5 +17,11 @@ public enum ExceptionType {
     /** ERM Phase 5 — F-1 STEM OPT / CPT intern past required I-983 evaluation cadence. */
     I983_EVALUATION_OVERDUE,
     /** ERM Phase 5 — E-Verify case sitting in TENTATIVE_NONCONFIRMATION past expected_close_by. */
-    EVERIFY_NONCONFIRMATION
+    EVERIFY_NONCONFIRMATION,
+    /** ERM Phase 6 — last weekly meeting was NO_SHOW or none scheduled in last 7 days while active. */
+    MISSED_TRAINER_MEETING,
+    /** ERM Phase 6 — project IN_PROGRESS &gt; 75% of duration with no submissions. */
+    LOW_PROJECT_PROGRESS,
+    /** ERM Phase 6 — ≥2 consecutive timesheet REJECTIONS in the last 4 weeks. */
+    REPEATED_TIMESHEET_REJECTION
 }

@@ -90,7 +90,10 @@ public class ErmDashboardService {
 
     private ErmDashboardResponse build(User caller, ErmScope scope, Instant now) {
         Map<ErmKpiKey, KpiSnapshot> kpis = computeKpis(caller, scope, now);
-        ExceptionDetectionResult exceptions = exceptionDetectionService.detect(scope, caller.getId());
+        // ERM Phase 6 — read from persisted exception_records, not on-demand
+        // recompute. Same result shape; the scheduled scan job keeps it fresh.
+        ExceptionDetectionResult exceptions =
+                exceptionDetectionService.readFromTable(scope, caller.getId());
         List<ErmDashboardResponse.ActivityEntry> activity = recentActivity(caller, scope);
         long unread = unreadNotifications(caller);
 
