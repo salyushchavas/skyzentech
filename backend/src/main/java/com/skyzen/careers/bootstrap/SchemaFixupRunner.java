@@ -1336,6 +1336,10 @@ public class SchemaFixupRunner implements CommandLineRunner {
         // + project_submissions, and add ProjectTemplate +
         // ProjectAssignmentEventLog tables.
         ensureTrainerPhase0Schema();
+
+        // Trainer Phase 1 — two indexes that keep the Home dashboard +
+        // Active Interns queries sub-500ms.
+        ensureTrainerPhase1Indexes();
     }
 
     /**
@@ -1873,6 +1877,33 @@ public class SchemaFixupRunner implements CommandLineRunner {
                     e.getMessage());
         }
         log.info("[SchemaFixupRunner] ensured Trainer Phase 0 schema");
+    }
+
+    /**
+     * Trainer Phase 1 — two indexes that back the Home dashboard's KPI
+     * queries + the Active Interns per-row state hydration. No schema
+     * column changes; the partial UNIQUE +  intern_lifecycle_id /
+     * project_number indexes from Phase 0 already cover the
+     * projects-side queries. The timesheets-side index is intentionally
+     * skipped — the table is keyed by candidate_id, not intern_lifecycle
+     * _id, and the existing intern_id-keyed query is already indexed.
+     */
+    private void ensureTrainerPhase1Indexes() {
+        String[] idxs = {
+                "CREATE INDEX IF NOT EXISTS idx_weekly_meetings_lifecycle_scheduled "
+                        + "ON weekly_meetings (intern_lifecycle_id, scheduled_for, status)",
+                "CREATE INDEX IF NOT EXISTS idx_intern_evaluations_lifecycle_type_pub "
+                        + "ON intern_evaluations (intern_lifecycle_id, evaluation_type, published_at DESC)"
+        };
+        for (String sql : idxs) {
+            try {
+                jdbcTemplate.execute(sql);
+            } catch (Exception e) {
+                log.warn("[SchemaFixupRunner] Trainer Phase 1 index skipped (non-fatal): {} — {}",
+                        sql, e.getMessage());
+            }
+        }
+        log.info("[SchemaFixupRunner] ensured Trainer Phase 1 indexes");
     }
 
     /**

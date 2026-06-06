@@ -1,0 +1,159 @@
+package com.skyzen.careers.trainer.panel;
+
+import com.skyzen.careers.entity.User;
+import com.skyzen.careers.enums.UserRole;
+import com.skyzen.careers.exception.ForbiddenException;
+import com.skyzen.careers.trainer.dashboard.TrainerThresholds;
+import com.skyzen.careers.trainer.panel.TrainerRightPanelResponse.Alert;
+import com.skyzen.careers.trainer.panel.TrainerRightPanelResponse.QuickAction;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.time.YearMonth;
+import java.time.ZoneId;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.UUID;
+
+/**
+ * Trainer Phase 1 — right-side panel: 5 doc §4 quick actions + 2
+ * alerts + today's meeting count + unread notification count. Counts
+ * are live (no cache) so the badges feel responsive; the queries are
+ * indexed + bounded.
+ */
+@Service
+@RequiredArgsConstructor
+@Slf4j
+public class TrainerRightPanelService {
+
+    private static final ZoneId ZONE = ZoneId.of(TrainerThresholds.DEFAULT_TIMEZONE);
+
+    private final JdbcTemplate jdbc;
+
+    @Transactional(readOnly = true)
+    public TrainerRightPanelResponse build(User caller) {
+        if (caller == null) throw new ForbiddenException("Caller required");
+        if (!caller.getRoles().contains(UserRole.TRAINER)
+                && !caller.getRoles().contains(UserRole.SUPER_ADMIN)) {
+            throw new ForbiddenException("TRAINER or SUPER_ADMIN required");
+        }
+        UUID callerId = caller.getId();
+        boolean isSuper = caller.getRoles().contains(UserRole.SUPER_ADMIN);
+        String scope = isSuper ? "" : " AND il.trainer_id = ? ";
+        Object[] scopeArg = isSuper ? new Object[]{} : new Object[]{callerId};
+        String currentMonth = YearMonth.now(ZONE).toString();
+
+        long withoutProject = safeCount(
+                "SELECT COUNT(*) FROM intern_lifecycles il "
+                        + " WHERE il.active_status = 'ACTIVE' "
+                        + scope
+                        + " AND NOT EXISTS (SELECT 1 FROM projects p "
+                        + "                    WHERE p.intern_lifecycle_id = il.id "
+                        + "                      AND p.month_year = ? "
+                        + "                      AND p.status <> 'CANCELLED')",
+                append(scopeArg, currentMonth));
+
+        long noUpcomingMeeting = safeCount(
+                "SELECT COUNT(*) FROM intern_lifecycles il "
+                        + " WHERE il.active_status = 'ACTIVE' "
+                        + scope
+                        + " AND NOT EXISTS (SELECT 1 FROM weekly_meetings wm "
+                        + "                    WHERE wm.intern_lifecycle_id = il.id "
+                        + "                      AND wm.status = 'SCHEDULED' "
+                        + "                      AND wm.scheduled_for > NOW() "
+                        + "                      AND wm.scheduled_for < NOW() + INTERVAL '7 days')",
+                scopeArg);
+
+        long overdueSubmissions = safeCount(
+                "SELECT COUNT(*) FROM projects p "
+                        + "  JOIN intern_lifecycles il ON il.id = p.intern_lifecycle_id "
+                        + " WHERE p.status = 'SUBMITTED' "
+                        + "   AND p.reviewed_at IS NULL "
+                        + "   AND p.submitted_at < NOW() - INTERVAL '48 hours' "
+                        + scope,
+                scopeArg);
+
+        long submissionsPendingReview = safeCount(
+                "SELECT COUNT(*) FROM projects p "
+                        + "  JOIN intern_lifecycles il ON il.id = p.intern_lifecycle_id "
+                        + " WHERE p.status = 'SUBMITTED' "
+                        + "   AND p.reviewed_at IS NULL "
+                        + scope,
+                scopeArg);
+
+        long missingWeeklyMeeting = safeCount(
+                "SELECT COUNT(*) FROM intern_lifecycles il "
+                        + " WHERE il.active_status = 'ACTIVE' "
+                        + scope
+                        + " AND NOT EXISTS (SELECT 1 FROM weekly_meetings wm "
+                        + "                    WHERE wm.intern_lifecycle_id = il.id "
+                        + "                      AND wm.scheduled_for > NOW() - INTERVAL '"
+                        + TrainerThresholds.MEETING_MISSING_DAYS + " days' "
+                        + "                      AND wm.status IN ('SCHEDULED','COMPLETED'))",
+                scopeArg);
+
+        // "Reviewed but feedback not yet published" — Phase 0/1 has no
+        // dedicated publish step, so this count stays 0 until Phase 3.
+        long pendingFeedbackPublish = 0L;
+
+        List<QuickAction> quickActions = new ArrayList<>();
+        quickActions.add(new QuickAction("assign-project", "Assign project",
+                "/careers/trainer/assign-project", withoutProject, true));
+        quickActions.add(new QuickAction("schedule-meeting", "Schedule meeting",
+                "/careers/trainer/weekly-meetings", noUpcomingMeeting, true));
+        quickActions.add(new QuickAction("send-reminder", "Send reminder",
+                "/careers/trainer/active-interns?filter=overdue",
+                overdueSubmissions + missingWeeklyMeeting, true));
+        quickActions.add(new QuickAction("request-revision", "Request revision",
+                "/careers/trainer/pending-reviews",
+                submissionsPendingReview, true));
+        quickActions.add(new QuickAction("publish-feedback", "Publish feedback",
+                "/careers/trainer/pending-reviews?filter=ready",
+                pendingFeedbackPublish, true));
+
+        List<Alert> alerts = new ArrayList<>();
+        alerts.add(new Alert("missing-weekly-meeting",
+                "Missing weekly meeting", missingWeeklyMeeting,
+                missingWeeklyMeeting > 0 ? "WARN" : "INFO"));
+        alerts.add(new Alert("pending-review",
+                "Pending review", submissionsPendingReview,
+                submissionsPendingReview > 5 ? "URGENT"
+                        : submissionsPendingReview > 0 ? "WARN" : "INFO"));
+
+        long unread = safeCount(
+                "SELECT COUNT(*) FROM user_notifications "
+                        + " WHERE recipient_user_id = ? AND read_at IS NULL",
+                new Object[]{callerId});
+
+        long todayMeetings = safeCount(
+                "SELECT COUNT(*) FROM weekly_meetings wm "
+                        + "  JOIN intern_lifecycles il ON il.id = wm.intern_lifecycle_id "
+                        + " WHERE wm.status = 'SCHEDULED' "
+                        + "   AND wm.scheduled_for::date = CURRENT_DATE "
+                        + scope,
+                scopeArg);
+
+        return new TrainerRightPanelResponse(
+                quickActions, alerts, unread, todayMeetings);
+    }
+
+    private long safeCount(String sql, Object[] params) {
+        try {
+            Long c = jdbc.queryForObject(sql, Long.class, params);
+            return c == null ? 0L : c;
+        } catch (Exception e) {
+            log.debug("[TrainerRightPanel] count fallback: {}", e.getMessage());
+            return 0L;
+        }
+    }
+
+    private static Object[] append(Object[] base, Object tail) {
+        Object[] out = new Object[base.length + 1];
+        System.arraycopy(base, 0, out, 0, base.length);
+        out[base.length] = tail;
+        return out;
+    }
+}

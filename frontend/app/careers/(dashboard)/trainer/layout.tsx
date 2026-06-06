@@ -3,20 +3,25 @@
 import type { ReactNode } from 'react';
 import ProtectedRoute from '@/components/ProtectedRoute';
 import TrainerSidebar from '@/components/trainer/TrainerSidebar';
+import TrainerRightSidePanel from '@/components/trainer/TrainerRightSidePanel';
+import { TrainerDashboardProvider } from '@/components/trainer/TrainerDashboardContext';
 
 /**
- * Trainer Phase 0 — shell layout for the 9-item Trainer surface
- * (doc §4). RBAC: TRAINER + SUPER_ADMIN. Phase 1 will hang a right-
- * side panel placeholder off this shell; for Phase 0 we ship the
- * sidebar + main column only.
+ * Trainer Phase 1 — 3-column shell on xl: sidebar + main + right-side
+ * panel. RBAC: TRAINER + SUPER_ADMIN. TrainerDashboardProvider runs a
+ * single 60s poll for the Home + right-side panel data so consumers
+ * share one fetch.
  */
 export default function TrainerLayout({ children }: { children: ReactNode }) {
   return (
     <ProtectedRoute requiredRoles={['TRAINER', 'SUPER_ADMIN']}>
-      <div className="ds flex h-screen overflow-hidden bg-slate-50">
-        <TrainerSidebar />
-        <main className="flex-1 overflow-y-auto">{children}</main>
-      </div>
+      <TrainerDashboardProvider>
+        <div className="ds flex h-screen overflow-hidden bg-slate-50">
+          <TrainerSidebar />
+          <main className="flex-1 overflow-y-auto">{children}</main>
+          <TrainerRightSidePanel />
+        </div>
+      </TrainerDashboardProvider>
     </ProtectedRoute>
   );
 }
