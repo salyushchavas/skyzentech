@@ -1,5 +1,10 @@
 'use client';
 
+// useSearchParams forces this auth-gated dashboard page out of static
+// prerendering at build time. Marked dynamic explicitly so Vercel skips
+// the prerender step instead of erroring.
+export const dynamic = 'force-dynamic';
+
 import { useCallback, useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import api from '@/lib/api';
