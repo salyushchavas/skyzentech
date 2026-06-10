@@ -18,21 +18,26 @@ Each filename below MUST exist in this folder before ERM agents can
 assign that document. Missing files don't break the build, but interns
 clicking "Download" will get a 404. There is no fallback.
 
-| Filename                                       | Document                                |
-| ---------------------------------------------- | --------------------------------------- |
-| `w4-2026.pdf`                                  | W-4 2026                                |
-| `fw9.pdf`                                      | W-9 (FW9)                               |
-| `i9-form-2026.pdf`                             | I-9 Form 2026                           |
-| `i9-authorized-agent-2026.pdf`                 | I-9 Authorized Agent 2026               |
-| `i983-2029.pdf`                                | I-983 (2029)                            |
-| `employee-data-sheet.pdf`                      | Employee Data Sheet                     |
-| `employee-handbook.pdf`                        | Employee Handbook                       |
-| `h1-offer-letter.pdf`                          | H1 Offer Letter                         |
-| `offer-letter-software-developer.pdf`          | Offer Letter Software Developer         |
-| `msa-template.pdf`                             | MSA Template                            |
-| `po-template.pdf`                              | PO Template                             |
-| `leave-of-absence-form.pdf`                    | Leave of Absence Form                   |
-| `weekly-status-report-instructions.pdf`        | Weekly Status Report Instructions       |
+Filenames are case-sensitive on Linux (Vercel). Spaces and special
+characters are URL-encoded by `SkyzenDocument.publicUrl()` (backend)
+and `publicUrlFor()` (frontend mirror) — keep the on-disk names below
+in lock-step with the `filename` field in both files.
+
+| Filename                                                              | Document                          |
+| --------------------------------------------------------------------- | --------------------------------- |
+| `W4 2026.pdf`                                                         | W-4 2026                          |
+| `fw9.pdf`                                                             | W-9 (FW9)                         |
+| `I-9 form_26.pdf`                                                     | I-9 Form 2026                     |
+| `EM_i-9_authorized_agent 2026.pdf`                                    | I-9 Authorized Agent 2026         |
+| `i983_2029.pdf`                                                       | I-983 (2029)                      |
+| `EM_Employee Data Sheet.pdf`                                          | Employee Data Sheet               |
+| `EM_Employee Handbook.pdf`                                            | Employee Handbook                 |
+| `EM_H1 offer letter.pdf`                                              | H1 Offer Letter                   |
+| `EM_Offer letter_Software Developer.pdf`                              | Offer Letter Software Developer   |
+| `EM_MSA_TEMPLATE.PDF`                                                 | MSA Template                      |
+| `EM_PO Template.pdf`                                                  | PO Template                       |
+| `EM_LEAVE OF ABSENCE FORM.PDF`                                        | Leave of Absence Form             |
+| `EM_Instructions for Weekly Status Reports and timecard entry.pdf`    | Weekly Status Report Instructions |
 
 ## Why static files instead of a managed library?
 
