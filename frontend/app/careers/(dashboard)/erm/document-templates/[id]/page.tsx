@@ -1,13 +1,23 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
-import { ChevronLeft, Download, Upload } from 'lucide-react';
+import { ChevronLeft, Eye, EyeOff } from 'lucide-react';
 import api from '@/lib/api';
 import ProtectedRoute from '@/components/ProtectedRoute';
 import DashboardLayout from '@/components/dashboard/DashboardLayout';
 import PageHeader from '@/components/ui/PageHeader';
+import TemplateMetadataForm from '@/components/erm/documents/TemplateMetadataForm';
+import TemplateFileUploadCard from '@/components/erm/documents/TemplateFileUploadCard';
+import TemplateVersionHistoryCard from '@/components/erm/documents/TemplateVersionHistoryCard';
+import TemplateUsageStatsCard from '@/components/erm/documents/TemplateUsageStatsCard';
+import {
+  CATEGORY_BADGE,
+  SENSITIVITY_BADGE,
+  SENSITIVITY_LABEL,
+  relativeDate,
+} from '@/components/erm/documents/badges';
 import type { DocumentTemplateDto } from '@/components/erm/documents/types';
 
 export default function DocumentTemplateDetailPage() {
@@ -16,13 +26,15 @@ export default function DocumentTemplateDetailPage() {
   const [t, setT] = useState<DocumentTemplateDto | null>(null);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
-  const fileInput = useRef<HTMLInputElement>(null);
+  const [toggling, setToggling] = useState(false);
 
   const load = useCallback(async () => {
     if (!id) return;
     setLoading(true);
     try {
-      const res = await api.get<DocumentTemplateDto>(`/api/v1/erm/document-templates/${id}`);
+      const res = await api.get<DocumentTemplateDto>(
+        `/api/v1/erm/document-templates/${id}`,
+      );
       setT(res.data);
       setErr(null);
     } catch (e) {
@@ -35,47 +47,19 @@ export default function DocumentTemplateDetailPage() {
 
   useEffect(() => { void load(); }, [load]);
 
-  async function uploadFile(file: File) {
-    if (!id) return;
-    const fd = new FormData();
-    fd.append('file', file);
-    try {
-      await api.post(`/api/v1/erm/document-templates/${id}/file`, fd);
-      await load();
-    } catch (e) {
-      const ax = e as { response?: { data?: { error?: string } }; message?: string };
-      alert(ax.response?.data?.error ?? ax.message ?? 'Upload failed');
-    }
-  }
-
-  async function downloadFile() {
-    if (!id || !t?.templateFileId) return;
-    try {
-      const res = await api.get<Blob>(`/api/v1/erm/document-templates/${id}/file`, {
-        responseType: 'blob',
-      });
-      const url = URL.createObjectURL(res.data);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = t.templateFileName ?? 'template';
-      a.click();
-      URL.revokeObjectURL(url);
-    } catch (e) {
-      const ax = e as { response?: { data?: { error?: string } }; message?: string };
-      alert(ax.response?.data?.error ?? ax.message ?? 'Download failed');
-    }
-  }
-
   async function toggleActive() {
     if (!id || !t) return;
+    setToggling(true);
     try {
-      await api.post(
+      const res = await api.post<DocumentTemplateDto>(
         `/api/v1/erm/document-templates/${id}/${t.isActive ? 'deactivate' : 'reactivate'}`,
       );
-      await load();
+      setT(res.data);
     } catch (e) {
       const ax = e as { response?: { data?: { error?: string } }; message?: string };
       alert(ax.response?.data?.error ?? ax.message ?? 'Failed');
+    } finally {
+      setToggling(false);
     }
   }
 
@@ -83,7 +67,6 @@ export default function DocumentTemplateDetailPage() {
     return (
       <ProtectedRoute requiredRoles={['ERM', 'SUPER_ADMIN']}>
         <DashboardLayout>
-          <PageHeader title="Template" />
           <div className="h-32 animate-pulse rounded-lg bg-slate-100" />
         </DashboardLayout>
       </ProtectedRoute>
@@ -111,102 +94,107 @@ export default function DocumentTemplateDetailPage() {
         >
           <ChevronLeft className="h-4 w-4" /> Back to templates
         </Link>
-        <PageHeader
-          title={t.title}
-          subtitle={t.description ?? undefined}
-        />
+
+        <div className="mb-4">
+          <h1 className="text-xl font-semibold text-slate-900">{t.title}</h1>
+          <div className="mt-2 flex flex-wrap items-center gap-2">
+            <span className="rounded bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-700">
+              v{t.version}
+            </span>
+            <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${CATEGORY_BADGE[t.category ?? 'OTHER'] ?? CATEGORY_BADGE.OTHER}`}>
+              {t.category ?? '—'}
+            </span>
+            {t.templateFileId ? (
+              <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-semibold text-emerald-800">
+                File uploaded
+              </span>
+            ) : (
+              <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-semibold text-amber-800">
+                File pending
+              </span>
+            )}
+            <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${SENSITIVITY_BADGE[t.sensitivity ?? 'NORMAL'] ?? SENSITIVITY_BADGE.NORMAL}`}>
+              {SENSITIVITY_LABEL[t.sensitivity ?? 'NORMAL'] ?? t.sensitivity}
+            </span>
+            {!t.isActive && (
+              <span className="rounded-full bg-slate-200 px-2 py-0.5 text-[11px] font-semibold text-slate-700">
+                Inactive
+              </span>
+            )}
+          </div>
+        </div>
 
         <div className="grid gap-6 lg:grid-cols-3">
-          <main className="lg:col-span-2 space-y-4">
-            <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
-              <div className="flex items-center justify-between">
-                <h3 className="text-sm font-semibold text-slate-900">Template file</h3>
-                <span className="text-xs text-slate-500">v{t.version}</span>
-              </div>
-              <div className="mt-3">
-                {t.templateFileName ? (
-                  <div className="flex items-center justify-between rounded-md border border-slate-200 bg-slate-50 px-3 py-2">
-                    <span className="text-sm text-slate-700">{t.templateFileName}</span>
-                    <button
-                      type="button"
-                      onClick={downloadFile}
-                      className="inline-flex items-center gap-1 rounded-md border border-slate-200 bg-white px-2 py-1 text-xs font-medium text-slate-700"
-                    >
-                      <Download className="h-3.5 w-3.5" /> Download
-                    </button>
-                  </div>
-                ) : (
-                  <p className="rounded-md border border-amber-200 bg-amber-50 p-2 text-xs text-amber-800">
-                    No file uploaded yet — interns cannot be assigned this template until a file is in place.
-                  </p>
-                )}
-                <div className="mt-3">
-                  <input
-                    ref={fileInput}
-                    type="file"
-                    accept="application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-                    onChange={(e) => {
-                      const f = e.target.files?.[0];
-                      if (f) void uploadFile(f);
-                      e.target.value = '';
-                    }}
-                    className="hidden"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => fileInput.current?.click()}
-                    className="inline-flex items-center gap-1 rounded-md bg-teal-700 px-3 py-1.5 text-xs font-semibold text-white"
-                  >
-                    <Upload className="h-3.5 w-3.5" />
-                    {t.templateFileName ? 'Replace file (bumps version)' : 'Upload file'}
-                  </button>
-                </div>
-              </div>
-            </section>
-
-            {t.instructions && (
-              <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
-                <h3 className="text-sm font-semibold text-slate-900">Instructions to intern</h3>
-                <p className="mt-2 whitespace-pre-wrap text-sm text-slate-700">{t.instructions}</p>
-              </section>
-            )}
+          <main className="space-y-4 lg:col-span-2">
+            <TemplateMetadataForm template={t} onSaved={(next) => setT(next)} />
+            <TemplateFileUploadCard template={t} onUploaded={(next) => setT(next)} />
+            <TemplateVersionHistoryCard template={t} />
           </main>
 
           <aside className="space-y-4">
-            <section className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
-              <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-500">Metadata</h3>
-              <Row label="Category" value={t.category ?? '—'} />
-              <Row label="Sensitivity" value={t.sensitivity ?? 'GENERAL'} />
-              <Row label="Used by" value={String(t.usageCount)} />
-              <Row label="Created"
-                value={new Date(t.createdAt).toLocaleString()} />
-              <Row label="Updated"
-                value={new Date(t.updatedAt).toLocaleString()} />
+            <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+              <h3 className="text-sm font-semibold text-slate-900">Status</h3>
+              <div className="mt-3 space-y-2 text-xs text-slate-600">
+                <p>
+                  {t.isActive ? (
+                    <>Active since{' '}
+                      <span className="font-semibold text-slate-800">
+                        {new Date(t.updatedAt).toLocaleString()}
+                      </span>
+                    </>
+                  ) : (
+                    <>Inactive since{' '}
+                      <span className="font-semibold text-slate-800">
+                        {new Date(t.updatedAt).toLocaleString()}
+                      </span>
+                    </>
+                  )}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={toggleActive}
+                disabled={toggling}
+                className={
+                  'mt-3 inline-flex w-full items-center justify-center gap-1 rounded-md px-3 py-1.5 text-sm font-semibold ' +
+                  (t.isActive
+                    ? 'border border-rose-300 bg-white text-rose-700 hover:bg-rose-50'
+                    : 'bg-emerald-700 text-white hover:bg-emerald-800')
+                }
+              >
+                {t.isActive ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+                {toggling ? 'Updating…' : t.isActive ? 'Deactivate' : 'Reactivate'}
+              </button>
             </section>
-            <button
-              type="button"
-              onClick={toggleActive}
-              className={
-                'w-full rounded-md px-3 py-2 text-sm font-semibold ' +
-                (t.isActive
-                  ? 'border border-rose-300 bg-white text-rose-700 hover:bg-rose-50'
-                  : 'bg-emerald-700 text-white hover:bg-emerald-800')
-              }
-            >
-              {t.isActive ? 'Deactivate template' : 'Reactivate template'}
-            </button>
+
+            <TemplateUsageStatsCard template={t} />
+
+            <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+              <h3 className="text-sm font-semibold text-slate-900">Audit</h3>
+              <dl className="mt-3 space-y-2 text-xs">
+                <div>
+                  <dt className="text-slate-500">Created by</dt>
+                  <dd className="text-slate-800">{t.createdByName ?? '—'}</dd>
+                </div>
+                <div>
+                  <dt className="text-slate-500">Created</dt>
+                  <dd className="text-slate-800">
+                    {new Date(t.createdAt).toLocaleString()}
+                    <span className="ml-1 text-slate-500">({relativeDate(t.createdAt)})</span>
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-slate-500">Last updated</dt>
+                  <dd className="text-slate-800">
+                    {new Date(t.updatedAt).toLocaleString()}
+                    <span className="ml-1 text-slate-500">({relativeDate(t.updatedAt)})</span>
+                  </dd>
+                </div>
+              </dl>
+            </section>
           </aside>
         </div>
       </DashboardLayout>
     </ProtectedRoute>
-  );
-}
-
-function Row({ label, value }: { label: string; value: string | null }) {
-  return (
-    <div className="mb-2 text-sm">
-      <p className="text-[11px] uppercase text-slate-500">{label}</p>
-      <p className="text-slate-800">{value ?? '—'}</p>
-    </div>
   );
 }
