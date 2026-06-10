@@ -36,6 +36,8 @@ import org.springframework.core.annotation.Order;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -79,9 +81,18 @@ import java.util.UUID;
 public class TestDataSeeder implements CommandLineRunner {
 
     private static final String LOG_TAG = "[TestDataSeeder]";
-    private static final String DEFAULT_PASSWORD = "Test1234!";
+    /** Password for the seeded TRAINER / EVALUATOR / MANAGER staff users. */
+    private static final String STAFF_PASSWORD = "Test1234!";
+    /** Phase 8.3.3 — fresh password for the 3 demo intern accounts. */
+    private static final String INTERN_PASSWORD = "Demo2026!";
 
-    private static final String ERM_EMAIL = "test-erm@skyzen.test";
+    /** Phase 8.3.3 — the real ERM account the developer logs in as. The
+     *  seeder does NOT create this user; it looks it up. If it's missing,
+     *  the seeder falls back to any user with the ERM role and logs a
+     *  warning. The earlier test-erm@skyzen.test scope mismatch was the
+     *  original Pending-tab-stays-empty bug, so don't reintroduce it. */
+    private static final String REAL_ERM_EMAIL = "erm@skyzen.test";
+
     private static final String TRAINER_EMAIL = "test-trainer@skyzen.test";
     private static final String EVALUATOR_EMAIL = "test-evaluator@skyzen.test";
     private static final String MANAGER_EMAIL = "test-manager@skyzen.test";
@@ -101,6 +112,12 @@ public class TestDataSeeder implements CommandLineRunner {
     private final InternLifecycleRepository lifecycleRepository;
     private final WorkAuthorizationRecordRepository workAuthRepository;
     private final JdbcTemplate jdbc;
+    /** Phase 8.3.3 — explicit transactional wrapper for each intern chain.
+     *  Spring's @Transactional only applies through a proxy boundary,
+     *  which is bypassed when CommandLineRunner.run() self-invokes
+     *  seedIntern, so we use TransactionTemplate to get the same
+     *  rollback semantics without the proxy gotcha. */
+    private final TransactionTemplate txn;
 
     public TestDataSeeder(
             @Value("${app.seed.test-data-enabled:${SEED_TEST_DATA:false}}") boolean enabled,
@@ -114,7 +131,8 @@ public class TestDataSeeder implements CommandLineRunner {
             OfferRepository offerRepository,
             InternLifecycleRepository lifecycleRepository,
             WorkAuthorizationRecordRepository workAuthRepository,
-            JdbcTemplate jdbc) {
+            JdbcTemplate jdbc,
+            PlatformTransactionManager txManager) {
         this.enabled = enabled;
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
@@ -127,6 +145,7 @@ public class TestDataSeeder implements CommandLineRunner {
         this.lifecycleRepository = lifecycleRepository;
         this.workAuthRepository = workAuthRepository;
         this.jdbc = jdbc;
+        this.txn = new TransactionTemplate(txManager);
     }
 
     @Override
@@ -137,11 +156,24 @@ public class TestDataSeeder implements CommandLineRunner {
         }
         log.info("{} Seeding dev test data (SEED_TEST_DATA=true)", LOG_TAG);
 
-        User erm, trainer, evaluator, manager;
+        User erm;
+        User trainer, evaluator, manager;
         StaffingEntity entity;
         JobPosting posting;
         try {
-            erm = findOrCreateStaffUser(ERM_EMAIL, "Test ERM", UserRole.ERM, true);
+            // Phase 8.3.3 — scope the new interns to the real developer
+            // ERM (erm@skyzen.test). Fall back to any ERM-role user if
+            // that's not provisioned yet, but log a warning so the
+            // operator knows seeded interns won't show under their
+            // expected scope.
+            erm = resolveRealErm();
+            if (erm == null) {
+                log.warn("{} No user with role ERM found in DB; cannot seed "
+                        + "interns. Create an ERM user first and re-run.",
+                        LOG_TAG);
+                return;
+            }
+
             trainer = findOrCreateStaffUser(TRAINER_EMAIL, "Test Trainer", UserRole.TRAINER, true);
             evaluator = findOrCreateStaffUser(EVALUATOR_EMAIL, "Test Evaluator", UserRole.REPORTING_MANAGER, true);
             manager = findOrCreateStaffUser(MANAGER_EMAIL, "Test Manager", UserRole.MANAGER, true);
@@ -154,15 +186,37 @@ public class TestDataSeeder implements CommandLineRunner {
             return;
         }
 
+        final User ermF = erm;
+        final User trainerF = trainer;
+        final User evaluatorF = evaluator;
+        final User managerF = manager;
+        final JobPosting postingF = posting;
+
         int fullyReady = 0;
         int failed = 0;
         for (InternSpec spec : INTERN_SPECS) {
             ChainResult result;
             try {
-                result = seedIntern(spec, posting, erm, trainer, evaluator, manager);
+                // Phase 8.3.3 — wrap the whole intern chain in a single
+                // transaction. If any step throws, every prior INSERT in
+                // the chain rolls back together, leaving no orphan rows
+                // for the next boot to trip over.
+                result = txn.execute(status -> {
+                    try {
+                        return seedIntern(spec, postingF, ermF, trainerF,
+                                evaluatorF, managerF);
+                    } catch (RuntimeException re) {
+                        status.setRollbackOnly();
+                        throw re;
+                    }
+                });
             } catch (Exception e) {
                 log.warn("{} Intern {} seed unexpected failure (non-fatal): {}",
                         LOG_TAG, spec.email, e.getMessage(), e);
+                continue;
+            }
+            if (result == null) {
+                failed++;
                 continue;
             }
             log.info("{}   {}: {}", LOG_TAG, spec.fullName, result.summary());
@@ -173,6 +227,27 @@ public class TestDataSeeder implements CommandLineRunner {
         log.info("{} Seed complete. {} fully ready in Pending Document "
                 + "Assignment tab, {} incomplete.",
                 LOG_TAG, fullyReady, failed);
+    }
+
+    /** Phase 8.3.3 — resolve the ERM the seeded interns are scoped to.
+     *  Prefers {@link #REAL_ERM_EMAIL} (erm@skyzen.test); falls back to
+     *  any user carrying the ERM role. Returns null when neither is
+     *  available — the caller bails with a friendly log in that case. */
+    private User resolveRealErm() {
+        Optional<User> primary = userRepository.findByEmail(REAL_ERM_EMAIL);
+        if (primary.isPresent()) {
+            log.info("{}   ERM scope → {} (id={})", LOG_TAG,
+                    REAL_ERM_EMAIL, primary.get().getId());
+            return primary.get();
+        }
+        List<User> erms = userRepository.findByRole(UserRole.ERM);
+        if (erms.isEmpty()) return null;
+        User fallback = erms.get(0);
+        log.warn("{}   {} not found; falling back to ERM user {} (id={}). "
+                + "Seeded interns may appear under a different scope than "
+                + "expected.", LOG_TAG, REAL_ERM_EMAIL,
+                fallback.getEmail(), fallback.getId());
+        return fallback;
     }
 
     // ── Supporting users + entity + posting ────────────────────────────────
@@ -186,7 +261,7 @@ public class TestDataSeeder implements CommandLineRunner {
         }
         User u = User.builder()
                 .email(email)
-                .passwordHash(passwordEncoder.encode(DEFAULT_PASSWORD))
+                .passwordHash(passwordEncoder.encode(STAFF_PASSWORD))
                 .fullName(fullName)
                 .roles(EnumSet.of(role))
                 .emailVerified(true)
@@ -316,7 +391,7 @@ public class TestDataSeeder implements CommandLineRunner {
             } else {
                 user = User.builder()
                         .email(spec.email)
-                        .passwordHash(passwordEncoder.encode(DEFAULT_PASSWORD))
+                        .passwordHash(passwordEncoder.encode(INTERN_PASSWORD))
                         .fullName(spec.fullName)
                         .phoneNumber(spec.phone)
                         .roles(EnumSet.of(UserRole.INTERN))
@@ -630,11 +705,14 @@ public class TestDataSeeder implements CommandLineRunner {
             String dsoPhone
     ) {}
 
+    // Phase 8.3.3 — fresh identities under the `.demo` segment so the
+    // seeder can never collide with the prior failed aarav/priya/kavya
+    // .test rows that already hold those emails in the DB.
     private static final List<InternSpec> INTERN_SPECS = List.of(
             new InternSpec(
-                    "aarav.test@skyzen.test",
-                    "Aarav Sharma",
-                    "+1-555-0101",
+                    "rohan.demo@skyzen.test",
+                    "Rohan Mehta",
+                    "+1-555-0201",
                     3,
                     WorkAuthTrack.OTHER,
                     "US_CITIZEN",
@@ -644,9 +722,9 @@ public class TestDataSeeder implements CommandLineRunner {
                     "Excited to join a fast-moving full-stack team and ship features end-to-end.",
                     null, null, null),
             new InternSpec(
-                    "priya.test@skyzen.test",
-                    "Priya Patel",
-                    "+1-555-0102",
+                    "anjali.demo@skyzen.test",
+                    "Anjali Iyer",
+                    "+1-555-0202",
                     8,
                     WorkAuthTrack.OPT,
                     "F1_OPT",
@@ -656,9 +734,9 @@ public class TestDataSeeder implements CommandLineRunner {
                     "Looking forward to applying my ML coursework on real production data pipelines.",
                     null, null, null),
             new InternSpec(
-                    "kavya.test@skyzen.test",
-                    "Kavya Reddy",
-                    "+1-555-0103",
+                    "vikram.demo@skyzen.test",
+                    "Vikram Nair",
+                    "+1-555-0203",
                     14,
                     WorkAuthTrack.STEM_OPT,
                     "F1_STEM_OPT",
