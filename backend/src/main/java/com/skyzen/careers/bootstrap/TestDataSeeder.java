@@ -36,7 +36,6 @@ import org.springframework.core.annotation.Order;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
-import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -155,22 +154,25 @@ public class TestDataSeeder implements CommandLineRunner {
             return;
         }
 
-        int created = 0;
-        int skipped = 0;
+        int fullyReady = 0;
+        int failed = 0;
         for (InternSpec spec : INTERN_SPECS) {
+            ChainResult result;
             try {
-                Outcome outcome = seedIntern(spec, posting, erm, trainer, evaluator, manager);
-                if (outcome == Outcome.CREATED) created++;
-                else if (outcome == Outcome.SKIPPED) skipped++;
+                result = seedIntern(spec, posting, erm, trainer, evaluator, manager);
             } catch (Exception e) {
-                log.warn("{} Intern {} seed failed (non-fatal): {}",
+                log.warn("{} Intern {} seed unexpected failure (non-fatal): {}",
                         LOG_TAG, spec.email, e.getMessage(), e);
+                continue;
             }
+            log.info("{}   {}: {}", LOG_TAG, spec.fullName, result.summary());
+            if (result.isReady()) fullyReady++;
+            else failed++;
         }
 
-        log.info("{} Seed complete. {} created, {} pre-existing. "
-                + "{} interns ready in Pending Document Assignment tab.",
-                LOG_TAG, created, skipped, created + skipped);
+        log.info("{} Seed complete. {} fully ready in Pending Document "
+                + "Assignment tab, {} incomplete.",
+                LOG_TAG, fullyReady, failed);
     }
 
     // ── Supporting users + entity + posting ────────────────────────────────
@@ -241,180 +243,331 @@ public class TestDataSeeder implements CommandLineRunner {
                 });
     }
 
-    // ── Per-intern chain ────────────────────────────────────────────────────
+    // ── Per-intern chain (self-healing) ────────────────────────────────────
 
-    private enum Outcome { CREATED, SKIPPED }
+    private enum StepStatus { CREATED, EXISTING, FAILED, SKIPPED }
 
-    @Transactional
-    private Outcome seedIntern(InternSpec spec, JobPosting posting,
-                                User erm, User trainer, User evaluator, User manager) {
-        if (userRepository.findByEmail(spec.email).isPresent()) {
-            log.info("{}   intern {} ({}) → already exists, skipping",
-                    LOG_TAG, spec.fullName, spec.email);
-            return Outcome.SKIPPED;
+    /** Tracker for one intern's chain: which step landed CREATED vs
+     *  EXISTING vs FAILED. {@link #isReady()} checks the load-bearing
+     *  trio (User + InternLifecycle + reporting structure) since those
+     *  are what the Pending Document Assignment tab actually queries. */
+    private static final class ChainResult {
+        boolean ready;
+        final java.util.LinkedHashMap<String, StepStatus> steps =
+                new java.util.LinkedHashMap<>();
+        String failedAt;
+        String error;
+
+        void mark(String step, StepStatus s) { steps.put(step, s); }
+
+        void fail(String step, String msg) {
+            failedAt = step;
+            error = msg;
+            mark(step, StepStatus.FAILED);
         }
 
+        boolean isReady() { return ready; }
+
+        String summary() {
+            StringBuilder sb = new StringBuilder();
+            steps.forEach((k, v) -> {
+                sb.append(k).append(switch (v) {
+                    case CREATED -> "+";  // freshly created this run
+                    case EXISTING -> "✓"; // already there
+                    case FAILED -> "✗";
+                    case SKIPPED -> "-";
+                }).append(' ');
+            });
+            if (failedAt != null) {
+                sb.append("— FAILED at ").append(failedAt).append(": ").append(error);
+            } else if (ready) {
+                sb.append("— ready");
+            } else {
+                sb.append("— incomplete");
+            }
+            return sb.toString().trim();
+        }
+    }
+
+    /**
+     * Walk the full chain top-down; for each step, find or create the row
+     * and record the step status. A failure on any step logs + breaks the
+     * chain, but rows committed by earlier steps stay in place so the next
+     * boot can pick up where this run left off. No surrounding
+     * {@code @Transactional} — each repository.save() commits on its own.
+     */
+    private ChainResult seedIntern(InternSpec spec, JobPosting posting,
+                                    User erm, User trainer, User evaluator, User manager) {
+        ChainResult result = new ChainResult();
         Instant now = Instant.now();
         Instant appliedAt = now.minus(30, ChronoUnit.DAYS);
         Instant interviewedAt = now.minus(21, ChronoUnit.DAYS);
         Instant offerSentAt = now.minus(14, ChronoUnit.DAYS);
         Instant signedAt = now.minus(spec.signedDaysAgo, ChronoUnit.DAYS);
-
-        // 1) User row — already at EMPLOYEE_ID_CREATED lifecycle status.
-        String employeeId = nextEmployeeId();
-        User user = User.builder()
-                .email(spec.email)
-                .passwordHash(passwordEncoder.encode(DEFAULT_PASSWORD))
-                .fullName(spec.fullName)
-                .phoneNumber(spec.phone)
-                .roles(EnumSet.of(UserRole.INTERN))
-                .emailVerified(true)
-                .active(true)
-                .applicantId(nextApplicantId())
-                .applicantIdCreatedAt(appliedAt)
-                .employeeId(employeeId)
-                .lifecycleStatus(InternLifecycleStatus.EMPLOYEE_ID_CREATED)
-                .build();
-        user = userRepository.save(user);
-
-        // 2) Candidate row — work auth + education metadata.
-        Candidate candidate = Candidate.builder()
-                .user(user)
-                .legalName(spec.fullName)
-                .preferredName(spec.fullName.split(" ")[0])
-                .school(spec.school)
-                .degree(spec.degree)
-                .education(spec.degree + ", " + spec.school)
-                .skillset(spec.skillset)
-                .authorizedToWork(Boolean.TRUE)
-                .sponsorshipNeeded(spec.workAuthTrack != WorkAuthTrack.OTHER)
-                .expectedTrack(spec.workAuthTrack)
-                .build();
-        candidate = candidateRepository.save(candidate);
-
-        // 3) Application — saved first with default applied_at = now()
-        //    (JPA @PrePersist), then back-dated via raw UPDATE.
-        Application app = Application.builder()
-                .candidate(candidate)
-                .jobPosting(posting)
-                // Post-offer status: ACCEPTED is the live value. HIRED /
-                // ONBOARDING / ACTIVE / COMPLETED on this enum are
-                // @Deprecated — Engagement.status owns post-offer state now.
-                .status(ApplicationStatus.ACCEPTED)
-                .statementOfInterest(spec.statementOfInterest)
-                .ermOwnerId(erm.getId())
-                .lastDecisionReasonCode("SELECTED")
-                .lastDecisionAt(interviewedAt)
-                .lastDecisionById(erm.getId())
-                .recruiterRating(8)
-                .build();
-        app = applicationRepository.save(app);
-        backdate("applications", "applied_at", app.getId(), appliedAt);
-        backdate("applications", "status_updated_at", app.getId(), signedAt);
-
-        // 4) Interview — COMPLETED + SELECTED with realistic feedback.
-        //    NOTE: Interview.createdBy is NOT NULL at the DB level (no
-        //    default, no @CreationTimestamp). Phase 8.3.1 fix.
-        Interview interview = Interview.builder()
-                .application(app)
-                .interviewer(erm)
-                .scheduledAt(interviewedAt)
-                .durationMinutes(60)
-                .type(InterviewType.TECHNICAL)
-                .status(InterviewStatus.COMPLETED)
-                .timezone("America/Chicago")
-                .createdBy(erm.getId())
-                .decision("SELECTED")
-                .feedbackOverallRating(8)
-                .feedbackTechnicalRating(8)
-                .feedbackCommunicationRating(8)
-                .feedbackProblemSolvingRating(8)
-                .feedbackStrengths("Strong fundamentals; thoughtful trade-off discussion.")
-                .feedbackComments("Recommended for offer. Good cultural fit.")
-                .feedbackRecommendation(InterviewRecommendation.HIRE)
-                .feedbackSubmittedAt(interviewedAt.plus(2, ChronoUnit.HOURS))
-                .feedbackSubmittedBy(erm.getId())
-                .applicantVisibleNotes("Thanks for the great conversation!")
-                .technicalScore(8)
-                .communicationScore(8)
-                .culturalFitScore(8)
-                .overallRecommendation("HIRE")
-                .build();
-        interview = interviewRepository.save(interview);
-
-        // 5) Offer — SIGNED via simulated DocuSign envelope.
-        String envelopeId = "test-envelope-" + slugify(spec.fullName) + "-" + signedAt.getEpochSecond();
         LocalDate startDate = LocalDate.now().plus(14, ChronoUnit.DAYS);
-        Offer offer = Offer.builder()
-                .application(app)
-                .compensationAmount(new BigDecimal("28.50"))
-                .compensationFrequency(CompensationFrequency.HOURLY)
-                .compensationCurrency("USD")
-                .startDate(startDate)
-                .expectedEndDate(startDate.plusMonths(12))
-                .expiresAt(offerSentAt.plus(30, ChronoUnit.DAYS))
-                .status(OfferStatus.SIGNED)
-                .letterContent("Seeded test offer for " + spec.fullName + ". Not a real employment offer.")
-                .createdBy(erm.getId())
-                .sentAt(offerSentAt)
-                .respondedAt(signedAt)
-                .signedAt(signedAt)
-                .docusignEnvelopeId(envelopeId)
-                .roleTitle("Java Full Stack Developer Intern")
-                .compensationSummary("$28.50 / hr")
-                .worksite("Remote (US)")
-                .expectedHoursPerWeek(40)
-                .build();
-        offer = offerRepository.save(offer);
 
-        // 6) InternLifecycle — PROSPECTIVE + reporting structure complete +
-        //    no document packet. Hired_at backdated to the signed moment so
-        //    the "signed > 7d ago" urgent KPI math matches.
-        InternLifecycle lc = InternLifecycle.builder()
-                .userId(user.getId())
-                .employeeId(employeeId)
-                .activeStatus("PROSPECTIVE")
-                .ermId(erm.getId())
-                .trainerId(trainer.getId())
-                .evaluatorId(evaluator.getId())
-                .managerId(manager.getId())
-                .hiredAt(signedAt)
-                .tentativeStartDate(startDate)
-                .reportingStructureComplete(Boolean.TRUE)
-                .reportingStructureCompletedAt(signedAt.plus(1, ChronoUnit.HOURS))
-                .reportingStructureCompletedById(erm.getId())
-                .build();
-        lc = lifecycleRepository.save(lc);
-        // hired_at, reporting_structure_completed_at, created_at all default
-        // to NOW() via @PrePersist on InternLifecycle. Back-date them so the
-        // Phase 8.2 "signed > 7d ago" urgent gate fires as the spec demands.
-        backdate("intern_lifecycles", "hired_at", lc.getId(), signedAt);
-        backdate("intern_lifecycles", "reporting_structure_completed_at",
-                lc.getId(), signedAt.plus(1, ChronoUnit.HOURS));
-        backdate("intern_lifecycles", "created_at", lc.getId(), signedAt);
+        // 1) User
+        User user;
+        try {
+            Optional<User> existing = userRepository.findByEmail(spec.email);
+            if (existing.isPresent()) {
+                user = existing.get();
+                result.mark("User", StepStatus.EXISTING);
+            } else {
+                user = User.builder()
+                        .email(spec.email)
+                        .passwordHash(passwordEncoder.encode(DEFAULT_PASSWORD))
+                        .fullName(spec.fullName)
+                        .phoneNumber(spec.phone)
+                        .roles(EnumSet.of(UserRole.INTERN))
+                        .emailVerified(true)
+                        .active(true)
+                        .applicantId(nextApplicantId())
+                        .applicantIdCreatedAt(appliedAt)
+                        .employeeId(nextEmployeeId())
+                        .lifecycleStatus(InternLifecycleStatus.EMPLOYEE_ID_CREATED)
+                        .build();
+                user = userRepository.save(user);
+                result.mark("User", StepStatus.CREATED);
+            }
+        } catch (Exception e) {
+            result.fail("User", e.getMessage());
+            return result;
+        }
 
-        // 7) WorkAuthorizationRecord — needed for the Compliance Tracker
-        //    KPI math; sensitivity to work_auth_type from the spec.
-        WorkAuthorizationRecord war = WorkAuthorizationRecord.builder()
-                .userId(user.getId())
-                .workAuthType(spec.workAuthType)
-                .authorizedFrom(LocalDate.now().minusMonths(2))
-                .authorizedUntil(LocalDate.now().plusYears(2))
-                .i983Required(spec.workAuthTrack == WorkAuthTrack.STEM_OPT)
-                .dsoName(spec.dsoName)
-                .dsoEmail(spec.dsoEmail)
-                .dsoPhone(spec.dsoPhone)
-                .lastUpdatedAt(now)
-                .lastUpdatedById(erm.getId())
-                .build();
-        workAuthRepository.save(war);
+        // 2) Candidate
+        Candidate candidate;
+        try {
+            Optional<Candidate> existing = candidateRepository.findByUserId(user.getId());
+            if (existing.isPresent()) {
+                candidate = existing.get();
+                result.mark("Candidate", StepStatus.EXISTING);
+            } else {
+                candidate = Candidate.builder()
+                        .user(user)
+                        .legalName(spec.fullName)
+                        .preferredName(spec.fullName.split(" ")[0])
+                        .school(spec.school)
+                        .degree(spec.degree)
+                        .education(spec.degree + ", " + spec.school)
+                        .skillset(spec.skillset)
+                        .authorizedToWork(Boolean.TRUE)
+                        .sponsorshipNeeded(spec.workAuthTrack != WorkAuthTrack.OTHER)
+                        .expectedTrack(spec.workAuthTrack)
+                        .build();
+                candidate = candidateRepository.save(candidate);
+                result.mark("Candidate", StepStatus.CREATED);
+            }
+        } catch (Exception e) {
+            result.fail("Candidate", e.getMessage());
+            return result;
+        }
 
-        log.info("{}   Created intern {} ({}) → lifecycle={}, employeeId={}, "
-                + "signed {}d ago, ready for document packet assignment",
-                LOG_TAG, spec.fullName, spec.email,
-                lc.getId(), employeeId, spec.signedDaysAgo);
-        return Outcome.CREATED;
+        // 3) Application — find by (candidate_id, posting_id) since
+        //    applications has UNIQUE on that pair.
+        Application app;
+        try {
+            final Candidate candFinal = candidate;
+            Optional<Application> existing = applicationRepository
+                    .findByCandidateId(candFinal.getId()).stream()
+                    .filter(a -> a.getJobPosting() != null
+                            && posting.getId().equals(a.getJobPosting().getId()))
+                    .findFirst();
+            if (existing.isPresent()) {
+                app = existing.get();
+                result.mark("Application", StepStatus.EXISTING);
+            } else {
+                app = Application.builder()
+                        .candidate(candidate)
+                        .jobPosting(posting)
+                        // ACCEPTED is the live post-offer status; HIRED /
+                        // ONBOARDING / ACTIVE / COMPLETED on this enum are
+                        // @Deprecated — Engagement.status owns post-offer.
+                        .status(ApplicationStatus.ACCEPTED)
+                        .statementOfInterest(spec.statementOfInterest)
+                        .ermOwnerId(erm.getId())
+                        .lastDecisionReasonCode("SELECTED")
+                        .lastDecisionAt(interviewedAt)
+                        .lastDecisionById(erm.getId())
+                        .recruiterRating(8)
+                        .build();
+                app = applicationRepository.save(app);
+                backdate("applications", "applied_at", app.getId(), appliedAt);
+                backdate("applications", "status_updated_at", app.getId(), signedAt);
+                result.mark("Application", StepStatus.CREATED);
+            }
+        } catch (Exception e) {
+            result.fail("Application", e.getMessage());
+            return result;
+        }
+
+        // 4) Interview — find any interview for the application; create if
+        //    the chain is missing one. createdBy is NOT NULL (Phase 8.3.1).
+        try {
+            List<Interview> existing = interviewRepository
+                    .findByApplicationIdOrderByScheduledAtDesc(app.getId());
+            if (!existing.isEmpty()) {
+                result.mark("Interview", StepStatus.EXISTING);
+            } else {
+                Interview interview = Interview.builder()
+                        .application(app)
+                        .interviewer(erm)
+                        .scheduledAt(interviewedAt)
+                        .durationMinutes(60)
+                        .type(InterviewType.TECHNICAL)
+                        .status(InterviewStatus.COMPLETED)
+                        .timezone("America/Chicago")
+                        .createdBy(erm.getId())
+                        .decision("SELECTED")
+                        .feedbackOverallRating(8)
+                        .feedbackTechnicalRating(8)
+                        .feedbackCommunicationRating(8)
+                        .feedbackProblemSolvingRating(8)
+                        .feedbackStrengths("Strong fundamentals; thoughtful trade-off discussion.")
+                        .feedbackComments("Recommended for offer. Good cultural fit.")
+                        .feedbackRecommendation(InterviewRecommendation.HIRE)
+                        .feedbackSubmittedAt(interviewedAt.plus(2, ChronoUnit.HOURS))
+                        .feedbackSubmittedBy(erm.getId())
+                        .applicantVisibleNotes("Thanks for the great conversation!")
+                        .technicalScore(8)
+                        .communicationScore(8)
+                        .culturalFitScore(8)
+                        .overallRecommendation("HIRE")
+                        .build();
+                interviewRepository.save(interview);
+                result.mark("Interview", StepStatus.CREATED);
+            }
+        } catch (Exception e) {
+            result.fail("Interview", e.getMessage());
+            return result;
+        }
+
+        // 5) Offer — find any offer for the application; create if missing.
+        try {
+            List<Offer> existing = offerRepository
+                    .findByApplicationIdOrderByCreatedAtDesc(app.getId());
+            if (!existing.isEmpty()) {
+                result.mark("Offer", StepStatus.EXISTING);
+            } else {
+                String envelopeId = "test-envelope-" + slugify(spec.fullName)
+                        + "-" + signedAt.getEpochSecond();
+                Offer offer = Offer.builder()
+                        .application(app)
+                        .compensationAmount(new BigDecimal("28.50"))
+                        .compensationFrequency(CompensationFrequency.HOURLY)
+                        .compensationCurrency("USD")
+                        .startDate(startDate)
+                        .expectedEndDate(startDate.plusMonths(12))
+                        .expiresAt(offerSentAt.plus(30, ChronoUnit.DAYS))
+                        .status(OfferStatus.SIGNED)
+                        .letterContent("Seeded test offer for " + spec.fullName
+                                + ". Not a real employment offer.")
+                        .createdBy(erm.getId())
+                        .sentAt(offerSentAt)
+                        .respondedAt(signedAt)
+                        .signedAt(signedAt)
+                        .docusignEnvelopeId(envelopeId)
+                        .roleTitle("Java Full Stack Developer Intern")
+                        .compensationSummary("$28.50 / hr")
+                        .worksite("Remote (US)")
+                        .expectedHoursPerWeek(40)
+                        .build();
+                offerRepository.save(offer);
+                result.mark("Offer", StepStatus.CREATED);
+            }
+        } catch (Exception e) {
+            result.fail("Offer", e.getMessage());
+            return result;
+        }
+
+        // 6) InternLifecycle — the load-bearing row. If User exists but
+        //    Lifecycle does not (the prior-failure mode this phase fixes),
+        //    we build it here and the New Hire List Pending tab lights up.
+        InternLifecycle lc;
+        try {
+            Optional<InternLifecycle> existing =
+                    lifecycleRepository.findByUserId(user.getId());
+            if (existing.isPresent()) {
+                lc = existing.get();
+                result.mark("InternLifecycle", StepStatus.EXISTING);
+            } else {
+                // Mint a fresh employee_id for the lifecycle row, but reuse
+                // the user's existing employee_id if it's already set —
+                // some chains have the user.employee_id stamped from an
+                // earlier partial run.
+                String employeeId = user.getEmployeeId() != null
+                        ? user.getEmployeeId() : nextEmployeeId();
+                if (user.getEmployeeId() == null) {
+                    user.setEmployeeId(employeeId);
+                    userRepository.save(user);
+                }
+                lc = InternLifecycle.builder()
+                        .userId(user.getId())
+                        .employeeId(employeeId)
+                        .activeStatus("PROSPECTIVE")
+                        .ermId(erm.getId())
+                        .trainerId(trainer.getId())
+                        .evaluatorId(evaluator.getId())
+                        .managerId(manager.getId())
+                        .hiredAt(signedAt)
+                        .tentativeStartDate(startDate)
+                        .reportingStructureComplete(Boolean.TRUE)
+                        .reportingStructureCompletedAt(signedAt.plus(1, ChronoUnit.HOURS))
+                        .reportingStructureCompletedById(erm.getId())
+                        .build();
+                lc = lifecycleRepository.save(lc);
+                // hired_at, reporting_structure_completed_at, created_at
+                // default to NOW() via @PrePersist. Back-date so the
+                // "signed > 7d ago" urgent KPI math matches the spec.
+                backdate("intern_lifecycles", "hired_at", lc.getId(), signedAt);
+                backdate("intern_lifecycles", "reporting_structure_completed_at",
+                        lc.getId(), signedAt.plus(1, ChronoUnit.HOURS));
+                backdate("intern_lifecycles", "created_at", lc.getId(), signedAt);
+                result.mark("InternLifecycle", StepStatus.CREATED);
+            }
+        } catch (Exception e) {
+            result.fail("InternLifecycle", e.getMessage());
+            return result;
+        }
+
+        // 7) WorkAuthorizationRecord — non-load-bearing for the Pending tab,
+        //    but needed for the Compliance Tracker KPIs.
+        try {
+            Optional<WorkAuthorizationRecord> existing =
+                    workAuthRepository.findByUserId(user.getId());
+            if (existing.isPresent()) {
+                result.mark("WorkAuth", StepStatus.EXISTING);
+            } else {
+                WorkAuthorizationRecord war = WorkAuthorizationRecord.builder()
+                        .userId(user.getId())
+                        .workAuthType(spec.workAuthType)
+                        .authorizedFrom(LocalDate.now().minusMonths(2))
+                        .authorizedUntil(LocalDate.now().plusYears(2))
+                        .i983Required(spec.workAuthTrack == WorkAuthTrack.STEM_OPT)
+                        .dsoName(spec.dsoName)
+                        .dsoEmail(spec.dsoEmail)
+                        .dsoPhone(spec.dsoPhone)
+                        .lastUpdatedAt(now)
+                        .lastUpdatedById(erm.getId())
+                        .build();
+                workAuthRepository.save(war);
+                result.mark("WorkAuth", StepStatus.CREATED);
+            }
+        } catch (Exception e) {
+            // WorkAuth failure is non-blocking for the Pending tab — log
+            // and continue marking the chain ready.
+            result.fail("WorkAuth", e.getMessage());
+            log.warn("{}     WorkAuth failed (non-blocking) for {}: {}",
+                    LOG_TAG, spec.email, e.getMessage());
+        }
+
+        // Ready = User + Lifecycle present. WorkAuth is nice-to-have.
+        result.ready = result.steps.get("User") != StepStatus.FAILED
+                && result.steps.get("InternLifecycle") != null
+                && result.steps.get("InternLifecycle") != StepStatus.FAILED;
+        return result;
     }
+
 
     // ── Helpers ─────────────────────────────────────────────────────────────
 
