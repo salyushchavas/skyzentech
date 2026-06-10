@@ -1,11 +1,6 @@
 'use client';
 
-// useSearchParams forces this auth-gated dashboard page out of static
-// prerendering at build time. Marked dynamic explicitly so Vercel skips
-// the prerender step instead of erroring.
-export const dynamic = 'force-dynamic';
-
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import api from '@/lib/api';
@@ -30,7 +25,17 @@ const STAGE_FILTERS: { key: string; label: string }[] = [
   { key: 'WITHDRAWN', label: 'Withdrawn' },
 ];
 
+// useSearchParams is unsafe outside <Suspense> during static prerendering.
+// Wrap the inner reader so Next 14 build doesn't bail.
 export default function ApplicationInboxPage() {
+  return (
+    <Suspense fallback={null}>
+      <ApplicationInboxPageInner />
+    </Suspense>
+  );
+}
+
+function ApplicationInboxPageInner() {
   const sp = useSearchParams();
   const initialStage = sp?.get('stage') ?? '';
   const [stage, setStage] = useState<string>(initialStage);
