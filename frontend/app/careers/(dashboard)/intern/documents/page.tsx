@@ -119,27 +119,24 @@ function TaskCard({ task, onChanged }: {
   const [uploading, setUploading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
-  async function download() {
-    try {
-      const res = await api.get<Blob>(
-        `/api/v1/intern/documents/tasks/${task.taskId}/download`,
-        { responseType: 'blob' },
-      );
-      const url = URL.createObjectURL(res.data);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = task.templateTitle;
-      a.click();
-      URL.revokeObjectURL(url);
-    } catch (e) {
-      const ax = e as { response?: { data?: { error?: string } }; message?: string };
-      setErr(ax.response?.data?.error ?? ax.message ?? 'Download failed');
-    }
-  }
-
   async function upload(file: File) {
-    setUploading(true);
     setErr(null);
+    // ERM Phase 8.2 — strict client-side PDF check, mirroring the
+    // server gate. Some browsers leave file.type empty for older PDFs,
+    // so we also check the filename extension.
+    const filename = file.name.toLowerCase();
+    const isPdfMime = file.type === 'application/pdf';
+    const isPdfName = filename.endsWith('.pdf');
+    if (!isPdfMime && !isPdfName) {
+      setErr('Only PDF files are accepted. Scan all filled pages into a '
+        + 'single PDF using your phone\'s scanner app, then upload that PDF.');
+      return;
+    }
+    if (file.size > 10 * 1024 * 1024) {
+      setErr('File exceeds 10 MB limit.');
+      return;
+    }
+    setUploading(true);
     try {
       const fd = new FormData();
       fd.append('file', file);
@@ -156,6 +153,7 @@ function TaskCard({ task, onChanged }: {
   const showReviewerComments =
     (task.status === 'REJECTED' || task.status === 'RESEND_REQUESTED')
     && task.reviewComments;
+  const canUpload = task.status !== 'ACCEPTED' && task.status !== 'WAIVED';
 
   return (
     <section className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
@@ -168,8 +166,20 @@ function TaskCard({ task, onChanged }: {
           {task.description && (
             <p className="mt-1 text-xs text-slate-600">{task.description}</p>
           )}
+          <p className="mt-2 rounded-md bg-slate-50 p-2 text-xs text-slate-700">
+            <strong className="block">How to complete this document:</strong>
+            <span className="mt-1 block">
+              1. Download the PDF below.<br />
+              2. Print the PDF and fill it out by hand (blue or black pen).<br />
+              3. Use your phone&apos;s scanner app (Adobe Scan, Microsoft Lens,
+              or your built-in Notes scanner) to scan all filled pages into a
+              single PDF.<br />
+              4. Upload the scanned PDF here.
+            </span>
+          </p>
           {task.taskInstructions && (
-            <p className="mt-2 whitespace-pre-wrap rounded-md bg-slate-50 p-2 text-xs text-slate-700">
+            <p className="mt-2 whitespace-pre-wrap rounded-md border border-amber-200 bg-amber-50 p-2 text-xs text-amber-900">
+              <strong className="block">Note from your ERM agent:</strong>
               {task.taskInstructions}
             </p>
           )}
@@ -187,20 +197,26 @@ function TaskCard({ task, onChanged }: {
         </div>
 
         <div className="flex shrink-0 flex-col gap-2">
-          <button
-            type="button"
-            onClick={download}
-            className="inline-flex items-center justify-center gap-1 rounded-md border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-700"
-          >
-            <Download className="h-3.5 w-3.5" /> Download template
-          </button>
+          {task.templatePublicUrl ? (
+            <a
+              href={task.templatePublicUrl}
+              target="_blank"
+              rel="noreferrer"
+              download
+              className="inline-flex items-center justify-center gap-1 rounded-md border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
+            >
+              <Download className="h-3.5 w-3.5" /> Download template
+            </a>
+          ) : (
+            <span className="text-[11px] text-rose-700">Template unavailable</span>
+          )}
 
-          {task.status !== 'ACCEPTED' && task.status !== 'WAIVED' && (
+          {canUpload && (
             <>
               <input
                 ref={fileRef}
                 type="file"
-                accept="application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,image/jpeg,image/png"
+                accept="application/pdf,.pdf"
                 onChange={(e) => {
                   const f = e.target.files?.[0];
                   if (f) void upload(f);
@@ -215,8 +231,9 @@ function TaskCard({ task, onChanged }: {
                 className="inline-flex items-center justify-center gap-1 rounded-md bg-teal-700 px-3 py-1.5 text-xs font-semibold text-white hover:bg-teal-800 disabled:bg-slate-300"
               >
                 <Upload className="h-3.5 w-3.5" />
-                {uploading ? 'Uploading…' : task.submittedAt ? 'Replace upload' : 'Upload filled'}
+                {uploading ? 'Uploading…' : task.submittedAt ? 'Replace upload' : 'Upload filled PDF'}
               </button>
+              <p className="text-[10px] text-slate-500">PDF only · max 10 MB</p>
             </>
           )}
         </div>

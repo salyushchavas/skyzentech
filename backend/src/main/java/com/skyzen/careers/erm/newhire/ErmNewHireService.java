@@ -64,10 +64,19 @@ public class ErmNewHireService {
         List<Object> params = new ArrayList<>();
         if ("pending".equalsIgnoreCase(tab)) {
             where.append(" AND il.reporting_structure_complete = FALSE ");
-        } else if ("ready".equalsIgnoreCase(tab)) {
+        } else if ("ready".equalsIgnoreCase(tab)
+                || "pending-document-assignment".equalsIgnoreCase(tab)) {
+            // ERM Phase 8.2 — interns waiting for ERM to send their docs:
+            // reporting structure complete + no non-terminal packet.
             where.append(" AND il.reporting_structure_complete = TRUE "
-                    + " AND NOT EXISTS (SELECT 1 FROM onboarding_packets pk "
-                    + "                   WHERE pk.intern_lifecycle_id = il.id) ");
+                    + " AND NOT EXISTS (SELECT 1 FROM document_packets pk "
+                    + "                   WHERE pk.intern_lifecycle_id = il.id "
+                    + "                     AND pk.status NOT IN ('COMPLETED','CANCELLED')) ");
+        } else if ("in-progress".equalsIgnoreCase(tab)) {
+            // Packet assigned, intern actively filling / ERM actively reviewing.
+            where.append(" AND EXISTS (SELECT 1 FROM document_packets pk "
+                    + "                   WHERE pk.intern_lifecycle_id = il.id "
+                    + "                     AND pk.status IN ('ASSIGNED','IN_PROGRESS','ALL_SUBMITTED')) ");
         }
         String base = "FROM intern_lifecycles il "
                 + "JOIN users u ON u.id = il.user_id "
@@ -88,7 +97,7 @@ public class ErmNewHireService {
                 + "u.full_name AS intern_name, u.email AS intern_email, "
                 + "t.full_name AS trainer_name, ev.full_name AS evaluator_name, "
                 + "m.full_name AS manager_name, "
-                + "EXISTS (SELECT 1 FROM onboarding_packets pk "
+                + "EXISTS (SELECT 1 FROM document_packets pk "
                 + "          WHERE pk.intern_lifecycle_id = il.id) AS onboarding_assigned "
                 + base + where
                 + " ORDER BY il.hired_at DESC "
@@ -137,7 +146,7 @@ public class ErmNewHireService {
         boolean onboardingAssigned = false;
         try {
             Long v = jdbc.queryForObject(
-                    "SELECT COUNT(*) FROM onboarding_packets WHERE intern_lifecycle_id = ?",
+                    "SELECT COUNT(*) FROM document_packets WHERE intern_lifecycle_id = ?",
                     Long.class, lc.getId());
             onboardingAssigned = v != null && v > 0;
         } catch (Exception ignored) {}

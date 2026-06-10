@@ -5,58 +5,27 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
-/** ERM Phase 8 — DTO surface for the document-template library +
- *  per-intern packet workflow + intern document page. */
+/**
+ * ERM Phase 8.2 — DTO surface for the document-packet workflow + intern
+ * documents page. The previous template-management types (DocumentTemplateDto
+ * + Create/UpdateTemplateRequest + the DocumentTemplatePage list page) are
+ * gone — templates are now the static {@link SkyzenDocument} enum, served
+ * from {@code frontend/public/document-templates/}.
+ */
 public final class DocumentDtos {
 
     private DocumentDtos() {}
 
-    // ── Templates ────────────────────────────────────────────────────────
-
-    public record DocumentTemplateDto(
-            UUID id,
-            String title,
-            String description,
-            String category,
-            String fileKind,
-            String sensitivity,
-            Integer version,
-            UUID templateFileId,
-            String templateFileName,
-            Long templateFileSize,
-            UUID previousVersionFileId,
-            Boolean isActive,
-            String instructions,
-            UUID createdById,
-            String createdByName,
-            Instant createdAt,
-            Instant updatedAt,
-            long usageCount               // # active packets/tasks referencing this template
-    ) {}
-
-    public record DocumentTemplatePage(
-            List<DocumentTemplateDto> items,
-            int page, int pageSize, long totalElements, int totalPages
-    ) {}
-
-    public record CreateTemplateRequest(
-            String title, String description, String category, String fileKind,
-            String sensitivity, String instructions
-    ) {}
-
-    public record UpdateTemplateRequest(
-            String description, String category, String fileKind,
-            String sensitivity, String instructions
-    ) {}
-
-    // ── Packets ──────────────────────────────────────────────────────────
+    // ── Assign packet ───────────────────────────────────────────────────
 
     public record AssignPacketRequest(
             UUID internLifecycleId,
-            List<UUID> selectedTemplateIds,
+            List<SkyzenDocument> selectedDocumentKeys,
             String customInstructions,
-            Map<UUID, String> perTemplateInstructions
+            Map<SkyzenDocument, String> perDocumentInstructions
     ) {}
+
+    // ── Packets ─────────────────────────────────────────────────────────
 
     public record DocumentPacketRow(
             UUID packetId,
@@ -82,9 +51,11 @@ public final class DocumentDtos {
 
     public record TaskSummary(
             UUID taskId,
-            UUID templateId,
+            SkyzenDocument documentKey,
             String templateTitle,
             String category,
+            String sensitivity,
+            String templatePublicUrl,
             String status,
             Integer version,
             Instant submittedAt,
@@ -123,6 +94,7 @@ public final class DocumentDtos {
             UUID internLifecycleId,
             UUID internUserId,
             String internName,
+            SkyzenDocument documentKey,
             String templateTitle,
             String category,
             String status,
@@ -151,15 +123,14 @@ public final class DocumentDtos {
     public record DocumentTaskDetail(
             UUID taskId,
             UUID packetId,
-            UUID templateId,
+            SkyzenDocument documentKey,
             String templateTitle,
             String category,
-            String fileKind,
             String sensitivity,
+            String templatePublicUrl,
             String status,
             Integer version,
             String taskInstructions,
-            UUID templateSnapshotFileId,
             UUID uploadedFileId,
             String uploadedFileName,
             Long uploadedFileSize,
@@ -208,19 +179,20 @@ public final class DocumentDtos {
 
     public record InternTaskView(
             UUID taskId,
-            UUID templateId,
+            SkyzenDocument documentKey,
             String templateTitle,
             String description,
             String category,
-            String fileKind,
+            String sensitivity,
+            String templatePublicUrl,
             String status,
             Integer version,
             String taskInstructions,
-            UUID templateSnapshotFileId,
             Instant submittedAt,
             Instant reviewedAt,
             String reviewReasonCode,         // OK to expose — used to render "Reason: X" label
-            String reviewComments            // shown verbatim
+            String reviewComments,           // shown verbatim
+            String uploadedFileName
     ) {}
 
     public record InternPacketView(

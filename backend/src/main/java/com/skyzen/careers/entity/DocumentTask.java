@@ -1,5 +1,6 @@
 package com.skyzen.careers.entity;
 
+import com.skyzen.careers.erm.documents.SkyzenDocument;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -7,11 +8,13 @@ import java.time.Instant;
 import java.util.UUID;
 
 /**
- * ERM Phase 8 — one row per (packet, template) combo. Frozen at
- * assignment time: {@code template_snapshot_file_id} +
- * {@code template_snapshot_version} preserve which version of the
- * template the intern was issued, so a later template update doesn't
- * invalidate in-flight tasks.
+ * ERM Phase 8.2 — one row per (packet, SkyzenDocument) combo. The
+ * blank PDF the intern downloads lives as a static asset at
+ * {@code /document-templates/{filename}} — no per-task snapshot column
+ * needed since the file is committed to the repo (versioned by git,
+ * cacheable by CDN). The intern's filled-in upload still flows through
+ * {@link com.skyzen.careers.intern.DocumentVaultService} with the
+ * sensitivity tag carried over from {@link SkyzenDocument}.
  *
  * <p>Lifecycle: {@code PENDING → SUBMITTED → UNDER_REVIEW → ACCEPTED |
  * REJECTED | RESEND_REQUESTED}; {@code WAIVED} is the SUPER_ADMIN
@@ -20,8 +23,8 @@ import java.util.UUID;
 @Entity
 @Table(name = "document_tasks",
         uniqueConstraints = @UniqueConstraint(
-                name = "uq_document_tasks_packet_template",
-                columnNames = {"packet_id", "template_id"}),
+                name = "uq_document_tasks_packet_document_key",
+                columnNames = {"packet_id", "document_key"}),
         indexes = {
                 @Index(name = "idx_document_tasks_packet_status",
                         columnList = "packet_id, status"),
@@ -44,14 +47,11 @@ public class DocumentTask {
     @Column(name = "packet_id", nullable = false)
     private UUID packetId;
 
-    @Column(name = "template_id")
-    private UUID templateId;
-
-    @Column(name = "template_snapshot_file_id")
-    private UUID templateSnapshotFileId;
-
-    @Column(name = "template_snapshot_version")
-    private Integer templateSnapshotVersion;
+    /** ERM Phase 8.2 — replaces template_id + snapshot columns.
+     *  Persisted as VARCHAR via {@link EnumType#STRING}. */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "document_key", nullable = false, length = 80)
+    private SkyzenDocument documentKey;
 
     @Column(name = "task_instructions", columnDefinition = "TEXT")
     private String taskInstructions;

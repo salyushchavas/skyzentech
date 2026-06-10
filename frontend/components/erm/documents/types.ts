@@ -1,35 +1,9 @@
-// ERM Phase 8 — DTO mirrors of the Java records in
-// com.skyzen.careers.erm.documents.DocumentDtos. Field names match the JSON
-// keys (which match the Java record component names).
+// ERM Phase 8.2 — mirrors of com.skyzen.careers.erm.documents.DocumentDtos.
+// All template-management types are gone — the 13 docs live in
+// `lib/skyzen-documents.ts` and the backend exposes a `documentKey` (the
+// SkyzenDocument enum name) + `templatePublicUrl` on every task DTO.
 
-export type DocumentTemplateDto = {
-  id: string;
-  title: string;
-  description: string | null;
-  category: string | null;
-  fileKind: string | null;
-  sensitivity: string | null;
-  version: number;
-  templateFileId: string | null;
-  templateFileName: string | null;
-  templateFileSize: number | null;
-  previousVersionFileId: string | null;
-  isActive: boolean;
-  instructions: string | null;
-  createdById: string | null;
-  createdByName: string | null;
-  createdAt: string;
-  updatedAt: string;
-  usageCount: number;
-};
-
-export type DocumentTemplatePage = {
-  items: DocumentTemplateDto[];
-  page: number;
-  pageSize: number;
-  totalElements: number;
-  totalPages: number;
-};
+import type { SkyzenDocumentKey } from '@/lib/skyzen-documents';
 
 export type PacketStatus =
   | 'DRAFT'
@@ -75,9 +49,11 @@ export type DocumentPacketListPage = {
 
 export type TaskSummary = {
   taskId: string;
-  templateId: string;
+  documentKey: SkyzenDocumentKey | null;
   templateTitle: string;
   category: string | null;
+  sensitivity: string | null;
+  templatePublicUrl: string | null;
   status: TaskStatus;
   version: number | null;
   submittedAt: string | null;
@@ -114,6 +90,7 @@ export type DocumentTaskRow = {
   internLifecycleId: string | null;
   internUserId: string | null;
   internName: string | null;
+  documentKey: SkyzenDocumentKey | null;
   templateTitle: string;
   category: string | null;
   status: TaskStatus;
@@ -145,15 +122,14 @@ export type ReviewEventEntry = {
 export type DocumentTaskDetail = {
   taskId: string;
   packetId: string;
-  templateId: string;
+  documentKey: SkyzenDocumentKey | null;
   templateTitle: string;
   category: string | null;
-  fileKind: string | null;
   sensitivity: string | null;
+  templatePublicUrl: string | null;
   status: TaskStatus;
   version: number | null;
   taskInstructions: string | null;
-  templateSnapshotFileId: string | null;
   uploadedFileId: string | null;
   uploadedFileName: string | null;
   uploadedFileSize: number | null;
@@ -184,9 +160,9 @@ export type ReasonCodeGroup = {
 
 export type AssignPacketRequest = {
   internLifecycleId: string;
-  selectedTemplateIds: string[];
+  selectedDocumentKeys: SkyzenDocumentKey[];
   customInstructions?: string | null;
-  perTemplateInstructions?: Record<string, string> | null;
+  perDocumentInstructions?: Partial<Record<SkyzenDocumentKey, string>> | null;
 };
 
 export type ReviewTaskRequest = {
@@ -210,23 +186,25 @@ export type BulkReviewResult = {
   skippedReasons: { taskId: string; reason: string }[];
 };
 
-// Intern-facing variants — match InternTaskView / InternPacketView records.
+// Intern-facing variants — strict subset of the ERM types, with ERM-only
+// fields stripped at the server.
 
 export type InternTaskView = {
   taskId: string;
-  templateId: string;
+  documentKey: SkyzenDocumentKey | null;
   templateTitle: string;
   description: string | null;
   category: string | null;
-  fileKind: string | null;
+  sensitivity: string | null;
+  templatePublicUrl: string | null;
   status: TaskStatus;
   version: number | null;
   taskInstructions: string | null;
-  templateSnapshotFileId: string | null;
   submittedAt: string | null;
   reviewedAt: string | null;
   reviewReasonCode: string | null;
   reviewComments: string | null;
+  uploadedFileName: string | null;
 };
 
 export type InternPacketView = {

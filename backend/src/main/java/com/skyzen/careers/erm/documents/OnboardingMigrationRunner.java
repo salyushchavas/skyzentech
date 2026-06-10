@@ -3,11 +3,9 @@ package com.skyzen.careers.erm.documents;
 import com.skyzen.careers.entity.DocumentPacket;
 import com.skyzen.careers.entity.DocumentTask;
 import com.skyzen.careers.entity.DocumentTaskReviewLog;
-import com.skyzen.careers.entity.DocumentTemplate;
 import com.skyzen.careers.repository.DocumentPacketRepository;
 import com.skyzen.careers.repository.DocumentTaskRepository;
 import com.skyzen.careers.repository.DocumentTaskReviewLogRepository;
-import com.skyzen.careers.repository.DocumentTemplateRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.CommandLineRunner;
@@ -18,7 +16,6 @@ import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -28,46 +25,43 @@ import java.util.UUID;
  * {@code OnboardingPacket} / {@code OnboardingItem} pair into the new
  * {@code DocumentPacket} / {@code DocumentTask} pair.
  *
+ * <p>ERM Phase 8.2 — rewritten to emit {@code documentKey} directly
+ * (the {@link SkyzenDocument} enum value) rather than a now-defunct
+ * {@code template_id}.</p>
+ *
  * <p>Idempotent: gated by a row in {@code migration_log} with
  * {@code migration_key = ONBOARDING_TO_DOCUMENT_PACKETS_V1}. Runs at
- * boot AFTER {@code DocumentTemplateSeeder} (which it depends on for
- * template lookups by title). Reads via raw JDBC so it stays
- * independent of the soon-to-be-deleted OnboardingItem / OnboardingPacket
- * JPA entities + repos.</p>
+ * boot AFTER {@code DocumentTemplateSeeder} (which is now itself gone
+ * — order kept at 25 just to follow any other early seeders). Reads
+ * via raw JDBC so it stays independent of the now-deleted Onboarding*
+ * JPA entities.</p>
  *
- * <p>Category mapping (legacy item category → new template title):</p>
+ * <p>Category mapping (legacy item category → SkyzenDocument enum):</p>
  * <ul>
- *   <li>{@code W4} → "W-4 2026"</li>
- *   <li>{@code I9} → "I-9 Form 2026"</li>
- *   <li>{@code ACH} → "Employee Data Sheet"</li>
- *   <li>{@code EMERGENCY_CONTACT} → "Employee Data Sheet"</li>
- *   <li>{@code HANDBOOK_ACK} → "Employee Handbook"</li>
- *   <li>{@code I983} → "I-983 (2029)"</li>
+ *   <li>{@code W4} → {@link SkyzenDocument#W4_2026}</li>
+ *   <li>{@code I9} → {@link SkyzenDocument#I9_FORM_2026}</li>
+ *   <li>{@code ACH}, {@code EMERGENCY_CONTACT} → {@link SkyzenDocument#EMPLOYEE_DATA_SHEET}</li>
+ *   <li>{@code HANDBOOK_ACK} → {@link SkyzenDocument#EMPLOYEE_HANDBOOK}</li>
+ *   <li>{@code I983} → {@link SkyzenDocument#I983_2029}</li>
  * </ul>
- *
- * <p>Legacy status maps 1:1 (PENDING → PENDING, SUBMITTED → SUBMITTED,
- * ACCEPTED → ACCEPTED, REJECTED → REJECTED, RESEND_REQUESTED →
- * RESEND_REQUESTED). Packet status: ACCEPTED → COMPLETED, others
- * (ASSIGNED, IN_PROGRESS, IN_REVIEW) → IN_PROGRESS.</p>
  */
 @Component
-@Order(25)   // After DocumentTemplateSeeder (Order 20).
+@Order(25)
 @RequiredArgsConstructor
 @Slf4j
 public class OnboardingMigrationRunner implements CommandLineRunner {
 
     private static final String MIGRATION_KEY = "ONBOARDING_TO_DOCUMENT_PACKETS_V1";
 
-    private static final Map<String, String> CATEGORY_TO_TITLE = Map.of(
-            "W4", "W-4 2026",
-            "I9", "I-9 Form 2026",
-            "ACH", "Employee Data Sheet",
-            "EMERGENCY_CONTACT", "Employee Data Sheet",
-            "HANDBOOK_ACK", "Employee Handbook",
-            "I983", "I-983 (2029)");
+    private static final Map<String, SkyzenDocument> CATEGORY_TO_DOC = Map.of(
+            "W4", SkyzenDocument.W4_2026,
+            "I9", SkyzenDocument.I9_FORM_2026,
+            "ACH", SkyzenDocument.EMPLOYEE_DATA_SHEET,
+            "EMERGENCY_CONTACT", SkyzenDocument.EMPLOYEE_DATA_SHEET,
+            "HANDBOOK_ACK", SkyzenDocument.EMPLOYEE_HANDBOOK,
+            "I983", SkyzenDocument.I983_2029);
 
     private final JdbcTemplate jdbc;
-    private final DocumentTemplateRepository templateRepository;
     private final DocumentPacketRepository packetRepository;
     private final DocumentTaskRepository taskRepository;
     private final DocumentTaskReviewLogRepository reviewLogRepository;
@@ -90,13 +84,6 @@ public class OnboardingMigrationRunner implements CommandLineRunner {
             return;
         }
 
-        Map<String, UUID> titleToId = loadTemplateIdsByTitle();
-        if (titleToId.isEmpty()) {
-            log.warn("[OnboardingMigration] No DocumentTemplates seeded yet; "
-                    + "deferring migration to next boot");
-            return;
-        }
-
         List<Map<String, Object>> packets;
         try {
             packets = jdbc.queryForList(
@@ -116,7 +103,7 @@ public class OnboardingMigrationRunner implements CommandLineRunner {
 
         int packetsMigrated = 0;
         int tasksMigrated = 0;
-        int tasksWithMissingTemplate = 0;
+        int tasksWithMissingMapping = 0;
 
         for (Map<String, Object> p : packets) {
             UUID legacyPacketId = uuid(p.get("id"));
@@ -178,17 +165,16 @@ public class OnboardingMigrationRunner implements CommandLineRunner {
             }
             for (Map<String, Object> it : items) {
                 String category = (String) it.get("category");
-                String legacyTitle = CATEGORY_TO_TITLE.get(category);
-                UUID templateId = legacyTitle != null ? titleToId.get(legacyTitle) : null;
-                if (templateId == null) {
-                    tasksWithMissingTemplate++;
-                    log.warn("[OnboardingMigration] no template match for category {} "
-                            + "(legacy item {}); creating task with template_id NULL",
-                            category, it.get("id"));
+                SkyzenDocument doc = CATEGORY_TO_DOC.get(category);
+                if (doc == null) {
+                    tasksWithMissingMapping++;
+                    log.warn("[OnboardingMigration] no SkyzenDocument match for category {} "
+                            + "(legacy item {}); skipping row", category, it.get("id"));
+                    continue;
                 }
                 DocumentTask t = DocumentTask.builder()
                         .packetId(newPacket.getId())
-                        .templateId(templateId)
+                        .documentKey(doc)
                         .status(mapTaskStatus((String) it.get("status")))
                         .uploadedFileId(uuid(it.get("document_id")))
                         .submittedAt(instantOf((java.sql.Timestamp) it.get("submitted_at")))
@@ -199,7 +185,7 @@ public class OnboardingMigrationRunner implements CommandLineRunner {
                         .internalNote((String) it.get("internal_notes"))
                         .version(1)
                         .taskInstructions("[Migrated from legacy structured form; "
-                                + "original form data preserved in audit log under OnboardingItem id="
+                                + "original form data preserved in review log under OnboardingItem id="
                                 + it.get("id") + "]")
                         .build();
                 try {
@@ -225,10 +211,10 @@ public class OnboardingMigrationRunner implements CommandLineRunner {
 
         postSuccess(packetsMigrated, "packets=" + packetsMigrated
                 + ", tasks=" + tasksMigrated
-                + ", tasksWithMissingTemplate=" + tasksWithMissingTemplate);
+                + ", tasksWithMissingMapping=" + tasksWithMissingMapping);
         log.info("[OnboardingMigration] Migrated {} packet(s) / {} task(s) "
-                + "({} with missing template match)",
-                packetsMigrated, tasksMigrated, tasksWithMissingTemplate);
+                + "({} with missing category mapping)",
+                packetsMigrated, tasksMigrated, tasksWithMissingMapping);
     }
 
     private boolean alreadyMigrated() {
@@ -267,14 +253,6 @@ public class OnboardingMigrationRunner implements CommandLineRunner {
             log.warn("[OnboardingMigration] failed to write migration_log row: {}",
                     e.getMessage());
         }
-    }
-
-    private Map<String, UUID> loadTemplateIdsByTitle() {
-        Map<String, UUID> out = new HashMap<>();
-        for (DocumentTemplate t : templateRepository.findAll()) {
-            out.put(t.getTitle(), t.getId());
-        }
-        return out;
     }
 
     private static String mapPacketStatus(String legacy) {

@@ -358,11 +358,17 @@ public class CommunicationTemplateSeeder implements CommandLineRunner {
                     "DOCUMENT_PACKET_ASSIGNED", "EMAIL",
                     "Your document packet is ready: {{templateCount}} forms to complete",
                     "Hello {{firstName}},\n\n"
-                            + "Your ERM {{ermName}} has assigned you a document packet "
-                            + "with {{templateCount}} forms to complete:\n"
+                            + "Your ERM {{ermName}} has assigned you {{templateCount}} "
+                            + "documents to complete:\n"
                             + "{{templateTitlesList}}\n\n"
-                            + "Download each template, fill it out, then upload the "
-                            + "completed version. Open your dashboard to get started:\n"
+                            + "For each document:\n"
+                            + "  1. Click Download to open the PDF.\n"
+                            + "  2. Print the PDF and fill it out by hand (blue or black pen).\n"
+                            + "  3. Use your phone's scanner app (Adobe Scan, Microsoft "
+                            + "Lens, or your built-in Notes scanner) to scan all filled "
+                            + "pages into a single PDF.\n"
+                            + "  4. Upload the scanned PDF from your dashboard.\n\n"
+                            + "Open your dashboard to get started:\n"
                             + "{{deepLink}}\n\n— Skyzen ERM",
                     "firstName,ermName,templateCount,templateTitlesList,deepLink"),
             new Seed(
@@ -380,7 +386,8 @@ public class CommunicationTemplateSeeder implements CommandLineRunner {
                             + "Your submission for {{templateTitle}} has been rejected.\n\n"
                             + "Reason: {{reasonHuman}}\n"
                             + "ERM comments: {{ermComments}}\n\n"
-                            + "Please correct and resubmit from your dashboard:\n"
+                            + "Please correct the issue and re-scan all pages into a "
+                            + "single PDF, then upload again from your dashboard:\n"
                             + "{{deepLink}}\n\n— Skyzen ERM",
                     "firstName,templateTitle,reasonHuman,ermComments,deepLink"),
             new Seed(
@@ -390,7 +397,8 @@ public class CommunicationTemplateSeeder implements CommandLineRunner {
                             + "Please update your submission for {{templateTitle}}.\n\n"
                             + "Reason: {{reasonHuman}}\n"
                             + "ERM comments: {{ermComments}}\n\n"
-                            + "Resubmit from your dashboard:\n"
+                            + "Re-scan all pages into a single PDF and resubmit from your "
+                            + "dashboard:\n"
                             + "{{deepLink}}\n\n— Skyzen ERM",
                     "firstName,templateTitle,reasonHuman,ermComments,deepLink"),
             new Seed(
@@ -435,6 +443,46 @@ public class CommunicationTemplateSeeder implements CommandLineRunner {
         log.info("[CommunicationTemplateSeeder] seeded {} templates (idempotent; {} pre-existing)",
                 seeded, skipped);
         deactivateLegacyTemplates();
+        refreshPhase8_2DocumentTemplates();
+    }
+
+    /**
+     * ERM Phase 8.2 — overwrite the body/subject for the document-packet
+     * templates whose copy changed in this phase (scan-with-phone
+     * workflow). Idempotent: if the existing row's body already matches
+     * the spec, no save is issued.
+     */
+    private void refreshPhase8_2DocumentTemplates() {
+        List<String> refreshKeys = List.of(
+                "DOCUMENT_PACKET_ASSIGNED",
+                "DOCUMENT_TASK_REJECTED",
+                "DOCUMENT_TASK_RESEND");
+        int refreshed = 0;
+        for (Seed s : SEEDS) {
+            if (!refreshKeys.contains(s.key())) continue;
+            try {
+                var existing = repository.findByKeyAndChannel(s.key(), s.channel());
+                if (existing.isEmpty()) continue;
+                var t = existing.get();
+                boolean dirty = !s.body().equals(t.getBodyTemplate())
+                        || !s.subject().equals(t.getSubjectTemplate())
+                        || !s.vars().equals(t.getVariablesCsv());
+                if (!dirty) continue;
+                t.setSubjectTemplate(s.subject());
+                t.setBodyTemplate(s.body());
+                t.setVariablesCsv(s.vars());
+                t.setActive(true);
+                repository.save(t);
+                refreshed++;
+            } catch (Exception e) {
+                log.warn("[CommunicationTemplateSeeder] Phase 8.2 refresh skipped for {}: {}",
+                        s.key(), e.getMessage());
+            }
+        }
+        if (refreshed > 0) {
+            log.info("[CommunicationTemplateSeeder] Phase 8.2 refreshed {} template(s) "
+                    + "with scan-with-phone workflow copy", refreshed);
+        }
     }
 
     /** ERM Phase 8 — mark the per-form onboarding templates inactive.

@@ -1348,6 +1348,13 @@ public class SchemaFixupRunner implements CommandLineRunner {
         // migration_log) DROPs the legacy onboarding_* tables.
         ensureErmPhase8Schema();
         dropLegacyOnboardingTablesIfMigrated();
+
+        // ERM Phase 8.2 — strip the DocumentTemplate management layer.
+        // Adds document_tasks.document_key, migrates from template_id by
+        // title-match against the SkyzenDocument enum, then drops the
+        // template-related columns + the document_templates table.
+        // Idempotent + gated by a migration_log row.
+        migrateDocumentTemplatesToStaticPdfV1();
     }
 
     /**
@@ -2413,6 +2420,179 @@ public class SchemaFixupRunner implements CommandLineRunner {
         } catch (Exception e) {
             log.warn("[SchemaFixupRunner] exit_feedback ensure failed (non-fatal): {}",
                     e.getMessage(), e);
+        }
+    }
+
+    // ── ERM Phase 8.2 — strip DocumentTemplate → static PDF list ───────────
+
+    private static final String PHASE_8_2_KEY =
+            "DOCUMENT_TEMPLATE_TO_STATIC_PDF_V1";
+
+    /**
+     * ERM Phase 8.2 — replaces the dynamically-managed
+     * {@code document_templates} table with the static {@code SkyzenDocument}
+     * enum, persisted as {@code document_tasks.document_key} (VARCHAR).
+     *
+     * <p>Run order (all idempotent):</p>
+     * <ol>
+     *   <li>If the migration_log row is already present, skip.</li>
+     *   <li>{@code ALTER TABLE document_tasks ADD COLUMN IF NOT EXISTS document_key VARCHAR(80)}.</li>
+     *   <li>Drop the legacy {@code uq_document_tasks_packet_template}
+     *       UNIQUE (which referenced {@code template_id} — would block
+     *       the column drop).</li>
+     *   <li>For each {@code document_tasks} row where document_key IS NULL
+     *       and template_id IS NOT NULL: look up the template's title in
+     *       {@code document_templates}, map it via the title→enum-key
+     *       table below, and set document_key. Rows that don't map (no
+     *       matching title) are skipped with a warning.</li>
+     *   <li>Drop the now-unused {@code template_id},
+     *       {@code template_snapshot_file_id},
+     *       {@code template_snapshot_version} columns.</li>
+     *   <li>Drop the {@code document_templates} table itself.</li>
+     *   <li>Add a fresh UNIQUE on {@code (packet_id, document_key)}
+     *       (the new one-task-per-document-per-packet invariant).</li>
+     *   <li>Post the {@code DOCUMENT_TEMPLATE_TO_STATIC_PDF_V1} row in
+     *       migration_log so subsequent boots skip this whole block.</li>
+     * </ol>
+     */
+    private void migrateDocumentTemplatesToStaticPdfV1() {
+        if (alreadyMigratedPhase8_2()) {
+            log.info("[SchemaFixupRunner] Phase 8.2 migration {} already executed; skipping",
+                    PHASE_8_2_KEY);
+            return;
+        }
+
+        // 1) Add document_key column (NULLable while we backfill).
+        try {
+            jdbcTemplate.execute(
+                    "ALTER TABLE document_tasks "
+                            + "ADD COLUMN IF NOT EXISTS document_key VARCHAR(80)");
+        } catch (Exception e) {
+            log.warn("[SchemaFixupRunner] Phase 8.2 add document_key skipped (non-fatal): {}",
+                    e.getMessage());
+        }
+
+        // 2) Drop legacy UNIQUE that references the column we're about
+        //    to remove. PostgreSQL: constraint name = uq_document_tasks_packet_template.
+        try {
+            jdbcTemplate.execute(
+                    "ALTER TABLE document_tasks "
+                            + "DROP CONSTRAINT IF EXISTS uq_document_tasks_packet_template");
+        } catch (Exception e) {
+            log.warn("[SchemaFixupRunner] Phase 8.2 drop legacy UNIQUE skipped (non-fatal): {}",
+                    e.getMessage());
+        }
+
+        // 3) Backfill document_key from template_id by title match.
+        //    Only attempted if document_templates table still exists —
+        //    on a clean database the table may already be gone (no rows
+        //    to migrate, also fine).
+        boolean templatesTableExists;
+        try {
+            jdbcTemplate.queryForObject(
+                    "SELECT 1 FROM information_schema.tables "
+                            + " WHERE table_name = 'document_templates'",
+                    Integer.class);
+            templatesTableExists = true;
+        } catch (Exception e) {
+            templatesTableExists = false;
+        }
+        int mapped = 0;
+        int unmapped = 0;
+        if (templatesTableExists) {
+            for (var d : com.skyzen.careers.erm.documents.SkyzenDocument.values()) {
+                try {
+                    int n = jdbcTemplate.update(
+                            "UPDATE document_tasks dt SET document_key = ? "
+                                    + "  FROM document_templates t "
+                                    + " WHERE dt.template_id = t.id "
+                                    + "   AND dt.document_key IS NULL "
+                                    + "   AND LOWER(TRIM(t.title)) = LOWER(?)",
+                            d.name(), d.getTitle());
+                    mapped += n;
+                } catch (Exception e) {
+                    log.warn("[SchemaFixupRunner] Phase 8.2 backfill {} failed (non-fatal): {}",
+                            d.name(), e.getMessage());
+                }
+            }
+            // Count orphans that we couldn't map.
+            try {
+                Integer remaining = jdbcTemplate.queryForObject(
+                        "SELECT COUNT(*) FROM document_tasks "
+                                + " WHERE template_id IS NOT NULL AND document_key IS NULL",
+                        Integer.class);
+                unmapped = remaining == null ? 0 : remaining;
+            } catch (Exception e) {
+                unmapped = -1;
+            }
+            log.info("[SchemaFixupRunner] Phase 8.2 backfilled {} document_key rows; {} orphans skipped",
+                    mapped, unmapped);
+        } else {
+            log.info("[SchemaFixupRunner] Phase 8.2 document_templates already gone; nothing to backfill");
+        }
+
+        // 4) Drop now-unused columns. Cascade in case the orphans block
+        //    the column drop (we accept losing those rows' template_id —
+        //    they were already unreachable post-Phase 8 anyway).
+        String[] colDrops = {
+                "ALTER TABLE document_tasks DROP COLUMN IF EXISTS template_id",
+                "ALTER TABLE document_tasks DROP COLUMN IF EXISTS template_snapshot_file_id",
+                "ALTER TABLE document_tasks DROP COLUMN IF EXISTS template_snapshot_version"
+        };
+        for (String sql : colDrops) {
+            try {
+                jdbcTemplate.execute(sql);
+                log.info("[SchemaFixupRunner] Phase 8.2 {}", sql);
+            } catch (Exception e) {
+                log.warn("[SchemaFixupRunner] Phase 8.2 column drop skipped (non-fatal): {} — {}",
+                        sql, e.getMessage());
+            }
+        }
+
+        // 5) Drop the document_templates table itself.
+        try {
+            jdbcTemplate.execute("DROP TABLE IF EXISTS document_templates CASCADE");
+            log.info("[SchemaFixupRunner] Phase 8.2 dropped document_templates");
+        } catch (Exception e) {
+            log.warn("[SchemaFixupRunner] Phase 8.2 drop document_templates skipped (non-fatal): {}",
+                    e.getMessage());
+        }
+
+        // 6) Re-add a UNIQUE on the new (packet_id, document_key) pair.
+        try {
+            jdbcTemplate.execute(
+                    "CREATE UNIQUE INDEX IF NOT EXISTS uq_document_tasks_packet_document_key "
+                            + "ON document_tasks (packet_id, document_key)");
+        } catch (Exception e) {
+            log.warn("[SchemaFixupRunner] Phase 8.2 packet+document_key UNIQUE skipped (non-fatal): {}",
+                    e.getMessage());
+        }
+
+        // 7) Post the migration_log row so subsequent boots short-circuit.
+        try {
+            jdbcTemplate.update(
+                    "INSERT INTO migration_log (migration_key, executed_at, notes) "
+                            + " VALUES (?, NOW(), ?) "
+                            + " ON CONFLICT (migration_key) DO NOTHING",
+                    PHASE_8_2_KEY,
+                    "Migrated template_id → document_key for " + mapped
+                            + " tasks; " + unmapped + " orphans dropped with column.");
+            log.info("[SchemaFixupRunner] Phase 8.2 migration complete; posted {} to migration_log",
+                    PHASE_8_2_KEY);
+        } catch (Exception e) {
+            log.warn("[SchemaFixupRunner] Phase 8.2 migration_log INSERT skipped (non-fatal): {}",
+                    e.getMessage());
+        }
+    }
+
+    private boolean alreadyMigratedPhase8_2() {
+        try {
+            Integer cnt = jdbcTemplate.queryForObject(
+                    "SELECT COUNT(*) FROM migration_log WHERE migration_key = ?",
+                    Integer.class, PHASE_8_2_KEY);
+            return cnt != null && cnt > 0;
+        } catch (Exception e) {
+            return false;
         }
     }
 }

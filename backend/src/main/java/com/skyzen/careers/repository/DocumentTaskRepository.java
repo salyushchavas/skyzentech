@@ -1,6 +1,7 @@
 package com.skyzen.careers.repository;
 
 import com.skyzen.careers.entity.DocumentTask;
+import com.skyzen.careers.erm.documents.SkyzenDocument;
 import jakarta.persistence.LockModeType;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
@@ -18,7 +19,9 @@ public interface DocumentTaskRepository
 
     List<DocumentTask> findByPacketIdOrderByCreatedAtAsc(UUID packetId);
 
-    Optional<DocumentTask> findByPacketIdAndTemplateId(UUID packetId, UUID templateId);
+    /** ERM Phase 8.2 — replaces findByPacketIdAndTemplateId. */
+    Optional<DocumentTask> findByPacketIdAndDocumentKey(
+            UUID packetId, SkyzenDocument documentKey);
 
     long countByPacketIdAndStatus(UUID packetId, String status);
 

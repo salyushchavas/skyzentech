@@ -29,6 +29,30 @@ public class ErmNewHireController {
         return ermNewHireService.list(tab, caller, page, pageSize);
     }
 
+    /**
+     * ERM Phase 8.2 — convenience endpoint for the default Pending
+     * Document Assignment tab. Equivalent to
+     * {@code GET /?tab=pending-document-assignment}.
+     */
+    @GetMapping("/pending-document-assignment")
+    @PreAuthorize("hasAnyRole('ERM', 'SUPER_ADMIN')")
+    public ErmOfferDtos.NewHireListPage pendingDocumentAssignment(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "25") int pageSize,
+            @AuthenticationPrincipal User caller) {
+        return ermNewHireService.list("pending-document-assignment",
+                caller, page, pageSize);
+    }
+
+    @GetMapping("/in-progress")
+    @PreAuthorize("hasAnyRole('ERM', 'SUPER_ADMIN')")
+    public ErmOfferDtos.NewHireListPage inProgress(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "25") int pageSize,
+            @AuthenticationPrincipal User caller) {
+        return ermNewHireService.list("in-progress", caller, page, pageSize);
+    }
+
     @GetMapping("/{lifecycleId}")
     @PreAuthorize("hasAnyRole('ERM', 'SUPER_ADMIN')")
     public ErmOfferDtos.NewHireDetail detail(@PathVariable UUID lifecycleId) {

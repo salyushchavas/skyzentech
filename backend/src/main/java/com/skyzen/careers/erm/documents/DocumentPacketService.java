@@ -56,7 +56,6 @@ public class DocumentPacketService {
     private final DocumentPacketRepository packetRepository;
     private final DocumentTaskRepository taskRepository;
     private final DocumentTaskReviewLogRepository reviewLogRepository;
-    private final DocumentTemplateRepository templateRepository;
     private final DocumentRepository documentRepository;
     private final InternLifecycleRepository lifecycleRepository;
     private final UserRepository userRepository;
@@ -146,14 +145,21 @@ public class DocumentPacketService {
     public DocumentPacketDetail assignPacket(AssignPacketRequest req, User caller) {
         requireErm(caller);
         if (req == null || req.internLifecycleId() == null
-                || req.selectedTemplateIds() == null
-                || req.selectedTemplateIds().isEmpty()) {
+                || req.selectedDocumentKeys() == null
+                || req.selectedDocumentKeys().isEmpty()) {
             throw new BadRequestException(
-                    "internLifecycleId + selectedTemplateIds (≥1) are required");
+                    "internLifecycleId + selectedDocumentKeys (≥1) are required");
         }
-        if (req.selectedTemplateIds().size() > MAX_TEMPLATES_PER_PACKET) {
+        // ERM Phase 8.2 — de-dupe + null-strip + cap.
+        List<SkyzenDocument> docs = new ArrayList<>(
+                new LinkedHashSet<>(req.selectedDocumentKeys()));
+        docs.removeIf(Objects::isNull);
+        if (docs.isEmpty()) {
+            throw new BadRequestException("selectedDocumentKeys must contain ≥1 valid SkyzenDocument");
+        }
+        if (docs.size() > MAX_TEMPLATES_PER_PACKET) {
             throw new BadRequestException(
-                    "Cannot assign more than " + MAX_TEMPLATES_PER_PACKET + " templates per packet");
+                    "Cannot assign more than " + MAX_TEMPLATES_PER_PACKET + " documents per packet");
         }
 
         InternLifecycle lc = lifecycleRepository.findById(req.internLifecycleId())
@@ -187,23 +193,6 @@ public class DocumentPacketService {
                             + "cancel it before assigning a new one");
         }
 
-        // Validate templates: all active + all have a file.
-        List<DocumentTemplate> templates = new ArrayList<>();
-        for (UUID tid : req.selectedTemplateIds()) {
-            DocumentTemplate t = templateRepository.findById(tid)
-                    .orElseThrow(() -> new ResourceNotFoundException(
-                            "Template not found: " + tid));
-            if (!Boolean.TRUE.equals(t.getIsActive())) {
-                throw new BadRequestException(
-                        "Template '" + t.getTitle() + "' is inactive");
-            }
-            if (t.getTemplateFileId() == null) {
-                throw new BadRequestException(
-                        "Template '" + t.getTitle() + "' has no file uploaded yet");
-            }
-            templates.add(t);
-        }
-
         Instant now = Instant.now();
         DocumentPacket pk = DocumentPacket.builder()
                 .internLifecycleId(lc.getId())
@@ -214,23 +203,21 @@ public class DocumentPacketService {
                 .build();
         pk = packetRepository.save(pk);
 
-        Map<UUID, String> perInstr = req.perTemplateInstructions() != null
-                ? req.perTemplateInstructions() : Map.of();
+        Map<SkyzenDocument, String> perInstr = req.perDocumentInstructions() != null
+                ? req.perDocumentInstructions() : Map.of();
         List<String> titles = new ArrayList<>();
-        for (DocumentTemplate t : templates) {
+        for (SkyzenDocument d : docs) {
             DocumentTask task = DocumentTask.builder()
                     .packetId(pk.getId())
-                    .templateId(t.getId())
-                    .templateSnapshotFileId(t.getTemplateFileId())
-                    .templateSnapshotVersion(t.getVersion())
-                    .taskInstructions(perInstr.getOrDefault(t.getId(), t.getInstructions()))
+                    .documentKey(d)
+                    .taskInstructions(perInstr.get(d))
                     .status("PENDING")
                     .version(1)
                     .build();
             task = taskRepository.save(task);
             appendLog(task.getId(), caller.getId(), "TEMPLATE_ASSIGNED",
                     null, "PENDING", null, null);
-            titles.add(t.getTitle());
+            titles.add(d.getTitle());
         }
 
         // Lifecycle advance if needed.
@@ -247,8 +234,8 @@ public class DocumentPacketService {
         writeAudit(pk.getId(), "DOCUMENT_PACKET_ASSIGNED",
                 caller.getId(), intern.getId(),
                 null,
-                Map.of("templateCount", templates.size(),
-                        "templateIds", req.selectedTemplateIds()));
+                Map.of("documentCount", docs.size(),
+                        "documentKeys", docs.stream().map(Enum::name).toList()));
         try {
             eventPublisher.publishEvent(new DocumentPacketAssignedEvent(
                     pk.getId(), lc.getId(), intern.getId(), caller.getId(), titles));
@@ -321,24 +308,37 @@ public class DocumentPacketService {
             String category, String search, int page, int pageSize) {
         int p = Math.max(0, page);
         int ps = Math.min(100, Math.max(1, pageSize));
+        // ERM Phase 8.2 — document_templates is gone; category lives in
+        // the SkyzenDocument enum, so we filter category Java-side by
+        // mapping it to the matching document_key set.
         StringBuilder where = new StringBuilder(
                 " WHERE t.status = 'SUBMITTED' ");
         List<Object> params = new ArrayList<>();
         if (category != null && !category.isBlank()) {
-            where.append(" AND dt.category = ? ");
-            params.add(category.trim().toUpperCase());
+            String cat = category.trim().toUpperCase();
+            List<String> keys = new ArrayList<>();
+            for (SkyzenDocument d : SkyzenDocument.values()) {
+                if (cat.equals(d.getCategory())) keys.add(d.name());
+            }
+            if (keys.isEmpty()) {
+                // No SkyzenDocument matches this category — return empty page.
+                return new DocumentTaskListPage(List.of(), p, ps, 0L, 0);
+            }
+            where.append(" AND t.document_key IN (")
+                    .append(String.join(",", java.util.Collections.nCopies(keys.size(), "?")))
+                    .append(") ");
+            params.addAll(keys);
         }
         if (search != null && !search.isBlank()) {
-            where.append(" AND (LOWER(u.full_name) LIKE ? OR LOWER(dt.title) LIKE ?) ");
+            where.append(" AND LOWER(u.full_name) LIKE ? ");
             String s = "%" + search.trim().toLowerCase() + "%";
-            params.add(s); params.add(s);
+            params.add(s);
         }
         long total = countOrZero(
                 "SELECT COUNT(*) FROM document_tasks t "
                         + "  JOIN document_packets pk ON pk.id = t.packet_id "
                         + "  JOIN intern_lifecycles il ON il.id = pk.intern_lifecycle_id "
-                        + "  JOIN users u ON u.id = il.user_id "
-                        + "  LEFT JOIN document_templates dt ON dt.id = t.template_id" + where,
+                        + "  JOIN users u ON u.id = il.user_id " + where,
                 params.toArray());
         List<Object> pageParams = new ArrayList<>(params);
         pageParams.add(ps); pageParams.add(p * ps);
@@ -346,23 +346,26 @@ public class DocumentPacketService {
         try {
             for (Map<String, Object> r : jdbc.queryForList(
                     "SELECT t.id, t.packet_id, pk.intern_lifecycle_id, il.user_id, "
-                            + "       u.full_name, dt.title, dt.category, "
+                            + "       u.full_name, t.document_key, "
                             + "       t.status, t.version, t.submitted_at "
                             + "  FROM document_tasks t "
                             + "  JOIN document_packets pk ON pk.id = t.packet_id "
                             + "  JOIN intern_lifecycles il ON il.id = pk.intern_lifecycle_id "
                             + "  JOIN users u ON u.id = il.user_id "
-                            + "  LEFT JOIN document_templates dt ON dt.id = t.template_id "
                             + where + " ORDER BY t.submitted_at ASC NULLS LAST LIMIT ? OFFSET ?",
                     pageParams.toArray())) {
                 Instant submittedAt = instantOf((java.sql.Timestamp) r.get("submitted_at"));
                 long hoursWaiting = submittedAt == null ? 0
                         : Duration.between(submittedAt, Instant.now()).toHours();
+                SkyzenDocument d = SkyzenDocument.fromKey((String) r.get("document_key"));
                 rows.add(new DocumentTaskRow(
                         uuid(r.get("id")), uuid(r.get("packet_id")),
                         uuid(r.get("intern_lifecycle_id")), uuid(r.get("user_id")),
-                        (String) r.get("full_name"), (String) r.get("title"),
-                        (String) r.get("category"), (String) r.get("status"),
+                        (String) r.get("full_name"),
+                        d,
+                        d != null ? d.getTitle() : "(unknown)",
+                        d != null ? d.getCategory() : null,
+                        (String) r.get("status"),
                         intVal(r.get("version")), submittedAt, hoursWaiting));
             }
         } catch (Exception e) {
@@ -465,10 +468,8 @@ public class DocumentPacketService {
                 Map.of("status", saved.getStatus(),
                         "reasonCode", rc != null ? rc.name() : null));
 
-        String templateTitle = saved.getTemplateId() != null
-                ? templateRepository.findById(saved.getTemplateId())
-                        .map(DocumentTemplate::getTitle).orElse("(unknown)")
-                : "(unknown)";
+        String templateTitle = saved.getDocumentKey() != null
+                ? saved.getDocumentKey().getTitle() : "(unknown)";
         UUID internUserId = lifecycleRepository.findById(
                 packetRepository.findById(saved.getPacketId())
                         .map(DocumentPacket::getInternLifecycleId).orElse(null))
@@ -654,20 +655,18 @@ public class DocumentPacketService {
         List<TaskSummary> tasks = new ArrayList<>();
         boolean readyToClose = true;
         for (DocumentTask t : taskRepository.findByPacketIdOrderByCreatedAtAsc(pk.getId())) {
-            String title = t.getTemplateId() != null
-                    ? templateRepository.findById(t.getTemplateId())
-                            .map(DocumentTemplate::getTitle).orElse("(unknown)")
-                    : "(deleted template)";
-            String category = t.getTemplateId() != null
-                    ? templateRepository.findById(t.getTemplateId())
-                            .map(DocumentTemplate::getCategory).orElse(null)
-                    : null;
+            SkyzenDocument d = t.getDocumentKey();
             String fileName = t.getUploadedFileId() != null
                     ? documentRepository.findById(t.getUploadedFileId())
                             .map(Document::getFileName).orElse(null)
                     : null;
             tasks.add(new TaskSummary(
-                    t.getId(), t.getTemplateId(), title, category, t.getStatus(),
+                    t.getId(), d,
+                    d != null ? d.getTitle() : "(unknown)",
+                    d != null ? d.getCategory() : null,
+                    d != null ? d.getSensitivity() : null,
+                    d != null ? d.publicUrl() : null,
+                    t.getStatus(),
                     t.getVersion(), t.getSubmittedAt(), t.getReviewedAt(),
                     t.getReviewReasonCode(), t.getReviewComments(),
                     t.getUploadedFileId(), fileName, t.getTaskInstructions()));
@@ -687,8 +686,7 @@ public class DocumentPacketService {
     }
 
     private DocumentTaskDetail toTaskDetail(DocumentTask t) {
-        DocumentTemplate tpl = t.getTemplateId() != null
-                ? templateRepository.findById(t.getTemplateId()).orElse(null) : null;
+        SkyzenDocument d = t.getDocumentKey();
         Document uploaded = t.getUploadedFileId() != null
                 ? documentRepository.findById(t.getUploadedFileId()).orElse(null) : null;
         User reviewer = t.getReviewedById() != null
@@ -711,13 +709,12 @@ public class DocumentPacketService {
         }
         return new DocumentTaskDetail(
                 t.getId(), t.getPacketId(),
-                t.getTemplateId(),
-                tpl != null ? tpl.getTitle() : null,
-                tpl != null ? tpl.getCategory() : null,
-                tpl != null ? tpl.getFileKind() : null,
-                tpl != null ? tpl.getSensitivity() : null,
+                d,
+                d != null ? d.getTitle() : null,
+                d != null ? d.getCategory() : null,
+                d != null ? d.getSensitivity() : null,
+                d != null ? d.publicUrl() : null,
                 t.getStatus(), t.getVersion(), t.getTaskInstructions(),
-                t.getTemplateSnapshotFileId(),
                 t.getUploadedFileId(),
                 uploaded != null ? uploaded.getFileName() : null,
                 uploaded != null ? uploaded.getFileSize() : null,

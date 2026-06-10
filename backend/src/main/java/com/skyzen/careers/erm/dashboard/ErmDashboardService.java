@@ -126,6 +126,8 @@ public class ErmDashboardService {
                 interviewsToday(mine, callerId, now));
         out.put(ErmKpiKey.OFFERS_PENDING_SIGNATURE,
                 offersPendingSignature(mine, callerId));
+        out.put(ErmKpiKey.AWAITING_DOCUMENT_PACKET,
+                awaitingDocumentPacket(mine, callerId));
         out.put(ErmKpiKey.ONBOARDING_OVERDUE,
                 onboardingOverdue(mine, callerId));
         out.put(ErmKpiKey.I9_EVERIFY_DUE,
@@ -206,6 +208,36 @@ public class ErmDashboardService {
                                 + ErmThresholds.OFFER_EXPIRY_URGENT_HOURS + "h"
                         : null,
                 "/careers/erm/offers");
+    }
+
+    /**
+     * ERM Phase 8.2 — interns who signed their offer, have a complete
+     * reporting structure, but no active document packet. The default
+     * tab on the New Hire List surfaces these so ERM agents can assign
+     * documents directly from a one-click button.
+     *
+     * <p>Urgency: signed offer older than 7 days.</p>
+     */
+    private KpiSnapshot awaitingDocumentPacket(boolean mine, UUID callerId) {
+        String base =
+                "FROM intern_lifecycles il "
+                        + " WHERE il.active_status IN ('PROSPECTIVE','ACTIVE') "
+                        + "   AND il.reporting_structure_complete = TRUE "
+                        + "   AND NOT EXISTS (SELECT 1 FROM document_packets dp "
+                        + "                     WHERE dp.intern_lifecycle_id = il.id "
+                        + "                       AND dp.status NOT IN ('COMPLETED','CANCELLED')) ";
+        String mineClause = mine ? " AND il.erm_id = ?" : "";
+        long total = countWithOptionalCaller(base + mineClause, mine, callerId);
+        long urgent = countWithOptionalCaller(
+                base + mineClause + " AND il.hired_at < NOW() - INTERVAL '7 days'",
+                mine, callerId);
+        return new KpiSnapshot(
+                ErmKpiKey.AWAITING_DOCUMENT_PACKET,
+                "Awaiting document packet",
+                total,
+                urgent,
+                urgent > 0 ? urgent + " signed > 7 days ago" : null,
+                "/careers/erm/new-hire?tab=pending-document-assignment");
     }
 
     private KpiSnapshot onboardingOverdue(boolean mine, UUID callerId) {

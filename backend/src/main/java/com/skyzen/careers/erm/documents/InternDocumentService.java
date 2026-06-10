@@ -24,13 +24,17 @@ import java.util.Set;
 import java.util.UUID;
 
 /**
- * ERM Phase 8 — intern-facing surface for the document packet
- * workflow. View the assigned packet, download each template,
- * upload the filled version. All endpoints are scoped to the
- * caller's own lifecycle — no cross-intern access.
+ * ERM Phase 8.2 — intern-facing surface for the document packet
+ * workflow. View the assigned packet + upload the filled, scanned-as-PDF
+ * version. The blank template is served as a static Next.js asset at
+ * {@code /document-templates/{filename}.pdf} — no backend download
+ * endpoint exists for templates; the frontend builds the link from the
+ * task's {@code documentKey}. All endpoints are scoped to the caller's
+ * own lifecycle.
  *
- * <p>The intern DTO ({@link InternTaskView}) intentionally omits
- * {@code internalNote} and never exposes ERM-only fields.</p>
+ * <p>Upload is restricted to PDF only ({@code application/pdf}); the
+ * intern is expected to print, fill by hand, and re-scan all pages into
+ * a single PDF with their phone scanner app.</p>
  */
 @Service
 @RequiredArgsConstructor
@@ -38,18 +42,14 @@ import java.util.UUID;
 public class InternDocumentService {
 
     private static final long MAX_UPLOAD_BYTES = 10L * 1024 * 1024;
-    private static final Set<String> ALLOWED_MIME = Set.of(
-            "application/pdf",
-            "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-            "application/msword",
-            "image/jpeg",
-            "image/png");
+    private static final String PDF_MIME = "application/pdf";
+    private static final String PDF_REJECT_MSG =
+            "Only PDF files are accepted. Please scan all filled pages into a single PDF "
+            + "using your phone's scanner app (Adobe Scan, Microsoft Lens, Apple Notes, etc.).";
 
     private final DocumentPacketRepository packetRepository;
     private final DocumentTaskRepository taskRepository;
     private final DocumentTaskReviewLogRepository reviewLogRepository;
-    private final DocumentTemplateRepository templateRepository;
-    private final DocumentRepository documentRepository;
     private final InternLifecycleRepository lifecycleRepository;
     private final DocumentVaultService documentVault;
     private final ApplicationEventPublisher eventPublisher;
@@ -67,31 +67,6 @@ public class InternDocumentService {
         return Optional.of(toInternPacketView(active.get()));
     }
 
-    // ── Download template (audit + count) ────────────────────────────────
-
-    @Transactional
-    public byte[] downloadTemplate(UUID taskId, User caller) {
-        DocumentTask t = mustLoadOwnTask(taskId, caller);
-        if (t.getTemplateSnapshotFileId() == null) {
-            throw new ResourceNotFoundException(
-                    "Template file not available for this task");
-        }
-        byte[] bytes = documentVault.readDocument(t.getTemplateSnapshotFileId(), caller);
-        t.setDownloadCount(t.getDownloadCount() == null ? 1 : t.getDownloadCount() + 1);
-        t.setLastDownloadedAt(Instant.now());
-        taskRepository.save(t);
-        try {
-            reviewLogRepository.save(DocumentTaskReviewLog.builder()
-                    .taskId(t.getId())
-                    .actorUserId(caller.getId())
-                    .eventType("INTERN_DOWNLOADED")
-                    .previousStatus(t.getStatus())
-                    .newStatus(t.getStatus())
-                    .build());
-        } catch (Exception ignored) {}
-        return bytes;
-    }
-
     // ── Upload filled file ───────────────────────────────────────────────
 
     @Transactional
@@ -102,10 +77,16 @@ public class InternDocumentService {
         if (file.getSize() > MAX_UPLOAD_BYTES) {
             throw new BadRequestException("Upload exceeds 10 MB limit");
         }
+        // ERM Phase 8.2 — strict PDF gate. Some browsers leave the MIME
+        // null/empty on slow uploads; we still require the filename to
+        // end in .pdf when no MIME is supplied.
         String mime = file.getContentType();
-        if (mime != null && !ALLOWED_MIME.contains(mime)) {
-            throw new BadRequestException(
-                    "Unsupported MIME (allowed: PDF, DOCX, JPG, PNG). Got: " + mime);
+        String filename = file.getOriginalFilename();
+        boolean mimeOk = PDF_MIME.equalsIgnoreCase(mime);
+        boolean filenameOk = filename != null
+                && filename.toLowerCase().endsWith(".pdf");
+        if (!mimeOk && !(mime == null && filenameOk)) {
+            throw new BadRequestException(PDF_REJECT_MSG);
         }
 
         DocumentTask t = mustLoadOwnTask(taskId, caller);
@@ -114,24 +95,22 @@ public class InternDocumentService {
                     "Task is " + t.getStatus() + "; cannot upload");
         }
 
-        // Sensitivity inherits from the template.
-        DocumentTemplate template = t.getTemplateId() != null
-                ? templateRepository.findById(t.getTemplateId()).orElse(null) : null;
-        String sensitivity = template != null ? template.getSensitivity() : "NORMAL";
-        String category = template != null ? template.getCategory() : "OTHER";
+        SkyzenDocument doc = t.getDocumentKey();
+        String sensitivity = doc != null ? doc.getSensitivity() : "GENERAL";
+        String category = doc != null ? doc.getCategory() : "OTHER";
 
         try {
             byte[] bytes = file.getBytes();
-            Document doc = documentVault.saveDocument(
+            Document saved = documentVault.saveDocument(
                     caller.getId(),
-                    file.getOriginalFilename(),
-                    mime,
+                    filename != null ? filename : "filled.pdf",
+                    PDF_MIME,
                     bytes,
                     category,
                     sensitivity,
                     caller.getId());
             String previous = t.getStatus();
-            t.setUploadedFileId(doc.getId());
+            t.setUploadedFileId(saved.getId());
             t.setStatus("SUBMITTED");
             t.setSubmittedAt(Instant.now());
             // Clear any prior reviewer comments so the new round starts clean.
@@ -140,11 +119,11 @@ public class InternDocumentService {
             t.setReviewedById(null);
             t.setReviewReasonCode(null);
             t.setReviewComments(null);
-            DocumentTask saved = taskRepository.save(t);
+            DocumentTask savedTask = taskRepository.save(t);
 
             try {
                 reviewLogRepository.save(DocumentTaskReviewLog.builder()
-                        .taskId(saved.getId())
+                        .taskId(savedTask.getId())
                         .actorUserId(caller.getId())
                         .eventType("INTERN_UPLOADED")
                         .previousStatus(previous)
@@ -154,21 +133,21 @@ public class InternDocumentService {
 
             // Trigger packet-status side-effects (ASSIGNED → IN_PROGRESS,
             // pending → ALL_SUBMITTED when last one comes in, etc.).
-            packetService.checkPacketCompletion(saved.getPacketId(), caller);
+            packetService.checkPacketCompletion(savedTask.getPacketId(), caller);
 
             // Notify ERM.
-            UUID lifecycleId = packetRepository.findById(saved.getPacketId())
+            UUID lifecycleId = packetRepository.findById(savedTask.getPacketId())
                     .map(DocumentPacket::getInternLifecycleId).orElse(null);
-            String templateTitle = template != null ? template.getTitle() : "(unknown)";
+            String templateTitle = doc != null ? doc.getTitle() : "(unknown)";
             try {
                 eventPublisher.publishEvent(new DocumentTaskSubmittedEvent(
-                        saved.getId(), saved.getPacketId(),
+                        savedTask.getId(), savedTask.getPacketId(),
                         lifecycleId, caller.getId(), templateTitle));
             } catch (Exception e) {
                 log.warn("[InternDocument] submitted event publish failed: {}",
                         e.getMessage());
             }
-            return toInternTaskView(saved);
+            return toInternTaskView(savedTask);
         } catch (BadRequestException | ConflictException | ForbiddenException re) {
             throw re;
         } catch (Exception e) {
@@ -213,19 +192,20 @@ public class InternDocumentService {
     }
 
     private InternTaskView toInternTaskView(DocumentTask t) {
-        DocumentTemplate tpl = t.getTemplateId() != null
-                ? templateRepository.findById(t.getTemplateId()).orElse(null) : null;
+        SkyzenDocument d = t.getDocumentKey();
         return new InternTaskView(
-                t.getId(), t.getTemplateId(),
-                tpl != null ? tpl.getTitle() : "(unknown)",
-                tpl != null ? tpl.getDescription() : null,
-                tpl != null ? tpl.getCategory() : null,
-                tpl != null ? tpl.getFileKind() : null,
+                t.getId(),
+                d,
+                d != null ? d.getTitle() : "(unknown)",
+                d != null ? d.getDescription() : null,
+                d != null ? d.getCategory() : null,
+                d != null ? d.getSensitivity() : null,
+                d != null ? d.publicUrl() : null,
                 t.getStatus(), t.getVersion(),
                 t.getTaskInstructions(),
-                t.getTemplateSnapshotFileId(),
                 t.getSubmittedAt(), t.getReviewedAt(),
                 t.getReviewReasonCode(),
-                t.getReviewComments());
+                t.getReviewComments(),
+                null);
     }
 }
