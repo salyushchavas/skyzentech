@@ -1355,6 +1355,37 @@ public class SchemaFixupRunner implements CommandLineRunner {
         // template-related columns + the document_templates table.
         // Idempotent + gated by a migration_log row.
         migrateDocumentTemplatesToStaticPdfV1();
+
+        // Heal users whose email_verified flipped TRUE before AuthService
+        // started advancing lifecycle_status. Sweeps every boot — cheap +
+        // safe because the WHERE clause filters to the broken state only.
+        backfillEmailVerifiedLifecycleStatus();
+    }
+
+    /**
+     * Pre-fix bug: {@code AuthService.verifyEmail} flipped
+     * {@code email_verified=TRUE} but never advanced
+     * {@code lifecycle_status} from {@code REGISTERED} to
+     * {@code EMAIL_VERIFIED}, so the intern dashboard "Verify your email"
+     * banner persisted forever for affected users. The fix shipped with
+     * the AuthService → InternLifecycleService wiring covers new
+     * verifications; this sweep heals every legacy row in one shot.
+     * Idempotent — re-running matches zero rows once the backfill lands.
+     */
+    private void backfillEmailVerifiedLifecycleStatus() {
+        try {
+            int healed = jdbcTemplate.update(
+                    "UPDATE users SET lifecycle_status = 'EMAIL_VERIFIED' "
+                            + " WHERE email_verified = TRUE "
+                            + "   AND lifecycle_status = 'REGISTERED'");
+            if (healed > 0) {
+                log.info("[SchemaFixupRunner] healed {} verified user(s) stuck "
+                        + "at REGISTERED lifecycle_status", healed);
+            }
+        } catch (Exception e) {
+            log.warn("[SchemaFixupRunner] email_verified lifecycle backfill "
+                    + "skipped (non-fatal): {}", e.getMessage());
+        }
     }
 
     /**

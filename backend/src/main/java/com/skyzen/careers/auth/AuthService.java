@@ -13,7 +13,9 @@ import com.skyzen.careers.entity.AuditLog;
 import com.skyzen.careers.entity.Candidate;
 import com.skyzen.careers.entity.PasswordResetToken;
 import com.skyzen.careers.entity.User;
+import com.skyzen.careers.enums.InternLifecycleStatus;
 import com.skyzen.careers.enums.UserRole;
+import com.skyzen.careers.intern.InternLifecycleService;
 import com.skyzen.careers.notification.EmailDeliveryException;
 import com.skyzen.careers.notification.NotificationStub;
 import com.skyzen.careers.repository.AuditLogRepository;
@@ -65,6 +67,7 @@ public class AuthService {
     private final ApplicantIdGenerator applicantIdGenerator;
     private final SessionTokenService sessionTokenService;
     private final UserSessionRepository userSessionRepository;
+    private final InternLifecycleService internLifecycleService;
 
     /**
      * GAP E3 — dev-only escape hatch for the password-reset token. When
@@ -168,6 +171,11 @@ public class AuthService {
 
         if (Boolean.TRUE.equals(user.getEmailVerified())) {
             // Already verified — return a no-op success with their existing ID.
+            // Heal any stuck lifecycle row (legacy users from before the
+            // verifyEmail→advance wiring shipped). advance() is a no-op if
+            // they're already past EMAIL_VERIFIED.
+            internLifecycleService.advance(
+                    user, InternLifecycleStatus.EMAIL_VERIFIED, user.getId());
             return new VerifyEmailResponse(true, user.getApplicantId(),
                     "Email already verified");
         }
@@ -188,6 +196,15 @@ public class AuthService {
         user.setEmailVerificationSentAt(null);
         user.setEmailVerificationExpiresAt(null);
         writeAccountAudit(user.getId(), "EMAIL_VERIFIED");
+
+        // Advance lifecycle REGISTERED → EMAIL_VERIFIED so downstream gates
+        // (intern dashboard "Verify your email" banner, ApplyModal opening
+        // checks, etc.) flip off immediately. advance() is idempotent + a
+        // no-op if the user is already past EMAIL_VERIFIED (e.g. they were
+        // re-issued a code after applying), so it's safe regardless of the
+        // user's current position.
+        internLifecycleService.advance(
+                user, InternLifecycleStatus.EMAIL_VERIFIED, user.getId());
 
         // Only CANDIDATEs receive an Applicant ID; staff registrations (when
         // they exist via the admin path) are exempt. The unique DB sequence
