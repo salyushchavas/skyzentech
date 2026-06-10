@@ -297,7 +297,10 @@ public class TestDataSeeder implements CommandLineRunner {
         Application app = Application.builder()
                 .candidate(candidate)
                 .jobPosting(posting)
-                .status(ApplicationStatus.HIRED)
+                // Post-offer status: ACCEPTED is the live value. HIRED /
+                // ONBOARDING / ACTIVE / COMPLETED on this enum are
+                // @Deprecated — Engagement.status owns post-offer state now.
+                .status(ApplicationStatus.ACCEPTED)
                 .statementOfInterest(spec.statementOfInterest)
                 .ermOwnerId(erm.getId())
                 .lastDecisionReasonCode("SELECTED")
@@ -310,6 +313,8 @@ public class TestDataSeeder implements CommandLineRunner {
         backdate("applications", "status_updated_at", app.getId(), signedAt);
 
         // 4) Interview — COMPLETED + SELECTED with realistic feedback.
+        //    NOTE: Interview.createdBy is NOT NULL at the DB level (no
+        //    default, no @CreationTimestamp). Phase 8.3.1 fix.
         Interview interview = Interview.builder()
                 .application(app)
                 .interviewer(erm)
@@ -318,6 +323,7 @@ public class TestDataSeeder implements CommandLineRunner {
                 .type(InterviewType.TECHNICAL)
                 .status(InterviewStatus.COMPLETED)
                 .timezone("America/Chicago")
+                .createdBy(erm.getId())
                 .decision("SELECTED")
                 .feedbackOverallRating(8)
                 .feedbackTechnicalRating(8)
@@ -329,6 +335,10 @@ public class TestDataSeeder implements CommandLineRunner {
                 .feedbackSubmittedAt(interviewedAt.plus(2, ChronoUnit.HOURS))
                 .feedbackSubmittedBy(erm.getId())
                 .applicantVisibleNotes("Thanks for the great conversation!")
+                .technicalScore(8)
+                .communicationScore(8)
+                .culturalFitScore(8)
+                .overallRecommendation("HIRE")
                 .build();
         interview = interviewRepository.save(interview);
 
