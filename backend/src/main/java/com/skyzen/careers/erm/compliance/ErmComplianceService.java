@@ -256,9 +256,11 @@ public class ErmComplianceService {
                 ? everifyCaseRepository.findByI9FormId(i9.getId()).orElse(null)
                 : null;
 
+        InternLifecycle lc = internLifecycleRepository.findByUserId(userId).orElse(null);
+
         LocalDate today = LocalDate.now();
         ErmComplianceDtos.WorkAuthCard waCard = toWorkAuthCard(war);
-        ErmComplianceDtos.I9TimelineCard i9Card = toI9Card(i9, today);
+        ErmComplianceDtos.I9TimelineCard i9Card = toI9Card(i9, lc, today);
         ErmComplianceDtos.EverifyCard ecCard = toEverifyCard(ec, today);
         ErmComplianceDtos.I983Card i983 = toI983Card(war, today);
         List<ErmComplianceDtos.TimelineEvent> events =
@@ -282,22 +284,42 @@ public class ErmComplianceService {
     }
 
     private ErmComplianceDtos.I9TimelineCard toI9Card(I9Form f, LocalDate today) {
-        if (f == null) return null;
-        LocalDate dueBy = calculator.i9Section2DueBy(f.getFirstDayOfEmployment());
+        return toI9Card(f, null, today);
+    }
+
+    /**
+     * ERM Phase 8 — overlay simplified §2 attestation pulled from the
+     * intern_lifecycles row on top of whatever the legacy I9Form row holds.
+     * Either argument may be null; if both are, the card is omitted.
+     */
+    private ErmComplianceDtos.I9TimelineCard toI9Card(
+            I9Form f, InternLifecycle lc, LocalDate today) {
+        if (f == null && lc == null) return null;
+        LocalDate firstDay = f != null ? f.getFirstDayOfEmployment() : null;
+        LocalDate dueBy = calculator.i9Section2DueBy(firstDay);
         Integer daysUntil = calculator.daysUntil(dueBy, today);
-        ExceptionSeverity sev = f.getSection2SignedAt() == null
+        Instant lcCompletedAt = lc != null ? lc.getI9Section2CompletedAt() : null;
+        Instant section2SignedAt = lcCompletedAt != null
+                ? lcCompletedAt
+                : (f != null ? f.getSection2SignedAt() : null);
+        ExceptionSeverity sev = section2SignedAt == null
                 ? calculator.alertSeverity(daysUntil) : null;
         return new ErmComplianceDtos.I9TimelineCard(
-                f.getId(),
-                f.getStatus() != null ? f.getStatus().name() : null,
-                f.getFirstDayOfEmployment(),
-                f.getSection1DueDate(),
-                f.getSection2DueDate(),
+                f != null ? f.getId() : null,
+                f != null && f.getStatus() != null ? f.getStatus().name() : null,
+                firstDay,
+                f != null ? f.getSection1DueDate() : null,
+                f != null ? f.getSection2DueDate() : null,
                 dueBy, daysUntil, sev,
-                f.getSection1SignedAt(),
-                f.getSection2SignedAt(),
-                f.getEmployerName(),
-                f.getEmployerTitle());
+                f != null ? f.getSection1SignedAt() : null,
+                section2SignedAt,
+                f != null ? f.getEmployerName() : null,
+                f != null ? f.getEmployerTitle() : null,
+                lcCompletedAt != null,
+                lcCompletedAt,
+                lc != null ? lc.getI9Section2CompletedById() : null,
+                lc != null ? lc.getI9Section2DocumentsDescribed() : null,
+                lc != null ? lc.getI9Section2Notes() : null);
     }
 
     private ErmComplianceDtos.EverifyCard toEverifyCard(EVerifyCase ec, LocalDate today) {
@@ -404,63 +426,68 @@ public class ErmComplianceService {
         return toWorkAuthCard(saved);
     }
 
+    /**
+     * ERM Phase 8 — simplified §2 attestation. The agent checks a box, picks
+     * the first-day-of-employment date, and writes a free-text description
+     * of the documents they examined. Persisted on the {@code intern_lifecycles}
+     * row (no separate structured form). Idempotent: re-submitting refreshes
+     * documentsDescribed / notes but does not move the completedAt timestamp.
+     */
     @Transactional
     public ErmComplianceDtos.I9TimelineCard recordI9Section2(
             UUID userId, ErmComplianceDtos.RecordI9Section2Request req, User caller) {
         requireErm(caller);
         if (req == null) throw new BadRequestException("request body is required");
-        Candidate candidate = candidateRepository.findByUserId(userId)
+        if (!notBlank(req.documentsDescribed())) {
+            throw new BadRequestException("documentsDescribed is required");
+        }
+        InternLifecycle lc = internLifecycleRepository.findByUserId(userId)
                 .orElseThrow(() -> new ResourceNotFoundException(
-                        "Candidate not found for user: " + userId));
-        I9Form f = i9FormRepository.findByCandidateId(candidate.getId())
-                .orElseThrow(() -> new ResourceNotFoundException(
-                        "I-9 form not yet started for user: " + userId));
-        if (f.getSection2SignedAt() != null) {
-            throw new ConflictException("I-9 Section 2 already signed on " + f.getSection2SignedAt());
-        }
-        boolean hasListA = notBlank(req.listATitle())
-                && notBlank(req.listADocumentNumber());
-        boolean hasListBC = notBlank(req.listBTitle())
-                && notBlank(req.listCTitle());
-        if (!hasListA && !hasListBC) {
-            throw new BadRequestException(
-                    "Must supply List A OR (List B + List C) document set");
-        }
-        Map<String, Object> before = Map.of(
-                "status", f.getStatus() != null ? f.getStatus().name() : null,
-                "section2SignedAt", f.getSection2SignedAt());
-        if (req.firstDayOfEmployment() != null) {
-            f.setFirstDayOfEmployment(req.firstDayOfEmployment());
-            f.setSection2DueDate(calculator.i9Section2DueBy(req.firstDayOfEmployment()));
-        }
-        if (hasListA) {
-            f.setListATitle(req.listATitle());
-            f.setListAIssuingAuthority(req.listAIssuingAuthority());
-            f.setListADocumentNumber(req.listADocumentNumber());
-            f.setListAExpirationDate(req.listAExpirationDate());
-        } else {
-            f.setListBTitle(req.listBTitle());
-            f.setListBIssuingAuthority(req.listBIssuingAuthority());
-            f.setListBDocumentNumber(req.listBDocumentNumber());
-            f.setListBExpirationDate(req.listBExpirationDate());
-            f.setListCTitle(req.listCTitle());
-            f.setListCIssuingAuthority(req.listCIssuingAuthority());
-            f.setListCDocumentNumber(req.listCDocumentNumber());
-        }
-        f.setEmployerName(req.employerName());
-        f.setEmployerTitle(req.employerTitle());
-        f.setBusinessOrganizationName(req.businessOrganizationName());
-        f.setBusinessAddress(req.businessAddress());
-        f.setSection2SignedAt(Instant.now());
-        f.setSection2SignedByUserId(caller.getId());
-        f.setStatus(I9Status.COMPLETED);
-        I9Form saved = i9FormRepository.save(f);
+                        "Intern lifecycle not found for user: " + userId));
 
-        writeAudit("I9Form", saved.getId(), "SECTION2_COMPLETED",
-                caller.getId(), userId, before,
-                Map.of("status", saved.getStatus().name(),
-                        "section2SignedAt", saved.getSection2SignedAt()));
-        return toI9Card(saved, LocalDate.now());
+        Map<String, Object> before = new java.util.LinkedHashMap<>();
+        before.put("i9Section2CompletedAt", lc.getI9Section2CompletedAt());
+        before.put("i9Section2DocumentsDescribed", lc.getI9Section2DocumentsDescribed());
+        before.put("i9Section2Notes", lc.getI9Section2Notes());
+
+        if (lc.getI9Section2CompletedAt() == null) {
+            lc.setI9Section2CompletedAt(Instant.now());
+            lc.setI9Section2CompletedById(caller.getId());
+        }
+        lc.setI9Section2DocumentsDescribed(req.documentsDescribed().trim());
+        if (req.notes() != null) lc.setI9Section2Notes(req.notes().trim());
+        InternLifecycle savedLc = internLifecycleRepository.save(lc);
+
+        // Mirror first-day-of-employment + signed timestamp onto the I9Form
+        // row if one exists, so the read-side joins (and existing pipeline
+        // queries that key on i9_forms.section2_signed_at) stay consistent.
+        I9Form savedI9 = null;
+        Candidate candidate = candidateRepository.findByUserId(userId).orElse(null);
+        if (candidate != null) {
+            I9Form f = i9FormRepository.findByCandidateId(candidate.getId()).orElse(null);
+            if (f != null) {
+                if (req.firstDayOfEmployment() != null) {
+                    f.setFirstDayOfEmployment(req.firstDayOfEmployment());
+                    f.setSection2DueDate(
+                            calculator.i9Section2DueBy(req.firstDayOfEmployment()));
+                }
+                if (f.getSection2SignedAt() == null) {
+                    f.setSection2SignedAt(savedLc.getI9Section2CompletedAt());
+                    f.setSection2SignedByUserId(caller.getId());
+                    f.setStatus(I9Status.COMPLETED);
+                }
+                savedI9 = i9FormRepository.save(f);
+            }
+        }
+
+        Map<String, Object> after = new java.util.LinkedHashMap<>();
+        after.put("i9Section2CompletedAt", savedLc.getI9Section2CompletedAt());
+        after.put("i9Section2DocumentsDescribed", savedLc.getI9Section2DocumentsDescribed());
+        after.put("i9Section2Notes", savedLc.getI9Section2Notes());
+        writeAudit("InternLifecycle", savedLc.getId(), "I9_SECTION2_ATTESTED",
+                caller.getId(), userId, before, after);
+
+        return toI9Card(savedI9, savedLc, LocalDate.now());
     }
 
     @Transactional

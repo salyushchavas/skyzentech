@@ -1,0 +1,276 @@
+'use client';
+
+import { useEffect, useState } from 'react';
+import { Download, X } from 'lucide-react';
+import api from '@/lib/api';
+import type {
+  DocumentTaskDetail,
+  ReasonCodeGroup,
+  ReviewTaskRequest,
+} from './types';
+
+type Props = {
+  taskId: string;
+  onClose: () => void;
+  onReviewed: () => void;
+};
+
+export default function ReviewTaskModal({ taskId, onClose, onReviewed }: Props) {
+  const [detail, setDetail] = useState<DocumentTaskDetail | null>(null);
+  const [reasonGroups, setReasonGroups] = useState<ReasonCodeGroup[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [err, setErr] = useState<string | null>(null);
+
+  const [decision, setDecision] = useState<'ACCEPT' | 'REJECT' | 'RESEND_REQUEST'>('ACCEPT');
+  const [reasonCode, setReasonCode] = useState('');
+  const [ermComments, setErmComments] = useState('');
+  const [internalNote, setInternalNote] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    (async () => {
+      try {
+        const [d, codes] = await Promise.all([
+          api.get<DocumentTaskDetail>(`/api/v1/erm/document-review/tasks/${taskId}`),
+          api.get<ReasonCodeGroup[]>('/api/v1/erm/document-review/reason-codes'),
+        ]);
+        if (cancelled) return;
+        setDetail(d.data);
+        setReasonGroups(codes.data);
+        setErr(null);
+      } catch (e) {
+        const ax = e as { response?: { data?: { error?: string } }; message?: string };
+        if (!cancelled) setErr(ax.response?.data?.error ?? ax.message ?? 'Failed to load');
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [taskId]);
+
+  async function downloadUpload() {
+    if (!detail) return;
+    try {
+      const res = await api.get<Blob>(
+        `/api/v1/erm/document-review/tasks/${detail.taskId}/file`,
+        { responseType: 'blob' },
+      );
+      const url = URL.createObjectURL(res.data);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = detail.uploadedFileName ?? 'submission';
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      const ax = e as { response?: { data?: { error?: string } }; message?: string };
+      alert(ax.response?.data?.error ?? ax.message ?? 'Download failed');
+    }
+  }
+
+  async function submit() {
+    if (decision !== 'ACCEPT') {
+      if (!reasonCode) { setErr('Pick a reason'); return; }
+      if (ermComments.trim().length < 20) {
+        setErr('Comments must be at least 20 characters (shown to intern)');
+        return;
+      }
+    }
+    setSubmitting(true);
+    try {
+      const body: ReviewTaskRequest = {
+        decision,
+        reasonCode: decision === 'ACCEPT' ? null : reasonCode,
+        ermComments: decision === 'ACCEPT' ? null : ermComments.trim(),
+        internalNote: internalNote.trim() || null,
+      };
+      await api.post(`/api/v1/erm/document-review/tasks/${taskId}/review`, body);
+      onReviewed();
+    } catch (e) {
+      const ax = e as { response?: { data?: { error?: string } }; message?: string };
+      setErr(ax.response?.data?.error ?? ax.message ?? 'Failed');
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+      <div className="w-full max-w-3xl rounded-lg bg-white shadow-xl">
+        <div className="flex items-center justify-between border-b border-slate-200 px-5 py-3">
+          <div>
+            <h3 className="text-base font-semibold text-slate-900">Review submission</h3>
+            <p className="text-xs text-slate-500">
+              {detail ? `${detail.templateTitle} · ${detail.internName ?? ''}` : 'Loading…'}
+            </p>
+          </div>
+          <button type="button" onClick={onClose} className="rounded-full p-1 hover:bg-slate-100">
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        <div className="max-h-[75vh] overflow-y-auto px-5 py-4">
+          {loading ? (
+            <div className="h-32 animate-pulse rounded-md bg-slate-100" />
+          ) : detail ? (
+            <div className="space-y-4">
+              <section className="rounded-md border border-slate-200 bg-slate-50 p-3">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-slate-900">
+                      {detail.uploadedFileName ?? '(no file)'}
+                    </p>
+                    <p className="text-[11px] text-slate-500">
+                      Submitted {detail.submittedAt
+                        ? new Date(detail.submittedAt).toLocaleString() : '—'}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={downloadUpload}
+                    className="inline-flex items-center gap-1 rounded-md border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium"
+                  >
+                    <Download className="h-3.5 w-3.5" /> Download
+                  </button>
+                </div>
+                <p className="mt-2 text-[11px] text-slate-500">
+                  Attempt #{detail.version ?? 1}
+                </p>
+              </section>
+
+              <fieldset className="space-y-2">
+                <legend className="text-xs font-semibold uppercase text-slate-500">Decision</legend>
+                {(['ACCEPT', 'REJECT', 'RESEND_REQUEST'] as const).map((d) => (
+                  <label key={d} className="flex items-center gap-2 text-sm">
+                    <input
+                      type="radio"
+                      name="decision"
+                      value={d}
+                      checked={decision === d}
+                      onChange={() => { setDecision(d); setReasonCode(''); }}
+                    />
+                    {d === 'ACCEPT' && 'Accept submission'}
+                    {d === 'REJECT' && 'Reject (intern must redo this document)'}
+                    {d === 'RESEND_REQUEST' && 'Request re-send (file unreadable / wrong scan)'}
+                  </label>
+                ))}
+              </fieldset>
+
+              {decision !== 'ACCEPT' && (
+                <>
+                  <label className="block">
+                    <span className="text-xs font-semibold uppercase text-slate-500">Reason</span>
+                    <select
+                      value={reasonCode}
+                      onChange={(e) => setReasonCode(e.target.value)}
+                      className="mt-1 w-full rounded-md border border-slate-200 px-2 py-1.5 text-sm"
+                    >
+                      <option value="">— pick a reason —</option>
+                      {reasonGroups.flatMap((g) => g.options).map((o) => (
+                        <option key={o.code} value={o.code}>{o.label}</option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="block">
+                    <span className="text-xs font-semibold uppercase text-slate-500">
+                      Comments to intern (verbatim, min 20 chars)
+                    </span>
+                    <textarea
+                      value={ermComments}
+                      onChange={(e) => setErmComments(e.target.value)}
+                      rows={3}
+                      className="mt-1 w-full rounded-md border border-slate-200 px-2 py-1.5 text-sm"
+                      placeholder="Explain exactly what the intern needs to fix."
+                    />
+                    <span className="text-[10px] text-slate-500">
+                      {ermComments.trim().length}/20+ characters
+                    </span>
+                  </label>
+                </>
+              )}
+
+              <label className="block">
+                <span className="text-xs font-semibold uppercase text-slate-500">
+                  Internal note (ERM-only, never shown to intern)
+                </span>
+                <textarea
+                  value={internalNote}
+                  onChange={(e) => setInternalNote(e.target.value)}
+                  rows={2}
+                  className="mt-1 w-full rounded-md border border-slate-200 px-2 py-1.5 text-sm"
+                  placeholder="Optional context for other ERM agents."
+                />
+              </label>
+
+              {detail.internalNote && (
+                <section className="rounded-md border border-slate-200 bg-slate-50 p-3">
+                  <h4 className="text-xs font-semibold uppercase text-slate-500">
+                    Latest internal note (ERM-only)
+                  </h4>
+                  <p className="mt-2 whitespace-pre-wrap rounded bg-white px-2 py-1 text-xs text-slate-700">
+                    {detail.internalNote}
+                  </p>
+                </section>
+              )}
+
+              {(detail.history ?? []).length > 0 && (
+                <section className="rounded-md border border-slate-200 bg-slate-50 p-3">
+                  <h4 className="text-xs font-semibold uppercase text-slate-500">
+                    Review history
+                  </h4>
+                  <ul className="mt-2 space-y-1 text-xs text-slate-700">
+                    {detail.history.map((h) => (
+                      <li key={h.id} className="rounded bg-white px-2 py-1">
+                        <span className="font-semibold">{h.eventType}</span>
+                        {h.actorName && <span> · {h.actorName}</span>}
+                        <span className="ml-2 text-[10px] text-slate-500">
+                          {new Date(h.createdAt).toLocaleString()}
+                        </span>
+                        {h.comments && (
+                          <p className="mt-0.5 whitespace-pre-wrap text-slate-600">{h.comments}</p>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                </section>
+              )}
+
+              {err && (
+                <p className="rounded-md border border-rose-200 bg-rose-50 p-2 text-xs text-rose-800">
+                  {err}
+                </p>
+              )}
+            </div>
+          ) : (
+            <p className="rounded-md border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800">
+              {err ?? 'Not found'}
+            </p>
+          )}
+        </div>
+
+        <div className="flex justify-end gap-2 border-t border-slate-200 px-5 py-3">
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-md border border-slate-200 px-3 py-1.5 text-sm"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={submit}
+            disabled={submitting || !detail}
+            className={
+              'rounded-md px-4 py-1.5 text-sm font-semibold text-white disabled:bg-slate-300 ' +
+              (decision === 'ACCEPT' ? 'bg-emerald-700 hover:bg-emerald-800'
+                : 'bg-rose-700 hover:bg-rose-800')
+            }
+          >
+            {submitting ? 'Submitting…' : decision === 'ACCEPT' ? 'Accept' : 'Send back'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}

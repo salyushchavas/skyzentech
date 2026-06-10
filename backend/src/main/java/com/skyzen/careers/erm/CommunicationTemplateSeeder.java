@@ -352,7 +352,59 @@ public class CommunicationTemplateSeeder implements CommandLineRunner {
                             + "Please submit, or contact your trainer {{trainerName}}. "
                             + "Escalation may follow if not resolved.\n\n"
                             + "— Skyzen Tech",
-                    "firstName,trainerName,projectTitle,dueDateLocal")
+                    "firstName,trainerName,projectTitle,dueDateLocal"),
+            // ── ERM Phase 8 — Document packet workflow ──────────────────────
+            new Seed(
+                    "DOCUMENT_PACKET_ASSIGNED", "EMAIL",
+                    "Your document packet is ready: {{templateCount}} forms to complete",
+                    "Hello {{firstName}},\n\n"
+                            + "Your ERM {{ermName}} has assigned you a document packet "
+                            + "with {{templateCount}} forms to complete:\n"
+                            + "{{templateTitlesList}}\n\n"
+                            + "Download each template, fill it out, then upload the "
+                            + "completed version. Open your dashboard to get started:\n"
+                            + "{{deepLink}}\n\n— Skyzen ERM",
+                    "firstName,ermName,templateCount,templateTitlesList,deepLink"),
+            new Seed(
+                    "DOCUMENT_TASK_ACCEPTED", "EMAIL",
+                    "Document accepted: {{templateTitle}}",
+                    "Hello {{firstName}},\n\n"
+                            + "Your submission for {{templateTitle}} has been reviewed "
+                            + "and accepted by {{ermName}}.\n\n"
+                            + "{{remainingTasksBlurb}}\n\n— Skyzen ERM",
+                    "firstName,templateTitle,ermName,remainingTasksBlurb"),
+            new Seed(
+                    "DOCUMENT_TASK_REJECTED", "EMAIL",
+                    "Action needed: {{templateTitle}}",
+                    "Hello {{firstName}},\n\n"
+                            + "Your submission for {{templateTitle}} has been rejected.\n\n"
+                            + "Reason: {{reasonHuman}}\n"
+                            + "ERM comments: {{ermComments}}\n\n"
+                            + "Please correct and resubmit from your dashboard:\n"
+                            + "{{deepLink}}\n\n— Skyzen ERM",
+                    "firstName,templateTitle,reasonHuman,ermComments,deepLink"),
+            new Seed(
+                    "DOCUMENT_TASK_RESEND", "EMAIL",
+                    "Please update: {{templateTitle}}",
+                    "Hello {{firstName}},\n\n"
+                            + "Please update your submission for {{templateTitle}}.\n\n"
+                            + "Reason: {{reasonHuman}}\n"
+                            + "ERM comments: {{ermComments}}\n\n"
+                            + "Resubmit from your dashboard:\n"
+                            + "{{deepLink}}\n\n— Skyzen ERM",
+                    "firstName,templateTitle,reasonHuman,ermComments,deepLink"),
+            new Seed(
+                    "DOCUMENT_PACKET_COMPLETED", "EMAIL",
+                    "Onboarding complete — welcome to Skyzen!",
+                    "Hello {{firstName}},\n\n"
+                            + "All your onboarding documents have been accepted. "
+                            + "Your tentative start date is {{tentativeStartDate}}.\n\n"
+                            + "Your team:\n"
+                            + " · Trainer: {{trainerName}}\n"
+                            + " · Evaluator: {{evaluatorName}}\n"
+                            + " · Manager: {{managerName}}\n\n"
+                            + "See you soon!\n\n— Skyzen ERM",
+                    "firstName,tentativeStartDate,trainerName,evaluatorName,managerName")
     );
 
     @Override
@@ -382,5 +434,37 @@ public class CommunicationTemplateSeeder implements CommandLineRunner {
         }
         log.info("[CommunicationTemplateSeeder] seeded {} templates (idempotent; {} pre-existing)",
                 seeded, skipped);
+        deactivateLegacyTemplates();
+    }
+
+    /** ERM Phase 8 — mark the per-form onboarding templates inactive.
+     *  The DOCUMENT_TASK_* / DOCUMENT_PACKET_* set above replaces them.
+     *  Idempotent: if rows don't exist (fresh DB) or are already
+     *  inactive, no-op. */
+    private void deactivateLegacyTemplates() {
+        List<String> legacyKeys = List.of(
+                "ONBOARDING_ITEM_ACCEPTED",
+                "ONBOARDING_ITEM_REJECTED",
+                "ONBOARDING_ITEM_RESEND",
+                "ONBOARDING_PACKET_ACCEPTED");
+        int deactivated = 0;
+        for (String key : legacyKeys) {
+            try {
+                var existing = repository.findByKeyAndChannel(key, "EMAIL");
+                if (existing.isPresent() && Boolean.TRUE.equals(existing.get().getActive())) {
+                    var t = existing.get();
+                    t.setActive(false);
+                    repository.save(t);
+                    deactivated++;
+                }
+            } catch (Exception e) {
+                log.warn("[CommunicationTemplateSeeder] legacy deactivate skipped for {}: {}",
+                        key, e.getMessage());
+            }
+        }
+        if (deactivated > 0) {
+            log.info("[CommunicationTemplateSeeder] deactivated {} legacy onboarding template(s)",
+                    deactivated);
+        }
     }
 }

@@ -10,6 +10,7 @@ import DashboardLayout from '@/components/dashboard/DashboardLayout';
 import PageHeader from '@/components/ui/PageHeader';
 import AssignReportingStructureModal from '@/components/erm/newhire/AssignReportingStructureModal';
 import UpdateStartDateModal from '@/components/erm/offers/UpdateStartDateModal';
+import AssignPacketModal from '@/components/erm/documents/AssignPacketModal';
 import type { NewHireDetail } from '@/components/erm/offers/types';
 
 export default function NewHireDetailPage() {
@@ -18,8 +19,7 @@ export default function NewHireDetailPage() {
   const [data, setData] = useState<NewHireDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
-  const [modal, setModal] = useState<'reporting' | 'startdate' | null>(null);
-  const [assigning, setAssigning] = useState(false);
+  const [modal, setModal] = useState<'reporting' | 'startdate' | 'packet' | null>(null);
 
   const load = useCallback(async () => {
     if (!id) return;
@@ -36,27 +36,6 @@ export default function NewHireDetailPage() {
   }, [id]);
 
   useEffect(() => { void load(); }, [load]);
-
-  async function assignOnboarding() {
-    if (!data) return;
-    setAssigning(true);
-    try {
-      await api.post('/api/v1/onboarding/packets', {
-        applicantUserId: data.internUserId,
-      });
-      await load();
-    } catch (e) {
-      const ax = e as { response?: { data?: { error?: string; code?: string; missing?: string[] } } };
-      if (ax.response?.data?.code === 'REPORTING_STRUCTURE_INCOMPLETE') {
-        alert('Reporting structure incomplete — missing: '
-          + (ax.response.data.missing ?? []).join(', '));
-      } else {
-        alert(ax.response?.data?.error ?? (e instanceof Error ? e.message : 'Failed'));
-      }
-    } finally {
-      setAssigning(false);
-    }
-  }
 
   if (loading && !data) {
     return (
@@ -157,16 +136,16 @@ export default function NewHireDetailPage() {
               <div className="mt-3 flex items-center gap-3">
                 <button
                   type="button"
-                  onClick={assignOnboarding}
-                  disabled={!data.reportingStructureComplete || data.onboardingAssigned || assigning}
+                  onClick={() => setModal('packet')}
+                  disabled={!data.reportingStructureComplete || data.onboardingAssigned}
                   title={!data.reportingStructureComplete
                     ? 'Complete reporting structure first'
                     : data.onboardingAssigned ? 'Already assigned' : ''}
                   className="rounded-md bg-teal-700 px-4 py-2 text-sm font-semibold text-white hover:bg-teal-800 disabled:bg-slate-300"
                 >
                   {data.onboardingAssigned
-                    ? 'Onboarding assigned ✓'
-                    : assigning ? 'Assigning…' : 'Assign onboarding packet'}
+                    ? 'Document packet assigned ✓'
+                    : 'Assign document packet…'}
                 </button>
                 {!data.reportingStructureComplete && (
                   <span className="text-xs text-slate-500">
@@ -232,6 +211,15 @@ export default function NewHireDetailPage() {
             currentDate={data.tentativeStartDate}
             onClose={() => setModal(null)}
             onApplied={() => void load()}
+          />
+        )}
+        {modal === 'packet' && (
+          <AssignPacketModal
+            open
+            lifecycleId={data.internLifecycleId}
+            internName={data.internName ?? null}
+            onClose={() => setModal(null)}
+            onAssigned={() => { setModal(null); void load(); }}
           />
         )}
       </DashboardLayout>

@@ -187,23 +187,27 @@ public class ExceptionDetectionService {
     // ── Detector 2: onboarding doc rejected, awaiting resubmission ─────────
 
     private List<ExceptionRow> onboardingDocRejected(ErmScope scope, UUID callerId) {
+        // ERM Phase 8 — switched onboarding_items/onboarding_packets to the
+        // document_tasks/document_packets pair. RESEND_REQUESTED is treated
+        // the same as REJECTED for the followup window since both push the
+        // intern back into "needs to re-upload" state.
         StringBuilder sql = new StringBuilder()
-                .append("SELECT oi.id AS resource_id, u.id AS intern_id, u.full_name AS intern_name, ")
-                .append("       EXTRACT(EPOCH FROM (NOW() - oi.reviewed_at))/86400 AS days_overdue ")
-                .append("  FROM onboarding_items oi ")
-                .append("  JOIN onboarding_packets pk ON pk.id = oi.packet_id ")
-                .append("  JOIN intern_lifecycles il  ON il.id = pk.intern_lifecycle_id ")
-                .append("  JOIN users u               ON u.id = il.user_id ")
-                .append(" WHERE oi.status = 'REJECTED' ")
-                .append("   AND oi.reviewed_at IS NOT NULL ")
-                .append("   AND oi.reviewed_at > NOW() - INTERVAL '")
+                .append("SELECT dt.id AS resource_id, u.id AS intern_id, u.full_name AS intern_name, ")
+                .append("       EXTRACT(EPOCH FROM (NOW() - dt.reviewed_at))/86400 AS days_overdue ")
+                .append("  FROM document_tasks dt ")
+                .append("  JOIN document_packets dp ON dp.id = dt.packet_id ")
+                .append("  JOIN intern_lifecycles il ON il.id = dp.intern_lifecycle_id ")
+                .append("  JOIN users u              ON u.id = il.user_id ")
+                .append(" WHERE dt.status IN ('REJECTED','RESEND_REQUESTED') ")
+                .append("   AND dt.reviewed_at IS NOT NULL ")
+                .append("   AND dt.reviewed_at > NOW() - INTERVAL '")
                 .append(ErmThresholds.DOC_REJECTED_FOLLOWUP_DAYS).append(" days' ");
         List<Object> params = new ArrayList<>();
         if (scope == ErmScope.MINE) {
             sql.append(" AND il.erm_id = ? ");
             params.add(callerId);
         }
-        sql.append(" ORDER BY oi.reviewed_at ASC");
+        sql.append(" ORDER BY dt.reviewed_at ASC");
         return jdbc.query(sql.toString(), params.toArray(),
                 (rs, n) -> new ExceptionRow(
                         ExceptionType.ONBOARDING_DOC_REJECTED,
@@ -211,7 +215,7 @@ public class ExceptionDetectionService {
                         nullableUuid(rs.getString("intern_id")),
                         rs.getString("intern_name"),
                         Math.max(0, (int) rs.getDouble("days_overdue")),
-                        "/careers/erm/onboarding",
+                        "/careers/erm/document-review",
                         nullableUuid(rs.getString("resource_id"))));
     }
 
@@ -846,7 +850,7 @@ public class ExceptionDetectionService {
     private static String subjectResourceTypeFor(ExceptionType t) {
         return switch (t) {
             case UNSIGNED_OFFER_OVERDUE                 -> "OFFER";
-            case ONBOARDING_DOC_REJECTED                -> "ONBOARDING_ITEM";
+            case ONBOARDING_DOC_REJECTED                -> "DOCUMENT_TASK";
             case I9_EVERIFY_TIMING_RISK,
                  I983_EVALUATION_OVERDUE                -> "EVERIFY";
             case NO_PROJECT_ASSIGNED, LOW_PROJECT_PROGRESS -> "PROJECT";

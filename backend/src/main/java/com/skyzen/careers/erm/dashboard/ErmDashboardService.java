@@ -209,13 +209,16 @@ public class ErmDashboardService {
     }
 
     private KpiSnapshot onboardingOverdue(boolean mine, UUID callerId) {
-        String base = "FROM onboarding_packets WHERE status IN ('ASSIGNED','IN_PROGRESS')"
+        // ERM Phase 8 — switched from legacy onboarding_packets to
+        // document_packets. Packet stays open until status = COMPLETED;
+        // CANCELLED packets fall out of the count entirely.
+        String base = "FROM document_packets WHERE status IN ('ASSIGNED','IN_PROGRESS','ALL_SUBMITTED')"
                 + " AND assigned_at < NOW() - INTERVAL '"
                 + ErmThresholds.ONBOARDING_OVERDUE_DAYS + " days'";
         String mineClause = mine ? " AND assigned_by_id = ?" : "";
         long total = countWithOptionalCaller(base + mineClause, mine, callerId);
         long urgent = countWithOptionalCaller(
-                "FROM onboarding_packets WHERE status IN ('ASSIGNED','IN_PROGRESS')"
+                "FROM document_packets WHERE status IN ('ASSIGNED','IN_PROGRESS','ALL_SUBMITTED')"
                         + " AND assigned_at < NOW() - INTERVAL '"
                         + ErmThresholds.ONBOARDING_URGENT_DAYS + " days'"
                         + mineClause,
@@ -228,7 +231,7 @@ public class ErmDashboardService {
                 urgent > 0
                         ? urgent + " past " + ErmThresholds.ONBOARDING_URGENT_DAYS + " days"
                         : null,
-                "/careers/erm/onboarding");
+                "/careers/erm/document-packets");
     }
 
     private KpiSnapshot i9EverifyDue(boolean mine, UUID callerId) {

@@ -88,6 +88,22 @@ public class InternLifecycle {
     @Column(name = "reporting_structure_completed_by_id")
     private UUID reportingStructureCompletedById;
 
+    // ── ERM Phase 8 — simplified I-9 §2 attestation ─────────────────────────
+
+    /** Timestamp the ERM agent checked the "I-9 Section 2 completed" box. */
+    @Column(name = "i9_section2_completed_at")
+    private Instant i9Section2CompletedAt;
+
+    @Column(name = "i9_section2_completed_by_id")
+    private UUID i9Section2CompletedById;
+
+    /** Free-text description of the documents the agent examined in person. */
+    @Column(name = "i9_section2_documents_described", columnDefinition = "text")
+    private String i9Section2DocumentsDescribed;
+
+    @Column(name = "i9_section2_notes", columnDefinition = "text")
+    private String i9Section2Notes;
+
     @Column(nullable = false, updatable = false)
     private Instant createdAt;
 

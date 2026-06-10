@@ -135,10 +135,10 @@ function QuickActions({
           Compliance tracker →
         </Link>
         <Link
-          href={`/careers/erm/onboarding`}
+          href={`/careers/erm/document-packets`}
           className="block rounded border border-slate-200 px-3 py-1.5 text-slate-700 hover:bg-slate-50"
         >
-          Onboarding queue →
+          Document packets →
         </Link>
         <Link
           href={`/careers/erm/escalations?internLifecycleId=${lifecycleId}`}

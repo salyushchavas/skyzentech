@@ -1340,6 +1340,14 @@ public class SchemaFixupRunner implements CommandLineRunner {
         // Trainer Phase 1 — two indexes that keep the Home dashboard +
         // Active Interns queries sub-500ms.
         ensureTrainerPhase1Indexes();
+
+        // ERM Phase 8 — Document Template Library + per-intern Packet
+        // workflow. Creates 4 new tables + migration_log, ALTERs
+        // intern_lifecycles for the simplified I-9 §2 capture, and
+        // (only after OnboardingMigrationRunner posts a success row in
+        // migration_log) DROPs the legacy onboarding_* tables.
+        ensureErmPhase8Schema();
+        dropLegacyOnboardingTablesIfMigrated();
     }
 
     /**
@@ -1904,6 +1912,222 @@ public class SchemaFixupRunner implements CommandLineRunner {
             }
         }
         log.info("[SchemaFixupRunner] ensured Trainer Phase 1 indexes");
+    }
+
+    /**
+     * ERM Phase 8 — Document Template Library + per-intern Packet
+     * workflow. All idempotent. Creates 5 tables (migration_log +
+     * document_templates + document_packets + document_tasks +
+     * document_task_review_logs), ALTERs intern_lifecycles with 3
+     * simplified I-9 §2 columns, and indexes everything. The DROP of
+     * the legacy onboarding_* tables runs separately in
+     * {@link #dropLegacyOnboardingTablesIfMigrated()} only after the
+     * OnboardingMigrationRunner posts a success row in migration_log.
+     */
+    private void ensureErmPhase8Schema() {
+        // 1) migration_log — generic one-shot migration ledger.
+        try {
+            jdbcTemplate.execute(
+                    "CREATE TABLE IF NOT EXISTS migration_log ("
+                            + "  id UUID PRIMARY KEY,"
+                            + "  migration_key VARCHAR(120) NOT NULL UNIQUE,"
+                            + "  executed_at TIMESTAMP NOT NULL DEFAULT NOW(),"
+                            + "  rows_migrated INTEGER NOT NULL DEFAULT 0,"
+                            + "  notes TEXT"
+                            + ")");
+        } catch (Exception e) {
+            log.warn("[SchemaFixupRunner] migration_log create failed (non-fatal): {}",
+                    e.getMessage());
+        }
+
+        // 2) document_templates.
+        try {
+            jdbcTemplate.execute(
+                    "CREATE TABLE IF NOT EXISTS document_templates ("
+                            + "  id UUID PRIMARY KEY,"
+                            + "  title VARCHAR(200) NOT NULL UNIQUE,"
+                            + "  description TEXT,"
+                            + "  category VARCHAR(40) NOT NULL,"
+                            + "  template_file_id UUID,"
+                            + "  file_kind VARCHAR(20) NOT NULL DEFAULT 'PDF',"
+                            + "  sensitivity VARCHAR(40) NOT NULL DEFAULT 'NORMAL',"
+                            + "  version INTEGER NOT NULL DEFAULT 1,"
+                            + "  previous_version_file_id UUID,"
+                            + "  is_active BOOLEAN NOT NULL DEFAULT TRUE,"
+                            + "  instructions TEXT,"
+                            + "  created_by_id UUID NOT NULL,"
+                            + "  created_at TIMESTAMP NOT NULL DEFAULT NOW(),"
+                            + "  updated_at TIMESTAMP NOT NULL DEFAULT NOW()"
+                            + ")");
+            jdbcTemplate.execute(
+                    "CREATE INDEX IF NOT EXISTS idx_document_templates_cat_active "
+                            + "ON document_templates (category, is_active)");
+        } catch (Exception e) {
+            log.warn("[SchemaFixupRunner] document_templates create failed (non-fatal): {}",
+                    e.getMessage());
+        }
+
+        // 3) document_packets — one active per intern_lifecycle via
+        //    partial UNIQUE.
+        try {
+            jdbcTemplate.execute(
+                    "CREATE TABLE IF NOT EXISTS document_packets ("
+                            + "  id UUID PRIMARY KEY,"
+                            + "  intern_lifecycle_id UUID NOT NULL,"
+                            + "  assigned_by_id UUID NOT NULL,"
+                            + "  status VARCHAR(20) NOT NULL DEFAULT 'ASSIGNED',"
+                            + "  custom_instructions TEXT,"
+                            + "  assigned_at TIMESTAMP NOT NULL DEFAULT NOW(),"
+                            + "  first_submission_at TIMESTAMP,"
+                            + "  all_submitted_at TIMESTAMP,"
+                            + "  completed_at TIMESTAMP,"
+                            + "  cancelled_at TIMESTAMP,"
+                            + "  cancellation_reason TEXT,"
+                            + "  created_at TIMESTAMP NOT NULL DEFAULT NOW(),"
+                            + "  updated_at TIMESTAMP NOT NULL DEFAULT NOW()"
+                            + ")");
+            jdbcTemplate.execute(
+                    "CREATE INDEX IF NOT EXISTS idx_document_packets_lifecycle_status "
+                            + "ON document_packets (intern_lifecycle_id, status)");
+            jdbcTemplate.execute(
+                    "CREATE INDEX IF NOT EXISTS idx_document_packets_status_assigned "
+                            + "ON document_packets (status, assigned_at)");
+            jdbcTemplate.execute(
+                    "CREATE UNIQUE INDEX IF NOT EXISTS uq_document_packets_active_per_lifecycle "
+                            + "ON document_packets (intern_lifecycle_id) "
+                            + "WHERE status <> 'CANCELLED'");
+        } catch (Exception e) {
+            log.warn("[SchemaFixupRunner] document_packets create failed (non-fatal): {}",
+                    e.getMessage());
+        }
+
+        // 4) document_tasks — one per (packet, template) combo.
+        try {
+            jdbcTemplate.execute(
+                    "CREATE TABLE IF NOT EXISTS document_tasks ("
+                            + "  id UUID PRIMARY KEY,"
+                            + "  packet_id UUID NOT NULL,"
+                            + "  template_id UUID,"
+                            + "  template_snapshot_file_id UUID,"
+                            + "  template_snapshot_version INTEGER,"
+                            + "  task_instructions TEXT,"
+                            + "  status VARCHAR(20) NOT NULL DEFAULT 'PENDING',"
+                            + "  uploaded_file_id UUID,"
+                            + "  download_count INTEGER NOT NULL DEFAULT 0,"
+                            + "  last_downloaded_at TIMESTAMP,"
+                            + "  submitted_at TIMESTAMP,"
+                            + "  reviewed_at TIMESTAMP,"
+                            + "  reviewed_by_id UUID,"
+                            + "  review_reason_code VARCHAR(80),"
+                            + "  review_comments TEXT,"
+                            + "  version INTEGER NOT NULL DEFAULT 1,"
+                            + "  waived_at TIMESTAMP,"
+                            + "  waived_by_id UUID,"
+                            + "  waived_reason TEXT,"
+                            + "  internal_note TEXT,"
+                            + "  created_at TIMESTAMP NOT NULL DEFAULT NOW(),"
+                            + "  updated_at TIMESTAMP NOT NULL DEFAULT NOW(),"
+                            + "  CONSTRAINT uq_document_tasks_packet_template "
+                            + "      UNIQUE (packet_id, template_id)"
+                            + ")");
+            jdbcTemplate.execute(
+                    "CREATE INDEX IF NOT EXISTS idx_document_tasks_packet_status "
+                            + "ON document_tasks (packet_id, status)");
+            jdbcTemplate.execute(
+                    "CREATE INDEX IF NOT EXISTS idx_document_tasks_status_submitted "
+                            + "ON document_tasks (status, submitted_at)");
+            jdbcTemplate.execute(
+                    "CREATE INDEX IF NOT EXISTS idx_document_tasks_reviewer "
+                            + "ON document_tasks (reviewed_by_id, reviewed_at)");
+        } catch (Exception e) {
+            log.warn("[SchemaFixupRunner] document_tasks create failed (non-fatal): {}",
+                    e.getMessage());
+        }
+
+        // 5) document_task_review_logs.
+        try {
+            jdbcTemplate.execute(
+                    "CREATE TABLE IF NOT EXISTS document_task_review_logs ("
+                            + "  id UUID PRIMARY KEY,"
+                            + "  task_id UUID NOT NULL,"
+                            + "  actor_user_id UUID,"
+                            + "  event_type VARCHAR(40) NOT NULL,"
+                            + "  previous_status VARCHAR(20),"
+                            + "  new_status VARCHAR(20),"
+                            + "  reason_code VARCHAR(80),"
+                            + "  comments TEXT,"
+                            + "  payload_json TEXT,"
+                            + "  created_at TIMESTAMP NOT NULL DEFAULT NOW()"
+                            + ")");
+            jdbcTemplate.execute(
+                    "CREATE INDEX IF NOT EXISTS idx_document_task_review_logs_task "
+                            + "ON document_task_review_logs (task_id, created_at)");
+            jdbcTemplate.execute(
+                    "CREATE INDEX IF NOT EXISTS idx_document_task_review_logs_actor "
+                            + "ON document_task_review_logs (actor_user_id, created_at)");
+        } catch (Exception e) {
+            log.warn("[SchemaFixupRunner] document_task_review_logs create failed (non-fatal): {}",
+                    e.getMessage());
+        }
+
+        // 6) intern_lifecycles — simplified I-9 §2 capture columns
+        //    (replaces structured I9Section2Form workflow). Idempotent.
+        String[] alters = {
+                "ALTER TABLE intern_lifecycles ADD COLUMN IF NOT EXISTS i9_section2_completed_at TIMESTAMP",
+                "ALTER TABLE intern_lifecycles ADD COLUMN IF NOT EXISTS i9_section2_completed_by_id UUID",
+                "ALTER TABLE intern_lifecycles ADD COLUMN IF NOT EXISTS i9_section2_documents_described VARCHAR(500)",
+                "ALTER TABLE intern_lifecycles ADD COLUMN IF NOT EXISTS i9_section2_notes TEXT"
+        };
+        for (String sql : alters) {
+            try {
+                jdbcTemplate.execute(sql);
+            } catch (Exception e) {
+                log.warn("[SchemaFixupRunner] ERM Phase 8 intern_lifecycles ALTER skipped (non-fatal): {} — {}",
+                        sql, e.getMessage());
+            }
+        }
+        log.info("[SchemaFixupRunner] ensured ERM Phase 8 schema");
+    }
+
+    /**
+     * ERM Phase 8 — drop the legacy onboarding_* tables ONLY after
+     * {@code OnboardingMigrationRunner} has posted a success row in
+     * {@code migration_log}. Idempotent: if the row isn't there yet,
+     * skip silently — next boot will retry after the migration runs.
+     */
+    private void dropLegacyOnboardingTablesIfMigrated() {
+        boolean migrated;
+        try {
+            Integer cnt = jdbcTemplate.queryForObject(
+                    "SELECT COUNT(*) FROM migration_log "
+                            + " WHERE migration_key = 'ONBOARDING_TO_DOCUMENT_PACKETS_V1'",
+                    Integer.class);
+            migrated = cnt != null && cnt > 0;
+        } catch (Exception e) {
+            // migration_log table may not exist on first boot — that's fine,
+            // it gets created above. Just skip DROPs.
+            migrated = false;
+        }
+        if (!migrated) {
+            log.info("[SchemaFixupRunner] Phase 8 legacy DROP deferred — "
+                    + "OnboardingMigrationRunner has not yet posted success");
+            return;
+        }
+        String[] drops = {
+                "DROP TABLE IF EXISTS onboarding_review_logs CASCADE",
+                "DROP TABLE IF EXISTS onboarding_items CASCADE",
+                "DROP TABLE IF EXISTS onboarding_packets CASCADE"
+        };
+        for (String sql : drops) {
+            try {
+                jdbcTemplate.execute(sql);
+                log.info("[SchemaFixupRunner] {}", sql);
+            } catch (Exception e) {
+                log.warn("[SchemaFixupRunner] Phase 8 legacy DROP skipped (non-fatal): {} — {}",
+                        sql, e.getMessage());
+            }
+        }
+        log.info("[SchemaFixupRunner] Phase 8 legacy onboarding tables dropped");
     }
 
     /**

@@ -89,7 +89,15 @@ public final class ErmComplianceDtos {
             Instant section1SignedAt,
             Instant section2SignedAt,
             String employerName,
-            String employerTitle
+            String employerTitle,
+            // ERM Phase 8 — simplified §2 attestation surfaced from the
+            // intern_lifecycles row. section2Completed mirrors a non-null
+            // section2CompletedAt for the UI checkbox.
+            Boolean section2Completed,
+            Instant section2CompletedAt,
+            UUID section2CompletedById,
+            String section2DocumentsDescribed,
+            String section2Notes
     ) {}
 
     public record EverifyCard(
@@ -147,23 +155,17 @@ public final class ErmComplianceDtos {
             String ermNotes
     ) {}
 
+    /**
+     * ERM Phase 8 — simplified to checkbox attestation + first-day date +
+     * free-text describing the documents the agent reviewed in person.
+     * The document packet workflow (Phase 8) replaces the structured
+     * List A / B / C inputs; agents record the underlying paperwork in
+     * their narrative description and notes.
+     */
     public record RecordI9Section2Request(
             LocalDate firstDayOfEmployment,
-            String listATitle,
-            String listAIssuingAuthority,
-            String listADocumentNumber,
-            LocalDate listAExpirationDate,
-            String listBTitle,
-            String listBIssuingAuthority,
-            String listBDocumentNumber,
-            LocalDate listBExpirationDate,
-            String listCTitle,
-            String listCIssuingAuthority,
-            String listCDocumentNumber,
-            String employerName,
-            String employerTitle,
-            String businessOrganizationName,
-            String businessAddress
+            String documentsDescribed,
+            String notes
     ) {}
 
     public record RecordEverifyRequest(
