@@ -100,8 +100,10 @@ public class TrainerRightPanelService {
         long pendingFeedbackPublish = 0L;
 
         List<QuickAction> quickActions = new ArrayList<>();
+        // Trainer Phase 2 — "Assign project" wizard live. The other four
+        // quick actions stay disabled until Phase 3.
         quickActions.add(new QuickAction("assign-project", "Assign project",
-                "/careers/trainer/assign-project", withoutProject, true));
+                "/careers/trainer/assign-project", withoutProject, false));
         quickActions.add(new QuickAction("schedule-meeting", "Schedule meeting",
                 "/careers/trainer/weekly-meetings", noUpcomingMeeting, true));
         quickActions.add(new QuickAction("send-reminder", "Send reminder",

@@ -291,6 +291,22 @@ public class CommunicationTemplateSeeder implements CommandLineRunner {
                             + "Open your dashboard to view instructions, attached files, "
                             + "and GitHub setup:\n{{deepLink}}\n\n— Skyzen Tech",
                     "firstName,trainerName,projectTitle,technologyArea,dueDateLocal,deepLink"),
+            // Trainer Phase 2 — staff-side variant used when the trainer
+            // flips on "notify stakeholders" so Evaluator / Manager / ERM
+            // receive a different framing than the intern.
+            new Seed(
+                    "PROJECT_ASSIGNED_STAKEHOLDER", "EMAIL",
+                    "Project assigned: {{internName}} — {{projectTitle}}",
+                    "Hello {{firstName}},\n\n"
+                            + "Trainer {{trainerName}} has assigned a project to "
+                            + "{{internName}}:\n\n"
+                            + "  · {{projectTitle}} ({{technologyArea}})\n"
+                            + "  · Due {{dueDateLocal}}\n"
+                            + "  · Slot: Project {{projectNumber}} for {{monthYear}}\n\n"
+                            + "Open the project to review instructions and attached "
+                            + "files:\n{{deepLink}}\n\n— Skyzen Tech",
+                    "firstName,trainerName,internName,projectTitle,technologyArea,"
+                            + "dueDateLocal,projectNumber,monthYear,deepLink"),
             new Seed(
                     "WEEKLY_MEETING_SCHEDULED", "EMAIL",
                     "Weekly meeting scheduled: {{meetingDateLocal}}",

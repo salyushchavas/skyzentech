@@ -1360,6 +1360,33 @@ public class SchemaFixupRunner implements CommandLineRunner {
         // started advancing lifecycle_status. Sweeps every boot — cheap +
         // safe because the WHERE clause filters to the broken state only.
         backfillEmailVerifiedLifecycleStatus();
+
+        // Trainer Phase 2 — lifecycle-tracked projects key off
+        // intern_lifecycle_id, not the legacy (engagement_id, intern_id)
+        // pair. Relax those columns to nullable so the new flow doesn't
+        // require an Engagement row that may not exist for prospective
+        // interns. Idempotent.
+        relaxProjectLegacyFkNotNull();
+    }
+
+    /** Trainer Phase 2 — drop NOT NULL on projects.engagement_id +
+     *  projects.intern_id so lifecycle-tracked projects (which key off
+     *  intern_lifecycle_id) can land without an Engagement / Candidate
+     *  row. Legacy paths that still populate both keep working. */
+    private void relaxProjectLegacyFkNotNull() {
+        String[] alters = {
+                "ALTER TABLE projects ALTER COLUMN engagement_id DROP NOT NULL",
+                "ALTER TABLE projects ALTER COLUMN intern_id DROP NOT NULL"
+        };
+        for (String sql : alters) {
+            try {
+                jdbcTemplate.execute(sql);
+            } catch (Exception e) {
+                // Already nullable, or table not yet created — both fine.
+                log.debug("[SchemaFixupRunner] Trainer Phase 2 ALTER skipped: {} — {}",
+                        sql, e.getMessage());
+            }
+        }
     }
 
     /**

@@ -156,8 +156,8 @@ export default function ActiveInternDetailPage(props: {
         <CardWithCta
           title="Recent projects"
           cta="Assign new project"
-          ctaDisabled
-          ctaTip="Coming in Trainer Phase 2"
+          ctaDisabled={false}
+          ctaHref={`/careers/trainer/assign-project?internId=${lifecycleId}&month=${d.summary.currentMonthProjects.monthYear ?? ''}`}
         >
           {d.recentProjects.length === 0 ? (
             <Empty />
@@ -272,26 +272,38 @@ function CardWithCta({
   cta,
   ctaDisabled,
   ctaTip,
+  ctaHref,
   children,
 }: {
   title: string;
   cta: string;
   ctaDisabled: boolean;
   ctaTip?: string;
+  ctaHref?: string;
   children: React.ReactNode;
 }) {
   return (
     <section className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
       <header className="mb-2 flex items-center justify-between">
         <h3 className="text-sm font-semibold text-slate-900">{title}</h3>
-        <button
-          type="button"
-          disabled={ctaDisabled}
-          title={ctaTip}
-          className="rounded-md border border-slate-200 px-2 py-0.5 text-[11px] font-medium text-slate-500 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
-        >
-          {cta}
-        </button>
+        {!ctaDisabled && ctaHref ? (
+          <Link
+            href={ctaHref}
+            title={ctaTip}
+            className="rounded-md border border-teal-300 bg-teal-50 px-2 py-0.5 text-[11px] font-semibold text-teal-800 hover:bg-teal-100"
+          >
+            {cta}
+          </Link>
+        ) : (
+          <button
+            type="button"
+            disabled={ctaDisabled}
+            title={ctaTip}
+            className="rounded-md border border-slate-200 px-2 py-0.5 text-[11px] font-medium text-slate-500 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {cta}
+          </button>
+        )}
       </header>
       {children}
     </section>

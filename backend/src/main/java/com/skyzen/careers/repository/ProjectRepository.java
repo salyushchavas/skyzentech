@@ -14,6 +14,18 @@ import java.util.UUID;
 @Repository
 public interface ProjectRepository extends JpaRepository<Project, UUID> {
 
+    // ── Trainer Phase 2 — lifecycle-tracked slot lookups ─────────────────
+
+    List<Project> findByInternLifecycleIdAndMonthYearOrderByProjectNumberAsc(
+            UUID internLifecycleId, String monthYear);
+
+    Optional<Project> findFirstByInternLifecycleIdAndMonthYearAndProjectNumber(
+            UUID internLifecycleId, String monthYear, Short projectNumber);
+
+    List<Project> findByInternLifecycleIdOrderByMonthYearDescProjectNumberAsc(
+            UUID internLifecycleId);
+
+
     /**
      * Single project with engagement + supervisor + intern's user fetched
      * eagerly so the service / DTO mapper doesn't lazy-load after the

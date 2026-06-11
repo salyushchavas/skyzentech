@@ -73,12 +73,17 @@ public class Project {
     @Column(name = "resource_links_json", columnDefinition = "TEXT")
     private String resourceLinksJson;
 
-    @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "engagement_id", nullable = false)
+    /**
+     * Trainer Phase 2 relaxed engagement_id + intern_id to nullable —
+     * lifecycle-tracked projects key off {@link #internLifecycleId}
+     * instead. Legacy single-allocation paths still populate both.
+     */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "engagement_id")
     private Engagement engagement;
 
-    @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "intern_id", nullable = false)
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "intern_id")
     private Candidate intern;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
