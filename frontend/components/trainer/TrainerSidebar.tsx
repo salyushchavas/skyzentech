@@ -19,6 +19,7 @@ const ITEMS: { href: string; label: string; phase: number }[] = [
   { href: '/careers/trainer/feedback-history', label: 'Feedback History', phase: 4 },
   { href: '/careers/trainer/files-templates',  label: 'Files / Templates', phase: 2 },
   { href: '/careers/trainer/reports',          label: 'Reports',          phase: 4 },
+  { href: '/careers/trainer/settings',         label: 'Settings',         phase: 4 },
   { href: '/careers/trainer/help',             label: 'Help',             phase: 4 },
 ];
 

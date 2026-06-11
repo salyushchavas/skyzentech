@@ -1372,6 +1372,41 @@ public class SchemaFixupRunner implements CommandLineRunner {
         // (version, trainer_decision, trainer_feedback, reviewed_at,
         // reviewed_by_id, completion_status). Idempotent.
         ensureTrainerPhase3SubmissionColumns();
+
+        // Trainer Phase 4 — per-trainer preference columns on the users
+        // table. Idempotent ALTERs; all nullable so existing rows survive
+        // without backfill and the settings page surfaces sane defaults
+        // when a user hasn't picked anything yet.
+        ensureTrainerPhase4PreferenceColumns();
+    }
+
+    /** Trainer Phase 4 — additive trainer-only preference columns on the
+     *  users table. */
+    private void ensureTrainerPhase4PreferenceColumns() {
+        String[] alters = {
+                "ALTER TABLE users ADD COLUMN IF NOT EXISTS "
+                        + "prefs_trainer_default_recurrence VARCHAR(16)",
+                "ALTER TABLE users ADD COLUMN IF NOT EXISTS "
+                        + "prefs_trainer_default_duration SMALLINT",
+                "ALTER TABLE users ADD COLUMN IF NOT EXISTS "
+                        + "prefs_trainer_review_priority VARCHAR(16)",
+                "ALTER TABLE users ADD COLUMN IF NOT EXISTS "
+                        + "prefs_trainer_notify_stakeholders BOOLEAN",
+                "ALTER TABLE users ADD COLUMN IF NOT EXISTS "
+                        + "prefs_trainer_email_frequency VARCHAR(16)",
+                "ALTER TABLE users ADD COLUMN IF NOT EXISTS "
+                        + "prefs_trainer_notify_submissions BOOLEAN",
+                "ALTER TABLE users ADD COLUMN IF NOT EXISTS "
+                        + "prefs_trainer_notify_escalation_resolved BOOLEAN"
+        };
+        for (String sql : alters) {
+            try {
+                jdbcTemplate.execute(sql);
+            } catch (Exception e) {
+                log.debug("[SchemaFixupRunner] Trainer Phase 4 ALTER skipped: {} — {}",
+                        sql, e.getMessage());
+            }
+        }
     }
 
     /** Trainer Phase 3 — additive ALTERs for the doc §9 4-decision review

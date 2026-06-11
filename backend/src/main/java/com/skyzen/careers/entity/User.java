@@ -146,6 +146,37 @@ public class User {
     @Builder.Default
     private Boolean prefsEngagementUpdates = true;
 
+    // ── Trainer Phase 4 — trainer-role preferences ─────────────────────────
+
+    /** Default recurrence on the Schedule Meeting modal — NONE | WEEKLY. */
+    @Column(name = "prefs_trainer_default_recurrence", length = 16)
+    private String prefsTrainerDefaultRecurrence;
+
+    /** Default duration on the Schedule Meeting modal (minutes). */
+    @Column(name = "prefs_trainer_default_duration")
+    private Short prefsTrainerDefaultDuration;
+
+    /** Default sort on the Pending Reviews queue — OLDEST | NEWEST | INTERN. */
+    @Column(name = "prefs_trainer_review_priority", length = 16)
+    private String prefsTrainerReviewPriority;
+
+    /** Default state of the "notify stakeholders" checkbox on the
+     *  Project Assignment wizard. */
+    @Column(name = "prefs_trainer_notify_stakeholders")
+    private Boolean prefsTrainerNotifyStakeholders;
+
+    /** Email frequency for in-app reminders — DAILY | WEEKLY | NEVER. */
+    @Column(name = "prefs_trainer_email_frequency", length = 16)
+    private String prefsTrainerEmailFrequency;
+
+    /** Notify me when an intern submits a new project for review. */
+    @Column(name = "prefs_trainer_notify_submissions")
+    private Boolean prefsTrainerNotifySubmissions;
+
+    /** Notify me when one of my escalations is reviewed by ERM. */
+    @Column(name = "prefs_trainer_notify_escalation_resolved")
+    private Boolean prefsTrainerNotifyEscalationResolved;
+
     /** When the user accepted ToS + privacy. Null for legacy pre-checkbox accounts. */
     @Column(name = "tos_accepted_at")
     private Instant tosAcceptedAt;
