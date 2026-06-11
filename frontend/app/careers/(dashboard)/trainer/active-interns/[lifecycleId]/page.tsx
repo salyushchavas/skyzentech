@@ -173,8 +173,8 @@ export default function ActiveInternDetailPage(props: {
         <CardWithCta
           title="Recent weekly meetings"
           cta="Schedule new"
-          ctaDisabled
-          ctaTip="Coming in Trainer Phase 3"
+          ctaDisabled={false}
+          ctaHref={`/careers/trainer/weekly-meetings?internId=${lifecycleId}&action=new`}
         >
           {d.recentMeetings.length === 0 ? (
             <Empty />
@@ -190,8 +190,8 @@ export default function ActiveInternDetailPage(props: {
         <CardWithCta
           title="Recent submissions"
           cta="Review pending"
-          ctaDisabled
-          ctaTip="Coming in Trainer Phase 3"
+          ctaDisabled={false}
+          ctaHref={`/careers/trainer/pending-reviews?intern=${lifecycleId}`}
         >
           {d.recentSubmissions.length === 0 ? (
             <Empty />

@@ -75,8 +75,41 @@ public class ProjectSubmission {
     @Column(name = "reviewed_links_csv", columnDefinition = "TEXT")
     private String reviewedLinksCsv;
 
+    // ── Trainer Phase 3 — review state + decision capture ──────────────────
+
+    /** Resubmission counter — 1 for the first submission on a project,
+     *  2 for the next round after a REQUEST_REVISION, etc. */
+    @Column(name = "version", nullable = false)
+    @Builder.Default
+    private Integer version = 1;
+
+    /** Trainer's terminal decision on this round:
+     *  ACCEPT | REQUEST_REVISION | ESCALATE | NO_ACTION_YET. Null while the
+     *  row sits in the Pending Reviews queue. */
+    @Column(name = "trainer_decision", length = 20)
+    private String trainerDecision;
+
+    /** Doc §9 trainer feedback — shown verbatim to the intern on
+     *  REQUEST_REVISION / ESCALATE. Distinct from {@link #blockersNote}
+     *  (which the intern fills) and {@link #reviewedLinksCsv}. */
+    @Column(name = "trainer_feedback", columnDefinition = "TEXT")
+    private String trainerFeedback;
+
+    @Column(name = "reviewed_at")
+    private Instant reviewedAt;
+
+    @Column(name = "reviewed_by_id")
+    private UUID reviewedById;
+
+    /** Optional doc Feedback Form "Project completion status" — captured for
+     *  audit / reporting even when the trainer's terminal decision is
+     *  ESCALATE / NO_ACTION_YET. */
+    @Column(name = "completion_status", length = 24)
+    private String completionStatus;
+
     @PrePersist
     void onCreate() {
         if (submittedAt == null) submittedAt = Instant.now();
+        if (version == null) version = 1;
     }
 }

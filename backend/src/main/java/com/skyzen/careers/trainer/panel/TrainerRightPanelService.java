@@ -84,6 +84,17 @@ public class TrainerRightPanelService {
                         + scope,
                 scopeArg);
 
+        // Trainer Phase 3 — submissions where the trainer hasn't recorded a
+        // terminal decision yet (NULL trainer_decision). Drives the new
+        // /pending-reviews queue + "Publish feedback" quick-action badge.
+        long pendingFeedbackPublish = safeCount(
+                "SELECT COUNT(*) FROM project_submissions s "
+                        + "  JOIN projects p ON p.id = s.project_id "
+                        + "  JOIN intern_lifecycles il ON il.id = p.intern_lifecycle_id "
+                        + " WHERE s.trainer_decision IS NULL "
+                        + scope,
+                scopeArg);
+
         long missingWeeklyMeeting = safeCount(
                 "SELECT COUNT(*) FROM intern_lifecycles il "
                         + " WHERE il.active_status = 'ACTIVE' "
@@ -95,26 +106,23 @@ public class TrainerRightPanelService {
                         + "                      AND wm.status IN ('SCHEDULED','COMPLETED'))",
                 scopeArg);
 
-        // "Reviewed but feedback not yet published" — Phase 0/1 has no
-        // dedicated publish step, so this count stays 0 until Phase 3.
-        long pendingFeedbackPublish = 0L;
-
         List<QuickAction> quickActions = new ArrayList<>();
-        // Trainer Phase 2 — "Assign project" wizard live. The other four
-        // quick actions stay disabled until Phase 3.
+        // Trainer Phase 2 + 3 — assign-project / schedule-meeting /
+        // request-revision / publish-feedback all live; only send-reminder
+        // stays deferred until Phase 4.
         quickActions.add(new QuickAction("assign-project", "Assign project",
                 "/careers/trainer/assign-project", withoutProject, false));
         quickActions.add(new QuickAction("schedule-meeting", "Schedule meeting",
-                "/careers/trainer/weekly-meetings", noUpcomingMeeting, true));
+                "/careers/trainer/weekly-meetings", noUpcomingMeeting, false));
         quickActions.add(new QuickAction("send-reminder", "Send reminder",
                 "/careers/trainer/active-interns?filter=overdue",
                 overdueSubmissions + missingWeeklyMeeting, true));
         quickActions.add(new QuickAction("request-revision", "Request revision",
                 "/careers/trainer/pending-reviews",
-                submissionsPendingReview, true));
+                submissionsPendingReview, false));
         quickActions.add(new QuickAction("publish-feedback", "Publish feedback",
                 "/careers/trainer/pending-reviews?filter=ready",
-                pendingFeedbackPublish, true));
+                pendingFeedbackPublish, false));
 
         List<Alert> alerts = new ArrayList<>();
         alerts.add(new Alert("missing-weekly-meeting",

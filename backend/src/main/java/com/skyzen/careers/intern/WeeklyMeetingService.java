@@ -179,10 +179,66 @@ public class WeeklyMeetingService {
                         "Meeting not found: " + meetingId));
         ensureHostOrSuperAdmin(m, actor);
         if ("COMPLETED".equals(m.getStatus())) return m;
+        // Trainer Phase 3 — guard against marking a future meeting complete by
+        // mistake. 15-minute leeway tolerates clock skew + early-start
+        // sessions but blocks "complete a meeting 3 days from now".
+        if (m.getScheduledFor() != null
+                && m.getScheduledFor().isAfter(Instant.now().plus(Duration.ofMinutes(15)))) {
+            throw new ConflictException(
+                    "Cannot mark a future meeting (scheduled "
+                            + m.getScheduledFor() + ") as completed");
+        }
         m.setStatus("COMPLETED");
         if (trainerNotes != null && !trainerNotes.isBlank()) {
             m.setTrainerNotes(trainerNotes.trim());
         }
+        return meetingRepository.save(m);
+    }
+
+    /** Trainer Phase 3 — manual mark-missed by the host trainer when the
+     *  intern was a no-show. The {@code MissedMeetingDetectorJob} fires the
+     *  same path automatically when a SCHEDULED meeting elapses past its
+     *  4-hour grace window. */
+    @Transactional
+    public WeeklyMeeting markMissed(UUID meetingId, String missedBy,
+                                     String reason, User actor) {
+        WeeklyMeeting m = meetingRepository.findById(meetingId)
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "Meeting not found: " + meetingId));
+        ensureHostOrSuperAdmin(m, actor);
+        if (!"SCHEDULED".equals(m.getStatus())) {
+            throw new ConflictException(
+                    "Only SCHEDULED meetings can be marked missed (current: "
+                            + m.getStatus() + ")");
+        }
+        m.setStatus("NO_SHOW");
+        StringBuilder note = new StringBuilder();
+        if (m.getTrainerNotes() != null && !m.getTrainerNotes().isBlank()) {
+            note.append(m.getTrainerNotes()).append("\n\n");
+        }
+        note.append("Marked NO_SHOW");
+        if (missedBy != null && !missedBy.isBlank()) {
+            note.append(" — missed by ").append(missedBy.trim());
+        }
+        if (reason != null && !reason.isBlank()) {
+            note.append(": ").append(reason.trim());
+        }
+        m.setTrainerNotes(note.toString());
+        return meetingRepository.save(m);
+    }
+
+    /** Internal helper used by the {@code MissedMeetingDetectorJob} so the
+     *  auto-flip path doesn't trip the host-or-super-admin guard. */
+    @Transactional
+    public WeeklyMeeting markMissedSystem(UUID meetingId, String reason) {
+        WeeklyMeeting m = meetingRepository.findById(meetingId)
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "Meeting not found: " + meetingId));
+        if (!"SCHEDULED".equals(m.getStatus())) return m;
+        m.setStatus("NO_SHOW");
+        String prev = m.getTrainerNotes() != null && !m.getTrainerNotes().isBlank()
+                ? m.getTrainerNotes() + "\n\n" : "";
+        m.setTrainerNotes(prev + "Auto-detected NO_SHOW: " + reason);
         return meetingRepository.save(m);
     }
 
@@ -263,9 +319,23 @@ public class WeeklyMeetingService {
     }
 
     private void ensureActiveIntern(InternLifecycle lc) {
-        if (!"ACTIVE".equals(lc.getActiveStatus())) {
+        // Trainer Phase 3 — accept both ACTIVE and PROSPECTIVE so demo /
+        // pre-start interns can still have prep meetings scheduled.
+        String s = lc.getActiveStatus();
+        if (!"ACTIVE".equals(s) && !"PROSPECTIVE".equals(s)) {
             throw new ConflictException(
-                    "Lifecycle is not ACTIVE (current: " + lc.getActiveStatus() + ")");
+                    "Lifecycle is not schedulable (current: " + s + ")");
         }
+    }
+
+    /** Trainer Phase 3 — meetings hosted by the caller. SUPER_ADMIN gets
+     *  everything; TRAINER sees just their own. */
+    @Transactional(readOnly = true)
+    public List<WeeklyMeeting> listForTrainer(User caller) {
+        if (caller == null) return List.of();
+        if (caller.getRoles().contains(UserRole.SUPER_ADMIN)) {
+            return meetingRepository.findAll();
+        }
+        return meetingRepository.findByHostUserIdOrderByScheduledForDesc(caller.getId());
     }
 }

@@ -11,4 +11,10 @@ import java.util.UUID;
 public interface ProjectSubmissionRepository extends JpaRepository<ProjectSubmission, UUID> {
 
     List<ProjectSubmission> findByProjectIdOrderBySubmittedAtDesc(UUID projectId);
+
+    /** Trainer Phase 3 — Pending Reviews queue: any row where the trainer
+     *  hasn't recorded a terminal decision yet (NULL or NO_ACTION_YET). */
+    long countByProjectIdAndTrainerDecisionIsNull(UUID projectId);
+
+    int countByProjectId(UUID projectId);
 }

@@ -1367,6 +1367,42 @@ public class SchemaFixupRunner implements CommandLineRunner {
         // require an Engagement row that may not exist for prospective
         // interns. Idempotent.
         relaxProjectLegacyFkNotNull();
+
+        // Trainer Phase 3 — review-state columns on project_submissions
+        // (version, trainer_decision, trainer_feedback, reviewed_at,
+        // reviewed_by_id, completion_status). Idempotent.
+        ensureTrainerPhase3SubmissionColumns();
+    }
+
+    /** Trainer Phase 3 — additive ALTERs for the doc §9 4-decision review
+     *  flow. Every column nullable / defaulted so existing submission rows
+     *  keep working without backfill. */
+    private void ensureTrainerPhase3SubmissionColumns() {
+        String[] alters = {
+                "ALTER TABLE project_submissions "
+                        + "ADD COLUMN IF NOT EXISTS version INTEGER NOT NULL DEFAULT 1",
+                "ALTER TABLE project_submissions "
+                        + "ADD COLUMN IF NOT EXISTS trainer_decision VARCHAR(20)",
+                "ALTER TABLE project_submissions "
+                        + "ADD COLUMN IF NOT EXISTS trainer_feedback TEXT",
+                "ALTER TABLE project_submissions "
+                        + "ADD COLUMN IF NOT EXISTS reviewed_at TIMESTAMP",
+                "ALTER TABLE project_submissions "
+                        + "ADD COLUMN IF NOT EXISTS reviewed_by_id UUID",
+                "ALTER TABLE project_submissions "
+                        + "ADD COLUMN IF NOT EXISTS completion_status VARCHAR(24)",
+                "CREATE INDEX IF NOT EXISTS idx_project_submissions_pending "
+                        + "ON project_submissions (project_id) "
+                        + "WHERE trainer_decision IS NULL"
+        };
+        for (String sql : alters) {
+            try {
+                jdbcTemplate.execute(sql);
+            } catch (Exception e) {
+                log.debug("[SchemaFixupRunner] Trainer Phase 3 ALTER skipped: {} — {}",
+                        sql, e.getMessage());
+            }
+        }
     }
 
     /** Trainer Phase 2 — drop NOT NULL on projects.engagement_id +
