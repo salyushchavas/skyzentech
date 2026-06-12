@@ -1,9 +1,9 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { useParams } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { ChevronLeft, ExternalLink } from 'lucide-react';
+import { CheckCircle2, ChevronLeft, ExternalLink, Send } from 'lucide-react';
 import api from '@/lib/api';
 import ProtectedRoute from '@/components/ProtectedRoute';
 import DashboardLayout from '@/components/dashboard/DashboardLayout';
@@ -15,13 +15,16 @@ import RescheduleModal from '@/components/erm/interviews/RescheduleModal';
 import CancelModal from '@/components/erm/interviews/CancelModal';
 import ChangeInterviewerModal from '@/components/erm/interviews/ChangeInterviewerModal';
 import type { InterviewDetail } from '@/components/erm/interviews/types';
+import type { OfferListPage, OfferRow } from '@/components/erm/offers/types';
 
 type Tab = 'overview' | 'decision' | 'notes' | 'history';
 
 export default function InterviewDetailPage() {
   const params = useParams<{ id: string }>();
+  const router = useRouter();
   const id = params?.id;
   const [data, setData] = useState<InterviewDetail | null>(null);
+  const [activeOffer, setActiveOffer] = useState<OfferRow | null>(null);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
   const [tab, setTab] = useState<Tab>('overview');
@@ -43,6 +46,25 @@ export default function InterviewDetailPage() {
         internalNotes: res.data.internalNotes ?? '',
       });
       setErr(null);
+
+      // Phase 8.6 — surface offer state in the action sidebar. Only fetch
+      // when we know the application id; failure is non-fatal.
+      const appId = res.data.applicant?.applicationId;
+      if (appId) {
+        try {
+          const offersRes = await api.get<OfferListPage>(
+            `/api/v1/erm/offers?applicationId=${appId}&pageSize=10`,
+          );
+          const active = (offersRes.data.items ?? []).find(
+            (o) => o.status === 'SENT' || o.status === 'SIGNED',
+          ) ?? null;
+          setActiveOffer(active);
+        } catch {
+          setActiveOffer(null);
+        }
+      } else {
+        setActiveOffer(null);
+      }
     } catch (e) {
       setErr(e instanceof Error ? e.message : 'Failed to load interview');
     } finally {
@@ -321,6 +343,56 @@ export default function InterviewDetailPage() {
           </main>
 
           <aside className="space-y-4">
+            {/* Phase 8.6 — Offer action surfaces only when interview is
+                COMPLETED+SELECTED. Replaced with "Offer Sent" badge once
+                an active offer exists for the application. */}
+            {data.status === 'COMPLETED' && data.decision === 'SELECTED' && (
+              <section className="rounded-lg border border-emerald-200 bg-emerald-50 p-4 shadow-sm">
+                {activeOffer ? (
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <CheckCircle2 className="h-4 w-4 text-emerald-700" />
+                      <h3 className="text-xs font-semibold uppercase tracking-wide text-emerald-800">
+                        Offer {activeOffer.status === 'SIGNED' ? 'Signed' : 'Sent'}
+                      </h3>
+                    </div>
+                    <p className="mt-2 text-xs text-emerald-900">
+                      {activeOffer.status === 'SIGNED'
+                        ? `Signed ${activeOffer.signedAt ? new Date(activeOffer.signedAt).toLocaleDateString() : '—'}`
+                        : `Sent ${activeOffer.sentAt ? new Date(activeOffer.sentAt).toLocaleDateString() : '—'}`}
+                    </p>
+                    <Link
+                      href={`/careers/erm/offers/${activeOffer.offerId}`}
+                      className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-emerald-800 hover:underline"
+                    >
+                      Open offer
+                      <ExternalLink className="h-3 w-3" />
+                    </Link>
+                  </div>
+                ) : (
+                  <div>
+                    <h3 className="text-xs font-semibold uppercase tracking-wide text-emerald-800">
+                      Next step
+                    </h3>
+                    <p className="mt-1 text-xs text-emerald-900">
+                      Applicant selected. Send the offer letter to advance the application.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => router.push(
+                        `/careers/erm/offers/new?applicationId=${data.applicant?.applicationId ?? ''}`,
+                      )}
+                      disabled={!data.applicant?.applicationId}
+                      className="mt-3 inline-flex w-full items-center justify-center gap-1 rounded-md bg-teal-700 px-3 py-2 text-sm font-semibold text-white hover:bg-teal-800 disabled:bg-slate-300"
+                    >
+                      <Send className="h-3.5 w-3.5" />
+                      Send Offer
+                    </button>
+                  </div>
+                )}
+              </section>
+            )}
+
             <section className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
               <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-500">Actions</h3>
               <div className="mt-3 space-y-2">

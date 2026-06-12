@@ -24,9 +24,22 @@ public class ErmOfferController {
     public ErmOfferDtos.OfferListPage list(
             @RequestParam(required = false) String status,
             @RequestParam(required = false) String search,
+            @RequestParam(required = false) UUID applicationId,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "25") int pageSize) {
-        return ermOfferService.list(status, search, page, pageSize);
+        return ermOfferService.list(status, search, applicationId, page, pageSize);
+    }
+
+    /** Phase 8.6 — queue of applications in INTERVIEWED+SELECTED with no
+     *  active outstanding offer. Powers the Decision Center page and the
+     *  Awaiting Offer tab on /careers/erm/offers. */
+    @GetMapping("/awaiting")
+    @PreAuthorize("hasAnyRole('ERM', 'SUPER_ADMIN')")
+    public ErmOfferDtos.AwaitingOfferListPage awaiting(
+            @RequestParam(required = false) String search,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "25") int pageSize) {
+        return ermOfferService.listAwaitingOffer(search, page, pageSize);
     }
 
     @GetMapping("/reason-codes")

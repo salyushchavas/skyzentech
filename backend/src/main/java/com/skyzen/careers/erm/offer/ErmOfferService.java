@@ -91,6 +91,7 @@ public class ErmOfferService {
 
     @Transactional(readOnly = true)
     public ErmOfferDtos.OfferListPage list(String statusFilter, String search,
+                                            UUID applicationId,
                                             int page, int pageSize) {
         Pageable pageable = PageRequest.of(
                 Math.max(0, page), Math.min(Math.max(1, pageSize), 100));
@@ -99,6 +100,10 @@ public class ErmOfferService {
         if (statusFilter != null && !statusFilter.isBlank()) {
             where.append(" AND o.status = ?");
             params.add(statusFilter.toUpperCase());
+        }
+        if (applicationId != null) {
+            where.append(" AND o.application_id = ?");
+            params.add(applicationId);
         }
         if (search != null && !search.isBlank()) {
             String q = "%" + search.trim().toLowerCase() + "%";
@@ -670,5 +675,100 @@ public class ErmOfferService {
         } catch (Exception e) {
             log.warn("[ErmOffers] audit write failed: {}", e.getMessage());
         }
+    }
+
+    // ── Phase 8.6 — Awaiting Offer queue ──────────────────────────────────
+    /** Applications in INTERVIEWED state whose latest COMPLETED interview
+     *  recorded decision=SELECTED, and which have no active outstanding
+     *  offer (status NOT IN SENT, SIGNED). DRAFT/VOIDED/EXPIRED/DECLINED
+     *  rows do not count as "active" because the applicant can be reoffered. */
+    @Transactional(readOnly = true)
+    public ErmOfferDtos.AwaitingOfferListPage listAwaitingOffer(
+            String search, int page, int pageSize) {
+        Pageable pageable = PageRequest.of(
+                Math.max(0, page), Math.min(Math.max(1, pageSize), 100));
+
+        StringBuilder where = new StringBuilder(
+                " WHERE a.status = 'INTERVIEWED' "
+                        + " AND UPPER(COALESCE(iv.decision,'')) = 'SELECTED' "
+                        + " AND iv.status = 'COMPLETED' "
+                        + " AND NOT EXISTS ( "
+                        + "   SELECT 1 FROM offers o2 "
+                        + "    WHERE o2.application_id = a.id "
+                        + "      AND o2.status IN ('SENT','SIGNED') "
+                        + " ) ");
+        List<Object> params = new ArrayList<>();
+        if (search != null && !search.isBlank()) {
+            String q = "%" + search.trim().toLowerCase() + "%";
+            if (q.length() > 102) q = q.substring(0, 102);
+            where.append(" AND (LOWER(u.full_name) LIKE ? OR LOWER(u.email) LIKE ? "
+                    + "OR LOWER(COALESCE(u.applicant_id,'')) LIKE ?) ");
+            params.add(q); params.add(q); params.add(q);
+        }
+
+        // Sub-select picks the most recent completed interview per application;
+        // the outer query joins to that row for decision/score columns. No
+        // completed_at column exists on interviews — updated_at is the proxy
+        // (UpdateTimestamp fires when status flips to COMPLETED).
+        String base = "FROM applications a "
+                + "JOIN candidates c ON c.id = a.candidate_id "
+                + "JOIN users u ON u.id = c.user_id "
+                + "JOIN job_postings jp ON jp.id = a.job_posting_id "
+                + "JOIN interviews iv ON iv.id = ( "
+                + "    SELECT iv2.id FROM interviews iv2 "
+                + "     WHERE iv2.application_id = a.id "
+                + "       AND iv2.status = 'COMPLETED' "
+                + "     ORDER BY iv2.updated_at DESC NULLS LAST, iv2.scheduled_at DESC "
+                + "     LIMIT 1 "
+                + ") ";
+
+        long total;
+        try {
+            Long v = jdbc.queryForObject(
+                    "SELECT COUNT(*) " + base + where, Long.class, params.toArray());
+            total = v != null ? v : 0L;
+        } catch (Exception e) {
+            log.warn("[ErmOffers] awaiting count failed: {}", e.getMessage());
+            total = 0L;
+        }
+
+        String select = "SELECT a.id AS application_id, iv.id AS interview_id, "
+                + "u.full_name, u.applicant_id, u.email, "
+                + "jp.title AS job_title, jp.job_type, "
+                + "iv.updated_at AS completed_at, iv.overall_recommendation, "
+                + "iv.technical_score, iv.communication_score, "
+                + "iv.applicant_visible_notes "
+                + base + where
+                + " ORDER BY iv.updated_at DESC NULLS LAST, a.id DESC "
+                + " LIMIT " + pageable.getPageSize()
+                + " OFFSET " + (pageable.getPageNumber() * pageable.getPageSize());
+
+        List<ErmOfferDtos.AwaitingOfferRow> rows = new ArrayList<>();
+        try {
+            rows = jdbc.query(select, params.toArray(), (rs, n) ->
+                    new ErmOfferDtos.AwaitingOfferRow(
+                            UUID.fromString(rs.getString("application_id")),
+                            UUID.fromString(rs.getString("interview_id")),
+                            rs.getString("full_name"),
+                            rs.getString("applicant_id"),
+                            rs.getString("email"),
+                            rs.getString("job_title"),
+                            rs.getString("job_type"),
+                            null,  // technology_area not yet on JobPosting
+                            rs.getTimestamp("completed_at") != null
+                                    ? rs.getTimestamp("completed_at").toInstant() : null,
+                            rs.getString("overall_recommendation"),
+                            (Integer) rs.getObject("technical_score"),
+                            (Integer) rs.getObject("communication_score"),
+                            rs.getString("applicant_visible_notes")));
+        } catch (Exception e) {
+            log.warn("[ErmOffers] awaiting query failed: {}", e.getMessage());
+        }
+
+        int totalPages = pageable.getPageSize() == 0 ? 0
+                : (int) Math.ceil(total / (double) pageable.getPageSize());
+        return new ErmOfferDtos.AwaitingOfferListPage(
+                rows, pageable.getPageNumber(), pageable.getPageSize(),
+                total, totalPages);
     }
 }

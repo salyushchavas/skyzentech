@@ -34,12 +34,21 @@ function CreateOfferPageInner() {
   const sp = useSearchParams();
   const applicationId = sp?.get('applicationId') ?? '';
 
+  // Phase 8.6 — pre-fill defaults when entered from Decision Center /
+  // Interview detail / Offers "New Offer" CTA. Tentative start date is
+  // 14 days from today so ERM doesn't have to fill it manually each time.
+  const defaultStartDate = (() => {
+    const d = new Date();
+    d.setDate(d.getDate() + 14);
+    return d.toISOString().slice(0, 10);
+  })();
+
   const [roleTitle, setRoleTitle] = useState('');
   const [technology, setTechnology] = useState('');
-  const [tentativeStartDate, setTentativeStartDate] = useState('');
+  const [tentativeStartDate, setTentativeStartDate] = useState(defaultStartDate);
   const [compensationSummary, setCompensationSummary] = useState('');
   const [worksite, setWorksite] = useState('Remote');
-  const [expectedHoursPerWeek, setExpectedHoursPerWeek] = useState<number>(20);
+  const [expectedHoursPerWeek, setExpectedHoursPerWeek] = useState<number>(40);
   const [expiryDays, setExpiryDays] = useState<number>(7);
   const [contingencies, setContingencies] = useState(
     'Subject to satisfactory background check and verification of work authorization.',

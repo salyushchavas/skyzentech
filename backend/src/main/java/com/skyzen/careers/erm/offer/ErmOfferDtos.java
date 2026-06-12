@@ -189,4 +189,33 @@ public final class ErmOfferDtos {
             UUID evaluatorUserId,
             UUID managerUserId
     ) {}
+
+    // ── Phase 8.6 — Awaiting Offer queue ─────────────────────────────────
+    // Applications in INTERVIEWED state with a COMPLETED interview where
+    // decision=SELECTED, and no active offer (status NOT IN SENT, SIGNED)
+    // for that application yet.
+
+    public record AwaitingOfferRow(
+            UUID applicationId,
+            UUID interviewId,
+            String applicantName,
+            String applicantId,
+            String applicantEmail,
+            String jobTitle,
+            String jobType,
+            String technologyArea,
+            Instant interviewCompletedAt,
+            String overallRecommendation,
+            Integer technicalScore,
+            Integer communicationScore,
+            String applicantVisibleNotes
+    ) {}
+
+    public record AwaitingOfferListPage(
+            List<AwaitingOfferRow> items,
+            int page,
+            int pageSize,
+            long totalElements,
+            int totalPages
+    ) {}
 }
