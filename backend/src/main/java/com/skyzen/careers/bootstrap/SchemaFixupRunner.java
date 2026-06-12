@@ -1143,6 +1143,203 @@ public class SchemaFixupRunner implements CommandLineRunner {
         } catch (Exception e) {
             log.warn("interviews Phase 2 columns add failed (non-fatal): {}", e.getMessage(), e);
         }
+
+        // Phase 8.6.3 — sweep every enum-backed CHECK constraint and realign
+        // with the current Java enum value set. Runs last so every table /
+        // column referenced by the spec list has had a chance to be created
+        // by the ensure*() methods above. Gated by a migration_log row so
+        // detection only fires once per database.
+        alignEnumCheckConstraintsV1();
+    }
+
+    /**
+     * Phase 8.6.3 — realign every enum-backed CHECK constraint with its
+     * current Java enum value set. Hibernate {@code ddl-auto=update} does
+     * not refresh CHECK constraints when an enum grows, so old constraints
+     * silently reject new values — most visibly blocking
+     * {@code offer.status = SIGNED}, which leaked employee_id sequence
+     * values on each retry before this sweep landed.
+     *
+     * <p>Idempotent + gated by a {@code migration_log} row keyed
+     * {@code ALIGN_ENUM_CHECK_CONSTRAINTS_V1}. Detection-before-action:
+     * for each (table, column) pair we query {@code pg_constraint}, and
+     * if any existing CHECK already contains every required value the
+     * constraint is left alone. Otherwise we drop the existing
+     * whitelist-style CHECKs on the column and add a fresh
+     * {@code {table}_{column}_check} with the full enum.
+     *
+     * <p>NOT-NULL and length CHECKs are left intact (heuristic: only
+     * drop constraints whose definition contains a single-quoted token,
+     * which is how Postgres prints {@code CHECK (col IN ('A','B'))}).
+     *
+     * <p>If a future phase grows another enum, bump to V2 by adding a
+     * new method + new {@code migration_log} key. Don't append values
+     * here — the gate would skip on already-aligned databases.
+     */
+    private void alignEnumCheckConstraintsV1() {
+        final String migKey = "ALIGN_ENUM_CHECK_CONSTRAINTS_V1";
+        try {
+            Integer existing = jdbcTemplate.queryForObject(
+                    "SELECT COUNT(*) FROM migration_log WHERE migration_key = ?",
+                    Integer.class, migKey);
+            if (existing != null && existing > 0) {
+                log.info("[SchemaFixup] {} already applied — skip", migKey);
+                return;
+            }
+        } catch (Exception e) {
+            // migration_log table may not exist on a brand-new DB; the
+            // ensureErmPhase8Schema() call above should have created it.
+            // Continue defensively — worst case the alignment runs again.
+            log.warn("[SchemaFixup] migration_log lookup failed for {} "
+                    + "(non-fatal, continuing): {}", migKey, e.getMessage());
+        }
+
+        record ConstraintSpec(String table, String column, List<String> values) {}
+        List<ConstraintSpec> specs = List.of(
+                new ConstraintSpec("offers", "status", List.of(
+                        "DRAFT", "SENT", "SIGNED", "VOIDED", "EXPIRED",
+                        "DECLINED", "ACCEPTED", "REVOKED")),
+                new ConstraintSpec("applications", "status", List.of(
+                        "APPLIED", "HOLD", "INFO_REQUESTED",
+                        "SCREENING_SENT", "SCREENING_COMPLETED", "SHORTLISTED",
+                        "INTERVIEW_SCHEDULED", "INTERVIEWED",
+                        "SELECTED_CONDITIONAL", "OFFERED", "ACCEPTED",
+                        "ONBOARDING", "ACTIVE", "HIRED", "COMPLETED",
+                        "REJECTED", "WITHDRAWN", "LAPSED", "NO_SHOW")),
+                new ConstraintSpec("users", "lifecycle_status", List.of(
+                        "REGISTERED", "EMAIL_VERIFIED", "APPLICATION_SUBMITTED",
+                        "SHORTLISTED", "INTERVIEW_SCHEDULED", "INTERVIEW_COMPLETED",
+                        "OFFER_SENT", "OFFER_SIGNED", "EMPLOYEE_ID_CREATED",
+                        "ONBOARDING_ASSIGNED", "ONBOARDING_ACCEPTED",
+                        "ACTIVE_INTERN", "INACTIVE_INTERN")),
+                new ConstraintSpec("interviews", "status", List.of(
+                        "SCHEDULED", "COMPLETED", "CANCELLED", "NO_SHOW")),
+                new ConstraintSpec("interviews", "type", List.of(
+                        "INITIAL_SCREEN", "TECHNICAL", "BEHAVIORAL",
+                        "CULTURE_FIT", "FINAL_ROUND")),
+                new ConstraintSpec("interviews", "decision", List.of(
+                        "SELECTED", "HOLD", "REJECTED")),
+                new ConstraintSpec("intern_lifecycles", "active_status", List.of(
+                        "PROSPECTIVE", "ACTIVE", "INACTIVE")),
+                new ConstraintSpec("projects", "status", List.of(
+                        "NOT_STARTED", "IN_PROGRESS", "SUBMITTED", "RETURNED",
+                        "TECH_APPROVED", "PENDING_VIVA", "COMPLETED")),
+                new ConstraintSpec("engagements", "status", List.of(
+                        "PENDING_COMPLIANCE", "READY_TO_START", "ACTIVE",
+                        "COMPLETED", "TERMINATED", "BLOCKED_NO_AUTHORIZATION")),
+                new ConstraintSpec("document_packets", "status", List.of(
+                        "DRAFT", "ASSIGNED", "IN_PROGRESS", "ALL_SUBMITTED",
+                        "COMPLETED", "CANCELLED")),
+                new ConstraintSpec("document_tasks", "status", List.of(
+                        "PENDING", "SUBMITTED", "UNDER_REVIEW", "ACCEPTED",
+                        "REJECTED", "RESEND_REQUESTED", "WAIVED")),
+                new ConstraintSpec("weekly_meetings", "status", List.of(
+                        "SCHEDULED", "COMPLETED", "CANCELLED", "NO_SHOW")),
+                new ConstraintSpec("project_submissions", "trainer_decision", List.of(
+                        "ACCEPT", "REQUEST_REVISION", "ESCALATE", "NO_ACTION_YET"))
+        );
+
+        int touched = 0;
+        int skipped = 0;
+        int missing = 0;
+        for (ConstraintSpec s : specs) {
+            try {
+                Boolean exists = jdbcTemplate.queryForObject(
+                        "SELECT EXISTS(SELECT 1 FROM information_schema.columns "
+                                + "WHERE table_name = ? AND column_name = ?)",
+                        Boolean.class, s.table(), s.column());
+                if (exists == null || !exists) {
+                    log.info("[SchemaFixup] skip {}.{} — column not present yet",
+                            s.table(), s.column());
+                    missing++;
+                    continue;
+                }
+
+                List<java.util.Map<String, Object>> constraints =
+                        jdbcTemplate.queryForList(
+                                "SELECT con.conname AS name, "
+                                        + "pg_get_constraintdef(con.oid) AS def "
+                                        + "FROM pg_constraint con "
+                                        + "JOIN pg_class cl ON cl.oid = con.conrelid "
+                                        + "JOIN pg_attribute att "
+                                        + "  ON att.attrelid = cl.oid "
+                                        + "  AND att.attnum = ANY(con.conkey) "
+                                        + "WHERE cl.relname = ? AND att.attname = ? "
+                                        + "  AND con.contype = 'c'",
+                                s.table(), s.column());
+
+                boolean aligned = constraints.stream().anyMatch(c -> {
+                    String def = String.valueOf(c.get("def"));
+                    return s.values().stream().allMatch(
+                            v -> def.contains("'" + v + "'"));
+                });
+                if (aligned) {
+                    log.info("[SchemaFixup] {}.{} already aligned — skip",
+                            s.table(), s.column());
+                    skipped++;
+                    continue;
+                }
+
+                String before = constraints.stream()
+                        .map(c -> c.get("name") + " => " + c.get("def"))
+                        .reduce((a, b) -> a + " | " + b)
+                        .orElse("(none)");
+
+                for (java.util.Map<String, Object> c : constraints) {
+                    String name = String.valueOf(c.get("name"));
+                    String def = String.valueOf(c.get("def"));
+                    // Heuristic: only drop value-whitelist constraints
+                    // (definition contains a single-quoted token). Skip
+                    // NOT NULL, length, FK-style references.
+                    if (!def.contains("'")) continue;
+                    try {
+                        jdbcTemplate.execute(
+                                "ALTER TABLE " + s.table()
+                                        + " DROP CONSTRAINT IF EXISTS " + name);
+                    } catch (Exception e) {
+                        log.warn("[SchemaFixup] drop {}.{} ({}) failed: {}",
+                                s.table(), s.column(), name, e.getMessage());
+                    }
+                }
+
+                String inList = s.values().stream()
+                        .map(v -> "'" + v + "'")
+                        .reduce((a, b) -> a + "," + b)
+                        .orElse("''");
+                String newName = s.table() + "_" + s.column() + "_check";
+                jdbcTemplate.execute(
+                        "ALTER TABLE " + s.table()
+                                + " ADD CONSTRAINT " + newName
+                                + " CHECK (" + s.column()
+                                + " IN (" + inList + "))");
+
+                log.info("[SchemaFixup] Aligning {}.{} CHECK constraint: "
+                                + "was [{}], now IN ({})",
+                        s.table(), s.column(), before, inList);
+                touched++;
+            } catch (Exception e) {
+                log.warn("[SchemaFixup] align {}.{} failed (non-fatal): {}",
+                        s.table(), s.column(), e.getMessage());
+            }
+        }
+
+        log.info("[SchemaFixup] Aligned {} enum CHECK constraints "
+                        + "(skipped {} already-aligned, {} missing tables)",
+                touched, skipped, missing);
+
+        try {
+            jdbcTemplate.update(
+                    "INSERT INTO migration_log "
+                            + "(id, migration_key, executed_at, rows_migrated, notes) "
+                            + "VALUES (?, ?, NOW(), ?, ?) "
+                            + "ON CONFLICT (migration_key) DO NOTHING",
+                    java.util.UUID.randomUUID(), migKey, touched,
+                    "Aligned " + touched + " constraints, skipped " + skipped
+                            + " already-aligned, " + missing + " missing tables.");
+        } catch (Exception e) {
+            log.warn("[SchemaFixup] insert migration_log({}) skipped (non-fatal): {}",
+                    migKey, e.getMessage());
+        }
     }
 
     /**
