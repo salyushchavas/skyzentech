@@ -1,5 +1,5 @@
 import type { Metadata } from 'next';
-import { Dancing_Script, Inter, Poppins } from 'next/font/google';
+import { Inter, Poppins } from 'next/font/google';
 import { Toaster } from 'react-hot-toast';
 import { AuthProvider } from '@/lib/auth-context';
 import './globals.css';
@@ -21,17 +21,6 @@ const inter = Inter({
   display: 'swap',
 });
 
-// Phase 8.6.2 — cursive font for the typed-name signature preview on
-// the applicant offer signing page. Only renders inside that one
-// element via inline fontFamily fallback, but loading it via
-// next/font means no FOUC and consistent rendering.
-const dancingScript = Dancing_Script({
-  subsets: ['latin'],
-  weight: ['400', '700'],
-  variable: '--font-dancing-script',
-  display: 'swap',
-});
-
 export const metadata: Metadata = {
   title: {
     default: 'Skyzen Technologies — IT Staffing & STEM Internships',
@@ -47,7 +36,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en" className={`${poppins.variable} ${inter.variable} ${dancingScript.variable}`}>
+    <html lang="en" className={`${poppins.variable} ${inter.variable}`}>
       <head>
         {/* icofont — used by SiteHeader / SiteFooter / ported home page. */}
         <link rel="stylesheet" href="/plugins/icofont/icofont.min.css" />

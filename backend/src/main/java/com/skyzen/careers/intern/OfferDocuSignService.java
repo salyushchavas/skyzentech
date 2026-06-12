@@ -355,17 +355,35 @@ public class OfferDocuSignService {
     }
 
     /** Wraps {@link #finalizeInHouseSigning} with the ownership check the
-     *  applicant signing endpoint needs. */
+     *  applicant signing endpoint needs. The signature image is required;
+     *  typedName falls back to the applicant's full name when blank so the
+     *  audit row always has a printed-name value. */
     @Transactional
-    public Offer signInHouse(UUID offerId, String typedName, User caller) {
+    public Offer signInHouse(UUID offerId, String typedName, String signatureImage, User caller) {
         Offer offer = mustOwnAsApplicant(offerId, caller);
-        if (typedName == null || typedName.trim().isEmpty()) {
-            throw new BadRequestException("typedName is required");
+        if (signatureImage == null || signatureImage.isBlank()) {
+            throw new BadRequestException("signatureImage is required");
         }
-        if (typedName.trim().length() > 200) {
-            throw new BadRequestException("typedName must be at most 200 characters");
+        String img = signatureImage.trim();
+        if (!img.startsWith("data:image/")) {
+            throw new BadRequestException(
+                    "signatureImage must be a data URL (data:image/...;base64,...)");
         }
-        return finalizeInHouseSigning(offer.getId(), typedName.trim(), caller);
+        // Soft cap to keep audit / DB payloads sane. ~512 KB of base64 ≈
+        // ~384 KB of raw pixel data — comfortably more than a typical
+        // 600x200 PNG drawn signature.
+        if (img.length() > 512_000) {
+            throw new BadRequestException(
+                    "signatureImage too large (max ~500 KB data URL)");
+        }
+        String printed = typedName != null && !typedName.trim().isEmpty()
+                ? typedName.trim()
+                : (caller != null && caller.getFullName() != null
+                        ? caller.getFullName() : null);
+        if (printed != null && printed.length() > 200) {
+            printed = printed.substring(0, 200);
+        }
+        return finalizeInHouseSigning(offer.getId(), printed, img, caller);
     }
 
     // ── Phase 8.6.2 — In-house signing finalize ────────────────────────────
@@ -390,7 +408,8 @@ public class OfferDocuSignService {
      * envelope to download from). signed_pdf_document_id stays null.
      */
     @Transactional
-    public Offer finalizeInHouseSigning(UUID offerId, String typedName, User actor) {
+    public Offer finalizeInHouseSigning(UUID offerId, String typedName,
+                                         String signatureImage, User actor) {
         Offer offer = offerRepository.findByIdWithGraph(offerId)
                 .orElseThrow(() -> new ResourceNotFoundException(
                         "Offer not found: " + offerId));
@@ -415,6 +434,7 @@ public class OfferDocuSignService {
         offer.setSignedAt(now);
         offer.setRespondedAt(now);
         offer.setSignedByTypedName(typedName != null ? typedName.trim() : null);
+        offer.setSignedSignatureImage(signatureImage);
         Offer saved = offerRepository.save(offer);
 
         // Mint Employee ID + advance applicant lifecycle.

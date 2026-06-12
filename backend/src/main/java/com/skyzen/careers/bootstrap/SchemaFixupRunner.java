@@ -1503,6 +1503,10 @@ public class SchemaFixupRunner implements CommandLineRunner {
                 // typed name; nullable so legacy/DocuSign-signed rows are
                 // preserved as-is. Idempotent ADD IF NOT EXISTS.
                 "ALTER TABLE offers ADD COLUMN IF NOT EXISTS signed_by_typed_name VARCHAR(200)",
+                // Phase 8.6.2.1 — drawn signature stored as a PNG data URL.
+                // TEXT (unbounded in Postgres) accommodates the typical
+                // 5-30 KB payload without overflow.
+                "ALTER TABLE offers ADD COLUMN IF NOT EXISTS signed_signature_image TEXT",
                 // Phase 8.6.2 fix — the original offers_status_check was
                 // created with a stale whitelist that pre-dates the current
                 // OfferStatus enum (DRAFT/SENT/SIGNED/VOIDED/EXPIRED/DECLINED

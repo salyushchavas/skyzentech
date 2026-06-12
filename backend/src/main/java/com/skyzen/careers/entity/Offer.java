@@ -98,11 +98,21 @@ public class Offer {
 
     /**
      * Phase 8.6.2 — applicant's typed name captured at sign time on the
-     * in-house signing page. Nullable for legacy rows / DocuSign envelopes
-     * that completed before in-house signing existed.
+     * in-house signing page. Auto-derived from {@code applicant.fullName}
+     * when the applicant draws (rather than types) the signature.
+     * Nullable for legacy rows / DocuSign envelopes that completed before
+     * in-house signing existed.
      */
     @Column(name = "signed_by_typed_name", length = 200)
     private String signedByTypedName;
+
+    /**
+     * Phase 8.6.2.1 — base64 data URL of the drawn signature (PNG). Stored
+     * as TEXT so the average ~5-30 KB payload fits without overflow.
+     * Null for legacy / DocuSign-signed rows. Render with {@code <img src>}.
+     */
+    @Column(name = "signed_signature_image", columnDefinition = "TEXT")
+    private String signedSignatureImage;
 
     @Column(name = "voided_at")
     private Instant voidedAt;

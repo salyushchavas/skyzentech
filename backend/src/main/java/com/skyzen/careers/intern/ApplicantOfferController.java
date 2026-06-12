@@ -50,11 +50,16 @@ public class ApplicantOfferController {
             Instant sentAt,
             Instant signedAt,
             String signedByTypedName,
+            String signedSignatureImage,
             String letterContent,
             String contingencies
     ) {}
 
-    public record SignRequest(String typedName) {}
+    /** Phase 8.6.2.1 — applicant draws a signature on a canvas; the page
+     *  serialises it to a PNG data URL ({@code data:image/png;base64,...}).
+     *  {@code typedName} is optional and only used as the printed-name
+     *  override; the server falls back to the applicant's full name. */
+    public record SignRequest(String typedName, String signatureImage) {}
 
     @GetMapping("/{id}")
     @PreAuthorize("hasRole('INTERN')")
@@ -70,7 +75,8 @@ public class ApplicantOfferController {
                                    @RequestBody SignRequest req,
                                    @AuthenticationPrincipal User caller) {
         String typed = req != null ? req.typedName() : null;
-        Offer signed = offerService.signInHouse(id, typed, caller);
+        String image = req != null ? req.signatureImage() : null;
+        Offer signed = offerService.signInHouse(id, typed, image, caller);
         return toView(signed);
     }
 
@@ -97,6 +103,7 @@ public class ApplicantOfferController {
                 offer.getSentAt(),
                 offer.getSignedAt(),
                 offer.getSignedByTypedName(),
+                offer.getSignedSignatureImage(),
                 offer.getLetterContent(),
                 null  // contingencies are not stored as a discrete column today;
                       // they're inlined into letter_content at send time.
