@@ -12,7 +12,6 @@ import com.skyzen.careers.event.DocumentTaskReviewedEvent;
 import com.skyzen.careers.exception.BadRequestException;
 import com.skyzen.careers.exception.ConflictException;
 import com.skyzen.careers.exception.ForbiddenException;
-import com.skyzen.careers.exception.ReportingStructureIncompleteException;
 import com.skyzen.careers.exception.ResourceNotFoundException;
 import com.skyzen.careers.intern.InternLifecycleService;
 import com.skyzen.careers.repository.*;
@@ -177,18 +176,14 @@ public class DocumentPacketService {
                             + "(EMPLOYEE_ID_CREATED, ONBOARDING_ASSIGNED) — current: " + s);
         }
 
-        // Phase 8.6.4 — reporting-structure gate relaxed: Manager is no
-        // longer required at packet-assignment time (it varies per intern
-        // and is set inline later). Trainer + Evaluator remain required
-        // because the document workflow routes some items through them.
-        // T + E are auto-linked at offer-sign from system config when env
-        // vars are set; when they aren't, ERM still gets prompted here.
-        List<String> missing = new ArrayList<>();
-        if (lc.getTrainerId() == null) missing.add("trainer");
-        if (lc.getEvaluatorId() == null) missing.add("evaluator");
-        if (!missing.isEmpty()) {
-            throw new ReportingStructureIncompleteException(missing);
-        }
+        // Phase 8.6.4 (revised) — document onboarding runs end-to-end
+        // between ERM and the intern only: ERM sends, intern downloads +
+        // fills + uploads, ERM reviews + requests re-uploads until all
+        // documents are approved. Trainer + Evaluator have no role in
+        // this loop, so the prior reporting-structure gate is dropped.
+        // T/E auto-link still happens at offer sign (when env vars are
+        // set) for downstream training workflows; it's no longer a
+        // prerequisite for document assignment.
 
         // One active packet per lifecycle.
         if (packetRepository.findActiveByLifecycle(lc.getId()).isPresent()) {

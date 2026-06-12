@@ -58,9 +58,9 @@ export default function AssignPacketModal({
   }
 
   async function submit() {
-    // Phase 8.6.4 — client-side reporting-structure gate dropped. Backend
-    // still requires Trainer + Evaluator (Manager no longer needed) and
-    // returns REPORTING_STRUCTURE_INCOMPLETE if either is missing.
+    // Phase 8.6.4 (revised) — document onboarding is ERM↔intern only;
+    // Trainer/Evaluator have no role in this loop, so there is no
+    // reporting-structure gate on assignment.
     if (selected.size === 0) {
       setErr('Pick at least one document.');
       return;
@@ -76,17 +76,10 @@ export default function AssignPacketModal({
       onAssigned();
     } catch (e) {
       const ax = e as {
-        response?: { data?: { error?: string; code?: string; missing?: string[] } };
+        response?: { data?: { error?: string } };
         message?: string;
       };
-      if (ax.response?.data?.code === 'REPORTING_STRUCTURE_INCOMPLETE') {
-        setErr('Trainer/Evaluator not linked yet (missing: '
-          + (ax.response.data.missing ?? []).join(', ')
-          + '). Set DEFAULT_TRAINER_EMAIL / DEFAULT_EVALUATOR_EMAIL or '
-          + 'use the New Hire detail page to assign manually.');
-      } else {
-        setErr(ax.response?.data?.error ?? ax.message ?? 'Failed to assign');
-      }
+      setErr(ax.response?.data?.error ?? ax.message ?? 'Failed to assign');
     } finally {
       setSubmitting(false);
     }
