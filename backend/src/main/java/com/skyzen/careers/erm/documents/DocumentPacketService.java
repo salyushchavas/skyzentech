@@ -461,11 +461,15 @@ public class DocumentPacketService {
                 rc != null ? rc.name() : null,
                 req.ermComments());
 
+        // Map.of() rejects null values; reasonCode is null on the ACCEPT
+        // path, so build the after-map with put() to preserve the null.
+        java.util.Map<String, Object> auditAfter = new java.util.LinkedHashMap<>();
+        auditAfter.put("status", saved.getStatus());
+        auditAfter.put("reasonCode", rc != null ? rc.name() : null);
         writeAudit(saved.getId(), "DOCUMENT_TASK_" + decision,
                 caller.getId(), null,
                 Map.of("previousStatus", previous),
-                Map.of("status", saved.getStatus(),
-                        "reasonCode", rc != null ? rc.name() : null));
+                auditAfter);
 
         String templateTitle = saved.getDocumentKey() != null
                 ? saved.getDocumentKey().getTitle() : "(unknown)";
