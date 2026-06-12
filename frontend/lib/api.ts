@@ -13,6 +13,10 @@ import {
 
 const baseURL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8080';
 
+// Exported so diagnostic surfaces (e.g. /register debug panel) can show
+// the value the running client actually resolved at build time.
+export const apiBaseURL = baseURL;
+
 // No hard default Content-Type — axios sets "application/json" automatically
 // for plain object bodies, and we explicitly drop the header for FormData in
 // the interceptor below so the browser supplies the multipart boundary.

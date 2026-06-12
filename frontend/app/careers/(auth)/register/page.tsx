@@ -1,16 +1,37 @@
 'use client';
 
-import { FormEvent, useEffect, useRef, useState } from 'react';
+import { FormEvent, Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { AlertCircle, GraduationCap, ShieldCheck, UserCircle } from 'lucide-react';
 import AuthLayout from '@/components/dashboard/AuthLayout';
+import RegisterDebugPanel, {
+  type RegisterDebugInfo,
+} from '@/components/dashboard/RegisterDebugPanel';
 import { useAuth } from '@/lib/auth-context';
+import { apiBaseURL } from '@/lib/api';
 import type { WorkAuthTrack } from '@/types';
 
 export default function RegisterPage() {
+  return (
+    <Suspense fallback={null}>
+      <RegisterPageInner />
+    </Suspense>
+  );
+}
+
+function RegisterPageInner() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { register } = useAuth();
+
+  const debugEnabled = useMemo(() => {
+    if (process.env.NEXT_PUBLIC_DEBUG === 'true') return true;
+    if (searchParams?.get('debug') === '1') return true;
+    return false;
+  }, [searchParams]);
+
+  const [lastAttempt, setLastAttempt] = useState<RegisterDebugInfo['lastAttempt']>(null);
 
   // Core auth fields.
   const [email, setEmail] = useState('');
@@ -67,6 +88,34 @@ export default function RegisterPage() {
     }
 
     setLoading(true);
+    const startedAt = performance.now();
+    const requestBody = {
+      email,
+      password: '***',
+      fullName,
+      phoneNumber: phoneNumber || undefined,
+      skillset: skillset.trim() || undefined,
+      school: school.trim() || undefined,
+      degree: degree.trim() || undefined,
+      education: education.trim() || undefined,
+      authorizedToWork: triStateToBool(authorizedToWork),
+      sponsorshipNeeded: triStateToBool(sponsorshipNeeded),
+      expectedTrack: expectedTrack || undefined,
+      validityDate: validityDate || undefined,
+      acceptedTos,
+    };
+
+    // eslint-disable-next-line no-console
+    console.group('[REGISTER_DEBUG] request');
+    // eslint-disable-next-line no-console
+    console.log('url', `${apiBaseURL}/auth/register`);
+    // eslint-disable-next-line no-console
+    console.log('method', 'POST');
+    // eslint-disable-next-line no-console
+    console.log('body (password masked)', requestBody);
+    // eslint-disable-next-line no-console
+    console.groupEnd();
+
     try {
       const user = await register(
         email,
@@ -86,6 +135,30 @@ export default function RegisterPage() {
         },
         acceptedTos,
       );
+
+      const durationMs = Math.round(performance.now() - startedAt);
+      setLastAttempt({
+        at: new Date().toISOString(),
+        requestBody,
+        status: 200,
+        statusText: 'OK',
+        responseBody: { userId: user.userId, email: user.email, emailVerified: user.emailVerified },
+        errorMessage: null,
+        errorCode: null,
+        errorClass: null,
+        durationMs,
+      });
+      // eslint-disable-next-line no-console
+      console.group('[REGISTER_DEBUG] response');
+      // eslint-disable-next-line no-console
+      console.log('status', 200);
+      // eslint-disable-next-line no-console
+      console.log('user', user);
+      // eslint-disable-next-line no-console
+      console.log('elapsed', durationMs, 'ms');
+      // eslint-disable-next-line no-console
+      console.groupEnd();
+
       // Phase 1.2 — every fresh registration starts unverified; route to verify.
       // The code is delivered ONLY by email (never round-tripped through the
       // API), so the verify field starts empty and the user types it in.
@@ -98,9 +171,33 @@ export default function RegisterPage() {
       }
       const returnTo = safeReturnTo();
       router.replace(returnTo ?? '/careers/intern');
-    } catch (err: any) {
-      const msg = err?.response?.data?.error ?? 'Registration failed';
-      setError(msg);
+    } catch (err: unknown) {
+      const durationMs = Math.round(performance.now() - startedAt);
+      const classified = classifyRegistrationError(err, `${apiBaseURL}/auth/register`);
+      setError(classified.userMessage);
+      setLastAttempt({
+        at: new Date().toISOString(),
+        requestBody,
+        status: classified.status,
+        statusText: classified.statusText,
+        responseBody: classified.responseBody,
+        errorMessage: classified.errorMessage,
+        errorCode: classified.errorCode,
+        errorClass: classified.errorClass,
+        durationMs,
+      });
+      // eslint-disable-next-line no-console
+      console.group('[REGISTER_DEBUG] error');
+      // eslint-disable-next-line no-console
+      console.error('classification', classified.errorClass);
+      // eslint-disable-next-line no-console
+      console.error('user-facing message', classified.userMessage);
+      // eslint-disable-next-line no-console
+      console.error('error', err);
+      // eslint-disable-next-line no-console
+      console.error('elapsed', durationMs, 'ms');
+      // eslint-disable-next-line no-console
+      console.groupEnd();
     } finally {
       setLoading(false);
     }
@@ -296,8 +393,149 @@ export default function RegisterPage() {
           Already have an account? Sign in
         </Link>
       </div>
+
+      {debugEnabled && (
+        <RegisterDebugPanel
+          info={{
+            apiBaseURL,
+            registerUrl: `${apiBaseURL}/auth/register`,
+            method: 'POST',
+            envApiUrl: process.env.NEXT_PUBLIC_API_URL,
+            envDebug: process.env.NEXT_PUBLIC_DEBUG,
+            lastAttempt,
+          }}
+        />
+      )}
     </AuthLayout>
   );
+}
+
+interface ClassifiedError {
+  userMessage: string;
+  status: number | string | null;
+  statusText: string | null;
+  responseBody: unknown;
+  errorMessage: string;
+  errorCode: string | null;
+  errorClass: 'NETWORK' | 'DNS' | 'TIMEOUT' | 'CLIENT' | 'SERVER' | 'UNKNOWN';
+}
+
+interface AxiosLikeError {
+  message?: string;
+  code?: string;
+  config?: { url?: string };
+  response?: {
+    status?: number;
+    statusText?: string;
+    data?: unknown;
+  };
+  request?: unknown;
+}
+
+function classifyRegistrationError(err: unknown, fullUrl: string): ClassifiedError {
+  const e = (err ?? {}) as AxiosLikeError;
+  const rawMessage = e.message ?? String(err);
+  const code = e.code ?? null;
+  const response = e.response;
+
+  // Has a response → backend was reached. Classify by status code.
+  if (response && typeof response.status === 'number') {
+    const status = response.status;
+    const statusText = response.statusText ?? null;
+    const body = response.data;
+    const backendMsg =
+      (typeof body === 'object' && body !== null && 'error' in body && typeof (body as Record<string, unknown>).error === 'string'
+        ? ((body as Record<string, unknown>).error as string)
+        : null);
+    if (status >= 400 && status < 500) {
+      return {
+        userMessage: backendMsg ?? `Registration rejected (${status}). ${statusText ?? ''}`.trim(),
+        status,
+        statusText,
+        responseBody: body,
+        errorMessage: rawMessage,
+        errorCode: code,
+        errorClass: 'CLIENT',
+      };
+    }
+    if (status >= 500) {
+      const bodyStr = typeof body === 'string' ? body : JSON.stringify(body ?? '');
+      return {
+        userMessage: `Server error. Status: ${status}. ${bodyStr.slice(0, 200) || backendMsg || statusText || 'Try again shortly.'}`,
+        status,
+        statusText,
+        responseBody: body,
+        errorMessage: rawMessage,
+        errorCode: code,
+        errorClass: 'SERVER',
+      };
+    }
+    return {
+      userMessage: backendMsg ?? `Unexpected response (${status}).`,
+      status,
+      statusText,
+      responseBody: body,
+      errorMessage: rawMessage,
+      errorCode: code,
+      errorClass: 'UNKNOWN',
+    };
+  }
+
+  // Timeout — axios sets ECONNABORTED with "timeout of Xms exceeded".
+  if (code === 'ECONNABORTED' || /timeout/i.test(rawMessage)) {
+    const match = rawMessage.match(/timeout of (\d+)ms/);
+    const seconds = match ? Math.round(Number(match[1]) / 1000) : null;
+    return {
+      userMessage: seconds != null
+        ? `Request timed out after ${seconds}s. Server is unreachable or slow.`
+        : 'Request timed out. Server is unreachable or slow.',
+      status: 'Timeout',
+      statusText: null,
+      responseBody: null,
+      errorMessage: rawMessage,
+      errorCode: code,
+      errorClass: 'TIMEOUT',
+    };
+  }
+
+  // DNS / network — fetch + axios in the browser surface ERR_NAME_NOT_RESOLVED
+  // as a "Network Error" with no response object. Sniff the message.
+  const looksLikeDns =
+    /name.?not.?resolved|getaddrinfo|enotfound|err_name_not_resolved/i.test(rawMessage);
+  if (looksLikeDns) {
+    return {
+      userMessage: `Cannot reach server. URL: ${fullUrl}. Check your network or contact admin.`,
+      status: 'DNS Error',
+      statusText: null,
+      responseBody: null,
+      errorMessage: rawMessage,
+      errorCode: code,
+      errorClass: 'DNS',
+    };
+  }
+
+  // Generic network failure — request was sent but no response.
+  if (e.request || /network error|failed to fetch|err_connection|err_internet/i.test(rawMessage)) {
+    return {
+      userMessage: `Cannot reach server. URL: ${fullUrl}. Check your network or contact admin.`,
+      status: 'Network Error',
+      statusText: null,
+      responseBody: null,
+      errorMessage: rawMessage,
+      errorCode: code,
+      errorClass: 'NETWORK',
+    };
+  }
+
+  return {
+    userMessage: rawMessage || 'Registration failed.',
+    status: null,
+    statusText: null,
+    responseBody: null,
+    errorMessage: rawMessage,
+    errorCode: code,
+    errorClass: 'UNKNOWN',
+  };
 }
 
 function triStateToBool(v: '' | 'yes' | 'no'): boolean | undefined {
