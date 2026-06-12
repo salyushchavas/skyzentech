@@ -532,8 +532,12 @@ public class OfferDocuSignService {
     private boolean tryAutoLink(java.util.function.Consumer<UUID> setter,
                                  String email, String roleLabel) {
         if (email == null || email.isBlank()) {
-            log.warn("[Offer.AutoLink] {} email env var not set — skipping "
-                    + "auto-link; ERM must assign manually", roleLabel);
+            // Phase 8.6.5 — best-effort: not having the env var is fine.
+            // T/E play no role in the document workflow and Manager is
+            // assigned inline later. Log at INFO so ops can verify intent
+            // without it looking like a misconfiguration.
+            log.info("[Offer.AutoLink] {} default email not set — leaving "
+                    + "trainer_id/evaluator_id null (non-blocking)", roleLabel);
             return false;
         }
         return userRepository.findByEmail(email.trim())
@@ -544,25 +548,24 @@ public class OfferDocuSignService {
                     return true;
                 })
                 .orElseGet(() -> {
-                    log.warn("[Offer.AutoLink] {} email '{}' did not resolve "
-                            + "to a user — skipping auto-link", roleLabel, email);
+                    log.info("[Offer.AutoLink] {} email '{}' did not resolve "
+                            + "to a user — leaving null (non-blocking)",
+                            roleLabel, email);
                     return false;
                 });
     }
 
     @jakarta.annotation.PostConstruct
     void logAutoLinkConfig() {
-        log.info("[Config] DEFAULT_TRAINER_EMAIL = {} | DEFAULT_EVALUATOR_EMAIL = {}",
+        // Phase 8.6.5 — informational only. Document workflow does not
+        // depend on T/E; this log just confirms whether downstream
+        // training workflows will get auto-linked or not.
+        log.info("[Config] DEFAULT_TRAINER_EMAIL = {} | DEFAULT_EVALUATOR_EMAIL = {} "
+                        + "(both optional; document workflow runs regardless)",
                 defaultTrainerEmail != null && !defaultTrainerEmail.isBlank()
                         ? defaultTrainerEmail : "(unset)",
                 defaultEvaluatorEmail != null && !defaultEvaluatorEmail.isBlank()
                         ? defaultEvaluatorEmail : "(unset)");
-        if (defaultTrainerEmail == null || defaultTrainerEmail.isBlank()
-                || defaultEvaluatorEmail == null || defaultEvaluatorEmail.isBlank()) {
-            log.warn("[Config] Trainer/Evaluator auto-link disabled. New "
-                    + "offer signings will leave trainer_id/evaluator_id NULL "
-                    + "until ERM assigns them manually.");
-        }
     }
 
     // ── Internals ───────────────────────────────────────────────────────────

@@ -111,19 +111,10 @@ public class ErmRightPanelService {
                 "Send offer",
                 "/careers/erm/interviews?decision=SELECTED",
                 selectedWithoutOffer));
-        // ERM Phase 4 — separate quick action for the reporting structure gate.
-        // Counts new hires whose offer is signed but Trainer/Evaluator/Manager
-        // not yet wired. Action lands on the Pending tab.
-        long pendingReporting = safeCount(
-                "SELECT COUNT(*) FROM intern_lifecycles "
-                        + "WHERE active_status = 'PROSPECTIVE' "
-                        + "  AND reporting_structure_complete = FALSE "
-                        + "  AND (erm_id IS NULL OR erm_id = ?)",
-                callerId);
-        actions.add(qa("assign-reporting",
-                "Assign reporting structure",
-                "/careers/erm/new-hire?tab=pending",
-                pendingReporting));
+        // Phase 8.6.5 — Trainer/Evaluator are auto-linked at offer sign
+        // (best-effort) and Manager is assigned inline; no separate
+        // "assign reporting structure" gate. The quick action that used
+        // to live here is dropped to avoid steering ERM at a non-blocker.
         actions.add(qa("onboarding-assign",
                 "Assign onboarding",
                 "/careers/erm/new-hire?tab=ready",

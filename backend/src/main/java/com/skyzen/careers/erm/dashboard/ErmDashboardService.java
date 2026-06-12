@@ -219,10 +219,13 @@ public class ErmDashboardService {
      * <p>Urgency: signed offer older than 7 days.</p>
      */
     private KpiSnapshot awaitingDocumentPacket(boolean mine, UUID callerId) {
+        // Phase 8.6.5 — document workflow is decoupled from Trainer/
+        // Evaluator assignment, so the headline count drops the
+        // reporting_structure_complete filter to match the list-page
+        // query (see ErmNewHireService.list pending-document-assignment).
         String base =
                 "FROM intern_lifecycles il "
                         + " WHERE il.active_status IN ('PROSPECTIVE','ACTIVE') "
-                        + "   AND il.reporting_structure_complete = TRUE "
                         + "   AND NOT EXISTS (SELECT 1 FROM document_packets dp "
                         + "                     WHERE dp.intern_lifecycle_id = il.id "
                         + "                       AND dp.status NOT IN ('COMPLETED','CANCELLED')) ";

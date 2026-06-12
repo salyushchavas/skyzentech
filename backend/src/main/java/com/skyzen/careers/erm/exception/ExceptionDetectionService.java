@@ -423,35 +423,14 @@ public class ExceptionDetectionService {
     }
 
     // ── Detector 9: reporting structure incomplete (ERM Phase 4) ──────────
+    // Disabled in Phase 8.6.5 — Trainer/Evaluator are auto-linked at offer
+    // sign (best-effort) and Manager is assigned inline as needed; missing
+    // T/E/M is no longer treated as an urgent exception that should hold up
+    // ERM's queue. The detector method is kept (returning empty) so the
+    // ExceptionType + scheduler wiring stay valid for any future re-enable.
 
     private List<ExceptionRow> reportingStructureIncomplete(ErmScope scope, UUID callerId) {
-        // New hires whose offer is signed but ERM has not yet wired the
-        // mandatory Trainer + Evaluator + Manager triad. Filter to those
-        // signed > 24h ago so brand-new arrivals don't immediately scream.
-        StringBuilder sql = new StringBuilder()
-                .append("SELECT il.id AS resource_id, il.user_id AS intern_id, ")
-                .append("       u.full_name AS intern_name, ")
-                .append("       EXTRACT(EPOCH FROM (NOW() - il.hired_at))/86400 AS days_overdue ")
-                .append("  FROM intern_lifecycles il ")
-                .append("  JOIN users u ON u.id = il.user_id ")
-                .append(" WHERE il.active_status = 'PROSPECTIVE' ")
-                .append("   AND il.reporting_structure_complete = FALSE ")
-                .append("   AND il.hired_at < NOW() - INTERVAL '1 day' ");
-        List<Object> params = new ArrayList<>();
-        if (scope == ErmScope.MINE) {
-            sql.append(" AND il.erm_id = ? ");
-            params.add(callerId);
-        }
-        sql.append(" ORDER BY il.hired_at ASC");
-        return jdbc.query(sql.toString(), params.toArray(),
-                (rs, n) -> new ExceptionRow(
-                        ExceptionType.REPORTING_STRUCTURE_INCOMPLETE,
-                        ExceptionSeverity.URGENT,
-                        nullableUuid(rs.getString("intern_id")),
-                        rs.getString("intern_name"),
-                        Math.max(0, (int) rs.getDouble("days_overdue")),
-                        "/careers/erm/new-hire?tab=pending",
-                        nullableUuid(rs.getString("resource_id"))));
+        return java.util.Collections.emptyList();
     }
 
     // ── Detector 10: work auth expiring within 30 days (ERM Phase 5) ──────
