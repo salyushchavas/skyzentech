@@ -20,7 +20,6 @@ type Props = {
   internName: string | null;
   employeeId?: string | null;
   tentativeStartDate?: string | null;
-  reportingStructureComplete?: boolean;
   onClose: () => void;
   onAssigned: () => void;
 };
@@ -29,12 +28,13 @@ type Props = {
  * ERM Phase 8.2 — assignment modal sourced entirely from the static
  * SKYZEN_DOCUMENTS constant (no API fetch). ERM ticks the docs they
  * want to send, optionally adds an instructions note, and submits.
- * Reporting-structure gate is enforced both client-side (button
- * disabled with tooltip) and server-side (409 with `code` field).
+ * Phase 8.6.4 dropped the client-side reporting-structure gate;
+ * Manager is no longer required and Trainer/Evaluator auto-link from
+ * system config at offer sign. Server still validates T+E and returns
+ * REPORTING_STRUCTURE_INCOMPLETE if either is missing.
  */
 export default function AssignPacketModal({
   open, lifecycleId, internName, employeeId, tentativeStartDate,
-  reportingStructureComplete = true,
   onClose, onAssigned,
 }: Props) {
   const [selected, setSelected] = useState<Set<SkyzenDocumentKey>>(new Set());
@@ -58,10 +58,9 @@ export default function AssignPacketModal({
   }
 
   async function submit() {
-    if (!reportingStructureComplete) {
-      setErr('Assign trainer / evaluator / manager first.');
-      return;
-    }
+    // Phase 8.6.4 — client-side reporting-structure gate dropped. Backend
+    // still requires Trainer + Evaluator (Manager no longer needed) and
+    // returns REPORTING_STRUCTURE_INCOMPLETE if either is missing.
     if (selected.size === 0) {
       setErr('Pick at least one document.');
       return;
@@ -81,8 +80,10 @@ export default function AssignPacketModal({
         message?: string;
       };
       if (ax.response?.data?.code === 'REPORTING_STRUCTURE_INCOMPLETE') {
-        setErr('Reporting structure incomplete — missing: '
-          + (ax.response.data.missing ?? []).join(', '));
+        setErr('Trainer/Evaluator not linked yet (missing: '
+          + (ax.response.data.missing ?? []).join(', ')
+          + '). Set DEFAULT_TRAINER_EMAIL / DEFAULT_EVALUATOR_EMAIL or '
+          + 'use the New Hire detail page to assign manually.');
       } else {
         setErr(ax.response?.data?.error ?? ax.message ?? 'Failed to assign');
       }
@@ -92,9 +93,6 @@ export default function AssignPacketModal({
   }
 
   if (!open) return null;
-
-  const blockedTooltip = !reportingStructureComplete
-    ? 'Assign Trainer / Evaluator / Manager first.' : undefined;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
@@ -125,12 +123,6 @@ export default function AssignPacketModal({
         </div>
 
         <div className="flex-1 overflow-y-auto px-5 py-4">
-          {!reportingStructureComplete && (
-            <p className="mb-3 rounded-md border border-amber-200 bg-amber-50 p-2 text-xs text-amber-800">
-              Reporting structure incomplete — assign a Trainer, Evaluator,
-              and Manager first.
-            </p>
-          )}
           {err && (
             <p className="mb-3 rounded-md border border-rose-200 bg-rose-50 p-2 text-xs text-rose-800">
               {err}
@@ -217,8 +209,7 @@ export default function AssignPacketModal({
             <button
               type="button"
               onClick={submit}
-              disabled={submitting || selected.size === 0 || !reportingStructureComplete}
-              title={blockedTooltip}
+              disabled={submitting || selected.size === 0}
               className="rounded-md bg-teal-700 px-4 py-1.5 text-sm font-semibold text-white hover:bg-teal-800 disabled:bg-slate-300"
             >
               {submitting ? 'Sending…' : `Send to intern`}

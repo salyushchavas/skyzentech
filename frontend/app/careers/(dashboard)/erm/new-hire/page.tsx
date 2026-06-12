@@ -144,7 +144,6 @@ function NewHireListPageInner() {
           internName={assignFor.internName}
           employeeId={assignFor.employeeId}
           tentativeStartDate={assignFor.tentativeStartDate ?? undefined}
-          reportingStructureComplete={assignFor.reportingStructureComplete}
           onClose={() => setAssignFor(null)}
           onAssigned={() => { setAssignFor(null); void load(); }}
         />
@@ -213,10 +212,7 @@ function PendingTable({
                     <button
                       type="button"
                       onClick={() => onAssign(r)}
-                      disabled={!r.reportingStructureComplete}
-                      title={!r.reportingStructureComplete
-                        ? 'Assign reporting structure first' : ''}
-                      className="rounded-md bg-teal-700 px-3 py-1.5 text-xs font-semibold text-white hover:bg-teal-800 disabled:bg-slate-300"
+                      className="rounded-md bg-teal-700 px-3 py-1.5 text-xs font-semibold text-white hover:bg-teal-800"
                     >
                       Assign Documents
                     </button>

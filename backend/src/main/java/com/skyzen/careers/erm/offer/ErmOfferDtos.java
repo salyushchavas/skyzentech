@@ -190,6 +190,10 @@ public final class ErmOfferDtos {
             UUID managerUserId
     ) {}
 
+    /** Phase 8.6.4 — inline Manager assignment from the New Hire detail page.
+     *  {@code managerUserId == null} clears the assignment. */
+    public record AssignManagerRequest(UUID managerUserId) {}
+
     // ── Phase 8.6 — Awaiting Offer queue ─────────────────────────────────
     // Applications in INTERVIEWED state with a COMPLETED interview where
     // decision=SELECTED, and no active offer (status NOT IN SENT, SIGNED)

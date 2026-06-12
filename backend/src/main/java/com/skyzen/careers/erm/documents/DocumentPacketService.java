@@ -177,11 +177,15 @@ public class DocumentPacketService {
                             + "(EMPLOYEE_ID_CREATED, ONBOARDING_ASSIGNED) — current: " + s);
         }
 
-        // Reporting-structure gate (mirrors ERM Phase 4).
+        // Phase 8.6.4 — reporting-structure gate relaxed: Manager is no
+        // longer required at packet-assignment time (it varies per intern
+        // and is set inline later). Trainer + Evaluator remain required
+        // because the document workflow routes some items through them.
+        // T + E are auto-linked at offer-sign from system config when env
+        // vars are set; when they aren't, ERM still gets prompted here.
         List<String> missing = new ArrayList<>();
         if (lc.getTrainerId() == null) missing.add("trainer");
         if (lc.getEvaluatorId() == null) missing.add("evaluator");
-        if (lc.getManagerId() == null) missing.add("manager");
         if (!missing.isEmpty()) {
             throw new ReportingStructureIncompleteException(missing);
         }

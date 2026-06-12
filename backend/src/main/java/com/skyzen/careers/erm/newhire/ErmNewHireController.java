@@ -68,6 +68,19 @@ public class ErmNewHireController {
         return ermNewHireService.assignReportingStructure(lifecycleId, req, caller);
     }
 
+    /** Phase 8.6.4 — inline Manager assignment from the New Hire detail
+     *  page. Non-blocking: Manager can be set / changed / cleared at any
+     *  lifecycle point. Doesn't touch reporting_structure_complete. */
+    @PatchMapping("/{lifecycleId}/manager")
+    @PreAuthorize("hasAnyRole('ERM', 'SUPER_ADMIN')")
+    public ErmOfferDtos.NewHireDetail assignManager(
+            @PathVariable UUID lifecycleId,
+            @RequestBody ErmOfferDtos.AssignManagerRequest req,
+            @AuthenticationPrincipal User caller) {
+        return ermNewHireService.assignManager(
+                lifecycleId, req != null ? req.managerUserId() : null, caller);
+    }
+
     @PostMapping("/{lifecycleId}/update-start-date")
     @PreAuthorize("hasAnyRole('ERM', 'SUPER_ADMIN')")
     public ErmOfferDtos.NewHireDetail updateStartDate(

@@ -64,13 +64,20 @@ public class ErmNewHireService {
                 " WHERE il.active_status = 'PROSPECTIVE' ");
         List<Object> params = new ArrayList<>();
         if ("pending".equalsIgnoreCase(tab)) {
+            // Legacy filter — pre-Phase-8.6.4 this surfaced interns waiting
+            // for ERM to pick T/E/M manually. Auto-link from system config
+            // means this set is almost always empty now; kept for parity
+            // with any deployment that has DEFAULT_*_EMAIL unset.
             where.append(" AND il.reporting_structure_complete = FALSE ");
         } else if ("ready".equalsIgnoreCase(tab)
                 || "pending-document-assignment".equalsIgnoreCase(tab)) {
-            // ERM Phase 8.2 — interns waiting for ERM to send their docs:
-            // reporting structure complete + no non-terminal packet.
-            where.append(" AND il.reporting_structure_complete = TRUE "
-                    + " AND NOT EXISTS (SELECT 1 FROM document_packets pk "
+            // Phase 8.6.4 — gate dropped: any signed-offer intern with no
+            // active packet shows up here. Trainer + Evaluator are
+            // auto-linked at offer sign so reporting_structure_complete
+            // is no longer the right filter (would exclude interns whose
+            // env vars weren't configured at sign time — still fine to
+            // assign docs to).
+            where.append(" AND NOT EXISTS (SELECT 1 FROM document_packets pk "
                     + "                   WHERE pk.intern_lifecycle_id = il.id "
                     + "                     AND pk.status NOT IN ('COMPLETED','CANCELLED')) ");
         } else if ("in-progress".equalsIgnoreCase(tab)) {
@@ -177,52 +184,97 @@ public class ErmNewHireService {
                 onboardingAssigned);
     }
 
-    // ── Assign reporting structure (atomic, the gate) ─────────────────────
+    // ── Assign reporting structure (legacy — kept for one-off corrections) ─
 
+    /**
+     * Phase 8.6.4 — Trainer + Evaluator are auto-linked at offer sign from
+     * system config ({@code DEFAULT_TRAINER_EMAIL} / {@code DEFAULT_EVALUATOR_EMAIL}),
+     * and Manager is assigned inline later via {@link #assignManager}. This
+     * endpoint stays for ERM to correct mis-linked T/E or backfill on
+     * legacy InternLifecycle rows. Manager is now optional in the request
+     * body; the {@code reporting_structure_complete} flag flips on T+E
+     * presence (Manager excluded).
+     */
     @Transactional
     public ErmOfferDtos.NewHireDetail assignReportingStructure(
             UUID lifecycleId, ErmOfferDtos.AssignReportingRequest req, User caller) {
         if (req == null) throw new BadRequestException("body required");
-        if (req.trainerUserId() == null || req.evaluatorUserId() == null
-                || req.managerUserId() == null) {
+        if (req.trainerUserId() == null || req.evaluatorUserId() == null) {
             throw new BadRequestException(
-                    "trainerUserId + evaluatorUserId + managerUserId are all required");
+                    "trainerUserId + evaluatorUserId are required (managerUserId optional)");
         }
         InternLifecycle lc = lifecycleRepository.findById(lifecycleId)
                 .orElseThrow(() -> new ResourceNotFoundException(
                         "InternLifecycle not found: " + lifecycleId));
-        if (!"PROSPECTIVE".equals(lc.getActiveStatus())) {
+        if (!"PROSPECTIVE".equals(lc.getActiveStatus())
+                && !"ACTIVE".equals(lc.getActiveStatus())) {
             throw new ConflictException(
-                    "Assignment allowed only when active_status=PROSPECTIVE (current: "
+                    "Assignment allowed only when active_status IN "
+                            + "(PROSPECTIVE, ACTIVE) — current: "
                             + lc.getActiveStatus() + ")");
         }
         User trainer = requireRole(req.trainerUserId(), UserRole.TRAINER, "Trainer");
         User evaluator = requireRole(req.evaluatorUserId(),
                 UserRole.REPORTING_MANAGER, "Evaluator");
-        User manager = requireRole(req.managerUserId(), UserRole.MANAGER, "Manager");
+        User manager = req.managerUserId() != null
+                ? requireRole(req.managerUserId(), UserRole.MANAGER, "Manager")
+                : null;
 
         lc.setTrainerId(trainer.getId());
         lc.setEvaluatorId(evaluator.getId());
-        lc.setManagerId(manager.getId());
+        if (manager != null) lc.setManagerId(manager.getId());
+        // T + E set → reporting structure considered complete.
         lc.setReportingStructureComplete(Boolean.TRUE);
         lc.setReportingStructureCompletedAt(Instant.now());
         lc.setReportingStructureCompletedById(caller.getId());
         lifecycleRepository.save(lc);
 
+        Map<String, Object> after = new java.util.LinkedHashMap<>();
+        after.put("trainerId", trainer.getId().toString());
+        after.put("evaluatorId", evaluator.getId().toString());
+        after.put("managerId", manager != null ? manager.getId().toString() : null);
         writeAudit(caller.getId(), lc.getUserId(),
                 "REPORTING_STRUCTURE_ASSIGNED", "InternLifecycle", lc.getId(),
-                null,
-                Map.of("trainerId", trainer.getId().toString(),
-                        "evaluatorId", evaluator.getId().toString(),
-                        "managerId", manager.getId().toString()));
+                null, after);
         try {
             eventPublisher.publishEvent(new ReportingStructureAssignedEvent(
                     lc.getId(), lc.getUserId(),
-                    trainer.getId(), evaluator.getId(), manager.getId(),
+                    trainer.getId(), evaluator.getId(),
+                    manager != null ? manager.getId() : null,
                     caller.getId()));
         } catch (Exception e) {
             log.warn("[ErmNewHire] reporting structure event publish failed: {}", e.getMessage());
         }
+        return detail(lifecycleId);
+    }
+
+    /**
+     * Phase 8.6.4 — inline Manager assignment. Non-blocking; Manager can be
+     * set / changed / cleared at any lifecycle point. Doesn't touch the
+     * {@code reporting_structure_complete} flag (which now means T+E only).
+     */
+    @Transactional
+    public ErmOfferDtos.NewHireDetail assignManager(
+            UUID lifecycleId, UUID managerUserId, User caller) {
+        InternLifecycle lc = lifecycleRepository.findById(lifecycleId)
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "InternLifecycle not found: " + lifecycleId));
+        UUID previous = lc.getManagerId();
+        if (managerUserId == null) {
+            lc.setManagerId(null);
+        } else {
+            User manager = requireRole(managerUserId, UserRole.MANAGER, "Manager");
+            lc.setManagerId(manager.getId());
+        }
+        lifecycleRepository.save(lc);
+
+        Map<String, Object> before = new java.util.LinkedHashMap<>();
+        before.put("managerId", previous != null ? previous.toString() : null);
+        Map<String, Object> after = new java.util.LinkedHashMap<>();
+        after.put("managerId", lc.getManagerId() != null ? lc.getManagerId().toString() : null);
+        writeAudit(caller.getId(), lc.getUserId(),
+                "MANAGER_ASSIGNED", "InternLifecycle", lc.getId(),
+                before, after);
         return detail(lifecycleId);
     }
 

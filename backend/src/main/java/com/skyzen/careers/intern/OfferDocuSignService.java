@@ -97,6 +97,15 @@ public class OfferDocuSignService {
     @Value("${app.frontend.base-url:https://www.skyzentech.com}")
     private String frontendBaseUrl;
 
+    /** Phase 8.6.4 — single Trainer + Evaluator used org-wide. Blank means
+     *  auto-link is disabled; ERM still has the legacy assignReporting endpoint
+     *  for manual correction. */
+    @Value("${app.default-trainer-email:}")
+    private String defaultTrainerEmail;
+
+    @Value("${app.default-evaluator-email:}")
+    private String defaultEvaluatorEmail;
+
     // ── ERM commands ────────────────────────────────────────────────────────
 
     @Transactional
@@ -458,6 +467,12 @@ public class OfferDocuSignService {
                         .activeStatus("PROSPECTIVE")
                         .hiredAt(now)
                         .build();
+                // Phase 8.6.4 — auto-link the single org-wide Trainer +
+                // Evaluator from DEFAULT_*_EMAIL env vars. Manager stays
+                // null and is assigned inline later from the New Hire
+                // detail page (it varies per intern). reporting_structure
+                // _complete now means "T + E set" (Manager excluded).
+                applyAutoLinkReportingStructure(lc, actorId, now);
                 internLifecycleRepository.save(lc);
             }
         }
@@ -485,6 +500,69 @@ public class OfferDocuSignService {
         log.info("[Offer] in-house signed offer={} employee_id={} applicant={}",
                 saved.getId(), employeeId, applicantIdF);
         return saved;
+    }
+
+    /**
+     * Phase 8.6.4 — populate {@code trainer_id} + {@code evaluator_id} on a
+     * fresh InternLifecycle from {@code DEFAULT_TRAINER_EMAIL} and
+     * {@code DEFAULT_EVALUATOR_EMAIL} env vars. Manager intentionally stays
+     * null — varies per intern, assigned inline later.
+     *
+     * <p>{@code reporting_structure_complete} now means "T + E set". When
+     * both resolve, the lifecycle row lands fully reported-structure-OK so
+     * document assignment unblocks immediately.
+     *
+     * <p>Non-fatal: blank env vars or no-matching-user emit WARN logs and
+     * leave the column NULL. ERM can still set values manually via the
+     * legacy /assign-reporting endpoint.
+     */
+    private void applyAutoLinkReportingStructure(
+            InternLifecycle lc, UUID actorId, Instant now) {
+        boolean tSet = tryAutoLink(lc::setTrainerId, defaultTrainerEmail, "trainer");
+        boolean eSet = tryAutoLink(lc::setEvaluatorId, defaultEvaluatorEmail, "evaluator");
+        if (tSet && eSet) {
+            lc.setReportingStructureComplete(Boolean.TRUE);
+            lc.setReportingStructureCompletedAt(now);
+            // Mark as system-set: null actor distinguishes from human-driven
+            // assignment via the legacy endpoint.
+            lc.setReportingStructureCompletedById(actorId);
+        }
+    }
+
+    private boolean tryAutoLink(java.util.function.Consumer<UUID> setter,
+                                 String email, String roleLabel) {
+        if (email == null || email.isBlank()) {
+            log.warn("[Offer.AutoLink] {} email env var not set — skipping "
+                    + "auto-link; ERM must assign manually", roleLabel);
+            return false;
+        }
+        return userRepository.findByEmail(email.trim())
+                .map(u -> {
+                    setter.accept(u.getId());
+                    log.info("[Offer.AutoLink] linked default {} = {} ({})",
+                            roleLabel, u.getFullName(), u.getEmail());
+                    return true;
+                })
+                .orElseGet(() -> {
+                    log.warn("[Offer.AutoLink] {} email '{}' did not resolve "
+                            + "to a user — skipping auto-link", roleLabel, email);
+                    return false;
+                });
+    }
+
+    @jakarta.annotation.PostConstruct
+    void logAutoLinkConfig() {
+        log.info("[Config] DEFAULT_TRAINER_EMAIL = {} | DEFAULT_EVALUATOR_EMAIL = {}",
+                defaultTrainerEmail != null && !defaultTrainerEmail.isBlank()
+                        ? defaultTrainerEmail : "(unset)",
+                defaultEvaluatorEmail != null && !defaultEvaluatorEmail.isBlank()
+                        ? defaultEvaluatorEmail : "(unset)");
+        if (defaultTrainerEmail == null || defaultTrainerEmail.isBlank()
+                || defaultEvaluatorEmail == null || defaultEvaluatorEmail.isBlank()) {
+            log.warn("[Config] Trainer/Evaluator auto-link disabled. New "
+                    + "offer signings will leave trainer_id/evaluator_id NULL "
+                    + "until ERM assigns them manually.");
+        }
     }
 
     // ── Internals ───────────────────────────────────────────────────────────
