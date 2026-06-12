@@ -28,6 +28,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -239,9 +240,11 @@ public class ErmNewHireService {
         java.time.LocalDate previous = lc.getTentativeStartDate();
         lc.setTentativeStartDate(newDate);
         lifecycleRepository.save(lc);
+        Map<String, Object> startBefore = new LinkedHashMap<>();
+        startBefore.put("tentativeStartDate", previous != null ? previous.toString() : null);
         writeAudit(caller.getId(), lc.getUserId(),
                 "TENTATIVE_START_DATE_UPDATED", "InternLifecycle", lc.getId(),
-                Map.of("tentativeStartDate", previous != null ? previous.toString() : null),
+                startBefore,
                 Map.of("tentativeStartDate", newDate.toString()));
         try {
             eventPublisher.publishEvent(

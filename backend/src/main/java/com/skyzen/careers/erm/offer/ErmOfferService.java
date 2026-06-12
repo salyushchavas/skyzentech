@@ -462,12 +462,15 @@ public class ErmOfferService {
             }
         }
 
-        writeEventLog(offerId, caller.getId(), "START_DATE_UPDATED", null, null,
-                Map.of("previous", previous != null ? previous.toString() : null,
-                        "newDate", newDate.toString()));
+        Map<String, Object> evtPayload = new LinkedHashMap<>();
+        evtPayload.put("previous", previous != null ? previous.toString() : null);
+        evtPayload.put("newDate", newDate.toString());
+        writeEventLog(offerId, caller.getId(), "START_DATE_UPDATED", null, null, evtPayload);
+        Map<String, Object> auditBefore = new LinkedHashMap<>();
+        auditBefore.put("startDate", previous != null ? previous.toString() : null);
         writeAudit(caller.getId(), applicantId,
                 "OFFER_START_DATE_UPDATED", "Offer", offerId,
-                Map.of("startDate", previous != null ? previous.toString() : null),
+                auditBefore,
                 Map.of("startDate", newDate.toString()));
         try {
             eventPublisher.publishEvent(new TentativeStartDateUpdatedEvent(

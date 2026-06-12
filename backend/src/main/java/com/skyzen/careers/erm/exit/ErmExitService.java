@@ -297,12 +297,14 @@ public class ErmExitService {
         }
         rec = exitRecordRepository.save(rec);
 
+        Map<String, Object> exitAfter = new LinkedHashMap<>();
+        exitAfter.put("reasonCode", rc != null ? rc.name() : null);
+        exitAfter.put("exitType", rec.getExitType());
+        exitAfter.put("exitDate", rec.getExitDate() != null ? rec.getExitDate().toString() : null);
         writeAudit(rec.getId(), "EXIT_ERM_INITIATE",
                 caller.getId(), rec.getInternId(),
                 null,
-                Map.of("reasonCode", rc != null ? rc.name() : null,
-                        "exitType", rec.getExitType(),
-                        "exitDate", rec.getExitDate() != null ? rec.getExitDate().toString() : null));
+                exitAfter);
         return toDetail(rec, caller);
     }
 

@@ -504,12 +504,15 @@ public class ErmInterviewService {
         iv.setInterviewer(next);
         interviewRepository.save(iv);
 
-        writeEventLog(iv.getId(), caller.getId(), "INTERVIEWER_CHANGED", null, null,
-                Map.of("oldInterviewerId", oldId != null ? oldId.toString() : null,
-                        "newInterviewerId", newInterviewerId.toString()));
+        Map<String, Object> evtPayload = new LinkedHashMap<>();
+        evtPayload.put("oldInterviewerId", oldId != null ? oldId.toString() : null);
+        evtPayload.put("newInterviewerId", newInterviewerId.toString());
+        writeEventLog(iv.getId(), caller.getId(), "INTERVIEWER_CHANGED", null, null, evtPayload);
+        Map<String, Object> auditBefore = new LinkedHashMap<>();
+        auditBefore.put("interviewerId", oldId != null ? oldId.toString() : null);
         writeAudit(caller.getId(), applicantUserId(iv.getApplication()),
                 "INTERVIEW_INTERVIEWER_CHANGED", "Interview", iv.getId(),
-                Map.of("interviewerId", oldId != null ? oldId.toString() : null),
+                auditBefore,
                 Map.of("interviewerId", newInterviewerId.toString()));
         try {
             eventPublisher.publishEvent(new InterviewScheduledEvent(

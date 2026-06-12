@@ -290,13 +290,15 @@ public class ErmApplicationService {
         // log row's applicantVisibleMessage in the listener after rendering.
         decisionLogRepository.save(logRow);
 
+        Map<String, Object> afterMap = new LinkedHashMap<>();
+        afterMap.put("status", newStage.name());
+        afterMap.put("decision", decision);
+        afterMap.put("reasonCode", reasonCode != null ? reasonCode.name() : null);
         writeAudit(caller.getId(), candidateUserId(app),
                 "APPLICATION_STAGE_CHANGED",
                 "Application", app.getId(),
                 Map.of("status", previous.name()),
-                Map.of("status", newStage.name(),
-                        "decision", decision,
-                        "reasonCode", reasonCode != null ? reasonCode.name() : null));
+                afterMap);
 
         try {
             eventPublisher.publishEvent(new ApplicationDecisionEvent(
