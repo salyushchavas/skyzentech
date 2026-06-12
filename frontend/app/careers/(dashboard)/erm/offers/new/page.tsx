@@ -57,6 +57,44 @@ function CreateOfferPageInner() {
   const [submitting, setSubmitting] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
+  // Phase 8.6.1 — pull role title + worksite from the job posting the
+  // applicant applied to so ERM doesn't retype them. JobPosting has no
+  // technology column (yet), so technology stays blank for ERM to fill.
+  const [autoFilled, setAutoFilled] = useState<{
+    roleTitle?: string;
+    worksite?: string;
+    applicantName?: string;
+  }>({});
+
+  useEffect(() => {
+    if (!applicationId) return;
+    void (async () => {
+      try {
+        const res = await api.get<{
+          applicant?: { firstName?: string; lastName?: string };
+          job?: { title?: string | null; location?: string | null };
+        }>(`/api/v1/erm/applications/${applicationId}`);
+        const jobTitle = res.data.job?.title?.trim() ?? '';
+        const jobLocation = res.data.job?.location?.trim() ?? '';
+        const applicantName = [res.data.applicant?.firstName, res.data.applicant?.lastName]
+          .filter(Boolean).join(' ').trim();
+        const filled: typeof autoFilled = {};
+        if (jobTitle) {
+          setRoleTitle(jobTitle);
+          filled.roleTitle = jobTitle;
+        }
+        if (jobLocation) {
+          setWorksite(jobLocation);
+          filled.worksite = jobLocation;
+        }
+        if (applicantName) filled.applicantName = applicantName;
+        setAutoFilled(filled);
+      } catch {
+        // Non-fatal — the form still works, just without pre-fill.
+      }
+    })();
+  }, [applicationId]);
+
   const renderPreview = useCallback(async () => {
     if (!applicationId) return;
     try {
@@ -137,7 +175,9 @@ function CreateOfferPageInner() {
         <PageHeader
           title="Create Offer"
           subtitle={applicationId
-            ? `Application: ${applicationId}`
+            ? (autoFilled.applicantName
+                ? `For ${autoFilled.applicantName}`
+                : `Application: ${applicationId}`)
             : 'Open from an Application detail with SELECTED interview decision.'}
         />
 
@@ -150,7 +190,8 @@ function CreateOfferPageInner() {
               </p>
             )}
             <div className="space-y-3">
-              <Field label="Role title" value={roleTitle} onChange={setRoleTitle} required />
+              <Field label="Role title" value={roleTitle} onChange={setRoleTitle} required
+                helper={renderAutoFilledHelper(roleTitle, autoFilled.roleTitle, setRoleTitle)} />
               <Field label="Technology" value={technology} onChange={setTechnology} />
               <div className="grid grid-cols-2 gap-2">
                 <DateField label="Tentative start date" value={tentativeStartDate}
@@ -161,7 +202,8 @@ function CreateOfferPageInner() {
               <Field label="Compensation summary" value={compensationSummary}
                 onChange={setCompensationSummary} required maxLength={500} />
               <div className="grid grid-cols-2 gap-2">
-                <Field label="Worksite" value={worksite} onChange={setWorksite} required maxLength={200} />
+                <Field label="Worksite" value={worksite} onChange={setWorksite} required maxLength={200}
+                  helper={renderAutoFilledHelper(worksite, autoFilled.worksite, setWorksite)} />
                 <NumField label="Hours / week" value={expectedHoursPerWeek}
                   onChange={setExpectedHoursPerWeek} min={1} max={40} />
               </div>
@@ -225,13 +267,14 @@ function CreateOfferPageInner() {
 }
 
 function Field({
-  label, value, onChange, required, maxLength,
+  label, value, onChange, required, maxLength, helper,
 }: {
   label: string;
   value: string;
   onChange: (v: string) => void;
   required?: boolean;
   maxLength?: number;
+  helper?: React.ReactNode;
 }) {
   return (
     <div>
@@ -244,7 +287,38 @@ function Field({
         maxLength={maxLength}
         className="mt-1 w-full rounded-md border border-slate-200 px-3 py-2 text-sm"
       />
+      {helper}
     </div>
+  );
+}
+
+// Phase 8.6.1 — small visual indicator that the field was pre-filled from
+// the job posting. When ERM overrides it, swap to a "reset to default"
+// link so they can undo without re-typing the original.
+function renderAutoFilledHelper(
+  current: string,
+  source: string | undefined,
+  setValue: (v: string) => void,
+) {
+  if (!source) return null;
+  if (current === source) {
+    return (
+      <p className="mt-1 text-[11px] text-slate-500">
+        Auto-filled from job posting.
+      </p>
+    );
+  }
+  return (
+    <p className="mt-1 text-[11px] text-slate-500">
+      Overridden.{' '}
+      <button
+        type="button"
+        onClick={() => setValue(source)}
+        className="font-medium text-teal-700 hover:underline"
+      >
+        Reset to job posting value
+      </button>
+    </p>
   );
 }
 
