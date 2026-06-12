@@ -1503,6 +1503,29 @@ public class SchemaFixupRunner implements CommandLineRunner {
                 // typed name; nullable so legacy/DocuSign-signed rows are
                 // preserved as-is. Idempotent ADD IF NOT EXISTS.
                 "ALTER TABLE offers ADD COLUMN IF NOT EXISTS signed_by_typed_name VARCHAR(200)",
+                // Phase 8.6.2 fix — the original offers_status_check was
+                // created with a stale whitelist that pre-dates the current
+                // OfferStatus enum (DRAFT/SENT/SIGNED/VOIDED/EXPIRED/DECLINED
+                // + deprecated ACCEPTED/REVOKED). Without this, the SIGNED
+                // commit in finalizeInHouseSigning fails with 23514 and the
+                // whole sign transaction rolls back. Drop + recreate with the
+                // full set; idempotent because DROP IF EXISTS runs first.
+                "ALTER TABLE offers DROP CONSTRAINT IF EXISTS offers_status_check",
+                "ALTER TABLE offers ADD CONSTRAINT offers_status_check "
+                        + "CHECK (status IN ('DRAFT','SENT','SIGNED','VOIDED',"
+                        + "'EXPIRED','DECLINED','ACCEPTED','REVOKED'))",
+                // Same risk class for applications.status — Phase 8.6.2 sets
+                // ACCEPTED on in-house sign which was already in the enum but
+                // may not be in older check constraints. Drop + recreate with
+                // the full current set so no transition is rejected by stale
+                // whitelist.
+                "ALTER TABLE applications DROP CONSTRAINT IF EXISTS applications_status_check",
+                "ALTER TABLE applications ADD CONSTRAINT applications_status_check "
+                        + "CHECK (status IN ('APPLIED','HOLD','INFO_REQUESTED',"
+                        + "'SCREENING_SENT','SCREENING_COMPLETED','SHORTLISTED',"
+                        + "'INTERVIEW_SCHEDULED','INTERVIEWED','SELECTED_CONDITIONAL',"
+                        + "'OFFERED','ACCEPTED','ONBOARDING','ACTIVE','HIRED',"
+                        + "'COMPLETED','REJECTED','WITHDRAWN','LAPSED','NO_SHOW'))",
                 "ALTER TABLE intern_lifecycles ADD COLUMN IF NOT EXISTS tentative_start_date DATE",
                 "ALTER TABLE intern_lifecycles ADD COLUMN IF NOT EXISTS reporting_structure_complete BOOLEAN NOT NULL DEFAULT FALSE",
                 "ALTER TABLE intern_lifecycles ADD COLUMN IF NOT EXISTS reporting_structure_completed_at TIMESTAMP",
