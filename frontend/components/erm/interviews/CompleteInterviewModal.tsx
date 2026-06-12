@@ -83,6 +83,21 @@ export default function CompleteInterviewModal({
     return null;
   }, [filteredGroups, reasonCode]);
 
+  // Phase 8.5 — surface missing-required-field state on the submit button
+  // itself so the user never has to hunt for what's blocking the form.
+  const missingFields = useMemo(() => {
+    const missing: string[] = [];
+    if (!reasonCode) missing.push('Decision reason');
+    if (selectedOpt?.requiresFreeText && reasonText.trim().length < 10) {
+      missing.push('Free-text reason (≥ 10 chars)');
+    }
+    if (applicantVisibleNotes.trim().length < 20) {
+      missing.push('Applicant-visible notes (≥ 20 chars)');
+    }
+    return missing;
+  }, [reasonCode, selectedOpt, reasonText, applicantVisibleNotes]);
+  const canSubmit = missingFields.length === 0 && !submitting;
+
   if (!open) return null;
 
   async function submit() {
@@ -127,7 +142,8 @@ export default function CompleteInterviewModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4">
-      <div className="grid max-h-[90vh] w-full max-w-3xl overflow-hidden rounded-lg bg-white shadow-xl lg:grid-cols-2">
+      <div className="flex max-h-[90vh] w-full max-w-3xl flex-col overflow-hidden rounded-lg bg-white shadow-xl">
+        <div className="grid min-h-0 flex-1 overflow-hidden lg:grid-cols-2">
         <div className="overflow-y-auto p-6">
           <h2 className="text-lg font-semibold text-slate-900">
             Complete interview · Decision center
@@ -256,27 +272,9 @@ export default function CompleteInterviewModal({
               </p>
             )}
           </div>
-
-          <div className="mt-6 flex justify-end gap-2">
-            <button
-              type="button"
-              onClick={onClose}
-              className="rounded-md border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
-            >
-              Cancel
-            </button>
-            <button
-              type="button"
-              onClick={submit}
-              disabled={submitting}
-              className="rounded-md bg-teal-700 px-4 py-2 text-sm font-semibold text-white hover:bg-teal-800 disabled:opacity-60"
-            >
-              {submitting ? 'Saving…' : 'Record decision'}
-            </button>
-          </div>
         </div>
 
-        <aside className="hidden border-l border-slate-200 bg-slate-50 p-6 lg:block">
+        <aside className="hidden overflow-y-auto border-l border-slate-200 bg-slate-50 p-6 lg:block">
           <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
             Email preview to applicant
           </p>
@@ -296,6 +294,40 @@ export default function CompleteInterviewModal({
             </p>
           </div>
         </aside>
+        </div>
+
+        {/* Phase 8.5 — sticky footer keeps Submit visible regardless of
+            how long the form scrolls. Disabled state surfaces what's
+            missing via the title tooltip. */}
+        <div className="flex flex-shrink-0 items-center justify-between gap-3 border-t border-slate-200 bg-white px-6 py-3">
+          <p className="text-[11px] text-slate-500">
+            {missingFields.length > 0
+              ? `Required: ${missingFields.join(' · ')}`
+              : 'Ready to submit.'}
+          </p>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={onClose}
+              className="rounded-md border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={submit}
+              disabled={!canSubmit}
+              title={
+                missingFields.length > 0
+                  ? `Fill required fields: ${missingFields.join(', ')}`
+                  : undefined
+              }
+              className="rounded-md bg-teal-700 px-4 py-2 text-sm font-semibold text-white hover:bg-teal-800 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {submitting ? 'Saving…' : 'Submit Decision'}
+            </button>
+          </div>
+        </div>
       </div>
     </div>
   );

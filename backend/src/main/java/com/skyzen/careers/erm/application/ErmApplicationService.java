@@ -157,8 +157,12 @@ public class ErmApplicationService {
             total = 0L;
         }
 
+        // Phase 8.5 — newest-first inbox UX. applied_at is set in @PrePersist
+        // so it's effectively non-null, but NULLS LAST keeps any legacy rows
+        // from clobbering the top of the queue. Tie-break by id for deterministic
+        // pagination.
         String sql = select
-                + " ORDER BY (a.status = 'APPLIED') DESC, a.applied_at ASC "
+                + " ORDER BY a.applied_at DESC NULLS LAST, a.id DESC "
                 + " LIMIT " + pageable.getPageSize()
                 + " OFFSET " + (pageable.getPageNumber() * pageable.getPageSize());
 

@@ -1,12 +1,11 @@
 'use client';
 
-import { Suspense, useCallback, useEffect, useState } from 'react';
+import { Suspense, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import api from '@/lib/api';
 import ProtectedRoute from '@/components/ProtectedRoute';
 import DashboardLayout from '@/components/dashboard/DashboardLayout';
 import PageHeader from '@/components/ui/PageHeader';
-import type { InterviewerView } from '@/components/erm/interviews/types';
 
 // useSearchParams is unsafe outside <Suspense> during static prerendering.
 // Wrap the inner reader so Next 14 build doesn't bail.
@@ -23,8 +22,8 @@ function CreateInterviewPageInner() {
   const sp = useSearchParams();
   const applicationId = sp?.get('applicationId') ?? '';
 
-  const [interviewers, setInterviewers] = useState<InterviewerView[]>([]);
-  const [interviewerId, setInterviewerId] = useState('');
+  // Phase 8.5 — the ERM scheduling the interview is the interviewer; no
+  // picker is shown. Backend sets interview.interviewer_id = caller.id.
   const [scheduledFor, setScheduledFor] = useState('');
   const [duration, setDuration] = useState<number>(30);
   const [timezone, setTimezone] = useState('America/Chicago');
@@ -33,23 +32,9 @@ function CreateInterviewPageInner() {
   const [submitting, setSubmitting] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
-  const loadInterviewers = useCallback(async () => {
-    try {
-      const res = await api.get<InterviewerView[]>(
-        '/api/v1/erm/interviews/eligible-interviewers',
-      );
-      setInterviewers(res.data ?? []);
-    } catch {
-      setInterviewers([]);
-    }
-  }, []);
-
-  useEffect(() => { void loadInterviewers(); }, [loadInterviewers]);
-
   async function submit() {
     setErr(null);
     if (!applicationId) { setErr('applicationId is required (open from an Application).'); return; }
-    if (!interviewerId) { setErr('Pick an interviewer.'); return; }
     if (!scheduledFor) { setErr('Pick a date/time.'); return; }
     setSubmitting(true);
     try {
@@ -60,7 +45,6 @@ function CreateInterviewPageInner() {
           scheduledFor: new Date(scheduledFor).toISOString(),
           durationMinutes: duration,
           timezone,
-          interviewerId,
           prepInstructions: prepInstructions.trim() || null,
           manualZoomLink: manualZoomLink.trim() || null,
         },
@@ -93,24 +77,11 @@ function CreateInterviewPageInner() {
             </p>
           )}
 
-          <div className="space-y-4">
-            <div>
-              <label className="text-sm font-medium text-slate-800">Interviewer</label>
-              <select
-                value={interviewerId}
-                onChange={(e) => setInterviewerId(e.target.value)}
-                className="mt-1 w-full rounded-md border border-slate-200 px-3 py-2 text-sm"
-              >
-                <option value="">Pick an interviewer…</option>
-                {interviewers.map((i) => (
-                  <option key={i.userId} value={i.userId}>
-                    {i.fullName} · {i.role}
-                    {i.hasZoomEmail ? '' : ' (no Zoom email)'}
-                  </option>
-                ))}
-              </select>
-            </div>
+          <p className="mb-4 rounded-md border border-slate-200 bg-slate-50 p-3 text-xs text-slate-600">
+            You'll be the interviewer for this session. The Zoom meeting is created on your account.
+          </p>
 
+          <div className="space-y-4">
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="text-sm font-medium text-slate-800">Date / time</label>

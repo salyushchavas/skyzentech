@@ -243,9 +243,6 @@ public class ErmInterviewService {
             throw new BadRequestException(
                     "durationMinutes must be " + DURATION_MIN + "-" + DURATION_MAX);
         }
-        if (req.interviewerId() == null) {
-            throw new BadRequestException("interviewerId is required");
-        }
         Application app = applicationRepository.findById(req.applicationId())
                 .orElseThrow(() -> new ResourceNotFoundException(
                         "Application not found: " + req.applicationId()));
@@ -262,9 +259,12 @@ public class ErmInterviewService {
             throw new ConflictException(
                     "Application already has an active or completed interview; cancel it first.");
         }
-        User interviewer = userRepository.findById(req.interviewerId())
+        // Phase 8.5 — the ERM scheduling the interview is the interviewer.
+        // Any interviewerId in the request body is ignored (kept on the DTO
+        // for backward compat with older clients).
+        User interviewer = userRepository.findById(caller.getId())
                 .orElseThrow(() -> new ResourceNotFoundException(
-                        "Interviewer not found: " + req.interviewerId()));
+                        "Caller not found: " + caller.getId()));
         validateInterviewer(interviewer);
         String tz = req.timezone() != null && !req.timezone().isBlank()
                 ? req.timezone() : "UTC";
