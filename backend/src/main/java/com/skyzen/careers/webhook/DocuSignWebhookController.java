@@ -1,12 +1,6 @@
 package com.skyzen.careers.webhook;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.skyzen.careers.integration.docusign.DocuSignService;
-import com.skyzen.careers.intern.OfferDocuSignService;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -41,63 +35,22 @@ import java.util.Map;
  */
 @RestController
 @RequestMapping("/api/v1/webhooks")
-@RequiredArgsConstructor
 @Slf4j
 public class DocuSignWebhookController {
-
-    private final DocuSignService docuSignService;
-    private final OfferDocuSignService offerDocuSignService;
-    private final ObjectMapper objectMapper = new ObjectMapper();
 
     @PostMapping(value = "/docusign", consumes = "application/json")
     public ResponseEntity<Map<String, Object>> handle(
             @RequestBody byte[] rawBody,
             @RequestHeader(value = "X-DocuSign-Signature-1", required = false) String signature) {
 
-        if (!docuSignService.verifyWebhookSignature(rawBody, signature)) {
-            log.warn("[DocuSign] webhook HMAC verification failed");
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-                    .body(Map.of("error", "invalid signature"));
-        }
-
-        try {
-            JsonNode root = objectMapper.readTree(rawBody);
-            String envelopeId = firstNonNullText(
-                    root.path("data").path("envelopeId"),
-                    root.path("envelopeId"));
-            String status = firstNonNullText(
-                    root.path("data").path("envelopeSummary").path("status"),
-                    root.path("data").path("envelopeStatus"),
-                    root.path("envelopeStatus"),
-                    root.path("status"));
-            if (envelopeId == null || status == null) {
-                log.warn("[DocuSign] webhook missing envelopeId/status (body={}B)", rawBody.length);
-                return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                        .body(Map.of("error", "missing envelopeId or status"));
-            }
-            log.info("[DocuSign] webhook envelope={} status={}", envelopeId, status);
-            offerDocuSignService.handleWebhookCompleted(envelopeId, status);
-            return ResponseEntity.ok(Map.of(
-                    "ok", true,
-                    "envelopeId", envelopeId,
-                    "status", status));
-        } catch (Exception e) {
-            // Surface a 500 so DocuSign retries — the handler is idempotent
-            // via the SIGNED-status guard so a successful retry won't
-            // double-process.
-            log.error("[DocuSign] webhook processing failed: {}", e.getMessage(), e);
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(Map.of("error", "processing failed", "message", e.getMessage()));
-        }
-    }
-
-    private static String firstNonNullText(JsonNode... candidates) {
-        for (JsonNode n : candidates) {
-            if (n != null && !n.isMissingNode() && !n.isNull()) {
-                String s = n.asText(null);
-                if (s != null && !s.isBlank()) return s;
-            }
-        }
-        return null;
+        // Phase 8.6.2 — DocuSign integration is disabled in favor of the
+        // in-house signing page. The endpoint is preserved so any in-flight
+        // legacy envelopes posting back don't see a 404 / 5xx, but we no
+        // longer drive any state changes from webhook payloads. Return 200
+        // so DocuSign's retry queue drains.
+        log.info("[DocuSign] webhook received but in-house signing is active; "
+                + "ignoring (body={}B, signature-present={})",
+                rawBody.length, signature != null && !signature.isBlank());
+        return ResponseEntity.ok(Map.of("ok", true, "ignored", true));
     }
 }

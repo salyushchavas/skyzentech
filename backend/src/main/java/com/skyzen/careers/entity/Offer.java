@@ -96,6 +96,14 @@ public class Offer {
     @Column(name = "signed_at")
     private Instant signedAt;
 
+    /**
+     * Phase 8.6.2 — applicant's typed name captured at sign time on the
+     * in-house signing page. Nullable for legacy rows / DocuSign envelopes
+     * that completed before in-house signing existed.
+     */
+    @Column(name = "signed_by_typed_name", length = 200)
+    private String signedByTypedName;
+
     @Column(name = "voided_at")
     private Instant voidedAt;
 

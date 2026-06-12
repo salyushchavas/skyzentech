@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import {
   AlertCircle,
   Building2,
@@ -8,7 +9,6 @@ import {
   CheckCircle2,
   Clock,
   Download,
-  ExternalLink,
   FileSignature,
   Mail,
   RefreshCw,
@@ -32,6 +32,7 @@ const STATUS_PILL: Record<OfferStatus, string> = {
 };
 
 export default function InternOfferPage() {
+  const router = useRouter();
   const { refresh } = useInternDashboard();
   const [offer, setOffer] = useState<CandidateOfferResponse | null>(null);
   const [loading, setLoading] = useState(true);
@@ -79,19 +80,10 @@ export default function InternOfferPage() {
     );
   }
 
-  async function startSigning() {
-    try {
-      const res = await api.get<{ signingUrl: string | null; fallbackMessage?: string }>(
-        `/api/v1/offers/${offer!.id}/signing-url`,
-      );
-      if (res.data.signingUrl) {
-        window.location.href = res.data.signingUrl;
-      } else {
-        alert(res.data.fallbackMessage ?? 'DocuSign not available.');
-      }
-    } catch (e) {
-      alert(e instanceof Error ? e.message : 'Could not open signing URL');
-    }
+  function startSigning() {
+    // Phase 8.6.2 — DocuSign removed; route to the in-house signing page.
+    if (!offer) return;
+    router.push(`/careers/intern/offer/sign/${offer.id}`);
   }
 
   async function manualRefresh() {
@@ -214,7 +206,6 @@ function SentVariant({
         >
           <FileSignature className="h-4 w-4" />
           Review and sign
-          <ExternalLink className="h-3 w-3" />
         </button>
         <button
           type="button"

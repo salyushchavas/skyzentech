@@ -165,20 +165,21 @@ public class CommunicationTemplateSeeder implements CommandLineRunner {
                             + "Worksite: {{worksite}}\n"
                             + "Expected hours: {{expectedHoursPerWeek}}/week\n\n"
                             + "{{contingencies}}\n\n"
-                            + "Please review and sign via the DocuSign link in the separate "
-                            + "DocuSign email within {{expiryDays}} days.\n\n"
+                            + "Please review and sign your offer within {{expiryDays}} days:\n"
+                            + "{{signingLink}}\n\n"
                             + "— {{ermName}}",
                     "firstName,roleTitle,tentativeStartDate,compensationSummary,"
-                            + "worksite,expectedHoursPerWeek,contingencies,expiryDays,ermName"),
+                            + "worksite,expectedHoursPerWeek,contingencies,expiryDays,"
+                            + "ermName,signingLink"),
             new Seed(
                     "OFFER_REMINDER", "EMAIL",
                     "Reminder: your Skyzen offer is awaiting signature",
                     "Hello {{firstName}},\n\n"
                             + "This is a reminder that your offer for {{roleTitle}} is awaiting "
                             + "your signature. The offer expires on {{expiryDate}}.\n\n"
-                            + "Please complete via the original DocuSign link.\n\n"
+                            + "Review and sign here:\n{{signingLink}}\n\n"
                             + "— {{ermName}}",
-                    "firstName,roleTitle,expiryDate,ermName"),
+                    "firstName,roleTitle,expiryDate,ermName,signingLink"),
             new Seed(
                     "OFFER_VOIDED", "EMAIL",
                     "Your Skyzen offer has been withdrawn",

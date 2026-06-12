@@ -1,0 +1,105 @@
+package com.skyzen.careers.intern;
+
+import com.skyzen.careers.entity.Application;
+import com.skyzen.careers.entity.Candidate;
+import com.skyzen.careers.entity.JobPosting;
+import com.skyzen.careers.entity.Offer;
+import com.skyzen.careers.entity.User;
+import com.skyzen.careers.enums.OfferStatus;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.web.bind.annotation.*;
+
+import java.time.Instant;
+import java.time.LocalDate;
+import java.util.UUID;
+
+/**
+ * Phase 8.6.2 — applicant-side endpoints for the in-house offer signing
+ * flow. Separate from {@code OfferController} so the applicant signing
+ * page has a stable URL surface independent of the legacy DocuSign-aware
+ * endpoints (which stay in place for backward compat).
+ *
+ * <p>All endpoints require INTERN role and ownership of the offer.
+ */
+@RestController
+@RequestMapping("/api/v1/applicant/offers")
+@RequiredArgsConstructor
+@Slf4j
+public class ApplicantOfferController {
+
+    private final OfferDocuSignService offerService;
+
+    /** Payload for the signing page. Mirrors what the page needs to
+     *  render — no internal_notes, no signing PIN, no PDF bytes. */
+    public record ApplicantOfferView(
+            UUID offerId,
+            OfferStatus status,
+            String applicantFullName,
+            String applicantId,
+            String applicantEmail,
+            String roleTitle,
+            String jobTitle,
+            String compensationSummary,
+            String worksite,
+            Integer expectedHoursPerWeek,
+            LocalDate tentativeStartDate,
+            Instant expiresAt,
+            Instant sentAt,
+            Instant signedAt,
+            String signedByTypedName,
+            String letterContent,
+            String contingencies
+    ) {}
+
+    public record SignRequest(String typedName) {}
+
+    @GetMapping("/{id}")
+    @PreAuthorize("hasRole('INTERN')")
+    public ApplicantOfferView get(@PathVariable UUID id,
+                                  @AuthenticationPrincipal User caller) {
+        Offer offer = offerService.loadForApplicant(id, caller);
+        return toView(offer);
+    }
+
+    @PostMapping("/{id}/sign")
+    @PreAuthorize("hasRole('INTERN')")
+    public ApplicantOfferView sign(@PathVariable UUID id,
+                                   @RequestBody SignRequest req,
+                                   @AuthenticationPrincipal User caller) {
+        String typed = req != null ? req.typedName() : null;
+        Offer signed = offerService.signInHouse(id, typed, caller);
+        return toView(signed);
+    }
+
+    // ── Mapper ────────────────────────────────────────────────────────────
+
+    private ApplicantOfferView toView(Offer offer) {
+        Application app = offer.getApplication();
+        Candidate cand = app != null ? app.getCandidate() : null;
+        User u = cand != null ? cand.getUser() : null;
+        JobPosting jp = app != null ? app.getJobPosting() : null;
+        return new ApplicantOfferView(
+                offer.getId(),
+                offer.getStatus(),
+                u != null ? u.getFullName() : null,
+                u != null ? u.getApplicantId() : null,
+                u != null ? u.getEmail() : null,
+                offer.getRoleTitle(),
+                jp != null ? jp.getTitle() : null,
+                offer.getCompensationSummary(),
+                offer.getWorksite(),
+                offer.getExpectedHoursPerWeek(),
+                offer.getStartDate(),
+                offer.getExpiresAt(),
+                offer.getSentAt(),
+                offer.getSignedAt(),
+                offer.getSignedByTypedName(),
+                offer.getLetterContent(),
+                null  // contingencies are not stored as a discrete column today;
+                      // they're inlined into letter_content at send time.
+        );
+    }
+}

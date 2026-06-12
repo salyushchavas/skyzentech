@@ -88,6 +88,8 @@ public class OfferDocuSignService {
     private final InternLifecycleService internLifecycleService;
     private final ApplicationEventPublisher eventPublisher;
     private final JdbcTemplate jdbcTemplate;
+    private final com.skyzen.careers.erm.CommunicationTemplateService templateService;
+    private final com.skyzen.careers.notification.EmailProvider emailProvider;
 
     @Value("${app.documents.storage-path:./uploads/documents}")
     private String storageRoot;
@@ -144,34 +146,13 @@ public class OfferDocuSignService {
                 .build();
         offer = offerRepository.save(offer);
 
-        // Real DocuSign envelope (best-effort: if Zoom-style failure we keep
-        // the SENT row, log structured error, and let ERM use refresh-status
-        // or the manual link share fallback).
-        if (docuSignService.isReady()) {
-            try {
-                EnvelopeRequest envReq = new EnvelopeRequest(
-                        docuSignService.getTemplateId(),
-                        applicantUser.getFullName() != null ? applicantUser.getFullName() : applicantUser.getEmail(),
-                        applicantUser.getEmail(),
-                        applicantUser.getId(),
-                        buildMergeFields(offer, applicantUser, jp, actor),
-                        "Your Skyzen offer letter is ready to sign",
-                        "Welcome aboard. Click below to review and sign your offer.");
-                EnvelopeResponse env = docuSignService.createEnvelopeFromTemplate(envReq);
-                offer.setDocusignEnvelopeId(env.envelopeId());
-                offer.setDocusignTemplateId(docuSignService.getTemplateId());
-                offer = offerRepository.save(offer);
-                log.info("[DocuSign] envelope created id={} for offer={} applicant={}",
-                        env.envelopeId(), offer.getId(), applicantUser.getId());
-            } catch (Exception e) {
-                log.warn("[DocuSign] envelope create failed for offer={} applicant={} — "
-                                + "row persists in SENT without envelopeId: {}",
-                        offer.getId(), applicantUser.getId(), e.getMessage());
-            }
-        } else {
-            log.info("[DocuSign] disabled — offer={} persisted without envelopeId, "
-                    + "ERM shares link manually", offer.getId());
-        }
+        // Phase 8.6.2 — DocuSign integration is disabled. The applicant
+        // signs in-house at /careers/intern/offer/sign/{offerId}. The
+        // docusign_envelope_id / docusign_template_id columns stay null
+        // on this row and the DocuSign call site is intentionally absent.
+        log.info("[Offer] in-house signing flow — offer={} persisted with "
+                        + "status=SENT; applicant signs at /careers/intern/offer/sign/{}",
+                offer.getId(), offer.getId());
 
         // Application stage + applicant lifecycle.
         application.setStatus(ApplicationStatus.OFFERED);
@@ -191,6 +172,39 @@ public class OfferDocuSignService {
                     offer.getId(), application.getId(), applicantUser.getId()));
         } catch (Exception e) {
             log.warn("OfferSentEvent publish failed (non-fatal) for {}: {}",
+                    offer.getId(), e.getMessage());
+        }
+
+        // Phase 8.6.2 — DocuSign no longer sends the applicant email, so we
+        // render OFFER_LETTER ourselves and dispatch it with a signing link
+        // pointing at the in-house page. Non-fatal: failure is logged so the
+        // offer row stays SENT and ERM can re-send via the reminder action.
+        try {
+            String signingLink = frontendBaseUrl.replaceAll("/$", "")
+                    + "/careers/intern/offer/sign/" + offer.getId();
+            Map<String, Object> vars = new LinkedHashMap<>();
+            String firstName = applicantUser.getFullName() != null
+                    ? applicantUser.getFullName().split("\\s+", 2)[0] : "there";
+            vars.put("firstName", firstName);
+            vars.put("roleTitle", req.getRoleTitle() != null ? req.getRoleTitle() : "");
+            vars.put("tentativeStartDate", req.getTentativeStartDate() != null
+                    ? req.getTentativeStartDate().toString() : "TBD");
+            vars.put("compensationSummary", compSummary);
+            vars.put("worksite", req.getWorksite() != null ? req.getWorksite() : "");
+            vars.put("expectedHoursPerWeek", req.getExpectedHoursPerWeek() != null
+                    ? req.getExpectedHoursPerWeek().toString() : "TBD");
+            vars.put("contingencies",
+                    "Subject to verification of work authorization.");
+            vars.put("expiryDays", String.valueOf(expiryDays));
+            vars.put("ermName", actor != null && actor.getFullName() != null
+                    ? actor.getFullName() : "Skyzen ERM");
+            vars.put("signingLink", signingLink);
+            templateService.render("OFFER_LETTER", "EMAIL", vars).ifPresent(r ->
+                    emailProvider.sendRendered(applicantUser.getEmail(),
+                            r.subject() != null ? r.subject() : "Your Skyzen offer",
+                            r.body() != null ? r.body() : signingLink));
+        } catch (Exception e) {
+            log.warn("[Offer] applicant email render/send failed for offer={}: {}",
                     offer.getId(), e.getMessage());
         }
         return offer;
@@ -330,6 +344,127 @@ public class OfferDocuSignService {
             return offer;
         }
         return applyDocusignStatus(offer, envelopeStatus, Instant.now(), null);
+    }
+
+    // ── Phase 8.6.2 — In-house signing entry points ────────────────────────
+
+    /** Ownership-checked offer load for the applicant signing page. */
+    @Transactional(readOnly = true)
+    public Offer loadForApplicant(UUID offerId, User caller) {
+        return mustOwnAsApplicant(offerId, caller);
+    }
+
+    /** Wraps {@link #finalizeInHouseSigning} with the ownership check the
+     *  applicant signing endpoint needs. */
+    @Transactional
+    public Offer signInHouse(UUID offerId, String typedName, User caller) {
+        Offer offer = mustOwnAsApplicant(offerId, caller);
+        if (typedName == null || typedName.trim().isEmpty()) {
+            throw new BadRequestException("typedName is required");
+        }
+        if (typedName.trim().length() > 200) {
+            throw new BadRequestException("typedName must be at most 200 characters");
+        }
+        return finalizeInHouseSigning(offer.getId(), typedName.trim(), caller);
+    }
+
+    // ── Phase 8.6.2 — In-house signing finalize ────────────────────────────
+
+    /**
+     * Mirrors the SIGNED branch of {@link #applyDocusignStatus} but driven
+     * by the applicant clicking "Sign Offer" on the in-house signing page
+     * instead of a DocuSign webhook. Idempotent: re-calling on an already
+     * SIGNED offer returns it unchanged.
+     *
+     * <p>Side-effects on first call:
+     * <ul>
+     *   <li>offer.status = SIGNED, signed_at = now, signed_by_typed_name = typed</li>
+     *   <li>Mint employee_id and stamp it on the applicant user</li>
+     *   <li>Advance user.lifecycle_status to EMPLOYEE_ID_CREATED</li>
+     *   <li>Create InternLifecycle row (once per user)</li>
+     *   <li>Advance application.status to HIRED</li>
+     *   <li>Publish OfferSignedEvent for the downstream ERM notification fan-out</li>
+     * </ul>
+     *
+     * <p>Skipped vs the DocuSign path: archiving a signed PDF (there is no
+     * envelope to download from). signed_pdf_document_id stays null.
+     */
+    @Transactional
+    public Offer finalizeInHouseSigning(UUID offerId, String typedName, User actor) {
+        Offer offer = offerRepository.findByIdWithGraph(offerId)
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "Offer not found: " + offerId));
+        if (offer.getStatus() == OfferStatus.SIGNED) {
+            return offer;
+        }
+        if (offer.getStatus() != OfferStatus.SENT) {
+            throw new ConflictException(
+                    "Offer not in a signable state (status=" + offer.getStatus() + ")");
+        }
+        Instant now = Instant.now();
+        if (offer.getExpiresAt() != null && now.isAfter(offer.getExpiresAt())) {
+            // Auto-flip to EXPIRED so the queue reflects reality, then refuse.
+            offer.setStatus(OfferStatus.EXPIRED);
+            offerRepository.save(offer);
+            throw new ConflictException("Offer expired on " + offer.getExpiresAt());
+        }
+
+        Map<String, Object> before = snapshot(offer);
+        UUID actorId = actor != null ? actor.getId() : null;
+        offer.setStatus(OfferStatus.SIGNED);
+        offer.setSignedAt(now);
+        offer.setRespondedAt(now);
+        offer.setSignedByTypedName(typedName != null ? typedName.trim() : null);
+        Offer saved = offerRepository.save(offer);
+
+        // Mint Employee ID + advance applicant lifecycle.
+        Application application = saved.getApplication();
+        User applicant = application != null && application.getCandidate() != null
+                ? application.getCandidate().getUser() : null;
+        String employeeId = null;
+        if (applicant != null) {
+            employeeId = nextEmployeeId();
+            applicant.setEmployeeId(employeeId);
+            userRepository.save(applicant);
+
+            internLifecycleService.advance(applicant,
+                    InternLifecycleStatus.EMPLOYEE_ID_CREATED, actorId);
+
+            if (!internLifecycleRepository.existsByUserId(applicant.getId())) {
+                InternLifecycle lc = InternLifecycle.builder()
+                        .userId(applicant.getId())
+                        .employeeId(employeeId)
+                        .ermId(saved.getCreatedBy())
+                        .activeStatus("PROSPECTIVE")
+                        .hiredAt(now)
+                        .build();
+                internLifecycleRepository.save(lc);
+            }
+        }
+
+        if (application != null) {
+            application.setStatus(ApplicationStatus.ACCEPTED);
+            application.setStatusUpdatedAt(now);
+            if (actorId != null) application.setStatusUpdatedBy(actorId);
+            applicationRepository.save(application);
+        }
+
+        writeAudit("Offer", saved.getId(), "SIGNED_IN_HOUSE",
+                actorId, before, snapshot(saved));
+
+        final UUID offerIdF = saved.getId();
+        final UUID appIdF = application != null ? application.getId() : null;
+        final UUID applicantIdF = applicant != null ? applicant.getId() : null;
+        final String employeeIdF = employeeId;
+        try {
+            eventPublisher.publishEvent(new OfferSignedEvent(
+                    offerIdF, appIdF, applicantIdF, employeeIdF));
+        } catch (Exception e) {
+            log.warn("OfferSignedEvent publish failed (non-fatal): {}", e.getMessage());
+        }
+        log.info("[Offer] in-house signed offer={} employee_id={} applicant={}",
+                saved.getId(), employeeId, applicantIdF);
+        return saved;
     }
 
     // ── Internals ───────────────────────────────────────────────────────────

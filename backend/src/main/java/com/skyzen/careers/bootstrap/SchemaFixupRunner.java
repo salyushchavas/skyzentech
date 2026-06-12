@@ -1499,6 +1499,10 @@ public class SchemaFixupRunner implements CommandLineRunner {
                 "ALTER TABLE offers ADD COLUMN IF NOT EXISTS reminder_count INTEGER NOT NULL DEFAULT 0",
                 "ALTER TABLE offers ADD COLUMN IF NOT EXISTS last_reminder_at TIMESTAMP",
                 "ALTER TABLE offers ADD COLUMN IF NOT EXISTS archived_at TIMESTAMP",
+                // Phase 8.6.2 — in-house signing captures the applicant's
+                // typed name; nullable so legacy/DocuSign-signed rows are
+                // preserved as-is. Idempotent ADD IF NOT EXISTS.
+                "ALTER TABLE offers ADD COLUMN IF NOT EXISTS signed_by_typed_name VARCHAR(200)",
                 "ALTER TABLE intern_lifecycles ADD COLUMN IF NOT EXISTS tentative_start_date DATE",
                 "ALTER TABLE intern_lifecycles ADD COLUMN IF NOT EXISTS reporting_structure_complete BOOLEAN NOT NULL DEFAULT FALSE",
                 "ALTER TABLE intern_lifecycles ADD COLUMN IF NOT EXISTS reporting_structure_completed_at TIMESTAMP",
