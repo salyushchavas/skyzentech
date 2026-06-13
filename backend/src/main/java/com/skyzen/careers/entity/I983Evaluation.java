@@ -92,6 +92,15 @@ public class I983Evaluation {
     @Column(name = "training_evaluation_outcomes", columnDefinition = "TEXT")
     private String trainingEvaluationOutcomes;
 
+    /** Phase 3 — Evaluator's progress notes scoring the intern against the
+     *  plan's training_goals_and_objectives. Free TEXT mirroring the plan
+     *  field; per-objective JSON is reserved for a future iteration. */
+    @Column(name = "objectives_achieved", columnDefinition = "TEXT")
+    private String objectivesAchieved;
+
+    @Column(name = "supervisor_assessment", columnDefinition = "TEXT")
+    private String supervisorAssessment;
+
     @Column(name = "employer_signature_required", nullable = false,
             columnDefinition = "boolean not null default true")
     @Builder.Default
@@ -104,6 +113,37 @@ public class I983Evaluation {
 
     @Column(name = "dso_submitted_to_school_at")
     private Instant dsoSubmittedToSchoolAt;
+
+    /** Phase 3 — how the form was submitted to the DSO. Values:
+     *  EMAIL_TO_DSO | PORTAL_UPLOAD | IN_PERSON | MAIL. */
+    @Column(name = "dso_submission_method", length = 40)
+    private String dsoSubmissionMethod;
+
+    @Column(name = "dso_submission_notes", columnDefinition = "TEXT")
+    private String dsoSubmissionNotes;
+
+    // ── Phase 3 — signatures + acknowledgment ──────────────────────────────
+
+    /** Intern's typed signature captured on /acknowledge. */
+    @Column(name = "student_typed_signature", length = 200)
+    private String studentTypedSignature;
+
+    /** Optional intern note alongside their signature. */
+    @Column(name = "intern_response", columnDefinition = "TEXT")
+    private String internResponse;
+
+    // ── Phase 3 — versioning for amendments ────────────────────────────────
+
+    @Column(name = "version", nullable = false,
+            columnDefinition = "integer not null default 1")
+    @Builder.Default
+    private Integer version = 1;
+
+    @Column(name = "amended_at")
+    private Instant amendedAt;
+
+    @Column(name = "amendment_reason", columnDefinition = "TEXT")
+    private String amendmentReason;
 
     // ── Audit ─────────────────────────────────────────────────────────────
 

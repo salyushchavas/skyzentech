@@ -21,6 +21,7 @@ public class EvaluatorController {
     private final EvaluatorRightPanelService rightPanelService;
     private final EvaluationWorkflowService workflowService;
     private final PendingEvaluationsService pendingService;
+    private final I983EvaluationWorkflowService i983Workflow;
 
     @GetMapping("/dashboard")
     @PreAuthorize("hasAnyRole('EVALUATOR', 'SUPER_ADMIN')")
@@ -115,5 +116,73 @@ public class EvaluatorController {
     public EvaluationWorkflowDtos.PendingEvaluationsResponse pendingEvaluations(
             @AuthenticationPrincipal User caller) {
         return pendingService.list(caller);
+    }
+
+    // ── Phase 3 — I-983 evaluation workflow ──────────────────────────────
+
+    @GetMapping("/i983-evaluations")
+    @PreAuthorize("hasAnyRole('EVALUATOR', 'SUPER_ADMIN')")
+    public I983WorkflowDtos.I983ListResponse i983List(
+            @AuthenticationPrincipal User caller) {
+        return i983Workflow.list(caller);
+    }
+
+    @PostMapping("/i983-evaluations")
+    @PreAuthorize("hasAnyRole('EVALUATOR', 'SUPER_ADMIN')")
+    public I983WorkflowDtos.EvaluatorI983Detail i983Schedule(
+            @RequestBody I983WorkflowDtos.ScheduleI983Request req,
+            @AuthenticationPrincipal User caller) {
+        return i983Workflow.schedule(req, caller);
+    }
+
+    @PostMapping("/i983-evaluations/{id}/start")
+    @PreAuthorize("hasAnyRole('EVALUATOR', 'SUPER_ADMIN')")
+    public I983WorkflowDtos.EvaluatorI983Detail i983Start(
+            @PathVariable UUID id,
+            @AuthenticationPrincipal User caller) {
+        return i983Workflow.start(id, caller);
+    }
+
+    @PatchMapping("/i983-evaluations/{id}/draft")
+    @PreAuthorize("hasAnyRole('EVALUATOR', 'SUPER_ADMIN')")
+    public I983WorkflowDtos.EvaluatorI983Detail i983SaveDraft(
+            @PathVariable UUID id,
+            @RequestBody I983WorkflowDtos.SaveDraftI983Request req,
+            @AuthenticationPrincipal User caller) {
+        return i983Workflow.saveDraft(id, req, caller);
+    }
+
+    @PostMapping("/i983-evaluations/{id}/publish")
+    @PreAuthorize("hasAnyRole('EVALUATOR', 'SUPER_ADMIN')")
+    public I983WorkflowDtos.EvaluatorI983Detail i983Publish(
+            @PathVariable UUID id,
+            @AuthenticationPrincipal User caller) {
+        return i983Workflow.publish(id, caller);
+    }
+
+    @PostMapping("/i983-evaluations/{id}/amend")
+    @PreAuthorize("hasAnyRole('EVALUATOR', 'SUPER_ADMIN')")
+    public I983WorkflowDtos.EvaluatorI983Detail i983Amend(
+            @PathVariable UUID id,
+            @RequestBody I983WorkflowDtos.AmendI983Request req,
+            @AuthenticationPrincipal User caller) {
+        return i983Workflow.amend(id, req, caller);
+    }
+
+    @PostMapping("/i983-evaluations/{id}/mark-dso-submitted")
+    @PreAuthorize("hasAnyRole('EVALUATOR', 'SUPER_ADMIN')")
+    public I983WorkflowDtos.EvaluatorI983Detail i983MarkDsoSubmitted(
+            @PathVariable UUID id,
+            @RequestBody I983WorkflowDtos.MarkDsoSubmittedRequest req,
+            @AuthenticationPrincipal User caller) {
+        return i983Workflow.markDsoSubmitted(id, req, caller);
+    }
+
+    @GetMapping("/i983-evaluations/{id}")
+    @PreAuthorize("hasAnyRole('EVALUATOR', 'SUPER_ADMIN')")
+    public I983WorkflowDtos.EvaluatorI983Detail i983Get(
+            @PathVariable UUID id,
+            @AuthenticationPrincipal User caller) {
+        return i983Workflow.getEvaluatorDetail(id, caller);
     }
 }

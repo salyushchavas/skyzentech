@@ -12,7 +12,6 @@ import {
   ChevronLeft,
   ClipboardEdit,
   FileText,
-  Lock,
   TrendingDown,
   TrendingUp,
   Users,
@@ -325,18 +324,23 @@ function MonitorI983({ detail }: { detail: EvalueeDetail }) {
         Next due:{' '}
         {i983.nextDueDate
           ? new Date(i983.nextDueDate).toLocaleDateString()
-          : 'TBD (cadence wires in Phase 3)'}
+          : 'See I-983 Evaluations for cadence'}
       </p>
-      <button
-        type="button"
-        disabled
-        title="Coming in Evaluator Phase 3"
-        className="mt-3 inline-flex cursor-not-allowed items-center gap-1 rounded-md border border-violet-300 bg-white px-3 py-1.5 text-xs font-medium text-violet-700 opacity-70"
-      >
-        <Briefcase className="h-3 w-3" />
-        Conduct I-983 evaluation
-        <Lock className="h-3 w-3" />
-      </button>
+      <div className="mt-3 flex flex-wrap gap-2">
+        <Link
+          href={`/careers/evaluator/i983-evaluations/schedule?internId=${detail.profile.lifecycleId}`}
+          className="inline-flex items-center gap-1 rounded-md bg-violet-700 px-3 py-1.5 text-xs font-semibold text-white hover:bg-violet-800"
+        >
+          <Briefcase className="h-3 w-3" />
+          Conduct I-983
+        </Link>
+        <Link
+          href="/careers/evaluator/i983-evaluations"
+          className="inline-flex items-center gap-1 rounded-md border border-violet-300 bg-white px-3 py-1.5 text-xs font-medium text-violet-700 hover:bg-violet-50"
+        >
+          View all I-983
+        </Link>
+      </div>
     </div>
   );
 }

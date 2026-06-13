@@ -264,3 +264,119 @@ export const RECOMMENDATIONS = [
   'UNSATISFACTORY',
 ] as const;
 export type Recommendation = (typeof RECOMMENDATIONS)[number];
+
+// ── Phase 3 — I-983 workflow ──────────────────────────────────────────
+
+export const I983_TYPES = ['INITIAL_PLAN', 'ANNUAL_REVIEW', 'FINAL_REVIEW'] as const;
+export type I983EvaluationType = (typeof I983_TYPES)[number];
+
+export const DSO_SUBMISSION_METHODS = [
+  'EMAIL_TO_DSO',
+  'PORTAL_UPLOAD',
+  'IN_PERSON',
+  'MAIL',
+] as const;
+export type DsoSubmissionMethod = (typeof DSO_SUBMISSION_METHODS)[number];
+
+export interface I983PlanContext {
+  planId: string;
+  status: string;
+  trainingStartDate: string | null;
+  trainingEndDate: string | null;
+  universityName: string | null;
+  trainingGoalsAndObjectives: string | null;
+  performanceEvaluationMethod: string | null;
+  supervisorName: string | null;
+  supervisorEmail: string | null;
+}
+
+export interface EvaluatorI983Detail {
+  evaluationId: string;
+  internLifecycleId: string;
+  internUserId: string;
+  internName: string | null;
+  internEmail: string | null;
+  employeeId: string | null;
+  evaluationType: string;
+  status: string;
+  version: number;
+  periodStartDate: string | null;
+  periodEndDate: string | null;
+  trainingObjectivesProgress: string | null;
+  trainingSupervisionProvided: string | null;
+  trainingEvaluationOutcomes: string | null;
+  objectivesAchieved: string | null;
+  supervisorAssessment: string | null;
+  evaluatorName: string | null;
+  publishedAt: string | null;
+  acknowledgedAt: string | null;
+  studentTypedSignature: string | null;
+  internResponse: string | null;
+  dsoSubmittedAt: string | null;
+  dsoSubmissionMethod: string | null;
+  dsoSubmissionNotes: string | null;
+  amendedAt: string | null;
+  amendmentReason: string | null;
+  planContext: I983PlanContext | null;
+}
+
+export interface InternI983View {
+  evaluationId: string;
+  evaluatorName: string | null;
+  evaluationType: string;
+  status: string;
+  version: number;
+  periodStartDate: string | null;
+  periodEndDate: string | null;
+  trainingObjectivesProgress: string | null;
+  trainingSupervisionProvided: string | null;
+  trainingEvaluationOutcomes: string | null;
+  objectivesAchieved: string | null;
+  supervisorAssessment: string | null;
+  publishedAt: string | null;
+  acknowledgedAt: string | null;
+  studentTypedSignature: string | null;
+  internResponse: string | null;
+  dsoSubmittedAt: string | null;
+  dsoSubmissionMethod: string | null;
+  amendedAt: string | null;
+  planContext: I983PlanContext | null;
+}
+
+export interface I983ListRow {
+  entryKind: 'INTERN_ELIGIBLE' | 'EVALUATION';
+  evaluationId: string | null;
+  internLifecycleId: string;
+  internName: string | null;
+  employeeId: string | null;
+  evaluationType: string;
+  status: string | null;
+  scheduledFor: string | null;
+  publishedAt: string | null;
+  acknowledgedAt: string | null;
+  dsoSubmittedAt: string | null;
+  trainingStartDate: string | null;
+  trainingEndDate: string | null;
+  nextDueDate: string | null;
+  daysUntilDue: number | null;
+  planExists: boolean;
+}
+
+export interface I983ListResponse {
+  dueSoon: I983ListRow[];
+  inProgress: I983ListRow[];
+  completed: I983ListRow[];
+}
+
+export interface InternI983Row {
+  evaluationId: string;
+  evaluatorName: string | null;
+  evaluationType: string;
+  status: string;
+  version: number;
+  periodStartDate: string | null;
+  periodEndDate: string | null;
+  publishedAt: string | null;
+  acknowledgedAt: string | null;
+  dsoSubmittedAt: string | null;
+}

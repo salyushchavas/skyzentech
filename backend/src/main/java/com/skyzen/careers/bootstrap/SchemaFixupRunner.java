@@ -1592,6 +1592,31 @@ public class SchemaFixupRunner implements CommandLineRunner {
             log.warn("[SchemaFixupRunner] intern_evaluations.recommendation ALTER "
                     + "skipped (non-fatal): {}", e.getMessage());
         }
+
+        // Evaluator Phase 3 — additive columns on i983_evaluations for the
+        // STEM OPT workflow: per-objective notes, supervisor assessment,
+        // intern typed signature + response, DSO submission method/notes,
+        // version + amendment metadata. All idempotent ALTER IF NOT EXISTS.
+        String[] i983Alters = {
+                "ALTER TABLE i983_evaluations ADD COLUMN IF NOT EXISTS objectives_achieved TEXT",
+                "ALTER TABLE i983_evaluations ADD COLUMN IF NOT EXISTS supervisor_assessment TEXT",
+                "ALTER TABLE i983_evaluations ADD COLUMN IF NOT EXISTS student_typed_signature VARCHAR(200)",
+                "ALTER TABLE i983_evaluations ADD COLUMN IF NOT EXISTS intern_response TEXT",
+                "ALTER TABLE i983_evaluations ADD COLUMN IF NOT EXISTS dso_submission_method VARCHAR(40)",
+                "ALTER TABLE i983_evaluations ADD COLUMN IF NOT EXISTS dso_submission_notes TEXT",
+                "ALTER TABLE i983_evaluations ADD COLUMN IF NOT EXISTS version INTEGER NOT NULL DEFAULT 1",
+                "ALTER TABLE i983_evaluations ADD COLUMN IF NOT EXISTS amended_at TIMESTAMP",
+                "ALTER TABLE i983_evaluations ADD COLUMN IF NOT EXISTS amendment_reason TEXT"
+        };
+        for (String sql : i983Alters) {
+            try {
+                jdbcTemplate.execute(sql);
+            } catch (Exception e) {
+                log.warn("[SchemaFixupRunner] i983_evaluations Phase 3 ALTER skipped "
+                        + "(non-fatal): {} — {}", sql, e.getMessage());
+            }
+        }
+        log.info("[SchemaFixupRunner] ensured i983_evaluations Phase 3 columns");
     }
 
     /** Trainer Phase 4 — additive trainer-only preference columns on the
