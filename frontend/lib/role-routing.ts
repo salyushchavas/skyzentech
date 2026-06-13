@@ -1,10 +1,11 @@
 import type { User, UserRole } from '@/types';
 
-// Six-role landing map. Each role lands on its own dashboard. Page-level
+// Seven-role landing map. Each role lands on its own dashboard. Page-level
 // ProtectedRoute gates which screens a role can open from there.
 export const ROLE_DASHBOARDS: Record<UserRole, string> = {
   INTERN: '/careers/intern',
   TRAINER: '/careers/trainer',
+  EVALUATOR: '/careers/evaluator',
   REPORTING_MANAGER: '/careers/reporting-manager',
   MANAGER: '/careers/manager',
   ERM: '/careers/erm',
@@ -19,6 +20,7 @@ const ROLE_LANDING_PRIORITY: UserRole[] = [
   'MANAGER',
   'ERM',
   'TRAINER',
+  'EVALUATOR',
   'REPORTING_MANAGER',
   'INTERN',
 ];

@@ -429,7 +429,85 @@ public class CommunicationTemplateSeeder implements CommandLineRunner {
                             + " · Evaluator: {{evaluatorName}}\n"
                             + " · Manager: {{managerName}}\n\n"
                             + "See you soon!\n\n— Skyzen ERM",
-                    "firstName,tentativeStartDate,trainerName,evaluatorName,managerName")
+                    "firstName,tentativeStartDate,trainerName,evaluatorName,managerName"),
+            // ── Evaluator Phase 0 — scaffolded templates; workflows ship in
+            // Phases 2-4. Seeded here so production templates exist before
+            // the first send. Idempotent: re-running the seeder is a no-op
+            // for matched (key, channel) pairs.
+            new Seed(
+                    "EVALUATION_SCHEDULED", "EMAIL",
+                    "Evaluation scheduled — {{evaluationType}} on {{scheduledDateLocal}}",
+                    "Hello {{firstName}},\n\n"
+                            + "Your {{evaluationType}} evaluation has been scheduled by "
+                            + "{{evaluatorName}}.\n\n"
+                            + "When: {{scheduledDateLocal}} ({{timezone}})\n"
+                            + "Join: {{zoomLink}}\n\n"
+                            + "Come prepared to discuss your recent projects, your goals, "
+                            + "and any blockers. We'll capture the outcome in your dashboard "
+                            + "right after.\n\n— Skyzen Tech",
+                    "firstName,evaluationType,evaluatorName,scheduledDateLocal,"
+                            + "timezone,zoomLink"),
+            new Seed(
+                    "EVALUATION_PUBLISHED", "EMAIL",
+                    "Your evaluation is ready to view",
+                    "Hello {{firstName}},\n\n"
+                            + "{{evaluatorName}} has published your {{evaluationType}} "
+                            + "evaluation. Please review it in your dashboard and acknowledge "
+                            + "within {{ackDays}} days.\n\n"
+                            + "Summary: {{summaryLine}}\n\n"
+                            + "Open evaluation: {{deepLink}}\n\n— Skyzen Tech",
+                    "firstName,evaluatorName,evaluationType,ackDays,summaryLine,deepLink"),
+            new Seed(
+                    "EVALUATION_AMENDED", "EMAIL",
+                    "Your evaluation has been updated",
+                    "Hello {{firstName}},\n\n"
+                            + "{{evaluatorName}} has amended the evaluation you previously "
+                            + "acknowledged on {{previousAckDate}}. Please review the updated "
+                            + "version and re-acknowledge.\n\n"
+                            + "What changed: {{changeSummary}}\n\n"
+                            + "Open evaluation: {{deepLink}}\n\n— Skyzen Tech",
+                    "firstName,evaluatorName,previousAckDate,changeSummary,deepLink"),
+            new Seed(
+                    "EVALUATION_REMINDER_TO_INTERN", "EMAIL",
+                    "Reminder: please acknowledge your evaluation",
+                    "Hello {{firstName}},\n\n"
+                            + "Your {{evaluationType}} evaluation has been waiting on your "
+                            + "acknowledgment for {{daysWaiting}} days.\n\n"
+                            + "It takes less than a minute — open your dashboard and click "
+                            + "Acknowledge so we can mark this cycle complete:\n"
+                            + "{{deepLink}}\n\n— Skyzen Tech",
+                    "firstName,evaluationType,daysWaiting,deepLink"),
+            new Seed(
+                    "EVALUATION_OVERDUE_ALERT", "EMAIL",
+                    "Heads up: {{internName}} has no evaluation this month",
+                    "Hello {{ermName}},\n\n"
+                            + "{{internName}} ({{employeeId}}) does not have a PUBLISHED "
+                            + "evaluation for {{monthYear}}. The Evaluator hasn't scheduled "
+                            + "or completed one yet.\n\n"
+                            + "Open the dashboard to follow up:\n{{deepLink}}\n\n"
+                            + "— Skyzen Tech",
+                    "ermName,internName,employeeId,monthYear,deepLink"),
+            new Seed(
+                    "I983_EVALUATION_DUE", "EMAIL",
+                    "I-983 evaluation due — {{internName}}",
+                    "Hello {{evaluatorName}},\n\n"
+                            + "{{internName}} ({{employeeId}}) is on F-1 STEM OPT and the "
+                            + "next I-983 evaluation window opens {{windowStartDate}} and "
+                            + "must be submitted by {{dueDate}}.\n\n"
+                            + "Open the I-983 workspace: {{deepLink}}\n\n"
+                            + "ERM is CC'd. Please coordinate scheduling with the intern.\n\n"
+                            + "— Skyzen Tech",
+                    "evaluatorName,internName,employeeId,windowStartDate,dueDate,deepLink"),
+            new Seed(
+                    "I983_EVALUATION_PUBLISHED", "EMAIL",
+                    "Your I-983 evaluation is ready",
+                    "Hello {{firstName}},\n\n"
+                            + "{{evaluatorName}} has published your I-983 {{evaluationType}} "
+                            + "evaluation. Please review the form and confirm the student "
+                            + "signature section in your dashboard so we can complete the DSO "
+                            + "submission.\n\n"
+                            + "Open evaluation: {{deepLink}}\n\n— Skyzen Tech",
+                    "firstName,evaluatorName,evaluationType,deepLink")
     );
 
     @Override

@@ -32,5 +32,9 @@ public enum ExceptionType {
      *  {@link com.skyzen.careers.enums.ProjectReviewDecision}). Detector
      *  method is registered in Trainer Phase 3 alongside the review flow;
      *  inert until then. */
-    TRAINER_ESCALATION
+    TRAINER_ESCALATION,
+    /** Evaluator Phase 0 — intern hasn't acknowledged a PUBLISHED
+     *  evaluation within 7 days of receipt. Detector ships in
+     *  Evaluator Phase 2; inert until then. */
+    EVALUATION_ACK_OVERDUE
 }

@@ -1575,6 +1575,11 @@ public class SchemaFixupRunner implements CommandLineRunner {
         // without backfill and the settings page surfaces sane defaults
         // when a user hasn't picked anything yet.
         ensureTrainerPhase4PreferenceColumns();
+
+        // Evaluator Phase 0 — refresh user_roles CHECK to include EVALUATOR
+        // and create the i983_evaluations table explicitly so the contract
+        // matches the entity even on environments with ddl-auto disabled.
+        migrateEvaluatorPhase0SchemaV1();
     }
 
     /** Trainer Phase 4 — additive trainer-only preference columns on the
@@ -2947,6 +2952,136 @@ public class SchemaFixupRunner implements CommandLineRunner {
             Integer cnt = jdbcTemplate.queryForObject(
                     "SELECT COUNT(*) FROM migration_log WHERE migration_key = ?",
                     Integer.class, PHASE_8_2_KEY);
+            return cnt != null && cnt > 0;
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    // ── Evaluator Phase 0 — clean slate scaffolding ────────────────────────
+
+    private static final String EVALUATOR_PHASE_0_KEY =
+            "EVALUATOR_PHASE_0_SCHEMA_V1";
+
+    /**
+     * Evaluator Phase 0 schema bootstrap. Idempotent + gated by a
+     * {@code migration_log} row so the heavy operations only run once.
+     *
+     * <p>Operations:</p>
+     * <ol>
+     *   <li>Refresh {@code user_roles_role_check} to include {@code EVALUATOR}
+     *       — the previous {@code ALIGN_ENUM_CHECK_CONSTRAINTS_V1} sweep
+     *       didn't list this column, and the new role can't write without it.</li>
+     *   <li>Create {@code i983_evaluations} explicitly. Hibernate
+     *       {@code ddl-auto=update} also creates it from the new entity, but
+     *       the explicit CREATE keeps the contract visible in source and
+     *       protects environments that disable ddl-auto.</li>
+     *   <li>Post the {@code migration_log} row so subsequent boots
+     *       short-circuit.</li>
+     * </ol>
+     */
+    private void migrateEvaluatorPhase0SchemaV1() {
+        if (alreadyMigratedEvaluatorPhase0()) {
+            log.info("[SchemaFixupRunner] {} already applied — skip",
+                    EVALUATOR_PHASE_0_KEY);
+            return;
+        }
+
+        // 1) user_roles CHECK refresh — include EVALUATOR. Drop any existing
+        // whitelist CHECK(s) on (user_roles, role) first, then add a fresh
+        // constraint with the current 7-role set. Heuristic mirrors
+        // alignEnumCheckConstraintsV1: only drop CHECKs whose definition
+        // contains a single-quoted token (the value-IN form).
+        try {
+            List<java.util.Map<String, Object>> existing =
+                    jdbcTemplate.queryForList(
+                            "SELECT con.conname AS name, "
+                                    + "pg_get_constraintdef(con.oid) AS def "
+                                    + "FROM pg_constraint con "
+                                    + "JOIN pg_class cl ON cl.oid = con.conrelid "
+                                    + "JOIN pg_attribute att "
+                                    + "  ON att.attrelid = cl.oid "
+                                    + "  AND att.attnum = ANY(con.conkey) "
+                                    + "WHERE cl.relname = 'user_roles' "
+                                    + "  AND att.attname = 'role' "
+                                    + "  AND con.contype = 'c'");
+            for (java.util.Map<String, Object> c : existing) {
+                String def = String.valueOf(c.get("def"));
+                if (!def.contains("'")) continue;
+                String name = String.valueOf(c.get("name"));
+                jdbcTemplate.execute(
+                        "ALTER TABLE user_roles DROP CONSTRAINT IF EXISTS " + name);
+            }
+            jdbcTemplate.execute(
+                    "ALTER TABLE user_roles ADD CONSTRAINT user_roles_role_check "
+                            + "CHECK (role IN ('INTERN','TRAINER','EVALUATOR',"
+                            + "'REPORTING_MANAGER','MANAGER','ERM','SUPER_ADMIN'))");
+            log.info("[SchemaFixupRunner] refreshed user_roles_role_check to "
+                    + "include EVALUATOR");
+        } catch (Exception e) {
+            log.warn("[SchemaFixupRunner] user_roles CHECK refresh skipped "
+                    + "(non-fatal): {}", e.getMessage());
+        }
+
+        // 2) i983_evaluations explicit CREATE.
+        try {
+            jdbcTemplate.execute(
+                    "CREATE TABLE IF NOT EXISTS i983_evaluations ("
+                            + "  id UUID PRIMARY KEY,"
+                            + "  intern_lifecycle_id UUID NOT NULL,"
+                            + "  i983_plan_id UUID,"
+                            + "  evaluator_id UUID NOT NULL,"
+                            + "  period_start_date DATE,"
+                            + "  period_end_date DATE,"
+                            + "  evaluation_type VARCHAR(32),"
+                            + "  status VARCHAR(24) NOT NULL DEFAULT 'SCHEDULED',"
+                            + "  training_objectives_progress TEXT,"
+                            + "  training_supervision_provided TEXT,"
+                            + "  training_evaluation_outcomes TEXT,"
+                            + "  employer_signature_required BOOLEAN NOT NULL DEFAULT TRUE,"
+                            + "  student_signature_required BOOLEAN NOT NULL DEFAULT TRUE,"
+                            + "  dso_submitted_to_school_at TIMESTAMP,"
+                            + "  published_at TIMESTAMP,"
+                            + "  acknowledged_at TIMESTAMP,"
+                            + "  created_by_id UUID,"
+                            + "  created_at TIMESTAMP NOT NULL DEFAULT NOW(),"
+                            + "  updated_at TIMESTAMP NOT NULL DEFAULT NOW()"
+                            + ")");
+            jdbcTemplate.execute(
+                    "CREATE INDEX IF NOT EXISTS idx_i983_eval_lifecycle_status "
+                            + "ON i983_evaluations (intern_lifecycle_id, status)");
+            jdbcTemplate.execute(
+                    "CREATE INDEX IF NOT EXISTS idx_i983_eval_evaluator_status "
+                            + "ON i983_evaluations (evaluator_id, status)");
+            log.info("[SchemaFixupRunner] ensured i983_evaluations table + indexes");
+        } catch (Exception e) {
+            log.warn("[SchemaFixupRunner] i983_evaluations CREATE skipped "
+                    + "(non-fatal): {}", e.getMessage());
+        }
+
+        // 3) migration_log row so subsequent boots short-circuit.
+        try {
+            jdbcTemplate.update(
+                    "INSERT INTO migration_log "
+                            + "(id, migration_key, executed_at, rows_migrated, notes) "
+                            + "VALUES (?, ?, NOW(), 0, ?) "
+                            + "ON CONFLICT (migration_key) DO NOTHING",
+                    java.util.UUID.randomUUID(),
+                    EVALUATOR_PHASE_0_KEY,
+                    "Evaluator Phase 0 scaffold — user_roles CHECK + "
+                            + "i983_evaluations table.");
+            log.info("[SchemaFixupRunner] {} applied", EVALUATOR_PHASE_0_KEY);
+        } catch (Exception e) {
+            log.warn("[SchemaFixupRunner] {} migration_log INSERT skipped "
+                    + "(non-fatal): {}", EVALUATOR_PHASE_0_KEY, e.getMessage());
+        }
+    }
+
+    private boolean alreadyMigratedEvaluatorPhase0() {
+        try {
+            Integer cnt = jdbcTemplate.queryForObject(
+                    "SELECT COUNT(*) FROM migration_log WHERE migration_key = ?",
+                    Integer.class, EVALUATOR_PHASE_0_KEY);
             return cnt != null && cnt > 0;
         } catch (Exception e) {
             return false;

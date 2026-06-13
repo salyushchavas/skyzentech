@@ -20,6 +20,7 @@ export type ApiError = {
 export type UserRole =
   | 'INTERN'
   | 'TRAINER'
+  | 'EVALUATOR'
   | 'REPORTING_MANAGER'
   | 'MANAGER'
   | 'ERM'

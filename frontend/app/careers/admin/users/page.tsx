@@ -38,6 +38,7 @@ const STAFF_ROLES: UserRole[] = [
 const ROLE_LABEL: Record<UserRole, string> = {
   INTERN: 'Intern',
   TRAINER: 'Trainer',
+  EVALUATOR: 'Evaluator',
   REPORTING_MANAGER: 'Reporting Manager',
   MANAGER: 'Manager',
   ERM: 'ERM',
@@ -47,6 +48,7 @@ const ROLE_LABEL: Record<UserRole, string> = {
 const ROLE_COLOR: Record<UserRole, string> = {
   INTERN: 'bg-sky-100 text-sky-800',
   TRAINER: 'bg-amber-100 text-amber-800',
+  EVALUATOR: 'bg-teal-100 text-teal-800',
   REPORTING_MANAGER: 'bg-violet-100 text-violet-800',
   MANAGER: 'bg-violet-100 text-violet-800',
   ERM: 'bg-emerald-100 text-emerald-800',

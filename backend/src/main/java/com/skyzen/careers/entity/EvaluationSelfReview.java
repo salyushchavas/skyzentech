@@ -14,7 +14,15 @@ import java.util.UUID;
  * <p>The intern submits via {@code PUT /api/v1/evaluations/{id}/self} when
  * the evaluation's type permits self-review. Once submitted, the supervisor
  * can read it as context before finalizing.
+ *
+ * <p><strong>Deprecated as of Evaluator Phase 0.</strong> Per the locked
+ * product design decision, the intern role no longer self-reviews; the
+ * Evaluator runs the full evaluation and the intern only acknowledges.
+ * I-983 forms move to the dedicated {@link I983Evaluation} entity. The
+ * table is preserved (any historical rows stay queryable), but new code
+ * paths must not insert into it. UI references are removed in Phase 1+.
  */
+@Deprecated
 @Entity
 @Table(
         name = "evaluation_self_reviews",

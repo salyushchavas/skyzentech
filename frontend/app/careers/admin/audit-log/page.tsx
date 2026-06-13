@@ -24,6 +24,7 @@ const STAFF_ROLES_FOR_FILTER: UserRole[] = [
 const ROLE_LABEL: Record<UserRole, string> = {
   INTERN: 'Intern',
   TRAINER: 'Trainer',
+  EVALUATOR: 'Evaluator',
   REPORTING_MANAGER: 'Reporting Manager',
   MANAGER: 'Manager',
   ERM: 'ERM',

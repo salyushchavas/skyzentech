@@ -68,6 +68,9 @@ const STAFF_ROLE_LINKS: Record<UserRole, StaffLink[]> = {
   TRAINER: [
     { icon: LayoutDashboard, label: 'Trainer Dashboard', href: '/careers/trainer' },
   ],
+  EVALUATOR: [
+    { icon: LayoutDashboard, label: 'Evaluator Dashboard', href: '/careers/evaluator' },
+  ],
   REPORTING_MANAGER: [
     { icon: LayoutDashboard, label: 'Reporting Manager Dashboard', href: '/careers/reporting-manager' },
   ],

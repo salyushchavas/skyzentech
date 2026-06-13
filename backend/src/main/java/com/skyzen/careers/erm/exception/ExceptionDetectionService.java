@@ -812,6 +812,9 @@ public class ExceptionDetectionService {
             // Trainer Phase 0 — detector method registered in Phase 3.
             // For now return empty so the scan job stays inert for this type.
             case TRAINER_ESCALATION             -> java.util.List.of();
+            // Evaluator Phase 0 — detector method ships in Evaluator Phase 2.
+            // Inert hook so the scan job iterates cleanly over every enum.
+            case EVALUATION_ACK_OVERDUE         -> java.util.List.of();
         };
     }
 
@@ -844,6 +847,7 @@ public class ExceptionDetectionService {
             case TRAINER_ESCALATION                     -> "PROJECT";
             case WORK_AUTH_EXPIRING_30                  -> "EVERIFY";
             case EVERIFY_NONCONFIRMATION                -> "EVERIFY";
+            case EVALUATION_ACK_OVERDUE                 -> "EVALUATION";
         };
     }
 
