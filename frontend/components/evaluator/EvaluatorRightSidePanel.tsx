@@ -15,15 +15,16 @@ import { useEvaluatorDashboard } from './EvaluatorDashboardContext';
 interface QuickAction {
   key: string;
   label: string;
-  phase: number;
+  phase: number;          // unlocked when phase <= current implemented phase (Phase 2 here)
+  href?: string;          // present when enabled
   icon: React.ReactNode;
 }
 
 const ACTIONS: QuickAction[] = [
-  { key: 'schedule',  label: 'Schedule Session',      phase: 2, icon: <CalendarPlus className="h-3.5 w-3.5" /> },
-  { key: 'compose',   label: 'Compose Evaluation',    phase: 2, icon: <ClipboardEdit className="h-3.5 w-3.5" /> },
-  { key: 'publish',   label: 'Publish Feedback',      phase: 2, icon: <Send className="h-3.5 w-3.5" /> },
-  { key: 'ack',       label: 'Request Acknowledgment', phase: 2, icon: <FileCheck className="h-3.5 w-3.5" /> },
+  { key: 'schedule',  label: 'Schedule Session',      phase: 2, href: '/careers/evaluator/schedule-session', icon: <CalendarPlus className="h-3.5 w-3.5" /> },
+  { key: 'compose',   label: 'Pending Evaluations',   phase: 2, href: '/careers/evaluator/pending-evaluations', icon: <ClipboardEdit className="h-3.5 w-3.5" /> },
+  { key: 'publish',   label: 'Awaiting Acknowledgment', phase: 2, href: '/careers/evaluator/pending-evaluations', icon: <Send className="h-3.5 w-3.5" /> },
+  { key: 'ack',       label: 'Evaluation History',    phase: 4, icon: <FileCheck className="h-3.5 w-3.5" /> },
   { key: 'i983',      label: 'Start I-983 Evaluation', phase: 3, icon: <FileText className="h-3.5 w-3.5" /> },
 ];
 
@@ -113,25 +114,44 @@ export default function EvaluatorRightSidePanel() {
           Quick actions
         </p>
         <ul className="mt-2 space-y-1">
-          {ACTIONS.map((a) => (
-            <li key={a.key}>
-              <button
-                type="button"
-                disabled
-                title={`Coming in Evaluator Phase ${a.phase}`}
-                className="flex w-full cursor-not-allowed items-center justify-between gap-2 rounded-md border border-slate-200 bg-white px-3 py-2 text-left text-xs font-medium text-slate-500 opacity-70 hover:opacity-90"
-              >
+          {ACTIONS.map((a) => {
+            const enabled = Boolean(a.href);
+            const content = (
+              <>
                 <span className="inline-flex items-center gap-1.5">
                   {a.icon}
                   {a.label}
                 </span>
-                <span className="inline-flex items-center gap-0.5 text-[10px] text-slate-400">
-                  <Lock className="h-3 w-3" />
-                  P{a.phase}
-                </span>
-              </button>
-            </li>
-          ))}
+                {!enabled && (
+                  <span className="inline-flex items-center gap-0.5 text-[10px] text-slate-400">
+                    <Lock className="h-3 w-3" />
+                    P{a.phase}
+                  </span>
+                )}
+              </>
+            );
+            return (
+              <li key={a.key}>
+                {enabled ? (
+                  <Link
+                    href={a.href!}
+                    className="flex w-full items-center justify-between gap-2 rounded-md border border-slate-200 bg-white px-3 py-2 text-left text-xs font-medium text-slate-700 hover:border-teal-300 hover:bg-teal-50"
+                  >
+                    {content}
+                  </Link>
+                ) : (
+                  <button
+                    type="button"
+                    disabled
+                    title={`Coming in Evaluator Phase ${a.phase}`}
+                    className="flex w-full cursor-not-allowed items-center justify-between gap-2 rounded-md border border-slate-200 bg-white px-3 py-2 text-left text-xs font-medium text-slate-500 opacity-70 hover:opacity-90"
+                  >
+                    {content}
+                  </button>
+                )}
+              </li>
+            );
+          })}
         </ul>
 
         {!rightPanel?.evalueeContext && (

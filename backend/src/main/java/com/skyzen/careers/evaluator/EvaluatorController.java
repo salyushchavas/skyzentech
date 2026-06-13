@@ -19,6 +19,8 @@ public class EvaluatorController {
     private final EvaluatorDashboardService dashboardService;
     private final EvaluatorEvalueesService evalueesService;
     private final EvaluatorRightPanelService rightPanelService;
+    private final EvaluationWorkflowService workflowService;
+    private final PendingEvaluationsService pendingService;
 
     @GetMapping("/dashboard")
     @PreAuthorize("hasAnyRole('EVALUATOR', 'SUPER_ADMIN')")
@@ -54,5 +56,64 @@ public class EvaluatorController {
             @RequestParam(required = false) UUID lifecycleId,
             @AuthenticationPrincipal User caller) {
         return rightPanelService.get(lifecycleId, caller);
+    }
+
+    // ── Phase 2 — monthly evaluation workflow ────────────────────────────
+
+    @PostMapping("/evaluations")
+    @PreAuthorize("hasAnyRole('EVALUATOR', 'SUPER_ADMIN')")
+    public EvaluationWorkflowDtos.EvaluatorEvaluationDetail schedule(
+            @RequestBody EvaluationWorkflowDtos.ScheduleRequest req,
+            @AuthenticationPrincipal User caller) {
+        return workflowService.schedule(req, caller);
+    }
+
+    @PostMapping("/evaluations/{id}/start")
+    @PreAuthorize("hasAnyRole('EVALUATOR', 'SUPER_ADMIN')")
+    public EvaluationWorkflowDtos.EvaluatorEvaluationDetail start(
+            @PathVariable UUID id,
+            @AuthenticationPrincipal User caller) {
+        return workflowService.start(id, caller);
+    }
+
+    @PatchMapping("/evaluations/{id}/draft")
+    @PreAuthorize("hasAnyRole('EVALUATOR', 'SUPER_ADMIN')")
+    public EvaluationWorkflowDtos.EvaluatorEvaluationDetail saveDraft(
+            @PathVariable UUID id,
+            @RequestBody EvaluationWorkflowDtos.SaveDraftRequest req,
+            @AuthenticationPrincipal User caller) {
+        return workflowService.saveDraft(id, req, caller);
+    }
+
+    @PostMapping("/evaluations/{id}/publish")
+    @PreAuthorize("hasAnyRole('EVALUATOR', 'SUPER_ADMIN')")
+    public EvaluationWorkflowDtos.EvaluatorEvaluationDetail publish(
+            @PathVariable UUID id,
+            @AuthenticationPrincipal User caller) {
+        return workflowService.publish(id, caller);
+    }
+
+    @PostMapping("/evaluations/{id}/amend")
+    @PreAuthorize("hasAnyRole('EVALUATOR', 'SUPER_ADMIN')")
+    public EvaluationWorkflowDtos.EvaluatorEvaluationDetail amend(
+            @PathVariable UUID id,
+            @RequestBody EvaluationWorkflowDtos.AmendRequest req,
+            @AuthenticationPrincipal User caller) {
+        return workflowService.amend(id, req, caller);
+    }
+
+    @GetMapping("/evaluations/{id}")
+    @PreAuthorize("hasAnyRole('EVALUATOR', 'SUPER_ADMIN')")
+    public EvaluationWorkflowDtos.EvaluatorEvaluationDetail getEvaluation(
+            @PathVariable UUID id,
+            @AuthenticationPrincipal User caller) {
+        return workflowService.getEvaluatorDetail(id, caller);
+    }
+
+    @GetMapping("/pending-evaluations")
+    @PreAuthorize("hasAnyRole('EVALUATOR', 'SUPER_ADMIN')")
+    public EvaluationWorkflowDtos.PendingEvaluationsResponse pendingEvaluations(
+            @AuthenticationPrincipal User caller) {
+        return pendingService.list(caller);
     }
 }

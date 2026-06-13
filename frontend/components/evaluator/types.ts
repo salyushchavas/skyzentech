@@ -142,3 +142,125 @@ export interface RightPanelResponse {
   homeAggregate: HomeAggregate | null;
   evalueeContext: EvalueePanelContext | null;
 }
+
+// ── Phase 2 — workflow ────────────────────────────────────────────────
+
+export interface AmendmentEntry {
+  amendmentId: string;
+  amendedByUserId: string;
+  amendedByName: string | null;
+  amendmentReason: string;
+  previousVersion: number;
+  newVersion: number;
+  amendedAt: string;
+}
+
+export interface EvaluatorEvaluationDetail {
+  evaluationId: string;
+  internLifecycleId: string;
+  internUserId: string;
+  internName: string | null;
+  internEmail: string | null;
+  employeeId: string | null;
+  technology: string | null;
+  evaluationType: string;
+  status: string;
+  version: number;
+  periodStart: string | null;
+  periodEnd: string | null;
+  scheduledFor: string | null;
+  durationMinutes: number | null;
+  timezone: string | null;
+  zoomJoinUrl: string | null;
+  zoomStartUrl: string | null;
+  zoomMeetingId: number | null;
+  technicalSkillsScore: number | null;
+  communicationScore: number | null;
+  professionalismScore: number | null;
+  learningApplicationScore: number | null;
+  averageScore: number | null;
+  strengths: string | null;
+  areasForImprovement: string | null;
+  comments: string | null;
+  recommendation: string | null;
+  internalNotes: string | null;
+  publishedAt: string | null;
+  internAcknowledgedAt: string | null;
+  internResponse: string | null;
+  amendedAt: string | null;
+  amendmentReason: string | null;
+  amendments: AmendmentEntry[];
+}
+
+export interface InternEvaluationView {
+  evaluationId: string;
+  evaluatorName: string | null;
+  evaluationType: string;
+  status: string;
+  version: number;
+  periodStart: string | null;
+  periodEnd: string | null;
+  scheduledFor: string | null;
+  zoomJoinUrl: string | null;
+  technicalSkillsScore: number | null;
+  communicationScore: number | null;
+  professionalismScore: number | null;
+  learningApplicationScore: number | null;
+  averageScore: number | null;
+  strengths: string | null;
+  areasForImprovement: string | null;
+  comments: string | null;
+  recommendation: string | null;
+  publishedAt: string | null;
+  internAcknowledgedAt: string | null;
+  internResponse: string | null;
+  amendedAt: string | null;
+}
+
+export interface InternEvaluationRow {
+  evaluationId: string;
+  evaluatorName: string | null;
+  evaluationType: string;
+  status: string;
+  version: number;
+  publishedAt: string | null;
+  internAcknowledgedAt: string | null;
+  averageScoreInt: number | null;
+  recommendation: string | null;
+}
+
+export interface ScheduledRow {
+  evaluationId: string;
+  internLifecycleId: string;
+  internName: string | null;
+  employeeId: string | null;
+  evaluationType: string;
+  status: string;
+  scheduledFor: string | null;
+  durationMinutes: number | null;
+  zoomJoinUrl: string | null;
+}
+
+export interface AwaitingAckRow {
+  evaluationId: string;
+  internLifecycleId: string;
+  internName: string | null;
+  employeeId: string | null;
+  evaluationType: string;
+  publishedAt: string | null;
+  daysPending: number;
+}
+
+export interface PendingEvaluationsResponse {
+  scheduledAndInProgress: ScheduledRow[];
+  awaitingAcknowledgment: AwaitingAckRow[];
+}
+
+export const RECOMMENDATIONS = [
+  'EXCELLENT',
+  'GOOD',
+  'SATISFACTORY',
+  'NEEDS_IMPROVEMENT',
+  'UNSATISFACTORY',
+] as const;
+export type Recommendation = (typeof RECOMMENDATIONS)[number];

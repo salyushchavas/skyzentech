@@ -1580,6 +1580,18 @@ public class SchemaFixupRunner implements CommandLineRunner {
         // and create the i983_evaluations table explicitly so the contract
         // matches the entity even on environments with ddl-auto disabled.
         migrateEvaluatorPhase0SchemaV1();
+
+        // Evaluator Phase 2 — add recommendation column on intern_evaluations
+        // for the monthly evaluation rubric publish flow. Idempotent.
+        try {
+            jdbcTemplate.execute(
+                    "ALTER TABLE intern_evaluations "
+                            + "ADD COLUMN IF NOT EXISTS recommendation VARCHAR(32)");
+            log.info("[SchemaFixupRunner] ensured intern_evaluations.recommendation column");
+        } catch (Exception e) {
+            log.warn("[SchemaFixupRunner] intern_evaluations.recommendation ALTER "
+                    + "skipped (non-fatal): {}", e.getMessage());
+        }
     }
 
     /** Trainer Phase 4 — additive trainer-only preference columns on the

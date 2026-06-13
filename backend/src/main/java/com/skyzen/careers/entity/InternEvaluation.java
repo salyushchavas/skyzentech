@@ -135,6 +135,12 @@ public class InternEvaluation {
     @Builder.Default
     private Integer version = 1;
 
+    /** Evaluator Phase 2 — coarse summary recommendation.
+     *  EXCELLENT | GOOD | SATISFACTORY | NEEDS_IMPROVEMENT | UNSATISFACTORY.
+     *  Nullable for legacy rows + DRAFTs. */
+    @Column(name = "recommendation", length = 32)
+    private String recommendation;
+
     /** Evaluator-only — NEVER returned to interns. */
     @Column(name = "internal_notes", columnDefinition = "TEXT")
     private String internalNotes;
