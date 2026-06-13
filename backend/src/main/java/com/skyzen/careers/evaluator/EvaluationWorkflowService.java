@@ -3,6 +3,7 @@ package com.skyzen.careers.evaluator;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.skyzen.careers.entity.AuditLog;
 import com.skyzen.careers.entity.EvaluationAmendment;
+import com.skyzen.careers.entity.ExitRecord;
 import com.skyzen.careers.entity.InternEvaluation;
 import com.skyzen.careers.entity.InternLifecycle;
 import com.skyzen.careers.entity.User;
@@ -16,6 +17,7 @@ import com.skyzen.careers.integration.zoom.ZoomMeetingResponse;
 import com.skyzen.careers.integration.zoom.ZoomService;
 import com.skyzen.careers.repository.AuditLogRepository;
 import com.skyzen.careers.repository.EvaluationAmendmentRepository;
+import com.skyzen.careers.repository.ExitRecordRepository;
 import com.skyzen.careers.repository.InternEvaluationRepository;
 import com.skyzen.careers.repository.InternLifecycleRepository;
 import com.skyzen.careers.repository.UserRepository;
@@ -44,13 +46,17 @@ public class EvaluationWorkflowService {
 
     private static final Set<String> RECOMMENDATIONS = Set.of(
             "EXCELLENT", "GOOD", "SATISFACTORY",
-            "NEEDS_IMPROVEMENT", "UNSATISFACTORY");
+            "NEEDS_IMPROVEMENT", "UNSATISFACTORY",
+            // Phase 4 — only meaningful for FINAL evaluations, accepted on the
+            // wire universally; the Compose UI gates exposure to FINAL only.
+            "REHIRE_ELIGIBLE");
 
     private final InternEvaluationRepository evalRepo;
     private final InternLifecycleRepository lifecycleRepo;
     private final UserRepository userRepo;
     private final EvaluationAmendmentRepository amendmentRepo;
     private final AuditLogRepository auditRepo;
+    private final ExitRecordRepository exitRecordRepo;
     private final ZoomService zoomService;
     private final EvaluationNotificationFanout fanout;
     private final ObjectMapper objectMapper;
@@ -128,6 +134,115 @@ public class EvaluationWorkflowService {
                         "scheduledFor", saved.getScheduledFor().toString(),
                         "durationMinutes", duration,
                         "month", month.toString()));
+        fanout.evaluationScheduled(saved, lc, caller);
+        return toEvaluatorDetail(saved, lc);
+    }
+
+    // ── 1b. Schedule Final (Phase 4) ──────────────────────────────────────
+
+    /**
+     * Phase 4 — schedule a FINAL evaluation. Distinct from monthly schedule
+     * because: (1) period_start = lifecycle.started_at (full engagement),
+     * (2) gated by ExitRecord existence (the wrap-up signal) or SUPER_ADMIN,
+     * (3) blocks if any prior FINAL is open for the lifecycle (one Final per
+     * engagement; amend the existing row instead of creating a second).
+     */
+    @Transactional
+    public EvaluationWorkflowDtos.EvaluatorEvaluationDetail scheduleFinal(
+            EvaluationWorkflowDtos.ScheduleFinalRequest req, User caller) {
+        if (req == null || req.internLifecycleId() == null) {
+            throw new BadRequestException("internLifecycleId is required");
+        }
+        if (req.scheduledFor() == null
+                || req.scheduledFor().isBefore(Instant.now().plus(1, ChronoUnit.HOURS))) {
+            throw new BadRequestException(
+                    "scheduledFor must be at least 1 hour in the future");
+        }
+        int duration = req.durationMinutes() != null ? req.durationMinutes() : 60;
+        if (duration < 15 || duration > 180) {
+            throw new BadRequestException("durationMinutes must be 15-180");
+        }
+        InternLifecycle lc = lifecycleRepo.findById(req.internLifecycleId())
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "InternLifecycle not found: " + req.internLifecycleId()));
+        requireOwnership(lc, caller, "scheduleFinal");
+
+        boolean superAdmin = caller.getRoles() != null
+                && caller.getRoles().contains(UserRole.SUPER_ADMIN);
+        // Wrap-up signal: ERM has opened the exit flow. SUPER_ADMIN bypasses
+        // the guard for off-cycle reviews / one-offs.
+        boolean hasExit = exitRecordRepo.existsByInternLifecycleId(lc.getId());
+        if (!superAdmin && !hasExit) {
+            throw new ConflictException(
+                    "FINAL evaluation requires an ExitRecord on the lifecycle "
+                            + "(ERM must initiate exit first).");
+        }
+
+        // One Final per engagement — block if any open FINAL row exists.
+        Long openFinalCount = jdbc.queryForObject(
+                "SELECT COUNT(*) FROM intern_evaluations "
+                        + " WHERE intern_lifecycle_id = ? "
+                        + "   AND evaluation_type = 'FINAL' "
+                        + "   AND status IN ('DRAFT','SCHEDULED','IN_PROGRESS','PUBLISHED','ACKNOWLEDGED','AMENDED')",
+                Long.class, lc.getId());
+        if (openFinalCount != null && openFinalCount > 0) {
+            throw new ConflictException(
+                    "A FINAL evaluation already exists for this intern — "
+                            + "open or amend the existing row instead.");
+        }
+
+        // period_start = engagement start; period_end = the review meeting date.
+        LocalDate periodStart = lc.getStartedAt() != null
+                ? lc.getStartedAt().atZone(java.time.ZoneOffset.UTC).toLocalDate()
+                : LocalDate.now().minusMonths(6);
+        LocalDate periodEnd = req.scheduledFor()
+                .atZone(java.time.ZoneOffset.UTC).toLocalDate();
+
+        InternEvaluation ev = InternEvaluation.builder()
+                .internLifecycleId(lc.getId())
+                .internId(lc.getUserId())
+                .evaluatorId(caller.getId())
+                .evaluationType("FINAL")
+                .periodStart(periodStart)
+                .periodEnd(periodEnd)
+                .scheduledFor(req.scheduledFor())
+                .durationMinutes(duration)
+                .timezone(req.timezone() != null && !req.timezone().isBlank()
+                        ? req.timezone() : "UTC")
+                .status("SCHEDULED")
+                .version(1)
+                .build();
+
+        if (zoomService.isReady()) {
+            try {
+                String topic = req.topic() != null && !req.topic().isBlank()
+                        ? req.topic()
+                        : "Final Evaluation — End of Internship";
+                ZoomMeetingResponse z = zoomService.createMeeting(
+                        new ZoomMeetingRequest(
+                                caller.getZoomEmail() != null && !caller.getZoomEmail().isBlank()
+                                        ? caller.getZoomEmail() : "me",
+                                topic, req.scheduledFor(), duration,
+                                ev.getTimezone(), req.agenda()));
+                ev.setZoomMeetingId(z.meetingId());
+                ev.setZoomJoinUrl(z.joinUrl());
+                ev.setZoomStartUrl(z.startUrl());
+                ev.setZoomPassword(z.password());
+            } catch (Exception e) {
+                log.warn("[EvaluationWorkflow] Zoom create failed for FINAL (degraded): {}",
+                        e.getMessage());
+            }
+        }
+
+        InternEvaluation saved = evalRepo.save(ev);
+        Map<String, Object> after = new LinkedHashMap<>();
+        after.put("scheduledFor", saved.getScheduledFor().toString());
+        after.put("durationMinutes", duration);
+        after.put("evaluationType", "FINAL");
+        after.put("periodStart", periodStart.toString());
+        after.put("periodEnd", periodEnd.toString());
+        writeAudit(caller, lc.getUserId(), "FINAL_EVALUATION_SCHEDULED",
+                saved.getId(), null, after);
         fanout.evaluationScheduled(saved, lc, caller);
         return toEvaluatorDetail(saved, lc);
     }
@@ -241,6 +356,22 @@ public class EvaluationWorkflowService {
         Instant now = Instant.now();
         ev.setPublishedAt(now);
         InternEvaluation saved = evalRepo.save(ev);
+        // Phase 4 — link Final publish to the open ExitRecord so the ERM
+        // exit checklist surfaces "Final evaluation: complete". Best-effort:
+        // missing exit record is fine (SUPER_ADMIN paths can publish without).
+        if ("FINAL".equals(saved.getEvaluationType())) {
+            try {
+                exitRecordRepo.findByInternLifecycleId(lc.getId()).ifPresent(er -> {
+                    if (er.getFinalEvaluationId() == null) {
+                        er.setFinalEvaluationId(saved.getId());
+                        exitRecordRepo.save(er);
+                    }
+                });
+            } catch (Exception e) {
+                log.warn("[EvaluationWorkflow] ExitRecord link on FINAL publish failed (degraded): {}",
+                        e.getMessage());
+            }
+        }
         writeAudit(caller, lc.getUserId(), "EVALUATION_PUBLISHED",
                 saved.getId(),
                 Map.of("status", "IN_PROGRESS"),

@@ -3,10 +3,15 @@ package com.skyzen.careers.evaluator;
 import com.skyzen.careers.entity.User;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBody;
 
+import java.time.LocalDate;
 import java.util.UUID;
 
 /** Evaluator Phase 1 — read-only HTTP surface. */
@@ -22,6 +27,9 @@ public class EvaluatorController {
     private final EvaluationWorkflowService workflowService;
     private final PendingEvaluationsService pendingService;
     private final I983EvaluationWorkflowService i983Workflow;
+    private final EvaluationHistoryService historyService;
+    private final EvaluatorReportsService reportsService;
+    private final EvaluatorSettingsService settingsService;
 
     @GetMapping("/dashboard")
     @PreAuthorize("hasAnyRole('EVALUATOR', 'SUPER_ADMIN')")
@@ -184,5 +192,81 @@ public class EvaluatorController {
             @PathVariable UUID id,
             @AuthenticationPrincipal User caller) {
         return i983Workflow.getEvaluatorDetail(id, caller);
+    }
+
+    // ── Phase 4 — Final evaluation scheduling ────────────────────────────
+
+    @PostMapping("/final-evaluations")
+    @PreAuthorize("hasAnyRole('EVALUATOR', 'SUPER_ADMIN')")
+    public EvaluationWorkflowDtos.EvaluatorEvaluationDetail scheduleFinal(
+            @RequestBody EvaluationWorkflowDtos.ScheduleFinalRequest req,
+            @AuthenticationPrincipal User caller) {
+        return workflowService.scheduleFinal(req, caller);
+    }
+
+    // ── Phase 4 — Evaluation History ─────────────────────────────────────
+
+    @GetMapping("/history")
+    @PreAuthorize("hasAnyRole('EVALUATOR', 'SUPER_ADMIN')")
+    public EvaluatorPhase4Dtos.HistoryPage history(
+            @RequestParam(required = false) String search,
+            @RequestParam(required = false) String type,
+            @RequestParam(required = false) String status,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "25") int pageSize,
+            @AuthenticationPrincipal User caller) {
+        return historyService.list(caller, search, type, status, page, pageSize);
+    }
+
+    // ── Phase 4 — Monthly Reports ────────────────────────────────────────
+
+    @GetMapping("/reports/monthly")
+    @PreAuthorize("hasAnyRole('EVALUATOR', 'SUPER_ADMIN')")
+    public EvaluatorPhase4Dtos.MonthlyReport monthlyReport(
+            @RequestParam(required = false) Integer year,
+            @RequestParam(required = false) Integer month,
+            @AuthenticationPrincipal User caller) {
+        return reportsService.monthly(caller, year, month);
+    }
+
+    @GetMapping("/reports/monthly.csv")
+    @PreAuthorize("hasAnyRole('EVALUATOR', 'SUPER_ADMIN')")
+    public ResponseEntity<StreamingResponseBody> monthlyReportCsv(
+            @RequestParam(required = false) Integer year,
+            @RequestParam(required = false) Integer month,
+            @AuthenticationPrincipal User caller) {
+        StreamingResponseBody body = out -> {
+            try {
+                reportsService.streamMonthlyCsv(caller, year, month, out);
+            } catch (Exception e) {
+                log.warn("[EvaluatorCtl] reports CSV stream failed: {}", e.getMessage());
+                throw e;
+            }
+        };
+        int y = year != null ? year : LocalDate.now().getYear();
+        int m = month != null ? month : LocalDate.now().getMonthValue();
+        String fileName = String.format("evaluator-report-%04d-%02d.csv", y, m);
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION,
+                        "attachment; filename=\"" + fileName + "\"")
+                .contentType(MediaType.parseMediaType("text/csv; charset=utf-8"))
+                .body(body);
+    }
+
+    // ── Phase 4 — Settings ───────────────────────────────────────────────
+
+    @GetMapping("/settings")
+    @PreAuthorize("hasAnyRole('EVALUATOR', 'SUPER_ADMIN')")
+    public EvaluatorPhase4Dtos.EvaluatorSettings getSettings(
+            @AuthenticationPrincipal User caller) {
+        return settingsService.get(caller);
+    }
+
+    @PatchMapping("/settings")
+    @PreAuthorize("hasAnyRole('EVALUATOR', 'SUPER_ADMIN')")
+    public EvaluatorPhase4Dtos.EvaluatorSettings updateSettings(
+            @RequestBody EvaluatorPhase4Dtos.SettingsUpdateRequest req,
+            @AuthenticationPrincipal User caller) {
+        return settingsService.update(req, caller);
     }
 }

@@ -22,6 +22,18 @@ public final class EvaluationWorkflowDtos {
             String timezone
     ) {}
 
+    /** Phase 4 — Final evaluation scheduling. Same shape as ScheduleRequest
+     *  for now; kept as a distinct record so the controller and validation
+     *  paths can diverge cleanly (Final has its own ExitRecord guard). */
+    public record ScheduleFinalRequest(
+            UUID internLifecycleId,
+            Instant scheduledFor,
+            Integer durationMinutes,
+            String topic,
+            String agenda,
+            String timezone
+    ) {}
+
     public record SaveDraftRequest(
             Integer technicalSkillsScore,
             Integer communicationScore,

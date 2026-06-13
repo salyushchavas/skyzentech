@@ -815,6 +815,10 @@ public class ExceptionDetectionService {
             // Evaluator Phase 0 — detector method ships in Evaluator Phase 2.
             // Inert hook so the scan job iterates cleanly over every enum.
             case EVALUATION_ACK_OVERDUE         -> java.util.List.of();
+            // Evaluator Phase 4 — detector deferred. Final-eval gaps
+            // surface via Reports / History today; the enum slot is
+            // reserved so future scan-job promotion is non-breaking.
+            case FINAL_EVALUATION_DUE           -> java.util.List.of();
         };
     }
 
@@ -848,6 +852,7 @@ public class ExceptionDetectionService {
             case WORK_AUTH_EXPIRING_30                  -> "EVERIFY";
             case EVERIFY_NONCONFIRMATION                -> "EVERIFY";
             case EVALUATION_ACK_OVERDUE                 -> "EVALUATION";
+            case FINAL_EVALUATION_DUE                   -> "EVALUATION";
         };
     }
 

@@ -5,8 +5,8 @@ import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { ChevronLeft, Save, Send, Star, Video } from 'lucide-react';
 import api from '@/lib/api';
-import type { EvaluatorEvaluationDetail, Recommendation } from '@/components/evaluator/types';
-import { RECOMMENDATIONS } from '@/components/evaluator/types';
+import type { EvaluatorEvaluationDetail, RecommendationFinal } from '@/components/evaluator/types';
+import { RECOMMENDATIONS, RECOMMENDATIONS_FINAL } from '@/components/evaluator/types';
 
 const RUBRIC: { key: 'technical' | 'communication' | 'professionalism' | 'learning'; label: string; tip: string }[] = [
   { key: 'technical',      label: 'Technical Skills',        tip: 'How strong is their technical work this period? Code quality, problem-solving, design choices.' },
@@ -32,7 +32,7 @@ export default function ComposePage() {
   const [strengths, setStrengths] = useState('');
   const [areas, setAreas] = useState('');
   const [comments, setComments] = useState('');
-  const [recommendation, setRecommendation] = useState<Recommendation | ''>('');
+  const [recommendation, setRecommendation] = useState<RecommendationFinal | ''>('');
   const [internalNotes, setInternalNotes] = useState('');
 
   const [savingDraft, setSavingDraft] = useState(false);
@@ -54,7 +54,7 @@ export default function ComposePage() {
       setStrengths(res.data.strengths ?? '');
       setAreas(res.data.areasForImprovement ?? '');
       setComments(res.data.comments ?? '');
-      setRecommendation((res.data.recommendation as Recommendation | null) ?? '');
+      setRecommendation((res.data.recommendation as RecommendationFinal | null) ?? '');
       setInternalNotes(res.data.internalNotes ?? '');
       setErr(null);
     } catch (e) {
@@ -127,6 +127,8 @@ export default function ComposePage() {
   if (!data) return null;
 
   const readOnly = data.status === 'PUBLISHED' || data.status === 'ACKNOWLEDGED' || data.status === 'AMENDED';
+  const isFinal = data.evaluationType === 'FINAL';
+  const recOptions = isFinal ? RECOMMENDATIONS_FINAL : RECOMMENDATIONS;
 
   return (
     <div className="mx-auto max-w-6xl space-y-4 p-6">
@@ -144,7 +146,7 @@ export default function ComposePage() {
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <h1 className="text-xl font-semibold text-slate-900">
-              Compose evaluation — {data.internName ?? '(unnamed)'}
+              {isFinal ? 'Final evaluation' : 'Compose evaluation'} — {data.internName ?? '(unnamed)'}
             </h1>
             <p className="text-xs text-slate-500">
               {data.employeeId} {data.technology && `· ${data.technology}`}
@@ -259,9 +261,18 @@ export default function ComposePage() {
 
           {/* Recommendation */}
           <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
-            <h2 className="text-sm font-semibold text-slate-900">Recommendation</h2>
+            <h2 className="text-sm font-semibold text-slate-900">
+              {isFinal ? 'Overall Internship Recommendation' : 'Recommendation'}
+            </h2>
+            {isFinal && (
+              <p className="mt-1 text-xs text-slate-500">
+                This is the final verdict for the entire engagement. Selecting{' '}
+                <span className="font-semibold text-emerald-700">REHIRE_ELIGIBLE</span>{' '}
+                marks the intern for the rehire pipeline in ERM.
+              </p>
+            )}
             <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
-              {RECOMMENDATIONS.map((r) => (
+              {recOptions.map((r) => (
                 <label
                   key={r}
                   className={
@@ -275,7 +286,7 @@ export default function ComposePage() {
                     type="radio"
                     name="recommendation"
                     checked={recommendation === r}
-                    onChange={() => setRecommendation(r)}
+                    onChange={() => setRecommendation(r as RecommendationFinal)}
                     disabled={readOnly}
                   />
                   <span>{r.replaceAll('_', ' ')}</span>
@@ -283,6 +294,31 @@ export default function ComposePage() {
               ))}
             </div>
           </section>
+
+          {isFinal && (
+            <section className="rounded-lg border border-amber-200 bg-amber-50/40 p-5 shadow-sm">
+              <h2 className="text-sm font-semibold text-amber-900">
+                Final summary — what gets archived
+              </h2>
+              <p className="mt-1 text-xs text-amber-800">
+                Once published, this evaluation links to the intern&apos;s exit
+                record and surfaces on the rehire pipeline. The four rubric
+                scores roll up into the engagement&apos;s overall score, and
+                the &quot;Strengths&quot; + &quot;Areas for improvement&quot;
+                narratives become the engagement&apos;s archived feedback.
+                Period covered:{' '}
+                <span className="font-semibold">
+                  {data.periodStart ?? '—'} → {data.periodEnd ?? '—'}
+                </span>
+                .
+              </p>
+              <ul className="mt-2 list-disc space-y-0.5 pl-5 text-[11px] text-amber-900">
+                <li>Use &quot;Comments&quot; to capture the overall narrative for HR records.</li>
+                <li>Internal notes remain Evaluator-only and are never surfaced to the intern.</li>
+                <li>The intern still acknowledges and may write a response.</li>
+              </ul>
+            </section>
+          )}
 
           {/* Internal notes (Evaluator only) */}
           <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">

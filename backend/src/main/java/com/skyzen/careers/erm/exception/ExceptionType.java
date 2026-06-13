@@ -36,5 +36,10 @@ public enum ExceptionType {
     /** Evaluator Phase 0 — intern hasn't acknowledged a PUBLISHED
      *  evaluation within 7 days of receipt. Detector ships in
      *  Evaluator Phase 2; inert until then. */
-    EVALUATION_ACK_OVERDUE
+    EVALUATION_ACK_OVERDUE,
+    /** Evaluator Phase 4 — intern has an ExitRecord (engagement
+     *  wrapping up) but no FINAL evaluation has been scheduled or
+     *  published. Detector reserved; inert today — surfaces on
+     *  Reports + History pages and via best-effort scheduling. */
+    FINAL_EVALUATION_DUE
 }

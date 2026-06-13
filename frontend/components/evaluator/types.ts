@@ -265,6 +265,14 @@ export const RECOMMENDATIONS = [
 ] as const;
 export type Recommendation = (typeof RECOMMENDATIONS)[number];
 
+// Phase 4 — Final-only verdict; gated to FINAL evaluations in the Compose UI
+// but accepted on the wire universally.
+export const RECOMMENDATIONS_FINAL = [
+  ...RECOMMENDATIONS,
+  'REHIRE_ELIGIBLE',
+] as const;
+export type RecommendationFinal = (typeof RECOMMENDATIONS_FINAL)[number];
+
 // ── Phase 3 — I-983 workflow ──────────────────────────────────────────
 
 export const I983_TYPES = ['INITIAL_PLAN', 'ANNUAL_REVIEW', 'FINAL_REVIEW'] as const;

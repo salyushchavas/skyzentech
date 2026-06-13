@@ -1617,6 +1617,25 @@ public class SchemaFixupRunner implements CommandLineRunner {
             }
         }
         log.info("[SchemaFixupRunner] ensured i983_evaluations Phase 3 columns");
+
+        // Evaluator Phase 4 — per-Evaluator preference columns on users.
+        // All additive + nullable; legacy rows surface defaults from the
+        // settings page client-side. Idempotent ALTER IF NOT EXISTS.
+        String[] evalPrefAlters = {
+                "ALTER TABLE users ADD COLUMN IF NOT EXISTS prefs_evaluator_default_duration SMALLINT",
+                "ALTER TABLE users ADD COLUMN IF NOT EXISTS prefs_evaluator_reminder_frequency VARCHAR(16)",
+                "ALTER TABLE users ADD COLUMN IF NOT EXISTS prefs_evaluator_notify_acknowledged BOOLEAN",
+                "ALTER TABLE users ADD COLUMN IF NOT EXISTS prefs_evaluator_notify_dso_window BOOLEAN"
+        };
+        for (String sql : evalPrefAlters) {
+            try {
+                jdbcTemplate.execute(sql);
+            } catch (Exception e) {
+                log.warn("[SchemaFixupRunner] Evaluator Phase 4 prefs ALTER skipped "
+                        + "(non-fatal): {} — {}", sql, e.getMessage());
+            }
+        }
+        log.info("[SchemaFixupRunner] ensured users prefs_evaluator_* columns");
     }
 
     /** Trainer Phase 4 — additive trainer-only preference columns on the

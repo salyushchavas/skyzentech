@@ -177,6 +177,24 @@ public class User {
     @Column(name = "prefs_trainer_notify_escalation_resolved")
     private Boolean prefsTrainerNotifyEscalationResolved;
 
+    // ── Evaluator Phase 4 — per-Evaluator preferences ───────────────────────
+
+    /** Default duration on the Schedule Session modal (minutes). */
+    @Column(name = "prefs_evaluator_default_duration")
+    private Short prefsEvaluatorDefaultDuration;
+
+    /** DAILY | WEEKLY | NEVER — email reminder cadence for unacked evaluations. */
+    @Column(name = "prefs_evaluator_reminder_frequency", length = 16)
+    private String prefsEvaluatorReminderFrequency;
+
+    /** Notify me when intern acknowledges. */
+    @Column(name = "prefs_evaluator_notify_acknowledged")
+    private Boolean prefsEvaluatorNotifyAcknowledged;
+
+    /** Notify me when an I-983 DSO submission window approaches expiry. */
+    @Column(name = "prefs_evaluator_notify_dso_window")
+    private Boolean prefsEvaluatorNotifyDsoWindow;
+
     /** When the user accepted ToS + privacy. Null for legacy pre-checkbox accounts. */
     @Column(name = "tos_accepted_at")
     private Instant tosAcceptedAt;
