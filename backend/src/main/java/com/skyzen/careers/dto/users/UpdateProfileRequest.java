@@ -1,5 +1,6 @@
 package com.skyzen.careers.dto.users;
 
+import com.skyzen.careers.enums.DegreeLevel;
 import com.skyzen.careers.enums.WorkAuthTrack;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
@@ -33,14 +34,20 @@ public class UpdateProfileRequest {
     // Phase 1.4 intake profile
     @Size(max = 200) private String legalName;
     @Size(max = 200) private String preferredName;
-    @Size(max = 500) private String education;
+    @Size(max = 500) private String education;          // legacy free-text
     @Size(max = 200) private String school;
-    @Size(max = 200) private String degree;
+    @Size(max = 200) private String degree;             // legacy free-text
     @Size(max = 4000) private String skillset;
+
+    // Phase 1.5 structured education
+    private DegreeLevel degreeLevel;
+    @Size(max = 200) private String specialization;
+    private Short graduationYear;
 
     // Phase 1.4 neutral work-authorization self-attestation
     private Boolean authorizedToWork;
     private Boolean sponsorshipNeeded;
     private WorkAuthTrack expectedTrack;
     private LocalDate validityDate;
+    private LocalDate validityStartDate;
 }

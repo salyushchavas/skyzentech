@@ -31,6 +31,34 @@ export type UserRole =
 // reporting only and drives downstream compliance routing (Phase 3).
 export type WorkAuthTrack = 'CPT' | 'OPT' | 'STEM_OPT' | 'OTHER';
 
+/**
+ * Mirrors backend DegreeLevel enum. Phase 1.5 expanded the original
+ * 3-value set (BACHELORS / MASTERS / DOCTORATE) with HIGH_SCHOOL,
+ * ASSOCIATE, DIPLOMA, MBA, and OTHER. {@code DOCTORATE} is intentionally
+ * kept (rather than renamed PHD) because existing I983Plan rows
+ * already persist that value.
+ */
+export type DegreeLevel =
+  | 'HIGH_SCHOOL'
+  | 'ASSOCIATE'
+  | 'DIPLOMA'
+  | 'BACHELORS'
+  | 'MASTERS'
+  | 'MBA'
+  | 'DOCTORATE'
+  | 'OTHER';
+
+export const DEGREE_LEVEL_LABEL: Record<DegreeLevel, string> = {
+  HIGH_SCHOOL: 'High School',
+  ASSOCIATE: 'Associate',
+  DIPLOMA: 'Diploma',
+  BACHELORS: 'Bachelor’s (UG)',
+  MASTERS: 'Master’s (PG / MS)',
+  MBA: 'MBA',
+  DOCTORATE: 'PhD / Doctorate',
+  OTHER: 'Other',
+};
+
 export interface User {
   userId: string;
   email: string;
@@ -835,7 +863,10 @@ export type I983Status =
   | 'DSO_REJECTED'
   | 'AMENDMENT_REQUESTED';
 
-export type DegreeLevel = 'BACHELORS' | 'MASTERS' | 'DOCTORATE';
+// Phase 1.5 — DegreeLevel is declared near the top of this file alongside
+// the registration intake types; removed here to avoid a duplicate
+// identifier. The expanded set includes HIGH_SCHOOL, ASSOCIATE, DIPLOMA,
+// MBA, and OTHER on top of the original BACHELORS / MASTERS / DOCTORATE.
 
 export type DsoApprovalStatus =
   | 'NOT_SUBMITTED'

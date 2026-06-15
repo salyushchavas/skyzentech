@@ -163,11 +163,28 @@ export default function ApplicationDetailPage() {
               <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
                 <Row label="Email" value={ap?.email} />
                 <Row label="Phone" value={ap?.phone} />
-                <Row label="Education" value={pr?.education} />
                 <Row label="School" value={pr?.school} />
-                <Row label="Degree" value={pr?.degree} />
+                {/* Phase 1.5 — show structured education when present;
+                    fall back to the legacy free-text trio for
+                    pre-migration rows. */}
+                {pr?.degreeLevel || pr?.specialization || pr?.graduationYear ? (
+                  <>
+                    <Row label="Degree" value={pr.degreeLevel} />
+                    <Row label="Specialization" value={pr.specialization} />
+                    <Row
+                      label="End year"
+                      value={pr.graduationYear != null ? String(pr.graduationYear) : null}
+                    />
+                  </>
+                ) : (
+                  <>
+                    <Row label="Degree" value={pr?.degree} />
+                    <Row label="Education" value={pr?.education} />
+                  </>
+                )}
                 <Row label="Skillset" value={pr?.skillset} multiline />
                 <Row label="Work authorization" value={pr?.workAuthType} />
+                <Row label="Valid from" value={pr?.workAuthValidFrom} />
                 <Row label="Valid until" value={pr?.workAuthValidUntil} />
                 <Row
                   label="Sponsorship needed"

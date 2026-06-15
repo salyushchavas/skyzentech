@@ -10,7 +10,12 @@ import RegisterDebugPanel, {
 } from '@/components/dashboard/RegisterDebugPanel';
 import { useAuth } from '@/lib/auth-context';
 import { apiBaseURL } from '@/lib/api';
-import type { WorkAuthTrack } from '@/types';
+import type { DegreeLevel, WorkAuthTrack } from '@/types';
+import { DEGREE_LEVEL_LABEL } from '@/types';
+import {
+  visaDateRequirementFor,
+  VISA_TRACK_LABEL,
+} from '@/lib/visa-date-requirement';
 
 export default function RegisterPage() {
   return (
@@ -43,15 +48,41 @@ function RegisterPageInner() {
   // Phase 1.4 intake.
   const [skillset, setSkillset] = useState('');
   const [school, setSchool] = useState('');
-  const [degree, setDegree] = useState('');
-  const [education, setEducation] = useState('');
+  // Phase 1.5 — structured education replaces free-text degree + summary.
+  const [degreeLevel, setDegreeLevel] = useState<DegreeLevel | ''>('');
+  const [specialization, setSpecialization] = useState('');
+  const [graduationYear, setGraduationYear] = useState<string>('');
 
   // Phase 1.4 neutral self-attestation. tri-state strings ('' = unanswered,
   // 'yes' / 'no') so the radio group reflects "not answered yet" correctly.
   const [authorizedToWork, setAuthorizedToWork] = useState<'' | 'yes' | 'no'>('');
   const [sponsorshipNeeded, setSponsorshipNeeded] = useState<'' | 'yes' | 'no'>('');
   const [expectedTrack, setExpectedTrack] = useState<WorkAuthTrack | ''>('');
+  // Phase 1.5 — visa-conditional dates. validityDate is the END /
+  // expiration date; validityStartDate only shown for tracks whose
+  // VisaDateRequirement is BOTH.
   const [validityDate, setValidityDate] = useState('');
+  const [validityStartDate, setValidityStartDate] = useState('');
+
+  // Phase 1.5 — which date fields to show, derived from the chosen track.
+  // The mapping lives in lib/visa-date-requirement.ts (single source).
+  const visaDateReq = visaDateRequirementFor(expectedTrack || undefined);
+  const showEndDate = visaDateReq !== 'NONE';
+  const showStartDate = visaDateReq === 'BOTH';
+
+  // Clear date values whenever the track switches to a requirement that
+  // no longer needs them — prevents stale dates from being submitted.
+  useEffect(() => {
+    if (!showStartDate && validityStartDate !== '') setValidityStartDate('');
+    if (!showEndDate && validityDate !== '') setValidityDate('');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showStartDate, showEndDate]);
+
+  // Graduation year bounds — wide enough for "I'm still in HS" through
+  // "MBA, graduated decades ago coming back for a career switch".
+  const currentYear = new Date().getFullYear();
+  const minGradYear = currentYear - 30;
+  const maxGradYear = currentYear + 8;
 
   const [acceptedTos, setAcceptedTos] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -86,6 +117,31 @@ function RegisterPageInner() {
       setError('Please accept the Privacy Policy and Terms of Service to continue.');
       return;
     }
+    // Phase 1.5 — visa-conditional date validation.
+    if (showEndDate && expectedTrack && !validityDate) {
+      setError('Please enter the work-auth expiration date for the selected visa type.');
+      return;
+    }
+    if (showStartDate && expectedTrack && !validityStartDate) {
+      setError('Please enter the work-auth start date for the selected visa type.');
+      return;
+    }
+    if (showStartDate && showEndDate && validityStartDate && validityDate
+        && new Date(validityDate) <= new Date(validityStartDate)) {
+      setError('Work-auth end date must be after the start date.');
+      return;
+    }
+    // Graduation year — only validated when supplied (the structured trio
+    // is optional in registration; the profile page can fill it in later).
+    let graduationYearNum: number | undefined;
+    if (graduationYear) {
+      graduationYearNum = parseInt(graduationYear, 10);
+      if (Number.isNaN(graduationYearNum)
+          || graduationYearNum < minGradYear || graduationYearNum > maxGradYear) {
+        setError(`End year must be between ${minGradYear} and ${maxGradYear}.`);
+        return;
+      }
+    }
 
     setLoading(true);
     const startedAt = performance.now();
@@ -96,12 +152,14 @@ function RegisterPageInner() {
       phoneNumber: phoneNumber || undefined,
       skillset: skillset.trim() || undefined,
       school: school.trim() || undefined,
-      degree: degree.trim() || undefined,
-      education: education.trim() || undefined,
+      degreeLevel: degreeLevel || undefined,
+      specialization: specialization.trim() || undefined,
+      graduationYear: graduationYearNum,
       authorizedToWork: triStateToBool(authorizedToWork),
       sponsorshipNeeded: triStateToBool(sponsorshipNeeded),
       expectedTrack: expectedTrack || undefined,
-      validityDate: validityDate || undefined,
+      validityDate: showEndDate && validityDate ? validityDate : undefined,
+      validityStartDate: showStartDate && validityStartDate ? validityStartDate : undefined,
       acceptedTos,
     };
 
@@ -126,12 +184,20 @@ function RegisterPageInner() {
           // Trim + drop blanks so the backend stores null instead of "".
           skillset: skillset.trim() || undefined,
           school: school.trim() || undefined,
-          degree: degree.trim() || undefined,
-          education: education.trim() || undefined,
+          // Phase 1.5 — structured education replaces free-text degree +
+          // summary. The legacy `degree` / `education` fields stay
+          // available on the API for older clients; this form just leaves
+          // them empty and lets the backend persist the structured trio.
+          degreeLevel: degreeLevel || undefined,
+          specialization: specialization.trim() || undefined,
+          graduationYear: graduationYearNum,
           authorizedToWork: triStateToBool(authorizedToWork),
           sponsorshipNeeded: triStateToBool(sponsorshipNeeded),
           expectedTrack: expectedTrack || undefined,
-          validityDate: validityDate || undefined,
+          // Phase 1.5 — only send the date(s) the visa track actually needs.
+          validityDate: showEndDate && validityDate ? validityDate : undefined,
+          validityStartDate: showStartDate && validityStartDate
+            ? validityStartDate : undefined,
         },
         acceptedTos,
       );
@@ -242,7 +308,9 @@ function RegisterPageInner() {
             </div>
           </Card>
 
-          {/* Education card — top of right column. */}
+          {/* Education card — top of right column. Phase 1.5 ships
+              the structured trio (Degree / Specialization / End Year)
+              in place of the free-text "Education summary" textbox. */}
           <Card
             icon={<GraduationCap />}
             title="Education & skills"
@@ -251,12 +319,50 @@ function RegisterPageInner() {
             <div className="grid gap-3 sm:grid-cols-2">
               <Field id="school" label="School" type="text" value={school}
                 onChange={setSchool} autoComplete="organization" />
-              <Field id="degree" label="Degree" type="text" value={degree}
-                onChange={setDegree} />
+              <div>
+                <label htmlFor="degreeLevel"
+                  className="mb-1 block text-sm font-medium text-gray-700">
+                  Degree
+                </label>
+                <select
+                  id="degreeLevel"
+                  value={degreeLevel}
+                  onChange={(e) => setDegreeLevel(e.target.value as DegreeLevel | '')}
+                  className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
+                >
+                  <option value="">Select…</option>
+                  {(Object.keys(DEGREE_LEVEL_LABEL) as DegreeLevel[]).map((d) => (
+                    <option key={d} value={d}>{DEGREE_LEVEL_LABEL[d]}</option>
+                  ))}
+                </select>
+              </div>
             </div>
-            <Field id="education" label="Education summary" type="text"
-              value={education} onChange={setEducation}
-              placeholder="e.g. BS Computer Science, expected 2027" />
+            <div className="grid gap-3 sm:grid-cols-2">
+              <Field id="specialization" label="Specialization" type="text"
+                value={specialization} onChange={setSpecialization}
+                placeholder="e.g. Computer Science" />
+              <div>
+                <label htmlFor="graduationYear"
+                  className="mb-1 block text-sm font-medium text-gray-700">
+                  End year
+                </label>
+                <input
+                  id="graduationYear"
+                  type="number"
+                  inputMode="numeric"
+                  value={graduationYear}
+                  onChange={(e) => setGraduationYear(e.target.value)}
+                  min={minGradYear}
+                  max={maxGradYear}
+                  step={1}
+                  placeholder={String(currentYear)}
+                  className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
+                />
+                <p className="mt-1 text-[11px] text-gray-500">
+                  Expected or actual ({minGradYear}–{maxGradYear}).
+                </p>
+              </div>
+            </div>
             <div>
               <label htmlFor="skillset"
                 className="mb-1 block text-sm font-medium text-gray-700">
@@ -311,20 +417,42 @@ function RegisterPageInner() {
                   className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
                 >
                   <option value="">Select…</option>
-                  <option value="CPT">CPT</option>
-                  <option value="OPT">OPT</option>
-                  <option value="STEM_OPT">STEM OPT</option>
-                  <option value="OTHER">Other</option>
+                  {(Object.keys(VISA_TRACK_LABEL) as WorkAuthTrack[]).map((t) => (
+                    <option key={t} value={t}>{VISA_TRACK_LABEL[t]}</option>
+                  ))}
                 </select>
               </div>
-              <Field
-                id="validityDate"
-                label="Authorization validity date"
-                type="date"
-                value={validityDate}
-                onChange={setValidityDate}
-              />
+              {/* Date fields appear only for tracks whose
+                  VisaDateRequirement is END_ONLY (just end) or BOTH
+                  (start + end). Switching the track to NONE clears any
+                  previously-entered dates via the useEffect above so
+                  irrelevant values never reach the API. */}
+              {showStartDate && (
+                <Field
+                  id="validityStartDate"
+                  label="Authorization start date"
+                  type="date"
+                  value={validityStartDate}
+                  onChange={setValidityStartDate}
+                  required
+                />
+              )}
+              {showEndDate && (
+                <Field
+                  id="validityDate"
+                  label="Authorization end date (expiration)"
+                  type="date"
+                  value={validityDate}
+                  onChange={setValidityDate}
+                  required
+                />
+              )}
             </div>
+            {!expectedTrack && (
+              <p className="text-[11px] text-gray-500">
+                Pick a track above to enter your authorization dates.
+              </p>
+            )}
           </Card>
         </div>
 

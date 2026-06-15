@@ -111,14 +111,21 @@ export interface ApplicationDetail {
     emailVerified: boolean;
   } | null;
   applicantProfile: {
-    education: string | null;
+    education: string | null;       // legacy free-text
     school: string | null;
-    degree: string | null;
+    degree: string | null;          // legacy free-text
+    // Phase 1.5 — structured education. Backend already prefers these
+    // for new registrations; ERM detail falls back to the legacy
+    // free-text trio when these are null.
+    degreeLevel: string | null;
+    specialization: string | null;
+    graduationYear: number | null;
     skillset: string | null;
     workAuthType: string | null;
     authorizedToWork: boolean | null;
     sponsorshipNeeded: boolean | null;
     workAuthValidUntil: string | null;
+    workAuthValidFrom: string | null;
     statementOfInterest: string | null;
   } | null;
   resume: {

@@ -103,11 +103,19 @@ public class UserProfileService {
             candidate.setSchool(emptyToNull(req.getSchool()));
             candidate.setDegree(emptyToNull(req.getDegree()));
             candidate.setSkillset(emptyToNull(req.getSkillset()));
-            // Phase 1.4 self-attestation
+            // Phase 1.5 — structured education replaces the free-text trio.
+            candidate.setDegreeLevel(req.getDegreeLevel());
+            candidate.setSpecialization(emptyToNull(req.getSpecialization()));
+            candidate.setGraduationYear(req.getGraduationYear());
+            // Phase 1.4 self-attestation + Phase 1.5 visa-conditional dates.
+            // The frontend already nulls out fields that don't apply to the
+            // chosen track (per VisaDateRequirement); the server stores
+            // whatever it receives — null is "not applicable / not disclosed".
             candidate.setAuthorizedToWork(req.getAuthorizedToWork());
             candidate.setSponsorshipNeeded(req.getSponsorshipNeeded());
             candidate.setExpectedTrack(req.getExpectedTrack());
             candidate.setValidityDate(req.getValidityDate());
+            candidate.setValidityStartDate(req.getValidityStartDate());
             candidateRepository.save(candidate);
         }
         return toResponse(user, candidate);
@@ -220,11 +228,15 @@ public class UserProfileService {
                     .education(candidate.getEducation())
                     .school(candidate.getSchool())
                     .degree(candidate.getDegree())
+                    .degreeLevel(candidate.getDegreeLevel())
+                    .specialization(candidate.getSpecialization())
+                    .graduationYear(candidate.getGraduationYear())
                     .skillset(candidate.getSkillset())
                     .authorizedToWork(candidate.getAuthorizedToWork())
                     .sponsorshipNeeded(candidate.getSponsorshipNeeded())
                     .expectedTrack(candidate.getExpectedTrack())
-                    .validityDate(candidate.getValidityDate());
+                    .validityDate(candidate.getValidityDate())
+                    .validityStartDate(candidate.getValidityStartDate());
         }
         return b.build();
     }

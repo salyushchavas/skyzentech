@@ -580,6 +580,24 @@ public class SchemaFixupRunner implements CommandLineRunner {
             log.warn("job_postings.job_id add failed (non-fatal): {}", e.getMessage());
         }
 
+        // Phase 1.5 — structured education + work-auth start date on
+        // candidates. All additive + nullable; existing rows keep their
+        // legacy free-text `education` / `degree` values untouched, and
+        // the ERM application detail page falls back to those when the
+        // structured columns are null.
+        for (String sql : new String[] {
+                "ALTER TABLE candidates ADD COLUMN IF NOT EXISTS degree_level VARCHAR(20)",
+                "ALTER TABLE candidates ADD COLUMN IF NOT EXISTS specialization VARCHAR(200)",
+                "ALTER TABLE candidates ADD COLUMN IF NOT EXISTS graduation_year SMALLINT",
+                "ALTER TABLE candidates ADD COLUMN IF NOT EXISTS validity_start_date DATE"
+        }) {
+            try { jdbcTemplate.execute(sql); }
+            catch (Exception e) {
+                log.warn("[SchemaFixup] candidates Phase 1.5 ALTER skipped ({}): {}",
+                        sql, e.getMessage());
+            }
+        }
+
         // Phase 2.2: scorecard dimensions. New columns are nullable (legacy
         // rows pre-2.2 simply won't have a problem-solving score) so the
         // ADD COLUMN IF NOT EXISTS is safe on a populated table.

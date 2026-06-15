@@ -10,7 +10,7 @@ import {
   setToken,
   setUser,
 } from './auth-storage';
-import type { AuthResponse, User, WorkAuthTrack } from '@/types';
+import type { AuthResponse, DegreeLevel, User, WorkAuthTrack } from '@/types';
 
 /**
  * Phase 1.4 — optional intake profile + neutral work-auth self-attestation
@@ -20,15 +20,27 @@ import type { AuthResponse, User, WorkAuthTrack } from '@/types';
 export interface RegistrationIntake {
   legalName?: string;
   preferredName?: string;
+  /** Legacy free-text summary (pre-Phase 1.5). New form leaves blank and
+   *  uses the structured trio below. */
   education?: string;
   school?: string;
+  /** Legacy free-text degree (pre-Phase 1.5). New form leaves blank and
+   *  uses `degreeLevel` instead. */
   degree?: string;
+  /** Phase 1.5 — structured education. */
+  degreeLevel?: DegreeLevel;
+  specialization?: string;
+  graduationYear?: number;
   skillset?: string;
   authorizedToWork?: boolean;
   sponsorshipNeeded?: boolean;
   expectedTrack?: WorkAuthTrack;
-  /** ISO yyyy-mm-dd; only set when the candidate self-discloses. */
+  /** ISO yyyy-mm-dd; END date — only sent when the chosen track's
+   *  VisaDateRequirement is END_ONLY or BOTH. */
   validityDate?: string;
+  /** ISO yyyy-mm-dd; START date — only sent when the chosen track's
+   *  VisaDateRequirement is BOTH. */
+  validityStartDate?: string;
 }
 
 interface MeResponse {
@@ -151,11 +163,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       education: intake?.education,
       school: intake?.school,
       degree: intake?.degree,
+      // Phase 1.5 — structured education.
+      degreeLevel: intake?.degreeLevel,
+      specialization: intake?.specialization,
+      graduationYear: intake?.graduationYear,
       skillset: intake?.skillset,
       authorizedToWork: intake?.authorizedToWork,
       sponsorshipNeeded: intake?.sponsorshipNeeded,
       expectedTrack: intake?.expectedTrack,
+      // Phase 1.5 — visa-conditional dates. Caller has already nulled out
+      // fields that don't apply to the chosen track.
       validityDate: intake?.validityDate,
+      validityStartDate: intake?.validityStartDate,
       // Required by the backend's @AssertTrue gate.
       acceptedTos,
     });

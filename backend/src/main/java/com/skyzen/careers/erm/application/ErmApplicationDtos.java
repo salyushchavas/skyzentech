@@ -85,14 +85,25 @@ public final class ErmApplicationDtos {
     ) {}
 
     public record ApplicantProfileView(
+            /** Legacy free-text education summary. Pre-Phase 1.5 rows
+             *  show this; new rows leave it null and populate the
+             *  structured trio below instead. */
             String education,
             String school,
+            /** Legacy free-text degree (pre-Phase 1.5 rows). */
             String degree,
+            /** Phase 1.5 — structured. Null on legacy rows. */
+            String degreeLevel,
+            String specialization,
+            Short graduationYear,
             String skillset,
             String workAuthType,
             Boolean authorizedToWork,
             Boolean sponsorshipNeeded,
             String workAuthValidUntil,
+            /** Phase 1.5 — work-auth start date (only present for
+             *  tracks with VisaDateRequirement.BOTH). */
+            String workAuthValidFrom,
             String statementOfInterest
     ) {}
 

@@ -124,14 +124,25 @@ public class AuthService {
                 .user(user)
                 .legalName(emptyToNull(req.legalName()))
                 .preferredName(emptyToNull(req.preferredName()))
+                // Legacy free-text fields — accepted from older clients but
+                // the new registration form writes the structured trio below.
                 .education(emptyToNull(req.education()))
                 .school(emptyToNull(req.school()))
                 .degree(emptyToNull(req.degree()))
+                // Phase 1.5 — structured education.
+                .degreeLevel(req.degreeLevel())
+                .specialization(emptyToNull(req.specialization()))
+                .graduationYear(req.graduationYear())
                 .skillset(emptyToNull(req.skillset()))
                 .authorizedToWork(req.authorizedToWork())
                 .sponsorshipNeeded(req.sponsorshipNeeded())
                 .expectedTrack(req.expectedTrack())
+                // Phase 1.5 — visa-conditional work-auth dates. The form
+                // nulls out fields that don't apply to the chosen track
+                // (per VisaDateRequirement); the server stores whatever
+                // it receives — null is "not applicable / not disclosed".
                 .validityDate(req.validityDate())
+                .validityStartDate(req.validityStartDate())
                 .build();
         candidateRepository.save(candidate);
 

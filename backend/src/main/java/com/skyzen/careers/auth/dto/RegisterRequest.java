@@ -1,5 +1,6 @@
 package com.skyzen.careers.auth.dto;
 
+import com.skyzen.careers.enums.DegreeLevel;
 import com.skyzen.careers.enums.WorkAuthTrack;
 import jakarta.validation.constraints.AssertTrue;
 import jakarta.validation.constraints.Email;
@@ -30,15 +31,31 @@ public record RegisterRequest(
         // Intake profile (Candidate row)
         String legalName,
         String preferredName,
+        /** Legacy free-text education summary. New clients leave this null
+         *  and populate the structured {@link #degreeLevel} / {@link
+         *  #specialization} / {@link #graduationYear} below. Accepted for
+         *  backwards compatibility with older clients still sending it. */
         String education,
         String school,
+        /** Legacy free-text degree. New clients leave null and use
+         *  {@link #degreeLevel} instead. */
         String degree,
+        /** Phase 1.5 — structured education. */
+        DegreeLevel degreeLevel,
+        String specialization,
+        Short graduationYear,
         String skillset,
         // Neutral work-authorization self-attestation
         Boolean authorizedToWork,
         Boolean sponsorshipNeeded,
         WorkAuthTrack expectedTrack,
+        /** END / expiration date of work auth. Required when the track's
+         *  {@link com.skyzen.careers.enums.VisaDateRequirement} is
+         *  {@code END_ONLY} or {@code BOTH}; left null for {@code NONE}. */
         LocalDate validityDate,
+        /** START date of work auth. Only populated when the track's
+         *  requirement is {@code BOTH}. */
+        LocalDate validityStartDate,
         // Legal — must be explicitly true at submit
         Boolean acceptedTos
 ) {

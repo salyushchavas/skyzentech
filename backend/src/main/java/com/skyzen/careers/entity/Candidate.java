@@ -51,15 +51,39 @@ public class Candidate {
     @Column(name = "preferred_name", length = 200)
     private String preferredName;
 
-    /** Free-form education summary (e.g. "BS Computer Science, expected 2027"). */
+    /**
+     * Legacy free-form education summary (pre-Phase 1.5). New registrations
+     * write the structured {@link #degreeLevel} / {@link #specialization} /
+     * {@link #graduationYear} columns instead; this field is kept so old rows
+     * still render in the ERM detail view rather than going blank.
+     */
     @Column(length = 500)
     private String education;
 
     @Column(length = 200)
     private String school;
 
+    /** Legacy free-text degree (pre-Phase 1.5). New rows leave this null
+     *  and write {@link #degreeLevel} instead. */
     @Column(length = 200)
     private String degree;
+
+    /** Structured education level — replaces free-text {@link #degree} for
+     *  new registrations. Nullable on legacy rows. */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "degree_level", length = 20)
+    private com.skyzen.careers.enums.DegreeLevel degreeLevel;
+
+    /** Free-text major / concentration (e.g. "Computer Science",
+     *  "M.S. Quantitative Finance"). Intentionally open — domain-specific
+     *  programs don't fit a dropdown. */
+    @Column(name = "specialization", length = 200)
+    private String specialization;
+
+    /** Expected or actual graduation year. Bounded by the registration
+     *  form to {@code currentYear-30 .. currentYear+8}. */
+    @Column(name = "graduation_year")
+    private Short graduationYear;
 
     /** Comma-separated or freeform — recruiter-readable. */
     @Column(columnDefinition = "TEXT")
@@ -82,9 +106,23 @@ public class Candidate {
     @Column(name = "expected_track", length = 16)
     private WorkAuthTrack expectedTrack;
 
-    /** Self-disclosed validity date; null when the candidate doesn't disclose. */
+    /**
+     * Self-disclosed END / expiration date of the work authorization. Null
+     * when not applicable to the chosen track (per
+     * {@link com.skyzen.careers.enums.VisaDateRequirement}) or when the
+     * candidate declines to disclose.
+     */
     @Column(name = "validity_date")
     private LocalDate validityDate;
+
+    /**
+     * Self-disclosed START date of the work authorization. Only collected
+     * for {@link com.skyzen.careers.enums.WorkAuthTrack#OTHER} per
+     * {@link com.skyzen.careers.enums.VisaDateRequirement#BOTH}; null
+     * otherwise.
+     */
+    @Column(name = "validity_start_date")
+    private LocalDate validityStartDate;
 
     @Column(nullable = false, updatable = false)
     private Instant createdAt;

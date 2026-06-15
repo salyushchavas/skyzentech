@@ -6,9 +6,14 @@ interface Props {
 }
 
 const DEGREE_LABEL: Record<DegreeLevel, string> = {
+  HIGH_SCHOOL: 'High School',
+  ASSOCIATE: 'Associate',
+  DIPLOMA: 'Diploma',
   BACHELORS: "Bachelor's",
   MASTERS: "Master's",
+  MBA: 'MBA',
   DOCTORATE: 'Doctorate',
+  OTHER: 'Other',
 };
 
 const FREQ_LABEL: Record<string, string> = {

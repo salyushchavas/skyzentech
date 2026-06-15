@@ -506,11 +506,15 @@ public class ErmApplicationService {
         ErmApplicationDtos.ApplicantProfileView profile = c == null ? null
                 : new ErmApplicationDtos.ApplicantProfileView(
                         c.getEducation(), c.getSchool(), c.getDegree(),
+                        c.getDegreeLevel() != null ? c.getDegreeLevel().name() : null,
+                        c.getSpecialization(),
+                        c.getGraduationYear(),
                         c.getSkillset(),
                         c.getExpectedTrack() != null ? c.getExpectedTrack().name() : null,
                         c.getAuthorizedToWork(),
                         c.getSponsorshipNeeded(),
                         c.getValidityDate() != null ? c.getValidityDate().toString() : null,
+                        c.getValidityStartDate() != null ? c.getValidityStartDate().toString() : null,
                         app.getStatementOfInterest());
         ErmApplicationDtos.ResumeView resume = rs == null ? null
                 : new ErmApplicationDtos.ResumeView(
