@@ -273,3 +273,101 @@ export interface TimesheetFilterOptions {
   managers: UserOption[];
   ermOwners: ErmOwnerOption[];
 }
+
+// ── Risk Center (Phase 4A) ───────────────────────────────────────────────
+
+export interface RiskRow {
+  id: string;
+  exceptionType: string;
+  severity: 'URGENT' | 'WARN' | 'INFO';
+  status: 'OPEN' | 'ASSIGNED' | 'IN_PROGRESS' | 'RESOLVED' | 'DISMISSED' | 'AUTO_RESOLVED';
+  subjectUserId: string | null;
+  subjectName: string | null;
+  subjectEmployeeId: string | null;
+  internLifecycleId: string | null;
+  assignedToId: string | null;
+  assignedToName: string | null;
+  managerId: string | null;
+  managerName: string | null;
+  ermOwnerId: string | null;
+  ermOwnerName: string | null;
+  openedAt: string | null;
+  lastSeenAt: string | null;
+  assignedAt: string | null;
+  resolvedAt: string | null;
+  ageDays: number;
+  subjectResourceType: string | null;
+  subjectResourceId: string | null;
+  payloadJson: string | null;
+}
+
+export interface RiskListResponse {
+  items: RiskRow[];
+  page: number;
+  pageSize: number;
+  totalElements: number;
+  totalPages: number;
+}
+
+export interface RiskTypeCount {
+  exceptionType: string;
+  severity: 'URGENT' | 'WARN' | 'INFO';
+  openCount: number;
+}
+
+export interface RiskSummary {
+  totalOpen: number;
+  urgent: number;
+  warn: number;
+  info: number;
+  assigned: number;
+  resolvedLast30Days: number;
+  byType: RiskTypeCount[];
+}
+
+export interface RiskFilterOptions {
+  severities: string[];
+  statuses: string[];
+  exceptionTypes: string[];
+  assignees: UserOption[];
+  managers: UserOption[];
+}
+
+export interface EventLogEntry {
+  id: string;
+  actorUserId: string | null;
+  actorName: string | null;
+  eventType: string;
+  previousStatus: string | null;
+  newStatus: string | null;
+  reasonCode: string | null;
+  note: string | null;
+  createdAt: string;
+}
+
+export interface RiskDetail {
+  id: string;
+  exceptionType: string;
+  severity: 'URGENT' | 'WARN' | 'INFO';
+  status: RiskRow['status'];
+  subjectUserId: string | null;
+  subjectName: string | null;
+  subjectEmail: string | null;
+  subjectEmployeeId: string | null;
+  internLifecycleId: string | null;
+  assignedToId: string | null;
+  assignedToName: string | null;
+  assignedById: string | null;
+  resolvedById: string | null;
+  resolutionReasonCode: string | null;
+  resolutionNote: string | null;
+  openedAt: string | null;
+  lastSeenAt: string | null;
+  assignedAt: string | null;
+  resolvedAt: string | null;
+  subjectResourceType: string | null;
+  subjectResourceId: string | null;
+  payloadJson: string | null;
+  ageDays: number;
+  history: EventLogEntry[];
+}

@@ -3,6 +3,7 @@ package com.skyzen.careers.manager;
 import com.skyzen.careers.dto.supervised.RejectTimesheetRequest;
 import com.skyzen.careers.dto.supervised.TimesheetResponse;
 import com.skyzen.careers.entity.User;
+import com.skyzen.careers.erm.escalation.ErmEscalationDtos;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -33,6 +34,7 @@ public class ManagerController {
     private final ManagerActiveInternsService activeInternsService;
     private final ManagerTimesheetService managerTimesheetService;
     private final ManagerTimesheetApprovalService managerTimesheetApprovalService;
+    private final ManagerRiskCenterService riskCenterService;
 
     @GetMapping("/overview")
     @PreAuthorize("hasAnyRole('MANAGER', 'SUPER_ADMIN')")
@@ -165,5 +167,87 @@ public class ManagerController {
             @Valid @RequestBody RejectTimesheetRequest req,
             @AuthenticationPrincipal User caller) {
         return managerTimesheetApprovalService.reject(id, req, caller);
+    }
+
+    // ── Phase 4A — Risk Center (aggregated exceptions + escalation) ──────
+
+    @GetMapping("/risk-center")
+    @PreAuthorize("hasAnyRole('MANAGER', 'SUPER_ADMIN')")
+    public ManagerDtos.RiskListResponse riskCenter(
+            @RequestParam(required = false) java.util.List<String> severity,
+            @RequestParam(required = false) java.util.List<String> exceptionType,
+            @RequestParam(required = false) java.util.List<String> status,
+            @RequestParam(required = false) UUID assignedToId,
+            @RequestParam(required = false) UUID managerId,
+            @RequestParam(required = false) String search,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "25") int pageSize,
+            @AuthenticationPrincipal User caller) {
+        return riskCenterService.list(caller, severity, exceptionType, status,
+                assignedToId, managerId, search, page, pageSize);
+    }
+
+    @GetMapping("/risk-center/summary")
+    @PreAuthorize("hasAnyRole('MANAGER', 'SUPER_ADMIN')")
+    public ManagerDtos.RiskSummary riskCenterSummary(
+            @AuthenticationPrincipal User caller) {
+        return riskCenterService.summary(caller);
+    }
+
+    @GetMapping("/risk-center/filters")
+    @PreAuthorize("hasAnyRole('MANAGER', 'SUPER_ADMIN')")
+    public ManagerDtos.RiskFilterOptions riskCenterFilters() {
+        return riskCenterService.filterOptions();
+    }
+
+    @GetMapping("/risk-center/{id}")
+    @PreAuthorize("hasAnyRole('MANAGER', 'SUPER_ADMIN')")
+    public ErmEscalationDtos.ExceptionDetail riskCenterDetail(
+            @PathVariable UUID id,
+            @AuthenticationPrincipal User caller) {
+        return riskCenterService.get(id, caller);
+    }
+
+    @PostMapping("/risk-center/{id}/assign")
+    @PreAuthorize("hasAnyRole('MANAGER', 'SUPER_ADMIN')")
+    public ErmEscalationDtos.ExceptionDetail riskAssign(
+            @PathVariable UUID id,
+            @RequestBody ManagerDtos.AssignRiskRequest req,
+            @AuthenticationPrincipal User caller) {
+        return riskCenterService.assign(id, req, caller);
+    }
+
+    @PostMapping("/risk-center/{id}/in-progress")
+    @PreAuthorize("hasAnyRole('MANAGER', 'SUPER_ADMIN')")
+    public ErmEscalationDtos.ExceptionDetail riskInProgress(
+            @PathVariable UUID id,
+            @AuthenticationPrincipal User caller) {
+        return riskCenterService.markInProgress(id, caller);
+    }
+
+    @PostMapping("/risk-center/{id}/note")
+    @PreAuthorize("hasAnyRole('MANAGER', 'SUPER_ADMIN')")
+    public ErmEscalationDtos.ExceptionDetail riskAddNote(
+            @PathVariable UUID id,
+            @RequestBody ManagerDtos.NoteRiskRequest req,
+            @AuthenticationPrincipal User caller) {
+        return riskCenterService.addNote(id, req, caller);
+    }
+
+    @PostMapping("/risk-center/{id}/resolve")
+    @PreAuthorize("hasAnyRole('MANAGER', 'SUPER_ADMIN')")
+    public ErmEscalationDtos.ExceptionDetail riskResolve(
+            @PathVariable UUID id,
+            @RequestBody ManagerDtos.ResolveRiskRequest req,
+            @AuthenticationPrincipal User caller) {
+        return riskCenterService.resolve(id, req, caller);
+    }
+
+    @PostMapping("/risk-center/{id}/reopen")
+    @PreAuthorize("hasAnyRole('MANAGER', 'SUPER_ADMIN')")
+    public ErmEscalationDtos.ExceptionDetail riskReopen(
+            @PathVariable UUID id,
+            @AuthenticationPrincipal User caller) {
+        return riskCenterService.reopen(id, caller);
     }
 }

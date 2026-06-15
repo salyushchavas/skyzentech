@@ -329,4 +329,85 @@ public final class ManagerDtos {
             List<UserOption> managers,
             List<ErmOwnerOption> ermOwners
     ) {}
+
+    // ── Risk Center (Phase 4A) ───────────────────────────────────────────
+
+    /** One open or recently-resolved exception on the Risk Center queue.
+     *  Mirrors {@code ErmEscalationDtos.ExceptionRow} with the addition
+     *  of the intern's reporting-manager so the UI can render the owner
+     *  column and the "My interns" filter without a second round-trip. */
+    public record RiskRow(
+            UUID id,
+            String exceptionType,
+            String severity,                // URGENT | WARN | INFO
+            String status,                  // OPEN | ASSIGNED | IN_PROGRESS | RESOLVED | DISMISSED | AUTO_RESOLVED
+            UUID subjectUserId,
+            String subjectName,
+            String subjectEmployeeId,
+            UUID internLifecycleId,
+            UUID assignedToId,
+            String assignedToName,
+            UUID managerId,
+            String managerName,
+            UUID ermOwnerId,
+            String ermOwnerName,
+            Instant openedAt,
+            Instant lastSeenAt,
+            Instant assignedAt,
+            Instant resolvedAt,
+            int ageDays,
+            String subjectResourceType,
+            UUID subjectResourceId,
+            String payloadJson              // sanitised — already metadata-only
+    ) {}
+
+    public record RiskListResponse(
+            List<RiskRow> items,
+            int page,
+            int pageSize,
+            long totalElements,
+            int totalPages
+    ) {}
+
+    /** Top-of-page summary strip. "Resolved this period" = resolvedAt
+     *  within the trailing 30 days so the figure stays steady through
+     *  the month. */
+    public record RiskSummary(
+            long totalOpen,                 // OPEN + ASSIGNED + IN_PROGRESS
+            long urgent,
+            long warn,
+            long info,
+            long assigned,                  // status = ASSIGNED + IN_PROGRESS
+            long resolvedLast30Days,
+            List<RiskTypeCount> byType      // top-5 by open count, severity-weighted
+    ) {}
+
+    public record RiskTypeCount(
+            String exceptionType,
+            String severity,
+            long openCount
+    ) {}
+
+    public record RiskFilterOptions(
+            List<String> severities,        // URGENT | WARN | INFO
+            List<String> statuses,
+            List<String> exceptionTypes,
+            List<UserOption> assignees,
+            List<UserOption> managers
+    ) {}
+
+    /** Body for POST /risk-center/{id}/assign. */
+    public record AssignRiskRequest(UUID assigneeUserId) {}
+
+    /** Body for POST /risk-center/{id}/note — note must be ≥5 chars
+     *  (mirrors the existing ERM constraint). */
+    public record NoteRiskRequest(String note) {}
+
+    /** Body for POST /risk-center/{id}/resolve — reasonCode required;
+     *  resolutionNote required (≥10 chars per existing ERM constraint). */
+    public record ResolveRiskRequest(
+            String reasonCode,
+            String reasonText,
+            String resolutionNote
+    ) {}
 }
