@@ -43,6 +43,7 @@ public class InternActivationJob {
     private final OfferRepository offerRepository;
     private final InternLifecycleService internLifecycleService;
     private final ApplicationEventPublisher eventPublisher;
+    private final ReportingStructureAutoLinker reportingStructureAutoLinker;
 
     @Scheduled(fixedDelay = 600_000L, initialDelay = 60_000L) // 10 min
     @Transactional
@@ -134,8 +135,24 @@ public class InternActivationJob {
         boolean advanced = internLifecycleService.advance(u,
                 InternLifecycleStatus.ACTIVE_INTERN, actorId);
         if (!advanced) return false;
+        Instant now = Instant.now();
         lc.setActiveStatus("ACTIVE");
-        if (lc.getStartedAt() == null) lc.setStartedAt(Instant.now());
+        if (lc.getStartedAt() == null) lc.setStartedAt(now);
+        // Backstop for the org-wide T/E auto-link. The same call runs at
+        // offer-sign in OfferDocuSignService; running it again here is
+        // idempotent (the linker preserves existing non-null assignments)
+        // and covers the case where DEFAULT_TRAINER_EMAIL /
+        // DEFAULT_EVALUATOR_EMAIL didn't resolve at sign-time (env var
+        // unset or trainer user not yet seeded) but does now. Without
+        // this, the Trainer/Evaluator queries — which filter on
+        // intern_lifecycles.{trainer_id,evaluator_id} — would silently
+        // omit the intern even after activation.
+        try {
+            reportingStructureAutoLinker.apply(lc, actorId, now);
+        } catch (Exception e) {
+            log.warn("[ActivationJob] auto-link backstop failed (non-fatal) for {}: {}",
+                    u.getId(), e.getMessage());
+        }
         internLifecycleRepository.save(lc);
         try {
             eventPublisher.publishEvent(new InternActivatedEvent(u.getId(), lc.getId()));

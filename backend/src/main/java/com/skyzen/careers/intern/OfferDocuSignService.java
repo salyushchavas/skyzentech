@@ -90,6 +90,7 @@ public class OfferDocuSignService {
     private final JdbcTemplate jdbcTemplate;
     private final com.skyzen.careers.erm.CommunicationTemplateService templateService;
     private final com.skyzen.careers.notification.EmailProvider emailProvider;
+    private final ReportingStructureAutoLinker reportingStructureAutoLinker;
 
     @Value("${app.documents.storage-path:./uploads/documents}")
     private String storageRoot;
@@ -525,43 +526,12 @@ public class OfferDocuSignService {
      * leave the column NULL. ERM can still set values manually via the
      * legacy /assign-reporting endpoint.
      */
+    /** Delegates to {@link ReportingStructureAutoLinker} — the linker is
+     *  the single source of truth for the org-wide T/E auto-link and is
+     *  shared with the activation job + the one-time backfill. */
     private void applyAutoLinkReportingStructure(
             InternLifecycle lc, UUID actorId, Instant now) {
-        boolean tSet = tryAutoLink(lc::setTrainerId, defaultTrainerEmail, "trainer");
-        boolean eSet = tryAutoLink(lc::setEvaluatorId, defaultEvaluatorEmail, "evaluator");
-        if (tSet && eSet) {
-            lc.setReportingStructureComplete(Boolean.TRUE);
-            lc.setReportingStructureCompletedAt(now);
-            // Mark as system-set: null actor distinguishes from human-driven
-            // assignment via the legacy endpoint.
-            lc.setReportingStructureCompletedById(actorId);
-        }
-    }
-
-    private boolean tryAutoLink(java.util.function.Consumer<UUID> setter,
-                                 String email, String roleLabel) {
-        if (email == null || email.isBlank()) {
-            // Phase 8.6.5 — best-effort: not having the env var is fine.
-            // T/E play no role in the document workflow and Manager is
-            // assigned inline later. Log at INFO so ops can verify intent
-            // without it looking like a misconfiguration.
-            log.info("[Offer.AutoLink] {} default email not set — leaving "
-                    + "trainer_id/evaluator_id null (non-blocking)", roleLabel);
-            return false;
-        }
-        return userRepository.findByEmail(email.trim())
-                .map(u -> {
-                    setter.accept(u.getId());
-                    log.info("[Offer.AutoLink] linked default {} = {} ({})",
-                            roleLabel, u.getFullName(), u.getEmail());
-                    return true;
-                })
-                .orElseGet(() -> {
-                    log.info("[Offer.AutoLink] {} email '{}' did not resolve "
-                            + "to a user — leaving null (non-blocking)",
-                            roleLabel, email);
-                    return false;
-                });
+        reportingStructureAutoLinker.apply(lc, actorId, now);
     }
 
     @jakarta.annotation.PostConstruct

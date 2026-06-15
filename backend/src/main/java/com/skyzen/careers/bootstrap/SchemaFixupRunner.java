@@ -46,6 +46,12 @@ public class SchemaFixupRunner implements CommandLineRunner {
     private final JdbcTemplate jdbcTemplate;
     private final ObjectMapper objectMapper;
 
+    @org.springframework.beans.factory.annotation.Value("${app.default-trainer-email:}")
+    private String defaultTrainerEmail;
+
+    @org.springframework.beans.factory.annotation.Value("${app.default-evaluator-email:}")
+    private String defaultEvaluatorEmail;
+
     @Override
     public void run(String... args) {
         try {
@@ -1150,6 +1156,150 @@ public class SchemaFixupRunner implements CommandLineRunner {
         // by the ensure*() methods above. Gated by a migration_log row so
         // detection only fires once per database.
         alignEnumCheckConstraintsV1();
+
+        // Trainer/Evaluator auto-link backfill — one-shot, idempotent.
+        // Catches active interns whose intern_lifecycles.trainer_id /
+        // evaluator_id are NULL because DEFAULT_TRAINER_EMAIL /
+        // DEFAULT_EVALUATOR_EMAIL were unset (or unresolved) at the
+        // time their offer was signed. Without this they remain
+        // invisible to the Trainer / Evaluator dashboards forever.
+        // Future activations are covered by the runtime backstop in
+        // InternActivationJob (via ReportingStructureAutoLinker).
+        backfillAutoLinkV1();
+    }
+
+    /**
+     * One-shot backfill of {@code intern_lifecycles.trainer_id} /
+     * {@code evaluator_id} from the org-wide
+     * {@code DEFAULT_TRAINER_EMAIL} / {@code DEFAULT_EVALUATOR_EMAIL}.
+     *
+     * <p>The auto-link runs at offer-sign + as a backstop at activation
+     * via {@link com.skyzen.careers.intern.ReportingStructureAutoLinker};
+     * this method patches existing active interns who slipped through
+     * (env vars unset at the time their offer was signed, or default
+     * user record didn't exist yet). Idempotent — only touches rows
+     * where the corresponding ID is NULL, so explicit ERM assignments
+     * are never overwritten. Gated by a {@code migration_log} row keyed
+     * {@code BACKFILL_AUTO_LINK_V1} so the JOIN-with-users lookup only
+     * fires on first boot after this fix lands.</p>
+     */
+    private void backfillAutoLinkV1() {
+        final String migKey = "BACKFILL_AUTO_LINK_V1";
+        try {
+            Integer existing = jdbcTemplate.queryForObject(
+                    "SELECT COUNT(*) FROM migration_log WHERE migration_key = ?",
+                    Integer.class, migKey);
+            if (existing != null && existing > 0) {
+                log.info("[SchemaFixup] {} already applied — skip", migKey);
+                return;
+            }
+        } catch (Exception e) {
+            log.warn("[SchemaFixup] migration_log lookup failed for {} "
+                    + "(non-fatal, continuing): {}", migKey, e.getMessage());
+        }
+
+        java.util.UUID trainerUserId = resolveEmailToUserId(defaultTrainerEmail, "trainer");
+        java.util.UUID evaluatorUserId = resolveEmailToUserId(defaultEvaluatorEmail, "evaluator");
+
+        int trainersBackfilled = 0;
+        int evaluatorsBackfilled = 0;
+        int structureCompleted = 0;
+
+        if (trainerUserId != null) {
+            try {
+                trainersBackfilled = jdbcTemplate.update(
+                        "UPDATE intern_lifecycles "
+                                + "   SET trainer_id = ? "
+                                + " WHERE active_status = 'ACTIVE' "
+                                + "   AND trainer_id IS NULL",
+                        trainerUserId);
+                log.info("[SchemaFixup] {} — backfilled trainer_id on {} active lifecycle(s)",
+                        migKey, trainersBackfilled);
+            } catch (Exception e) {
+                log.warn("[SchemaFixup] {} trainer backfill failed (non-fatal): {}",
+                        migKey, e.getMessage());
+            }
+        } else {
+            log.info("[SchemaFixup] {} — skipping trainer backfill "
+                    + "(DEFAULT_TRAINER_EMAIL unset or unresolved)", migKey);
+        }
+
+        if (evaluatorUserId != null) {
+            try {
+                evaluatorsBackfilled = jdbcTemplate.update(
+                        "UPDATE intern_lifecycles "
+                                + "   SET evaluator_id = ? "
+                                + " WHERE active_status = 'ACTIVE' "
+                                + "   AND evaluator_id IS NULL",
+                        evaluatorUserId);
+                log.info("[SchemaFixup] {} — backfilled evaluator_id on {} active lifecycle(s)",
+                        migKey, evaluatorsBackfilled);
+            } catch (Exception e) {
+                log.warn("[SchemaFixup] {} evaluator backfill failed (non-fatal): {}",
+                        migKey, e.getMessage());
+            }
+        } else {
+            log.info("[SchemaFixup] {} — skipping evaluator backfill "
+                    + "(DEFAULT_EVALUATOR_EMAIL unset or unresolved)", migKey);
+        }
+
+        // If both fields are now non-null and the structure-complete flag
+        // wasn't already set, flip it. Mirrors the runtime linker behavior.
+        try {
+            structureCompleted = jdbcTemplate.update(
+                    "UPDATE intern_lifecycles "
+                            + "   SET reporting_structure_complete = TRUE, "
+                            + "       reporting_structure_completed_at = NOW() "
+                            + " WHERE active_status = 'ACTIVE' "
+                            + "   AND trainer_id IS NOT NULL "
+                            + "   AND evaluator_id IS NOT NULL "
+                            + "   AND (reporting_structure_complete IS NULL "
+                            + "        OR reporting_structure_complete = FALSE)");
+            if (structureCompleted > 0) {
+                log.info("[SchemaFixup] {} — flipped reporting_structure_complete=TRUE "
+                        + "on {} active lifecycle(s)", migKey, structureCompleted);
+            }
+        } catch (Exception e) {
+            log.warn("[SchemaFixup] {} reporting_structure_complete flip failed: {}",
+                    migKey, e.getMessage());
+        }
+
+        int totalTouched = trainersBackfilled + evaluatorsBackfilled;
+        try {
+            jdbcTemplate.update(
+                    "INSERT INTO migration_log "
+                            + "(id, migration_key, executed_at, rows_migrated, notes) "
+                            + "VALUES (?, ?, NOW(), ?, ?) "
+                            + "ON CONFLICT (migration_key) DO NOTHING",
+                    java.util.UUID.randomUUID(), migKey, totalTouched,
+                    "trainer_id: " + trainersBackfilled
+                            + ", evaluator_id: " + evaluatorsBackfilled
+                            + ", structure_complete: " + structureCompleted);
+        } catch (Exception e) {
+            log.warn("[SchemaFixup] insert migration_log({}) skipped (non-fatal): {}",
+                    migKey, e.getMessage());
+        }
+    }
+
+    private java.util.UUID resolveEmailToUserId(String email, String label) {
+        if (email == null || email.isBlank()) return null;
+        try {
+            java.util.List<java.util.Map<String, Object>> rows =
+                    jdbcTemplate.queryForList(
+                            "SELECT id FROM users WHERE email = ? LIMIT 1",
+                            email.trim());
+            if (rows.isEmpty()) {
+                log.info("[SchemaFixup] BACKFILL_AUTO_LINK_V1 — {} email '{}' "
+                        + "did not resolve to a user", label, email);
+                return null;
+            }
+            Object id = rows.get(0).get("id");
+            return id == null ? null : java.util.UUID.fromString(id.toString());
+        } catch (Exception e) {
+            log.warn("[SchemaFixup] BACKFILL_AUTO_LINK_V1 — {} lookup failed: {}",
+                    label, e.getMessage());
+            return null;
+        }
     }
 
     /**
