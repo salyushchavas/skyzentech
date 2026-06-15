@@ -13,7 +13,8 @@ import java.util.UUID;
         name = "job_postings",
         indexes = {
                 @Index(name = "idx_job_postings_slug", columnList = "slug", unique = true),
-                @Index(name = "idx_job_postings_status", columnList = "status")
+                @Index(name = "idx_job_postings_status", columnList = "status"),
+                @Index(name = "uk_job_postings_job_id", columnList = "job_id", unique = true)
         }
 )
 @Getter
@@ -33,6 +34,19 @@ public class JobPosting {
 
     @Column(nullable = false, unique = true)
     private String slug;
+
+    /**
+     * Human-readable, immutable, organization-unique Job ID in the format
+     * {@code SKZ-JOB-YYYY-NNNNNN}. NNNNNN is the zero-padded next value from
+     * the Postgres sequence {@code skyzen_job_seq} (created by
+     * {@link com.skyzen.careers.bootstrap.SchemaFixupRunner}), so concurrent
+     * creates can never collide. Stamped at creation time by
+     * {@link com.skyzen.careers.service.JobIdGenerator}; never updated.
+     * Surfaced on the candidate-facing listing + detail so candidates can
+     * reference a specific posting in correspondence.
+     */
+    @Column(name = "job_id", length = 32, unique = true, updatable = false)
+    private String jobId;
 
     @Column(nullable = false)
     private String title;

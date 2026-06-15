@@ -4,8 +4,8 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import api from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
-import JobCard from '@/components/jobs/JobCard';
 import AppliedJobPostingCard from '@/components/careers/AppliedJobPostingCard';
+import JobPostingsTable from '@/components/jobs/JobPostingsTable';
 import type { JobPostingResponse, Page } from '@/types';
 
 interface Props {
@@ -75,29 +75,24 @@ export default function OpeningsSplit({ initialPostings }: Props) {
     return <VerifyEmailPrompt email={user?.email} />;
   }
 
-  // Public / non-candidate path — render the original single list.
+  // Public / non-candidate path — single table view.
   if (!isCandidate) {
     if (postings.length === 0) {
       return <EmptyState />;
     }
     return (
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {postings.map((p) => (
-          <JobCard
-            key={p.id}
-            posting={p}
-            onApplied={(jobPostingId, applicationId) => {
-              setPostings((prev) =>
-                prev.map((row) =>
-                  row.id === jobPostingId
-                    ? { ...row, applied: true, applicationId, applicationStatus: 'APPLIED' }
-                    : row,
-                ),
-              );
-            }}
-          />
-        ))}
-      </div>
+      <JobPostingsTable
+        postings={postings}
+        onApplied={(jobPostingId, applicationId) => {
+          setPostings((prev) =>
+            prev.map((row) =>
+              row.id === jobPostingId
+                ? { ...row, applied: true, applicationId, applicationStatus: 'APPLIED' }
+                : row,
+            ),
+          );
+        }}
+      />
     );
   }
 
@@ -147,11 +142,8 @@ export default function OpeningsSplit({ initialPostings }: Props) {
             )}
           </div>
         ) : (
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {available.map((p) => (
-              <JobCard
-            key={p.id}
-            posting={p}
+          <JobPostingsTable
+            postings={available}
             onApplied={(jobPostingId, applicationId) => {
               setPostings((prev) =>
                 prev.map((row) =>
@@ -162,8 +154,6 @@ export default function OpeningsSplit({ initialPostings }: Props) {
               );
             }}
           />
-            ))}
-          </div>
         )}
       </section>
     </div>

@@ -38,6 +38,7 @@ public class JobPostingService {
     private final StaffingEntityRepository staffingEntityRepository;
     private final ApplicationRepository applicationRepository;
     private final CandidateRepository candidateRepository;
+    private final JobIdGenerator jobIdGenerator;
 
     @Transactional(readOnly = true)
     public Page<JobPostingResponse> listOpen(Pageable pageable) {
@@ -190,6 +191,7 @@ public class JobPostingService {
                 .employmentType(req.getEmploymentType())
                 .status(JobPostingStatus.DRAFT)
                 .slug(generateUniqueSlug(req.getTitle()))
+                .jobId(jobIdGenerator.nextJobId())
                 .publishedById(publisher != null ? publisher.getId() : null)
                 .build();
         posting = jobPostingRepository.save(posting);
@@ -284,6 +286,7 @@ public class JobPostingService {
         return JobPostingResponse.builder()
                 .id(p.getId())
                 .slug(p.getSlug())
+                .jobId(p.getJobId())
                 .title(p.getTitle())
                 .description(p.getDescription())
                 .requirements(p.getRequirements())

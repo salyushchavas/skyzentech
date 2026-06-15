@@ -559,6 +559,27 @@ public class SchemaFixupRunner implements CommandLineRunner {
             log.warn("skyzen_applicant_seq ensure failed (non-fatal): {}", e.getMessage(), e);
         }
 
+        // Sequence backing SKZ-JOB-YYYY-NNNNNN. Same atomic-nextval/CACHE-1
+        // pattern as skyzen_applicant_seq above. Used by JobIdGenerator
+        // when a new job posting is created and by the one-shot backfill
+        // (BACKFILL_JOB_ID_V1) for any rows predating the column.
+        try {
+            jdbcTemplate.execute(
+                    "CREATE SEQUENCE IF NOT EXISTS skyzen_job_seq START WITH 1 INCREMENT BY 1 CACHE 1");
+            log.info("Ensured skyzen_job_seq exists.");
+        } catch (Exception e) {
+            log.warn("skyzen_job_seq ensure failed (non-fatal): {}", e.getMessage(), e);
+        }
+        // Make sure the column exists before the backfill UPDATE tries to
+        // touch it. ddl-auto=update normally handles this for the entity
+        // but explicit ALTERs cover deployments where ddl-auto is off.
+        try {
+            jdbcTemplate.execute(
+                    "ALTER TABLE job_postings ADD COLUMN IF NOT EXISTS job_id VARCHAR(32)");
+        } catch (Exception e) {
+            log.warn("job_postings.job_id add failed (non-fatal): {}", e.getMessage());
+        }
+
         // Phase 2.2: scorecard dimensions. New columns are nullable (legacy
         // rows pre-2.2 simply won't have a problem-solving score) so the
         // ADD COLUMN IF NOT EXISTS is safe on a populated table.
@@ -1166,6 +1187,12 @@ public class SchemaFixupRunner implements CommandLineRunner {
         // Future activations are covered by the runtime backstop in
         // InternActivationJob (via ReportingStructureAutoLinker).
         backfillAutoLinkV1();
+
+        // Job ID backfill — one-shot, idempotent. Stamps the new
+        // SKZ-JOB-YYYY-NNNNNN job_id on any existing job_postings row
+        // missing one. Future postings are stamped at creation via
+        // JobIdGenerator.
+        backfillJobIdV1();
     }
 
     /**
@@ -1275,6 +1302,78 @@ public class SchemaFixupRunner implements CommandLineRunner {
                     "trainer_id: " + trainersBackfilled
                             + ", evaluator_id: " + evaluatorsBackfilled
                             + ", structure_complete: " + structureCompleted);
+        } catch (Exception e) {
+            log.warn("[SchemaFixup] insert migration_log({}) skipped (non-fatal): {}",
+                    migKey, e.getMessage());
+        }
+    }
+
+    /**
+     * One-shot backfill — stamp {@code job_postings.job_id} on every row
+     * missing one. Future postings are stamped at creation via
+     * {@link com.skyzen.careers.service.JobIdGenerator}; this method just
+     * fills the gap for rows that predate the column. Idempotent + gated
+     * by a {@code migration_log} row keyed {@code BACKFILL_JOB_ID_V1};
+     * existing job_id values are never touched.
+     *
+     * <p>Uses {@code nextval('skyzen_job_seq')} for each missing row so
+     * the suffix is monotonic and collision-free even under concurrent
+     * boots. The unique index is added in a separate try block so an
+     * unexpected partial backfill (e.g. some rows already had IDs from a
+     * prior partial run) doesn't crash startup.</p>
+     */
+    private void backfillJobIdV1() {
+        final String migKey = "BACKFILL_JOB_ID_V1";
+        try {
+            Integer existing = jdbcTemplate.queryForObject(
+                    "SELECT COUNT(*) FROM migration_log WHERE migration_key = ?",
+                    Integer.class, migKey);
+            if (existing != null && existing > 0) {
+                log.info("[SchemaFixup] {} already applied — skip", migKey);
+                return;
+            }
+        } catch (Exception e) {
+            log.warn("[SchemaFixup] migration_log lookup failed for {} "
+                    + "(non-fatal, continuing): {}", migKey, e.getMessage());
+        }
+
+        int backfilled = 0;
+        try {
+            // Per-row UPDATE so each NULL gets its own nextval() draw;
+            // a single bulk UPDATE would reuse one sequence value across
+            // multiple rows in some Postgres versions.
+            backfilled = jdbcTemplate.update(
+                    "UPDATE job_postings "
+                            + "   SET job_id = 'SKZ-JOB-' "
+                            + "       || EXTRACT(YEAR FROM created_at)::int "
+                            + "       || '-' "
+                            + "       || LPAD(nextval('skyzen_job_seq')::text, 6, '0') "
+                            + " WHERE job_id IS NULL");
+            log.info("[SchemaFixup] {} — stamped job_id on {} job_postings row(s)",
+                    migKey, backfilled);
+        } catch (Exception e) {
+            log.warn("[SchemaFixup] {} backfill failed (non-fatal): {}",
+                    migKey, e.getMessage());
+        }
+
+        try {
+            jdbcTemplate.execute(
+                    "CREATE UNIQUE INDEX IF NOT EXISTS uk_job_postings_job_id "
+                            + "  ON job_postings(job_id)");
+        } catch (Exception e) {
+            log.warn("[SchemaFixup] {} unique index add failed (non-fatal): {}",
+                    migKey, e.getMessage());
+        }
+
+        try {
+            jdbcTemplate.update(
+                    "INSERT INTO migration_log "
+                            + "(id, migration_key, executed_at, rows_migrated, notes) "
+                            + "VALUES (?, ?, NOW(), ?, ?) "
+                            + "ON CONFLICT (migration_key) DO NOTHING",
+                    java.util.UUID.randomUUID(), migKey, backfilled,
+                    "Stamped SKZ-JOB-YYYY-NNNNNN on " + backfilled
+                            + " pre-existing job_postings row(s).");
         } catch (Exception e) {
             log.warn("[SchemaFixup] insert migration_log({}) skipped (non-fatal): {}",
                     migKey, e.getMessage());

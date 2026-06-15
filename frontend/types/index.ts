@@ -89,6 +89,10 @@ export type JobPostingStatus = 'DRAFT' | 'OPEN' | 'PAUSED' | 'CLOSED';
 export interface JobPostingResponse {
   id: Uuid;
   slug: string;
+  /** Skyzen Job ID — format `SKZ-JOB-YYYY-NNNNNN`. Immutable, unique
+   *  across all postings. May be undefined on legacy rows briefly until
+   *  the BACKFILL_JOB_ID_V1 migration runs. */
+  jobId?: string;
   title: string;
   description: string;
   requirements?: string;
