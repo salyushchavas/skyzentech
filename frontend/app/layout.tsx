@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import { Inter, Poppins } from 'next/font/google';
 import { Toaster } from 'react-hot-toast';
 import { AuthProvider } from '@/lib/auth-context';
+import IdleTimeoutProvider from '@/components/auth/IdleTimeoutProvider';
 import './globals.css';
 
 const poppins = Poppins({
@@ -42,7 +43,9 @@ export default function RootLayout({
         <link rel="stylesheet" href="/plugins/icofont/icofont.min.css" />
       </head>
       <body className="min-h-screen font-sans antialiased">
-        <AuthProvider>{children}</AuthProvider>
+        <AuthProvider>
+          <IdleTimeoutProvider>{children}</IdleTimeoutProvider>
+        </AuthProvider>
         <Toaster
           position="bottom-right"
           toastOptions={{

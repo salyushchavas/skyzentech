@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import SignOutButton from '@/components/auth/SignOutButton';
 
 /**
  * Evaluator Phase 0 — 9-item sidebar per the locked Evaluator dashboard
@@ -59,8 +60,11 @@ export default function EvaluatorSidebar() {
           })}
         </ul>
       </nav>
-      <div className="border-t border-slate-200 px-4 py-3 text-[11px] text-slate-500">
-        Role: Evaluator · Audit log
+      <div className="space-y-2 border-t border-slate-200 px-3 py-3">
+        <SignOutButton variant="sidebar" />
+        <p className="px-3 text-[11px] text-slate-500">
+          Role: Evaluator · Audit log
+        </p>
       </div>
     </aside>
   );

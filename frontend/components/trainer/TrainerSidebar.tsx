@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import SignOutButton from '@/components/auth/SignOutButton';
 
 /**
  * Trainer Phase 0 — 9-item sidebar per Trainer doc §4.
@@ -58,8 +59,11 @@ export default function TrainerSidebar() {
           })}
         </ul>
       </nav>
-      <div className="border-t border-slate-200 px-4 py-3 text-[11px] text-slate-500">
-        Role: Trainer · Audit log
+      <div className="space-y-2 border-t border-slate-200 px-3 py-3">
+        <SignOutButton variant="sidebar" />
+        <p className="px-3 text-[11px] text-slate-500">
+          Role: Trainer · Audit log
+        </p>
       </div>
     </aside>
   );

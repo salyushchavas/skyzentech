@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { HelpCircle, LogOut, User as UserIcon } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
+import { broadcastSessionEvent } from '@/lib/session-broadcast';
 import type { UserRole } from '@/types';
 
 function initialOf(user: { fullName?: string; email: string }): string {
@@ -62,8 +63,9 @@ export default function UserMenuDropdown() {
 
   function handleSignOut() {
     setOpen(false);
+    try { broadcastSessionEvent({ type: 'logout' }); } catch { /* ignore */ }
     logout();
-    router.push('/careers/login');
+    router.replace('/careers/login');
   }
 
   return (

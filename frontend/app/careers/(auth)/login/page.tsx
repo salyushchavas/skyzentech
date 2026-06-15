@@ -1,19 +1,35 @@
 'use client';
 
-import { FormEvent, useState } from 'react';
+import { FormEvent, Suspense, useEffect, useState } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import AuthLayout from '@/components/dashboard/AuthLayout';
 import { useAuth } from '@/lib/auth-context';
 import { getDashboardForUser } from '@/lib/role-routing';
 
 export default function LoginPage() {
+  return (
+    <Suspense fallback={<AuthLayout title="Welcome back" subtitle="Loading…"><div /></AuthLayout>}>
+      <LoginInner />
+    </Suspense>
+  );
+}
+
+function LoginInner() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { login } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [notice, setNotice] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (searchParams?.get('reason') === 'idle') {
+      setNotice('You were signed out due to inactivity. Please sign in again.');
+    }
+  }, [searchParams]);
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
@@ -42,6 +58,11 @@ export default function LoginPage() {
 
   return (
     <AuthLayout title="Welcome back" subtitle="Sign in to your Skyzen Careers account">
+      {notice && (
+        <div className="mb-4 rounded border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+          {notice}
+        </div>
+      )}
       {error && (
         <div className="mb-4 rounded border border-red-200 bg-red-50 p-3 text-sm text-red-700">
           {error}

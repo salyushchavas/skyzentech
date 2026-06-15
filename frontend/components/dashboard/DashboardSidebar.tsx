@@ -35,6 +35,7 @@ import {
   useInternDashboardOptional,
   type InternModulesMap,
 } from '@/components/intern/InternDashboardContext';
+import SignOutButton from '@/components/auth/SignOutButton';
 import type { UserRole } from '@/types';
 
 interface StaffLink {
@@ -168,7 +169,8 @@ export default function DashboardSidebar({ onNavigate }: Props) {
         )}
       </div>
 
-      <div className="border-t border-slate-200 px-3 py-3">
+      <div className="space-y-1 border-t border-slate-200 px-3 py-3">
+        {user && <SignOutButton variant="sidebar" onAfter={onNavigate} />}
         <Link
           href="/"
           onClick={onNavigate}
