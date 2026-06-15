@@ -17,7 +17,7 @@ import SignOutButton from '@/components/auth/SignOutButton';
  */
 const ITEMS: { href: string; label: string; phase: number }[] = [
   { href: '/careers/manager',                       label: 'Home',                phase: 1 },
-  { href: '/careers/manager/applicant-pipeline',    label: 'Applicant Pipeline',  phase: 2 },
+  { href: '/careers/manager/applicant-pipeline',    label: 'Applicant Pipeline',  phase: 1 },
   { href: '/careers/manager/onboarding-health',     label: 'Onboarding Health',   phase: 2 },
   { href: '/careers/manager/active-interns',        label: 'Active Interns',      phase: 3 },
   { href: '/careers/manager/timesheet-approvals',   label: 'Timesheet Approvals', phase: 3 },

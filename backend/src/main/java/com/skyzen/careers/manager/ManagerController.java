@@ -23,6 +23,7 @@ public class ManagerController {
 
     private final ManagerDashboardService dashboardService;
     private final ManagerPipelineService pipelineService;
+    private final ManagerOnboardingService onboardingService;
 
     @GetMapping("/overview")
     @PreAuthorize("hasAnyRole('MANAGER', 'SUPER_ADMIN')")
@@ -48,5 +49,35 @@ public class ManagerController {
     @PreAuthorize("hasAnyRole('MANAGER', 'SUPER_ADMIN')")
     public ManagerDtos.FilterOptions pipelineFilters() {
         return pipelineService.filterOptions();
+    }
+
+    // ── Phase 2 — Onboarding Health ──────────────────────────────────────
+
+    @GetMapping("/onboarding")
+    @PreAuthorize("hasAnyRole('MANAGER', 'SUPER_ADMIN')")
+    public ManagerDtos.OnboardingResponse onboarding(
+            @RequestParam(required = false) String stage,
+            @RequestParam(required = false) String workAuthType,
+            @RequestParam(required = false) UUID ermOwner,
+            @RequestParam(required = false) String needsAttention,
+            @RequestParam(required = false) String search,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "25") int pageSize,
+            @AuthenticationPrincipal User caller) {
+        return onboardingService.list(caller, stage, workAuthType, ermOwner,
+                needsAttention, search, page, pageSize);
+    }
+
+    @GetMapping("/onboarding/summary")
+    @PreAuthorize("hasAnyRole('MANAGER', 'SUPER_ADMIN')")
+    public ManagerDtos.OnboardingSummary onboardingSummary(
+            @AuthenticationPrincipal User caller) {
+        return onboardingService.summary(caller);
+    }
+
+    @GetMapping("/onboarding/filters")
+    @PreAuthorize("hasAnyRole('MANAGER', 'SUPER_ADMIN')")
+    public ManagerDtos.OnboardingFilterOptions onboardingFilters() {
+        return onboardingService.filterOptions();
     }
 }

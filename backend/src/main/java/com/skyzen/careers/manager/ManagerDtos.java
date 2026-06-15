@@ -99,4 +99,90 @@ public final class ManagerDtos {
             UUID userId,
             String fullName
     ) {}
+
+    // ── Onboarding Health ────────────────────────────────────────────────
+
+    /** Per-new-hire row on the Onboarding Health page. Status + counts +
+     *  due dates only — never carries form contents, encrypted fields,
+     *  document file contents, or {@code internalNote}-class ERM-only
+     *  text. */
+    public record OnboardingRow(
+            UUID internLifecycleId,
+            UUID internUserId,
+            String internName,
+            String internEmail,
+            String employeeId,
+            String workAuthType,
+            /** users.lifecycle_status — OFFER_SIGNED | EMPLOYEE_ID_CREATED |
+             *  ONBOARDING_ASSIGNED | ONBOARDING_ACCEPTED. */
+            String lifecycleStatus,
+            LocalDate tentativeStartDate,
+            /** Negative when start date is in the future. Positive when
+             *  already passed. Null when no start date is set yet. */
+            Long daysUntilStart,
+            /** Coarse risk flag — true when start date is within 7 days
+             *  (or past) AND lifecycle is not yet ONBOARDING_ACCEPTED. */
+            boolean startDateAtRisk,
+            /** Document packet roll-up. Null when no packet has been
+             *  assigned yet (still at OFFER_SIGNED / EMPLOYEE_ID_CREATED). */
+            DocumentSummary documents,
+            /** Compliance gate roll-up. Values can be null when the
+             *  underlying row doesn't exist yet (e.g. I-9 not started). */
+            ComplianceSummary compliance,
+            UUID ermOwnerId,
+            String ermOwnerName,
+            UUID managerId,
+            String managerName
+    ) {}
+
+    /** Counts only — values come from a GROUP-BY-status aggregate, no
+     *  per-document content surfaced. */
+    public record DocumentSummary(
+            String packetStatus,           // DRAFT|ASSIGNED|IN_PROGRESS|ALL_SUBMITTED|COMPLETED|CANCELLED
+            int totalTasks,
+            int acceptedTasks,
+            int submittedTasks,            // SUBMITTED + UNDER_REVIEW
+            int pendingTasks,
+            int rejectedTasks,             // REJECTED + RESEND_REQUESTED
+            int waivedTasks,
+            boolean hasRejected,
+            Instant lastReviewedAt
+    ) {}
+
+    /** Per-compliance-gate status + due-date metadata. Never the
+     *  encrypted underlying field values. */
+    public record ComplianceSummary(
+            String i9Status,               // NOT_STARTED | SECTION_2_PENDING | SECTION_1_COMPLETE | COMPLETED | REOPENED | null
+            LocalDate i9Section2DueDate,
+            boolean i9Overdue,
+            String everifyStatus,          // PENDING_SUBMISSION | OPEN | EMPLOYMENT_AUTHORIZED | TENTATIVE_NONCONFIRMATION | FINAL_NONCONFIRMATION | CLOSED | null
+            LocalDate everifyDueBy,
+            boolean everifyOverdue,
+            LocalDate workAuthValidUntil,
+            boolean workAuthExpiringSoon  // within 30 days of today
+    ) {}
+
+    public record OnboardingResponse(
+            List<OnboardingRow> items,
+            int page,
+            int pageSize,
+            long totalElements,
+            int totalPages
+    ) {}
+
+    /** Top-of-page summary strip on the Onboarding Health page. */
+    public record OnboardingSummary(
+            long offersAwaitingSignature,
+            long newHiresOnboarding,        // OFFER_SIGNED..ONBOARDING_ASSIGNED
+            long onboardingAccepted,        // ONBOARDING_ACCEPTED (waiting on doc-completion trigger to flip them)
+            long i9Overdue,
+            long everifyOverdue,
+            long startDateAtRisk
+    ) {}
+
+    public record OnboardingFilterOptions(
+            List<String> lifecycleStages,   // the 4 onboarding-window stages
+            List<String> workAuthTypes,
+            List<ErmOwnerOption> ermOwners
+    ) {}
 }

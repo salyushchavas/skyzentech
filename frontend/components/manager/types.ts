@@ -70,3 +70,70 @@ export interface PipelineResponse {
   totalPages: number;
   filters: FilterOptions;
 }
+
+// ── Onboarding Health (Phase 2) ──────────────────────────────────────────
+
+export interface DocumentSummary {
+  packetStatus: string | null;
+  totalTasks: number;
+  acceptedTasks: number;
+  submittedTasks: number;
+  pendingTasks: number;
+  rejectedTasks: number;
+  waivedTasks: number;
+  hasRejected: boolean;
+  lastReviewedAt: string | null;
+}
+
+export interface ComplianceSummary {
+  i9Status: string | null;
+  i9Section2DueDate: string | null;
+  i9Overdue: boolean;
+  everifyStatus: string | null;
+  everifyDueBy: string | null;
+  everifyOverdue: boolean;
+  workAuthValidUntil: string | null;
+  workAuthExpiringSoon: boolean;
+}
+
+export interface OnboardingRow {
+  internLifecycleId: string;
+  internUserId: string;
+  internName: string | null;
+  internEmail: string | null;
+  employeeId: string | null;
+  workAuthType: string | null;
+  lifecycleStatus: string;
+  tentativeStartDate: string | null;
+  daysUntilStart: number | null;
+  startDateAtRisk: boolean;
+  documents: DocumentSummary | null;
+  compliance: ComplianceSummary | null;
+  ermOwnerId: string | null;
+  ermOwnerName: string | null;
+  managerId: string | null;
+  managerName: string | null;
+}
+
+export interface OnboardingResponse {
+  items: OnboardingRow[];
+  page: number;
+  pageSize: number;
+  totalElements: number;
+  totalPages: number;
+}
+
+export interface OnboardingSummary {
+  offersAwaitingSignature: number;
+  newHiresOnboarding: number;
+  onboardingAccepted: number;
+  i9Overdue: number;
+  everifyOverdue: number;
+  startDateAtRisk: number;
+}
+
+export interface OnboardingFilterOptions {
+  lifecycleStages: string[];
+  workAuthTypes: string[];
+  ermOwners: ErmOwnerOption[];
+}
