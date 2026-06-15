@@ -137,3 +137,91 @@ export interface OnboardingFilterOptions {
   workAuthTypes: string[];
   ermOwners: ErmOwnerOption[];
 }
+
+// ── Active Interns (Phase 3A) ────────────────────────────────────────────
+
+export interface ProjectState {
+  status: string | null;
+  projectTitle: string | null;
+  dueDate: string | null;
+  atRisk: boolean;
+}
+
+export interface MeetingState {
+  lastMeetingStatus: string | null;
+  lastMeetingAt: string | null;
+  daysSinceLastMeeting: number | null;
+  atRisk: boolean;
+}
+
+export interface EvaluationState {
+  lastEvaluationStatus: string | null;
+  lastPublishedAt: string | null;
+  overallScore: number | null;
+  recommendation: string | null;
+  daysSinceLastPublished: number | null;
+  atRisk: boolean;
+}
+
+export interface TimesheetState {
+  currentWeekStatus: string | null;
+  previousWeekStatus: string | null;
+  recentRejections: number;
+  atRisk: boolean;
+}
+
+export interface ActiveInternRow {
+  internLifecycleId: string;
+  internUserId: string;
+  internName: string | null;
+  internEmail: string | null;
+  employeeId: string | null;
+  technology: string | null;
+  workAuthType: string | null;
+  health: 'ACTIVE_ON_TRACK' | 'ACTIVE_AT_RISK';
+  project: ProjectState;
+  meeting: MeetingState;
+  evaluation: EvaluationState;
+  timesheet: TimesheetState;
+  managerId: string | null;
+  managerName: string | null;
+  ermOwnerId: string | null;
+  ermOwnerName: string | null;
+  trainerId: string | null;
+  trainerName: string | null;
+  evaluatorId: string | null;
+  evaluatorName: string | null;
+  startedAt: string | null;
+  monthsInProgram: number | null;
+}
+
+export interface ActiveInternResponse {
+  items: ActiveInternRow[];
+  page: number;
+  pageSize: number;
+  totalElements: number;
+  totalPages: number;
+}
+
+export interface ActiveInternSummary {
+  activeInternsTotal: number;
+  onTrack: number;
+  atRisk: number;
+  noProjectAssigned: number;
+  trainerMeetingMissing: number;
+  evaluationOverdue: number;
+  timesheetMissingThisWeek: number;
+}
+
+export interface UserOption {
+  userId: string;
+  fullName: string;
+}
+
+export interface ActiveInternFilterOptions {
+  technologies: string[];
+  trainers: UserOption[];
+  evaluators: UserOption[];
+  managers: UserOption[];
+  ermOwners: ErmOwnerOption[];
+}

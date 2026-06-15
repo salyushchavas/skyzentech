@@ -24,6 +24,7 @@ public class ManagerController {
     private final ManagerDashboardService dashboardService;
     private final ManagerPipelineService pipelineService;
     private final ManagerOnboardingService onboardingService;
+    private final ManagerActiveInternsService activeInternsService;
 
     @GetMapping("/overview")
     @PreAuthorize("hasAnyRole('MANAGER', 'SUPER_ADMIN')")
@@ -79,5 +80,38 @@ public class ManagerController {
     @PreAuthorize("hasAnyRole('MANAGER', 'SUPER_ADMIN')")
     public ManagerDtos.OnboardingFilterOptions onboardingFilters() {
         return onboardingService.filterOptions();
+    }
+
+    // ── Phase 3A — Active Interns (read-only health view) ────────────────
+
+    @GetMapping("/active-interns")
+    @PreAuthorize("hasAnyRole('MANAGER', 'SUPER_ADMIN')")
+    public ManagerDtos.ActiveInternResponse activeInterns(
+            @RequestParam(required = false) String technology,
+            @RequestParam(required = false) UUID trainerId,
+            @RequestParam(required = false) UUID evaluatorId,
+            @RequestParam(required = false) UUID ermOwner,
+            @RequestParam(required = false) UUID managerId,
+            @RequestParam(required = false) String health,
+            @RequestParam(required = false) String search,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "25") int pageSize,
+            @AuthenticationPrincipal User caller) {
+        return activeInternsService.list(caller, technology, trainerId,
+                evaluatorId, ermOwner, managerId, health, search,
+                page, pageSize);
+    }
+
+    @GetMapping("/active-interns/summary")
+    @PreAuthorize("hasAnyRole('MANAGER', 'SUPER_ADMIN')")
+    public ManagerDtos.ActiveInternSummary activeInternsSummary(
+            @AuthenticationPrincipal User caller) {
+        return activeInternsService.summary(caller);
+    }
+
+    @GetMapping("/active-interns/filters")
+    @PreAuthorize("hasAnyRole('MANAGER', 'SUPER_ADMIN')")
+    public ManagerDtos.ActiveInternFilterOptions activeInternsFilters() {
+        return activeInternsService.filterOptions();
     }
 }

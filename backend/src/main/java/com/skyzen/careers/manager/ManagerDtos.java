@@ -185,4 +185,92 @@ public final class ManagerDtos {
             List<String> workAuthTypes,
             List<ErmOwnerOption> ermOwners
     ) {}
+
+    // ── Active Interns (Phase 3A) ────────────────────────────────────────
+
+    public record ProjectState(
+            String status,             // ASSIGNED|IN_PROGRESS|SUBMITTED|RETURNED|COMPLETED|CANCELLED|null
+            String projectTitle,
+            LocalDate dueDate,
+            boolean atRisk             // no active project OR past due
+    ) {}
+
+    public record MeetingState(
+            String lastMeetingStatus,  // SCHEDULED|COMPLETED|NO_SHOW|CANCELLED|null
+            Instant lastMeetingAt,
+            Long daysSinceLastMeeting, // null when none
+            boolean atRisk             // > 7 days since last SCHEDULED/COMPLETED
+    ) {}
+
+    public record EvaluationState(
+            String lastEvaluationStatus, // PUBLISHED|ACKNOWLEDGED|AMENDED|null
+            Instant lastPublishedAt,
+            Integer overallScore,        // manager-visible
+            String recommendation,       // manager-visible enum, never the internal_notes free text
+            Long daysSinceLastPublished,
+            boolean atRisk               // > 35 days OR no published eval ever
+    ) {}
+
+    public record TimesheetState(
+            String currentWeekStatus,    // DRAFT|SUBMITTED|APPROVED|REJECTED|null
+            String previousWeekStatus,
+            int recentRejections,        // count in last 4 weeks
+            boolean atRisk               // previous-week missing OR ≥2 recent rejections
+    ) {}
+
+    public record ActiveInternRow(
+            UUID internLifecycleId,
+            UUID internUserId,
+            String internName,
+            String internEmail,
+            String employeeId,
+            String technology,
+            String workAuthType,
+            String health,               // ACTIVE_ON_TRACK | ACTIVE_AT_RISK
+            ProjectState project,
+            MeetingState meeting,
+            EvaluationState evaluation,
+            TimesheetState timesheet,
+            UUID managerId,
+            String managerName,
+            UUID ermOwnerId,
+            String ermOwnerName,
+            UUID trainerId,
+            String trainerName,
+            UUID evaluatorId,
+            String evaluatorName,
+            Instant startedAt,
+            Integer monthsInProgram
+    ) {}
+
+    public record ActiveInternResponse(
+            List<ActiveInternRow> items,
+            int page,
+            int pageSize,
+            long totalElements,
+            int totalPages
+    ) {}
+
+    public record ActiveInternSummary(
+            long activeInternsTotal,
+            long onTrack,
+            long atRisk,
+            long noProjectAssigned,
+            long trainerMeetingMissing,   // last meeting > 7 days OR none
+            long evaluationOverdue,       // last published > 35 days OR none
+            long timesheetMissingThisWeek
+    ) {}
+
+    public record UserOption(
+            UUID userId,
+            String fullName
+    ) {}
+
+    public record ActiveInternFilterOptions(
+            List<String> technologies,
+            List<UserOption> trainers,
+            List<UserOption> evaluators,
+            List<UserOption> managers,
+            List<ErmOwnerOption> ermOwners
+    ) {}
 }
