@@ -16,16 +16,22 @@ import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
-import java.time.LocalDate;
-import java.time.ZoneOffset;
 import java.util.List;
 
 /**
- * Phase 4 activation job. Every 10 minutes, scans users whose
- * {@code lifecycle_status = ONBOARDING_ACCEPTED} and flips them to
- * {@code ACTIVE_INTERN} when their offer's {@code tentative_start_date}
- * (a.k.a. {@code start_date}) has arrived. {@code @EnableScheduling} is
- * already on the application class.
+ * Activation job — every 10 minutes, scans users whose
+ * {@code lifecycle_status = ONBOARDING_ACCEPTED} and flips any with a
+ * SIGNED offer to {@code ACTIVE_INTERN}.
+ *
+ * <p>Phase 8.9.1 dropped the {@code startDate <= today} gate: an intern
+ * activates the moment onboarding is accepted on top of a signed offer.
+ * The tentative start date remains on the offer (used for I-9 timing /
+ * scheduling) but no longer blocks the lifecycle flip. The scheduled scan
+ * is now mostly a safety net — the doc-completion trigger in
+ * {@code DocumentPacketService} fires the single-user activation
+ * synchronously when the last onboarding doc is accepted.</p>
+ *
+ * <p>{@code @EnableScheduling} is already on the application class.</p>
  */
 @Component
 @RequiredArgsConstructor
@@ -71,13 +77,15 @@ public class InternActivationJob {
     }
 
     /**
-     * Phase 8.9 — single-user gated activation. Same condition set the
-     * scheduled scan uses: status must be {@code ONBOARDING_ACCEPTED} and
-     * the latest signed/accepted offer must have a non-null
-     * {@code startDate} that is today or in the past. Returns {@code true}
-     * iff the user was flipped. Safe to call from event handlers (e.g.
-     * the document-packet completion trigger) — failure is silent so it
-     * never blocks the calling transaction.
+     * Phase 8.9.1 — single-user activation. Rule simplified: an intern
+     * activates as soon as they have a SIGNED (or legacy ACCEPTED) offer
+     * AND onboarding is ACCEPTED. The tentative start date no longer gates
+     * activation — it stays on the offer as a field used for I-9 timing
+     * and scheduling but does not block the lifecycle flip.
+     *
+     * <p>Returns {@code true} iff the user was flipped. Safe to call from
+     * event handlers (e.g. the document-packet completion trigger) —
+     * failure is silent so it never blocks the calling transaction.</p>
      */
     @Transactional
     public boolean tryActivateIfReady(User user) {
@@ -85,24 +93,19 @@ public class InternActivationJob {
         if (user.getLifecycleStatus() != InternLifecycleStatus.ONBOARDING_ACCEPTED) {
             return false;
         }
-        LocalDate today = LocalDate.now(ZoneOffset.UTC);
-        LocalDate start;
+        boolean hasSignedOffer;
         try {
             List<Offer> offers = offerRepository
                     .findByApplication_Candidate_User_IdOrderByCreatedAtDesc(user.getId());
-            start = offers.stream()
-                    .filter(o -> o.getStartDate() != null
-                            && (o.getStatus() == com.skyzen.careers.enums.OfferStatus.SIGNED
-                                    || o.getStatus() == com.skyzen.careers.enums.OfferStatus.ACCEPTED))
-                    .map(Offer::getStartDate)
-                    .findFirst()
-                    .orElse(null);
+            hasSignedOffer = offers.stream().anyMatch(o ->
+                    o.getStatus() == com.skyzen.careers.enums.OfferStatus.SIGNED
+                            || o.getStatus() == com.skyzen.careers.enums.OfferStatus.ACCEPTED);
         } catch (Exception e) {
             log.warn("[ActivationJob] offer lookup failed for {}: {}",
                     user.getId(), e.getMessage());
             return false;
         }
-        if (start == null || start.isAfter(today)) return false;
+        if (!hasSignedOffer) return false;
         return activateOneWithActor(user, null);
     }
 

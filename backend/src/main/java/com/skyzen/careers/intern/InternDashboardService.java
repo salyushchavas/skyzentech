@@ -14,9 +14,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import java.time.Instant;
-import java.time.LocalDate;
-import java.time.ZoneOffset;
-import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
@@ -150,9 +147,11 @@ public class InternDashboardService {
             if (!done[i]) { firstActive = i; break; }
         }
 
-        // Phase 8.9 — "why parked" subtitle for the Active Intern node.
-        // Only meaningful when active_intern is the current step AND the
-        // intern is at ONBOARDING_ACCEPTED awaiting the start-date gate.
+        // Phase 8.9.1 — the start-date gate is gone, so an intern at
+        // ONBOARDING_ACCEPTED with a signed offer flips immediately via the
+        // doc-completion trigger. The only remaining "parked at Active
+        // Intern" case is the defensive one where onboarding was accepted
+        // but no SIGNED offer exists — surfaced as "Pending offer signing".
         String activeIntenReason = null;
         if (firstActive == 6 && s == InternLifecycleStatus.ONBOARDING_ACCEPTED) {
             activeIntenReason = computeActivationReason(caller);
@@ -169,33 +168,25 @@ public class InternDashboardService {
     }
 
     /**
-     * Phase 8.9 — derive the human-readable reason a ONBOARDING_ACCEPTED
-     * intern is parked at the Active Intern node. Mirrors the gate the
-     * activation job applies: a signed/accepted offer with a non-null
-     * {@code startDate <= today} flips the intern; anything else parks them.
+     * Phase 8.9.1 — subtitle for a ONBOARDING_ACCEPTED intern still parked
+     * at the Active Intern node. The start-date gate is gone, so the only
+     * remaining reason an intern lingers here is a missing SIGNED offer
+     * (a defensive edge case — onboarding shouldn't normally have been
+     * accepted without one). Returns null when the offer is signed, since
+     * the doc-completion trigger should be activating the intern within
+     * seconds; a transient mid-window subtitle would just churn the UI.
      */
     private String computeActivationReason(User caller) {
         try {
             List<Offer> offers = offerRepository
                     .findByApplication_Candidate_User_IdOrderByCreatedAtDesc(caller.getId());
-            LocalDate start = offers.stream()
-                    .filter(o -> o.getStartDate() != null
-                            && (o.getStatus() == OfferStatus.SIGNED
-                                    || o.getStatus() == OfferStatus.ACCEPTED))
-                    .map(Offer::getStartDate)
-                    .findFirst()
-                    .orElse(null);
-            if (start == null) return "Pending start date";
-            LocalDate today = LocalDate.now(ZoneOffset.UTC);
-            if (start.isAfter(today)) {
-                return "Activates on "
-                        + start.format(DateTimeFormatter.ofPattern("MMM d, yyyy"));
-            }
-            // Start date has arrived — the scheduled scan / doc-completion
-            // trigger should be flipping the intern within seconds. The brief
-            // mid-window subtitle helps the intern understand why the node
-            // hasn't moved YET if they refresh between events.
-            return "Activating shortly";
+            boolean hasSignedOffer = offers.stream().anyMatch(o ->
+                    o.getStatus() == OfferStatus.SIGNED
+                            || o.getStatus() == OfferStatus.ACCEPTED);
+            if (!hasSignedOffer) return "Pending offer signing";
+            // Signed + onboarding accepted ⇒ activation fires immediately
+            // via the doc-completion trigger. No subtitle needed.
+            return null;
         } catch (Exception e) {
             log.warn("[Dashboard] activation reason lookup failed (non-fatal) for {}: {}",
                     caller.getId(), e.getMessage());
@@ -307,7 +298,7 @@ public class InternDashboardService {
                     "/api/v1/auth/resend-verification",
                     false, null);
             case EMAIL_VERIFIED -> action(
-                    "Apply to a job",
+                    "Apply to a job",   
                     "Browse open positions and submit your application.",
                     "Browse jobs", "/careers/intern/jobs",
                     false, null);
