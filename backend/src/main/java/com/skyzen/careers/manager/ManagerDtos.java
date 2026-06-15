@@ -273,4 +273,60 @@ public final class ManagerDtos {
             List<UserOption> managers,
             List<ErmOwnerOption> ermOwners
     ) {}
+
+    // ── Timesheet Approvals (Phase 3B) ───────────────────────────────────
+
+    /** One timesheet row on the Manager Approvals queue. Hours / description /
+     *  daily breakdown are populated ONLY when {@code canAct == true}
+     *  (caller is the intern's assigned manager OR SUPER_ADMIN). For
+     *  non-owned rows the manager sees status + approver + week only. */
+    public record TimesheetRow(
+            UUID timesheetId,
+            UUID internUserId,
+            String internName,
+            String employeeId,
+            String technology,
+            UUID managerId,
+            String managerName,
+            UUID ermOwnerId,
+            String ermOwnerName,
+            LocalDate weekStart,
+            String status,                  // DRAFT|SUBMITTED|APPROVED|REJECTED
+            UUID approvedById,
+            String approvedByName,
+            Instant approvedAt,
+            /** Server-authoritative — true iff caller can approve/reject. */
+            boolean canAct,
+            /** Hours masking: null when canAct is false (and caller is not
+             *  SUPER_ADMIN). Total weekly hours. */
+            java.math.BigDecimal hours,
+            /** Description (intern narrative). Null when canAct is false. */
+            String description,
+            /** Per-day breakdown. Null when canAct is false. */
+            List<TimesheetDayBreakdown> days,
+            /** Reject reason from a previous rejection cycle — null on the
+             *  fresh row. Visible regardless of canAct (no PII). */
+            String reviewNote
+    ) {}
+
+    public record TimesheetDayBreakdown(
+            String dayOfWeek,               // MONDAY|TUESDAY|...
+            java.math.BigDecimal hours,
+            String notes
+    ) {}
+
+    public record TimesheetListResponse(
+            List<TimesheetRow> items,
+            int page,
+            int pageSize,
+            long totalElements,
+            int totalPages
+    ) {}
+
+    public record TimesheetFilterOptions(
+            List<String> statuses,          // DRAFT|SUBMITTED|APPROVED|REJECTED
+            List<String> technologies,
+            List<UserOption> managers,
+            List<ErmOwnerOption> ermOwners
+    ) {}
 }

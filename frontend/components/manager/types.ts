@@ -225,3 +225,51 @@ export interface ActiveInternFilterOptions {
   managers: UserOption[];
   ermOwners: ErmOwnerOption[];
 }
+
+// ── Timesheet Approvals (Phase 3B) ───────────────────────────────────────
+
+export interface TimesheetDayBreakdown {
+  dayOfWeek: string;
+  hours: number | string;
+  notes: string | null;
+}
+
+export interface TimesheetRow {
+  timesheetId: string;
+  internUserId: string;
+  internName: string | null;
+  employeeId: string | null;
+  technology: string | null;
+  managerId: string | null;
+  managerName: string | null;
+  ermOwnerId: string | null;
+  ermOwnerName: string | null;
+  weekStart: string | null;
+  status: 'DRAFT' | 'SUBMITTED' | 'APPROVED' | 'REJECTED';
+  approvedById: string | null;
+  approvedByName: string | null;
+  approvedAt: string | null;
+  /** Server-authoritative — true iff this manager (or SUPER_ADMIN) can
+   *  approve/reject this specific row. Drives whether the UI shows the
+   *  action buttons + hours/detail. */
+  canAct: boolean;
+  hours: number | string | null;
+  description: string | null;
+  days: TimesheetDayBreakdown[] | null;
+  reviewNote: string | null;
+}
+
+export interface TimesheetListResponse {
+  items: TimesheetRow[];
+  page: number;
+  pageSize: number;
+  totalElements: number;
+  totalPages: number;
+}
+
+export interface TimesheetFilterOptions {
+  statuses: string[];
+  technologies: string[];
+  managers: UserOption[];
+  ermOwners: ErmOwnerOption[];
+}
