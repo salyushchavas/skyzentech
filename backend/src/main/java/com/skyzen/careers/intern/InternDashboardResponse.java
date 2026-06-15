@@ -38,7 +38,12 @@ public record InternDashboardResponse(
     public record StepperStep(
             String key,
             String label,
-            String status // "DONE" | "ACTIVE" | "UPCOMING"
+            String status, // "DONE" | "ACTIVE" | "UPCOMING"
+            /** Optional secondary line rendered beneath the label. Used today
+             *  only for the {@code active_intern} step at ONBOARDING_ACCEPTED
+             *  to explain why the intern is parked ("Activates on YYYY-MM-DD",
+             *  "Pending start date", "Activating shortly"). Null otherwise. */
+            String reason
     ) {}
 
     public record Modules(

@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
-import { ChevronLeft, PencilLine, X } from 'lucide-react';
+import { ChevronLeft, PencilLine, Zap, X } from 'lucide-react';
 import api from '@/lib/api';
 import ProtectedRoute from '@/components/ProtectedRoute';
 import DashboardLayout from '@/components/dashboard/DashboardLayout';
@@ -20,6 +20,8 @@ export default function NewHireDetailPage() {
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
   const [modal, setModal] = useState<'reporting' | 'startdate' | 'packet' | 'manager' | null>(null);
+  const [activating, setActivating] = useState(false);
+  const [activateErr, setActivateErr] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     if (!id) return;
@@ -36,6 +38,26 @@ export default function NewHireDetailPage() {
   }, [id]);
 
   useEffect(() => { void load(); }, [load]);
+
+  async function activateNow() {
+    if (!data) return;
+    if (!confirm(
+      'Activate this intern now? This bypasses the start-date gate and '
+      + 'flips them to ACTIVE_INTERN immediately. Only use when ERM has '
+      + 'documented an early-start exception.',
+    )) return;
+    setActivating(true);
+    setActivateErr(null);
+    try {
+      await api.post(`/api/v1/intern-lifecycles/${data.internLifecycleId}/activate`);
+      await load();
+    } catch (e) {
+      const ax = e as { response?: { data?: { error?: string } }; message?: string };
+      setActivateErr(ax.response?.data?.error ?? ax.message ?? 'Activation failed');
+    } finally {
+      setActivating(false);
+    }
+  }
 
   if (loading && !data) {
     return (
@@ -131,7 +153,7 @@ export default function NewHireDetailPage() {
 
             <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
               <h3 className="text-sm font-semibold text-slate-900">Next steps</h3>
-              <div className="mt-3 flex items-center gap-3">
+              <div className="mt-3 flex flex-wrap items-center gap-3">
                 <button
                   type="button"
                   onClick={() => setModal('packet')}
@@ -143,7 +165,30 @@ export default function NewHireDetailPage() {
                     ? 'Document packet assigned ✓'
                     : 'Assign document packet…'}
                 </button>
+                {data.canActivateNow && (
+                  <button
+                    type="button"
+                    onClick={activateNow}
+                    disabled={activating}
+                    title="Bypass the start-date gate and activate this intern immediately"
+                    className="inline-flex items-center gap-1.5 rounded-md border border-amber-300 bg-amber-50 px-4 py-2 text-sm font-semibold text-amber-900 hover:bg-amber-100 disabled:opacity-60"
+                  >
+                    <Zap className="h-4 w-4" />
+                    {activating ? 'Activating…' : 'Activate now'}
+                  </button>
+                )}
               </div>
+              {data.canActivateNow && (
+                <p className="mt-2 text-[11px] text-slate-500">
+                  Documents verified. Awaiting offer start date — use Activate
+                  now only for a documented early-start exception.
+                </p>
+              )}
+              {activateErr && (
+                <p className="mt-2 rounded-md border border-rose-200 bg-rose-50 p-2 text-xs text-rose-800">
+                  {activateErr}
+                </p>
+              )}
             </section>
 
             <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">

@@ -7,6 +7,10 @@ export interface InternStepperStep {
   key: string;
   label: string;
   status: 'DONE' | 'ACTIVE' | 'UPCOMING';
+  /** Optional subtitle rendered beneath the label. Phase 8.9 uses this on
+   *  the active_intern step to surface "Activates on …" / "Pending start
+   *  date" when an intern is parked at ONBOARDING_ACCEPTED. */
+  reason?: string | null;
 }
 
 interface Props {
@@ -36,7 +40,12 @@ export default function InternStepper({ steps }: Props) {
         {steps.map((s, i) => (
           <li key={s.key} className="flex items-center gap-3">
             <CircleBadge step={s} index={i} compact />
-            <span className={cn('text-sm', labelClass(s.status))}>{s.label}</span>
+            <div className="min-w-0">
+              <p className={cn('text-sm', labelClass(s.status))}>{s.label}</p>
+              {s.reason && s.status === 'ACTIVE' && (
+                <p className="text-[11px] leading-tight text-amber-700">{s.reason}</p>
+              )}
+            </div>
           </li>
         ))}
       </ol>
@@ -56,6 +65,11 @@ function StepCircle({ step, index }: { step: InternStepperStep; index: number })
       >
         {step.label}
       </span>
+      {step.reason && step.status === 'ACTIVE' && (
+        <span className="max-w-[7.5rem] text-center text-[10px] leading-tight text-amber-700">
+          {step.reason}
+        </span>
+      )}
     </div>
   );
 }

@@ -162,7 +162,13 @@ public final class ErmOfferDtos {
             UserStub manager,
             UserStub erm,
             OfferSummaryStub signedOffer,
-            boolean onboardingAssigned
+            boolean onboardingAssigned,
+            /** Phase 8.9 — server-authoritative flag the ERM UI uses to
+             *  show/hide the "Activate now" override. True iff the intern's
+             *  User.lifecycleStatus is ONBOARDING_ACCEPTED AND a SIGNED offer
+             *  exists. Never true before document verification completes, so
+             *  the override can never skip onboarding. */
+            boolean canActivateNow
     ) {}
 
     public record UserStub(

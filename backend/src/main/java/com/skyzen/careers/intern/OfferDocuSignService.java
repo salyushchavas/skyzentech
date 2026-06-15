@@ -429,6 +429,15 @@ public class OfferDocuSignService {
             throw new ConflictException(
                     "Offer not in a signable state (status=" + offer.getStatus() + ")");
         }
+        // Phase 8.9 — a SIGNED offer with no startDate strands the intern at
+        // ONBOARDING_ACCEPTED forever (the activation gate filters out null
+        // startDates). Reject before flipping status so the intern can never
+        // sign their way into an un-activatable state.
+        if (offer.getStartDate() == null) {
+            throw new BadRequestException(
+                    "Offer cannot be signed without a start date. "
+                            + "Ask ERM to amend the offer with a start date first.");
+        }
         Instant now = Instant.now();
         if (offer.getExpiresAt() != null && now.isAfter(offer.getExpiresAt())) {
             // Auto-flip to EXPIRED so the queue reflects reality, then refuse.
@@ -579,6 +588,14 @@ public class OfferDocuSignService {
         switch (s) {
             case "completed", "signed" -> {
                 if (offer.getStatus() == OfferStatus.SIGNED) return offer;
+                // Phase 8.9 — defensive parity with finalizeInHouseSigning.
+                // The DocuSign envelope path is legacy but kept reachable;
+                // an envelope completing on an offer with no startDate would
+                // strand the intern just like the in-house path does.
+                if (offer.getStartDate() == null) {
+                    throw new BadRequestException(
+                            "Offer cannot be marked SIGNED without a start date.");
+                }
                 offer.setStatus(OfferStatus.SIGNED);
                 offer.setSignedAt(now);
                 Offer saved = offerRepository.save(offer);

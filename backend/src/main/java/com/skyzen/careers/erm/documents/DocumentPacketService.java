@@ -60,6 +60,7 @@ public class DocumentPacketService {
     private final UserRepository userRepository;
     private final AuditLogRepository auditLogRepository;
     private final InternLifecycleService internLifecycleService;
+    private final com.skyzen.careers.intern.InternActivationJob internActivationJob;
     private final ApplicationEventPublisher eventPublisher;
     private final ObjectMapper objectMapper;
     private final JdbcTemplate jdbc;
@@ -567,6 +568,18 @@ public class DocumentPacketService {
                                 actor != null ? actor.getId() : null);
                     } catch (Exception e) {
                         log.warn("[DocumentPacket] lifecycle advance to ONBOARDING_ACCEPTED failed: {}",
+                                e.getMessage());
+                    }
+                    // Phase 8.9 — instant single-user activation kick. Reuses
+                    // the exact start-date gate the scheduled scan applies, so
+                    // an intern whose start date has already arrived flips to
+                    // ACTIVE_INTERN within seconds of the last doc being
+                    // accepted instead of waiting up to 10 min for the scan.
+                    // Future start date → no-op (correct).
+                    try {
+                        internActivationJob.tryActivateIfReady(intern);
+                    } catch (Exception e) {
+                        log.warn("[DocumentPacket] activation kick failed (non-fatal): {}",
                                 e.getMessage());
                     }
                 }

@@ -181,7 +181,15 @@ public class ErmNewHireService {
                         signedOffer.getCompensationSummary(), signedOffer.getWorksite(),
                         signedOffer.getExpectedHoursPerWeek(), signedOffer.getStartDate(),
                         signedOffer.getSignedAt(), signedOffer.getSignedPdfDocumentId()),
-                onboardingAssigned);
+                onboardingAssigned,
+                // Phase 8.9 — surface the ERM "Activate now" override only
+                // when doc verification is complete (ONBOARDING_ACCEPTED) and
+                // a signed offer exists. Never true at ONBOARDING_ASSIGNED,
+                // so the override can never bypass document verification.
+                intern != null
+                        && intern.getLifecycleStatus()
+                                == com.skyzen.careers.enums.InternLifecycleStatus.ONBOARDING_ACCEPTED
+                        && signedOffer != null);
     }
 
     // ── Assign reporting structure (legacy — kept for one-off corrections) ─

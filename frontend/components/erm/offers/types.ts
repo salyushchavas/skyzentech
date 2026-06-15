@@ -151,4 +151,8 @@ export interface NewHireDetail {
     signedPdfDocumentId: string | null;
   } | null;
   onboardingAssigned: boolean;
+  /** Phase 8.9 — server-authoritative flag. True iff the intern is at
+   *  ONBOARDING_ACCEPTED with a signed offer; gates the "Activate now"
+   *  ERM override so it can never skip document verification. */
+  canActivateNow: boolean;
 }

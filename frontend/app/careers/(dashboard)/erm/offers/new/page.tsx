@@ -137,8 +137,16 @@ function CreateOfferPageInner() {
   async function submit() {
     setErr(null);
     if (!applicationId) { setErr('applicationId is required.'); return; }
-    if (!roleTitle.trim() || !tentativeStartDate || !compensationSummary.trim()) {
-      setErr('Role title, start date, and compensation are required.');
+    // Phase 8.9 — start date is the activation gate; reject explicitly so
+    // ERM never sends a "no start date" offer that would later strand the
+    // intern at ONBOARDING_ACCEPTED. The backend also enforces this on
+    // SIGN, but blocking here avoids a wasted offer round-trip.
+    if (!tentativeStartDate) {
+      setErr('Start date is required — the intern can\'t activate without one.');
+      return;
+    }
+    if (!roleTitle.trim() || !compensationSummary.trim()) {
+      setErr('Role title and compensation are required.');
       return;
     }
     setSubmitting(true);

@@ -56,21 +56,10 @@ public class InternActivationJob {
             return;
         }
 
-        LocalDate today = LocalDate.now(ZoneOffset.UTC);
         int activated = 0;
         for (User u : ready) {
             try {
-                List<Offer> offers = offerRepository
-                        .findByApplication_Candidate_User_IdOrderByCreatedAtDesc(u.getId());
-                LocalDate start = offers.stream()
-                        .filter(o -> o.getStartDate() != null
-                                && (o.getStatus() == com.skyzen.careers.enums.OfferStatus.SIGNED
-                                        || o.getStatus() == com.skyzen.careers.enums.OfferStatus.ACCEPTED))
-                        .map(Offer::getStartDate)
-                        .findFirst()
-                        .orElse(null);
-                if (start == null || start.isAfter(today)) continue;
-                activated += activateOne(u) ? 1 : 0;
+                if (tryActivateIfReady(u)) activated++;
             } catch (Exception e) {
                 log.warn("[ActivationJob] per-user activate failed for {}: {}",
                         u.getId(), e.getMessage());
@@ -82,18 +71,51 @@ public class InternActivationJob {
     }
 
     /**
-     * Manual override path. Bypasses the start-date gate (ERM may activate an
-     * intern early on a documented exception). Caller responsibility is in
-     * the controller.
+     * Phase 8.9 — single-user gated activation. Same condition set the
+     * scheduled scan uses: status must be {@code ONBOARDING_ACCEPTED} and
+     * the latest signed/accepted offer must have a non-null
+     * {@code startDate} that is today or in the past. Returns {@code true}
+     * iff the user was flipped. Safe to call from event handlers (e.g.
+     * the document-packet completion trigger) — failure is silent so it
+     * never blocks the calling transaction.
+     */
+    @Transactional
+    public boolean tryActivateIfReady(User user) {
+        if (user == null) return false;
+        if (user.getLifecycleStatus() != InternLifecycleStatus.ONBOARDING_ACCEPTED) {
+            return false;
+        }
+        LocalDate today = LocalDate.now(ZoneOffset.UTC);
+        LocalDate start;
+        try {
+            List<Offer> offers = offerRepository
+                    .findByApplication_Candidate_User_IdOrderByCreatedAtDesc(user.getId());
+            start = offers.stream()
+                    .filter(o -> o.getStartDate() != null
+                            && (o.getStatus() == com.skyzen.careers.enums.OfferStatus.SIGNED
+                                    || o.getStatus() == com.skyzen.careers.enums.OfferStatus.ACCEPTED))
+                    .map(Offer::getStartDate)
+                    .findFirst()
+                    .orElse(null);
+        } catch (Exception e) {
+            log.warn("[ActivationJob] offer lookup failed for {}: {}",
+                    user.getId(), e.getMessage());
+            return false;
+        }
+        if (start == null || start.isAfter(today)) return false;
+        return activateOneWithActor(user, null);
+    }
+
+    /**
+     * ERM manual override. Bypasses the start-date gate (documented exception
+     * for legitimate early starts) but still requires {@code ONBOARDING_ACCEPTED}
+     * — the same atomic re-check in {@link #activateOneWithActor} guarantees
+     * we never skip document verification.
      */
     @Transactional
     public boolean activateNow(User user, java.util.UUID actorId) {
         if (user == null) return false;
         return activateOneWithActor(user, actorId);
-    }
-
-    private boolean activateOne(User u) {
-        return activateOneWithActor(u, null);
     }
 
     private boolean activateOneWithActor(User u, java.util.UUID actorId) {

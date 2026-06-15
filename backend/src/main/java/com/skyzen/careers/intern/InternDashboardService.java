@@ -1,9 +1,12 @@
 package com.skyzen.careers.intern;
 
 import com.skyzen.careers.entity.InternLifecycle;
+import com.skyzen.careers.entity.Offer;
 import com.skyzen.careers.entity.User;
 import com.skyzen.careers.enums.InternLifecycleStatus;
+import com.skyzen.careers.enums.OfferStatus;
 import com.skyzen.careers.repository.InternLifecycleRepository;
+import com.skyzen.careers.repository.OfferRepository;
 import com.skyzen.careers.repository.UserRepository;
 import com.skyzen.careers.service.ExitService;
 import lombok.RequiredArgsConstructor;
@@ -11,6 +14,9 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import java.time.Instant;
+import java.time.LocalDate;
+import java.time.ZoneOffset;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
@@ -36,6 +42,7 @@ public class InternDashboardService {
     private final UserRepository userRepository;
     private final InternEvaluationService internEvaluationService;
     private final ExitService exitService;
+    private final OfferRepository offerRepository;
 
     public InternDashboardResponse getDashboard(User caller) {
         InternLifecycleStatus status = caller.getLifecycleStatus() != null
@@ -63,7 +70,7 @@ public class InternDashboardService {
                 status,
                 mode,
                 emailVerified,
-                buildStepper(status, hasPublishedEval),
+                buildStepper(caller, status, hasPublishedEval),
                 buildModules(mode),
                 buildNextAction(status, mode, emailVerified, exitSummary, feedbackSubmitted),
                 buildContacts(caller),
@@ -122,7 +129,8 @@ public class InternDashboardService {
             {"completed",        "Completed / Inactive"},
     };
 
-    private List<StepperStep> buildStepper(InternLifecycleStatus s, boolean hasPublishedEval) {
+    private List<StepperStep> buildStepper(User caller, InternLifecycleStatus s,
+                                            boolean hasPublishedEval) {
         // For each step compute the done-predicate. Active = first not-done.
         boolean[] done = new boolean[STEPS.length];
         done[0] = true; // Step 1 — user exists by virtue of being logged in
@@ -142,13 +150,57 @@ public class InternDashboardService {
             if (!done[i]) { firstActive = i; break; }
         }
 
+        // Phase 8.9 — "why parked" subtitle for the Active Intern node.
+        // Only meaningful when active_intern is the current step AND the
+        // intern is at ONBOARDING_ACCEPTED awaiting the start-date gate.
+        String activeIntenReason = null;
+        if (firstActive == 6 && s == InternLifecycleStatus.ONBOARDING_ACCEPTED) {
+            activeIntenReason = computeActivationReason(caller);
+        }
+
         List<StepperStep> out = new ArrayList<>(STEPS.length);
         for (int i = 0; i < STEPS.length; i++) {
             String state = done[i] ? "DONE"
                     : (i == firstActive ? "ACTIVE" : "UPCOMING");
-            out.add(new StepperStep(STEPS[i][0], STEPS[i][1], state));
+            String reason = (i == 6) ? activeIntenReason : null;
+            out.add(new StepperStep(STEPS[i][0], STEPS[i][1], state, reason));
         }
         return out;
+    }
+
+    /**
+     * Phase 8.9 — derive the human-readable reason a ONBOARDING_ACCEPTED
+     * intern is parked at the Active Intern node. Mirrors the gate the
+     * activation job applies: a signed/accepted offer with a non-null
+     * {@code startDate <= today} flips the intern; anything else parks them.
+     */
+    private String computeActivationReason(User caller) {
+        try {
+            List<Offer> offers = offerRepository
+                    .findByApplication_Candidate_User_IdOrderByCreatedAtDesc(caller.getId());
+            LocalDate start = offers.stream()
+                    .filter(o -> o.getStartDate() != null
+                            && (o.getStatus() == OfferStatus.SIGNED
+                                    || o.getStatus() == OfferStatus.ACCEPTED))
+                    .map(Offer::getStartDate)
+                    .findFirst()
+                    .orElse(null);
+            if (start == null) return "Pending start date";
+            LocalDate today = LocalDate.now(ZoneOffset.UTC);
+            if (start.isAfter(today)) {
+                return "Activates on "
+                        + start.format(DateTimeFormatter.ofPattern("MMM d, yyyy"));
+            }
+            // Start date has arrived — the scheduled scan / doc-completion
+            // trigger should be flipping the intern within seconds. The brief
+            // mid-window subtitle helps the intern understand why the node
+            // hasn't moved YET if they refresh between events.
+            return "Activating shortly";
+        } catch (Exception e) {
+            log.warn("[Dashboard] activation reason lookup failed (non-fatal) for {}: {}",
+                    caller.getId(), e.getMessage());
+            return null;
+        }
     }
 
     private boolean atLeast(InternLifecycleStatus current, InternLifecycleStatus floor) {
