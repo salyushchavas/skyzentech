@@ -101,8 +101,10 @@ export default function AssignPacketModal({
               {tentativeStartDate && <span> · starts {tentativeStartDate}</span>}
             </p>
             <p className="mt-1 text-[11px] text-slate-500">
-              The intern will download each PDF, fill it by hand, scan all
-              pages into a single PDF using their phone scanner, and upload.
+              Fill-and-sign docs: the intern downloads the PDF, fills it by
+              hand, scans all pages into a single PDF, and uploads. Upload-only
+              docs (passport, license, education) skip the template — they
+              scan/photo the existing document and upload directly.
             </p>
           </div>
           <button
@@ -155,15 +157,22 @@ export default function AssignPacketModal({
                           </div>
                           <p className="text-[11px] text-slate-500">{d.description}</p>
                         </label>
-                        <a
-                          href={d.publicUrl}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="inline-flex items-center gap-0.5 text-[11px] font-medium text-teal-700 hover:underline"
-                          title="Open the blank PDF in a new tab"
-                        >
-                          Preview <ExternalLink className="h-3 w-3" />
-                        </a>
+                        {d.publicUrl ? (
+                          <a
+                            href={d.publicUrl}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="inline-flex items-center gap-0.5 text-[11px] font-medium text-teal-700 hover:underline"
+                            title="Open the blank PDF in a new tab"
+                          >
+                            Preview <ExternalLink className="h-3 w-3" />
+                          </a>
+                        ) : (
+                          // Upload-only doc — no fill-in template to preview.
+                          <span className="text-[11px] text-slate-400">
+                            Upload only
+                          </span>
+                        )}
                       </li>
                     );
                   })}

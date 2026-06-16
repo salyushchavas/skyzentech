@@ -298,14 +298,27 @@ function TaskCard({ task, packet, onChanged }: {
           )}
           <p className="mt-2 rounded-md bg-slate-50 p-2 text-xs text-slate-700">
             <strong className="block">How to complete this document:</strong>
-            <span className="mt-1 block">
-              1. Download the PDF below.<br />
-              2. Print the PDF and fill it out by hand (blue or black pen).<br />
-              3. Use your phone&apos;s scanner app (Adobe Scan, Microsoft Lens,
-              or your built-in Notes scanner) to scan all filled pages into a
-              single PDF.<br />
-              4. Upload the scanned PDF here.
-            </span>
+            {task.templatePublicUrl ? (
+              <span className="mt-1 block">
+                1. Download the PDF below.<br />
+                2. Print the PDF and fill it out by hand (blue or black pen).<br />
+                3. Use your phone&apos;s scanner app (Adobe Scan, Microsoft Lens,
+                or your built-in Notes scanner) to scan all filled pages into a
+                single PDF.<br />
+                4. Upload the scanned PDF here.
+              </span>
+            ) : (
+              // Upload-only doc (Phase E identity / education) — no
+              // fill-in template; the intern scans/photos an existing
+              // document and uploads.
+              <span className="mt-1 block">
+                1. Take a clear photo or scan of your existing document
+                (use your phone&apos;s scanner app for best results).<br />
+                2. If the document has multiple pages, combine them into a
+                single PDF using Adobe Scan, Microsoft Lens, or Apple Notes.<br />
+                3. Upload the PDF here.
+              </span>
+            )}
           </p>
           {task.taskInstructions && (
             <p className="mt-2 whitespace-pre-wrap rounded-md border border-amber-200 bg-amber-50 p-2 text-xs text-amber-900">
@@ -327,7 +340,7 @@ function TaskCard({ task, packet, onChanged }: {
         </div>
 
         <div className="flex shrink-0 flex-col gap-2">
-          {task.templatePublicUrl ? (
+          {task.templatePublicUrl && (
             <a
               href={task.templatePublicUrl}
               target="_blank"
@@ -337,8 +350,6 @@ function TaskCard({ task, packet, onChanged }: {
             >
               <Download className="h-3.5 w-3.5" /> Download template
             </a>
-          ) : (
-            <span className="text-[11px] text-rose-700">Template unavailable</span>
           )}
 
           {canUpload && (

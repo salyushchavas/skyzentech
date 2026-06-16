@@ -53,7 +53,51 @@ public enum SkyzenDocument {
     WEEKLY_STATUS_REPORT_INSTRUCTIONS("Weekly Status Report Instructions",
             "INFORMATIONAL", "GENERAL",
             "EM_Instructions for Weekly Status Reports and timecard entry.pdf",
-            "Instructions for the weekly status report cadence.");
+            "Instructions for the weekly status report cadence."),
+
+    // ── Phase E onboarding — upload-only identity / education docs ──────
+    // No fill-in template; the intern uploads a scan/photo of an existing
+    // document. `filename` is intentionally null so publicUrl() returns
+    // null and the UI renders the upload-only instructions block
+    // (no "Download template" button). Multi-part documents (passport,
+    // DL, education) are modeled as one enum entry per part with a
+    // " — " separator in the title so the intern + ERM read them as a
+    // group on the existing flat per-task list.
+    EDU_PROVISIONAL_CERTIFICATE("Education — Provisional Certificate",
+            "EMPLOYMENT", "GENERAL", null,
+            "Scanned copy of the provisional/degree certificate for your "
+                    + "most recent degree (Master's or Bachelor's)."),
+    EDU_TRANSCRIPT("Education — Transcript",
+            "EMPLOYMENT", "GENERAL", null,
+            "Scanned copy of the academic transcript for your "
+                    + "most recent degree."),
+    PASSPORT_FRONT("Passport — Front Page",
+            "IMMIGRATION", "GOVERNMENT_ID", null,
+            "Scan or clear photo of the photo / bio page of your passport."),
+    PASSPORT_BACK("Passport — Back Page",
+            "IMMIGRATION", "GOVERNMENT_ID", null,
+            "Scan or clear photo of the back page of your passport "
+                    + "(address / signature page)."),
+    PASSPORT_VISA_STAMP("Passport — Visa Stamp Page",
+            "IMMIGRATION", "GOVERNMENT_ID", null,
+            "Scan or clear photo of the visa stamp page inside your "
+                    + "passport. Skip if you are a US citizen / permanent resident."),
+    DRIVERS_LICENSE_FRONT("Driver's License — Front",
+            "IMMIGRATION", "GOVERNMENT_ID", null,
+            "Scan or clear photo of the front of your US driver's license."),
+    DRIVERS_LICENSE_BACK("Driver's License — Back",
+            "IMMIGRATION", "GOVERNMENT_ID", null,
+            "Scan or clear photo of the back of your US driver's license."),
+    STATE_ID_CARD("State ID Card",
+            "IMMIGRATION", "GOVERNMENT_ID", null,
+            "Scan or clear photo of your state-issued ID card."),
+    SSN_CARD("SSN Card",
+            "IMMIGRATION", "GOVERNMENT_ID", null,
+            "Scan or clear photo of your Social Security card."),
+    I9_TRAVEL_HISTORY("I-9 Travel History",
+            "IMMIGRATION", "GOVERNMENT_ID", null,
+            "Scanned summary of your US entry/exit history for the I-9. "
+                    + "Use the I-94 travel history PDF from i94.cbp.dhs.gov.");
 
     private final String title;
     private final String category;
@@ -80,8 +124,13 @@ public enum SkyzenDocument {
      *  this with its own origin; the backend uses it only inside DTOs.
      *  Filenames contain spaces and original casing — encode for URL
      *  safety (spaces → %20, etc). URLEncoder is form-encoded so we
-     *  swap its `+` back to `%20` for path-segment correctness. */
+     *  swap its `+` back to `%20` for path-segment correctness.
+     *  Returns {@code null} for upload-only documents (scan/photo of
+     *  an existing item — passport, license, transcripts, etc.) that
+     *  have no fill-in template; the frontend keys off that null to
+     *  render the upload-only instructions block. */
     public String publicUrl() {
+        if (filename == null || filename.isBlank()) return null;
         String encoded = URLEncoder.encode(filename, StandardCharsets.UTF_8)
                 .replace("+", "%20");
         return "/document-templates/" + encoded;

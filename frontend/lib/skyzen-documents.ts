@@ -23,7 +23,18 @@ export type SkyzenDocumentKey =
   | 'MSA_TEMPLATE'
   | 'PO_TEMPLATE'
   | 'LEAVE_OF_ABSENCE_FORM'
-  | 'WEEKLY_STATUS_REPORT_INSTRUCTIONS';
+  | 'WEEKLY_STATUS_REPORT_INSTRUCTIONS'
+  // Phase E onboarding — upload-only identity / education docs.
+  | 'EDU_PROVISIONAL_CERTIFICATE'
+  | 'EDU_TRANSCRIPT'
+  | 'PASSPORT_FRONT'
+  | 'PASSPORT_BACK'
+  | 'PASSPORT_VISA_STAMP'
+  | 'DRIVERS_LICENSE_FRONT'
+  | 'DRIVERS_LICENSE_BACK'
+  | 'STATE_ID_CARD'
+  | 'SSN_CARD'
+  | 'I9_TRAVEL_HISTORY';
 
 export type SkyzenDocumentCategory =
   | 'TAX'
@@ -42,12 +53,17 @@ export type SkyzenDocumentSpec = {
   title: string;
   category: SkyzenDocumentCategory;
   sensitivity: SkyzenDocumentSensitivity;
-  filename: string;
+  /** Null for upload-only docs (scan/photo of an existing item — passport,
+   *  license, transcripts, etc.) that have no fill-in template. */
+  filename: string | null;
   description: string;
-  publicUrl: string;
+  /** Null when the doc has no fill-in template (mirrors the backend
+   *  SkyzenDocument.publicUrl() null contract). */
+  publicUrl: string | null;
 };
 
-function publicUrlFor(filename: string): string {
+function publicUrlFor(filename: string | null): string | null {
+  if (!filename) return null;
   return `/document-templates/${encodeURIComponent(filename)}`;
 }
 
@@ -101,6 +117,47 @@ const SPECS: readonly SkyzenDocumentSpecInput[] = [
     category: 'INFORMATIONAL', sensitivity: 'GENERAL',
     filename: 'EM_Instructions for Weekly Status Reports and timecard entry.pdf',
     description: 'Instructions for the weekly status report cadence.' },
+
+  // Phase E onboarding — upload-only identity / education docs. No
+  // fill-in template; the intern uploads a scan/photo of an existing
+  // document. Multi-part docs (passport, license, education) are
+  // modeled as one entry per part with " — " in the title so the
+  // intern + ERM read them as a group on the flat task list.
+  { key: 'EDU_PROVISIONAL_CERTIFICATE',
+    title: 'Education — Provisional Certificate',
+    category: 'EMPLOYMENT', sensitivity: 'GENERAL', filename: null,
+    description: "Scanned copy of the provisional/degree certificate for your "
+      + "most recent degree (Master's or Bachelor's)." },
+  { key: 'EDU_TRANSCRIPT', title: 'Education — Transcript',
+    category: 'EMPLOYMENT', sensitivity: 'GENERAL', filename: null,
+    description: 'Scanned copy of the academic transcript for your most recent degree.' },
+  { key: 'PASSPORT_FRONT', title: 'Passport — Front Page',
+    category: 'IMMIGRATION', sensitivity: 'GOVERNMENT_ID', filename: null,
+    description: 'Scan or clear photo of the photo / bio page of your passport.' },
+  { key: 'PASSPORT_BACK', title: 'Passport — Back Page',
+    category: 'IMMIGRATION', sensitivity: 'GOVERNMENT_ID', filename: null,
+    description: 'Scan or clear photo of the back page of your passport '
+      + '(address / signature page).' },
+  { key: 'PASSPORT_VISA_STAMP', title: 'Passport — Visa Stamp Page',
+    category: 'IMMIGRATION', sensitivity: 'GOVERNMENT_ID', filename: null,
+    description: 'Scan or clear photo of the visa stamp page inside your passport. '
+      + 'Skip if you are a US citizen / permanent resident.' },
+  { key: 'DRIVERS_LICENSE_FRONT', title: "Driver's License — Front",
+    category: 'IMMIGRATION', sensitivity: 'GOVERNMENT_ID', filename: null,
+    description: "Scan or clear photo of the front of your US driver's license." },
+  { key: 'DRIVERS_LICENSE_BACK', title: "Driver's License — Back",
+    category: 'IMMIGRATION', sensitivity: 'GOVERNMENT_ID', filename: null,
+    description: "Scan or clear photo of the back of your US driver's license." },
+  { key: 'STATE_ID_CARD', title: 'State ID Card',
+    category: 'IMMIGRATION', sensitivity: 'GOVERNMENT_ID', filename: null,
+    description: 'Scan or clear photo of your state-issued ID card.' },
+  { key: 'SSN_CARD', title: 'SSN Card',
+    category: 'IMMIGRATION', sensitivity: 'GOVERNMENT_ID', filename: null,
+    description: 'Scan or clear photo of your Social Security card.' },
+  { key: 'I9_TRAVEL_HISTORY', title: 'I-9 Travel History',
+    category: 'IMMIGRATION', sensitivity: 'GOVERNMENT_ID', filename: null,
+    description: 'Scanned summary of your US entry/exit history for the I-9. '
+      + 'Use the I-94 travel history PDF from i94.cbp.dhs.gov.' },
 ];
 
 export const SKYZEN_DOCUMENTS: readonly SkyzenDocumentSpec[] = SPECS.map((s) => ({
