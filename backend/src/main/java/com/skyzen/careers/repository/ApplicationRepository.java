@@ -20,6 +20,20 @@ public interface ApplicationRepository
     List<Application> findByCandidateId(UUID candidateId);
     List<Application> findByJobPostingId(UUID jobPostingId);
 
+    /**
+     * Direct lookup of every Application owned by a given User (joined
+     * through Candidate). Used by the intern dashboard's
+     * selection-acknowledgment context so the SelectionAckCard's
+     * visibility doesn't silently break when the standalone
+     * {@code CandidateRepository.findByUserId} lookup returns empty
+     * — pulls the same row set the ERM-side offer flow operates on,
+     * without depending on the cached Candidate→User link.
+     */
+    @Query("SELECT a FROM Application a " +
+            "WHERE a.candidate.user.id = :userId " +
+            "ORDER BY a.appliedAt DESC")
+    List<Application> findByCandidateUserIdOrderByAppliedAtDesc(@Param("userId") UUID userId);
+
     /** Phase 3 step 11 — bounded lookup for the engagement backfill runner. */
     List<Application> findByStatusIn(java.util.Collection<ApplicationStatus> statuses);
 

@@ -1,7 +1,6 @@
 package com.skyzen.careers.intern;
 
 import com.skyzen.careers.entity.Application;
-import com.skyzen.careers.entity.Candidate;
 import com.skyzen.careers.entity.InternLifecycle;
 import com.skyzen.careers.entity.Interview;
 import com.skyzen.careers.entity.Offer;
@@ -10,7 +9,6 @@ import com.skyzen.careers.enums.InternLifecycleStatus;
 import com.skyzen.careers.enums.OfferStatus;
 import com.skyzen.careers.erm.offer.SelectionAckPolicy;
 import com.skyzen.careers.repository.ApplicationRepository;
-import com.skyzen.careers.repository.CandidateRepository;
 import com.skyzen.careers.repository.InternLifecycleRepository;
 import com.skyzen.careers.repository.OfferRepository;
 import com.skyzen.careers.repository.UserRepository;
@@ -46,7 +44,6 @@ public class InternDashboardService {
     private final InternEvaluationService internEvaluationService;
     private final ExitService exitService;
     private final OfferRepository offerRepository;
-    private final CandidateRepository candidateRepository;
     private final ApplicationRepository applicationRepository;
     private final SelectionAckPolicy selectionAckPolicy;
 
@@ -113,44 +110,93 @@ public class InternDashboardService {
     }
 
     private SelectionContext computeSelectionContext(User caller) {
-        // Visibility derives ONLY from the same data the Send-Offer gate
-        // reads (latest completed Interview.decision + Application
-        // .selectionAcknowledgedAt). Previously this method short-circuited
-        // when status != INTERVIEW_COMPLETED, but the gate doesn't filter
-        // on lifecycle status — so SELECTED interns whose lifecycle
-        // hadn't advanced to INTERVIEW_COMPLETED (e.g. still
-        // INTERVIEW_SCHEDULED because the completion-driven bump never
-        // fired) saw the offer 409 with no card to acknowledge it.
-        // SelectionAckPolicy.needsAck(app) is now the single shared
-        // predicate driving both surfaces.
+        // The picker now mirrors the ERM Send-Offer gate at BOTH the
+        // predicate level (SelectionAckPolicy.needsAck) AND the
+        // application-selection level — i.e. we look directly for an
+        // application that needs acknowledgment, instead of picking the
+        // latest-scheduled completed interview and then asking whether
+        // it happens to be SELECTED. The earlier picker could drift off
+        // the gated app in two ways:
+        //   1) the standalone Candidate-by-user lookup could return
+        //      empty (broken back-link), nulling the entire context
+        //      even though the gate, which loads the application by
+        //      ID, was firing fine;
+        //   2) a candidate with multiple applications could have a
+        //      non-SELECTED interview with a later scheduledAt — the
+        //      picker would land on that one and report isSelected =
+        //      false, hiding the card on the SELECTED app the gate
+        //      operates on.
+        // Both surfaces now consult selectionAckPolicy.needsAck(app);
+        // they cannot disagree.
         try {
-            Candidate candidate = candidateRepository.findByUserId(caller.getId()).orElse(null);
-            if (candidate == null) return null;
-            List<Application> apps = applicationRepository.findByCandidateId(candidate.getId());
-            Application bestApp = null;
-            Interview bestInterview = null;
+            List<Application> apps = applicationRepository
+                    .findByCandidateUserIdOrderByAppliedAtDesc(caller.getId());
+            if (apps == null || apps.isEmpty()) return null;
+
+            // Pass 1: any application that the gate would 409 on — that
+            // application is the one to expose to the intern dashboard.
+            // Tiebreak by latest completed-interview scheduledAt so the
+            // chosen row is stable when multiple apps qualify.
+            Application needsAckApp = null;
+            Interview needsAckInterview = null;
             for (Application a : apps) {
                 if (a == null || a.getId() == null) continue;
+                if (!selectionAckPolicy.needsAck(a)) continue;
                 Interview iv = selectionAckPolicy.latestCompletedInterview(a).orElse(null);
-                if (iv == null) continue;
-                if (bestInterview == null
-                        || (iv.getScheduledAt() != null
-                            && (bestInterview.getScheduledAt() == null
-                                || iv.getScheduledAt().isAfter(bestInterview.getScheduledAt())))) {
-                    bestApp = a;
-                    bestInterview = iv;
+                if (needsAckApp == null
+                        || (iv != null && iv.getScheduledAt() != null
+                            && (needsAckInterview == null
+                                || needsAckInterview.getScheduledAt() == null
+                                || iv.getScheduledAt().isAfter(needsAckInterview.getScheduledAt())))) {
+                    needsAckApp = a;
+                    needsAckInterview = iv;
                 }
             }
-            if (bestApp == null || bestInterview == null) return null;
-            boolean selected = selectionAckPolicy.isSelected(bestApp);
-            return new SelectionContext(
-                    bestApp.getId(),
-                    bestApp.getJobPosting() != null ? bestApp.getJobPosting().getTitle() : null,
-                    bestApp.getApplicantVisibleFeedback() != null
-                            ? bestApp.getApplicantVisibleFeedback()
-                            : bestInterview.getApplicantVisibleNotes(),
-                    selected,
-                    bestApp.getSelectionAcknowledgedAt() != null);
+            if (needsAckApp != null) {
+                return new SelectionContext(
+                        needsAckApp.getId(),
+                        needsAckApp.getJobPosting() != null
+                                ? needsAckApp.getJobPosting().getTitle() : null,
+                        needsAckApp.getApplicantVisibleFeedback() != null
+                                ? needsAckApp.getApplicantVisibleFeedback()
+                                : (needsAckInterview != null
+                                    ? needsAckInterview.getApplicantVisibleNotes() : null),
+                        true,   // isSelected — guaranteed by needsAck
+                        false); // acknowledged — guaranteed false by needsAck
+            }
+
+            // Pass 2: nobody needs ack right now; an awaiting-offer app
+            // (selected + already acknowledged) drives the
+            // INTERVIEW_COMPLETED "Offer on its way" next-action text.
+            Application awaitingApp = null;
+            Interview awaitingInterview = null;
+            for (Application a : apps) {
+                if (a == null || a.getId() == null) continue;
+                if (!selectionAckPolicy.isSelected(a)) continue;
+                if (a.getSelectionAcknowledgedAt() == null) continue;
+                Interview iv = selectionAckPolicy.latestCompletedInterview(a).orElse(null);
+                if (awaitingApp == null
+                        || (iv != null && iv.getScheduledAt() != null
+                            && (awaitingInterview == null
+                                || awaitingInterview.getScheduledAt() == null
+                                || iv.getScheduledAt().isAfter(awaitingInterview.getScheduledAt())))) {
+                    awaitingApp = a;
+                    awaitingInterview = iv;
+                }
+            }
+            if (awaitingApp != null) {
+                return new SelectionContext(
+                        awaitingApp.getId(),
+                        awaitingApp.getJobPosting() != null
+                                ? awaitingApp.getJobPosting().getTitle() : null,
+                        awaitingApp.getApplicantVisibleFeedback() != null
+                                ? awaitingApp.getApplicantVisibleFeedback()
+                                : (awaitingInterview != null
+                                    ? awaitingInterview.getApplicantVisibleNotes() : null),
+                        true,   // isSelected
+                        true);  // acknowledged → awaitingOffer
+            }
+            return null;
         } catch (Exception e) {
             log.warn("[Dashboard] selection-context lookup failed (non-fatal) for {}: {}",
                     caller.getId(), e.getMessage());
