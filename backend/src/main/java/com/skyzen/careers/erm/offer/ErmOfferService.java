@@ -6,7 +6,6 @@ import com.skyzen.careers.dto.offer.SendOfferRequest;
 import com.skyzen.careers.entity.Application;
 import com.skyzen.careers.entity.AuditLog;
 import com.skyzen.careers.entity.Candidate;
-import com.skyzen.careers.entity.Interview;
 import com.skyzen.careers.entity.JobPosting;
 import com.skyzen.careers.entity.Offer;
 import com.skyzen.careers.entity.OfferEventLog;
@@ -25,7 +24,6 @@ import com.skyzen.careers.exception.ResourceNotFoundException;
 import com.skyzen.careers.intern.OfferIdmsSigningService;
 import com.skyzen.careers.repository.ApplicationRepository;
 import com.skyzen.careers.repository.AuditLogRepository;
-import com.skyzen.careers.repository.InterviewRepository;
 import com.skyzen.careers.repository.OfferEventLogRepository;
 import com.skyzen.careers.repository.OfferRepository;
 import com.skyzen.careers.repository.UserRepository;
@@ -49,7 +47,6 @@ import java.util.EnumSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 
@@ -75,7 +72,6 @@ public class ErmOfferService {
     private final OfferRepository offerRepository;
     private final OfferEventLogRepository eventLogRepository;
     private final ApplicationRepository applicationRepository;
-    private final InterviewRepository interviewRepository;
     private final UserRepository userRepository;
     private final AuditLogRepository auditLogRepository;
     private final OfferIdmsSigningService offerIdmsSigningService;
@@ -84,6 +80,7 @@ public class ErmOfferService {
     private final ObjectMapper objectMapper;
     private final JdbcTemplate jdbc;
     private final com.skyzen.careers.intern.InternLifecycleService internLifecycleService;
+    private final SelectionAckPolicy selectionAckPolicy;
 
     // ── List ───────────────────────────────────────────────────────────────
 
@@ -232,21 +229,21 @@ public class ErmOfferService {
                 .orElseThrow(() -> new ResourceNotFoundException(
                         "Application not found: " + req.applicationId()));
 
-        // ERM Phase 4 gate: latest interview must have decision = SELECTED.
-        Optional<Interview> latest = interviewRepository
-                .findByApplicationIdOrderByScheduledAtDesc(app.getId()).stream()
-                .filter(i -> i.getStatus() == com.skyzen.careers.enums.InterviewStatus.COMPLETED)
-                .findFirst();
-        if (latest.isEmpty() || !"SELECTED".equalsIgnoreCase(latest.get().getDecision())) {
+        // ERM Phase 4 gates — both keyed off the shared SelectionAckPolicy
+        // so the intern dashboard's SelectionAckCard never disagrees with
+        // the 409s thrown here. Two-tier check preserved for distinct
+        // operator-facing error text.
+        if (!selectionAckPolicy.isSelected(app)) {
             throw new ConflictException(
                     "Send Offer requires SELECTED interview decision.");
         }
-
         // Selection-ack gate: the intern must have clicked "Receive my
         // offer letter" on their dashboard before an offer can be issued.
         // Holds offers until the intern actively requests one — they
-        // shouldn't get an unexpected signing email cold.
-        if (app.getSelectionAcknowledgedAt() == null) {
+        // shouldn't get an unexpected signing email cold. The card's
+        // visibility is bound to selectionAckPolicy.needsAck(app), so if
+        // we throw this 409 the card is guaranteed to be on screen.
+        if (selectionAckPolicy.needsAck(app)) {
             throw new ConflictException(
                     "Send Offer requires the intern's selection acknowledgment. "
                             + "They haven't clicked 'Receive my offer letter' on their dashboard yet.");

@@ -7,12 +7,11 @@ import com.skyzen.careers.entity.Interview;
 import com.skyzen.careers.entity.Offer;
 import com.skyzen.careers.entity.User;
 import com.skyzen.careers.enums.InternLifecycleStatus;
-import com.skyzen.careers.enums.InterviewStatus;
 import com.skyzen.careers.enums.OfferStatus;
+import com.skyzen.careers.erm.offer.SelectionAckPolicy;
 import com.skyzen.careers.repository.ApplicationRepository;
 import com.skyzen.careers.repository.CandidateRepository;
 import com.skyzen.careers.repository.InternLifecycleRepository;
-import com.skyzen.careers.repository.InterviewRepository;
 import com.skyzen.careers.repository.OfferRepository;
 import com.skyzen.careers.repository.UserRepository;
 import com.skyzen.careers.service.ExitService;
@@ -49,7 +48,7 @@ public class InternDashboardService {
     private final OfferRepository offerRepository;
     private final CandidateRepository candidateRepository;
     private final ApplicationRepository applicationRepository;
-    private final InterviewRepository interviewRepository;
+    private final SelectionAckPolicy selectionAckPolicy;
 
     public InternDashboardResponse getDashboard(User caller) {
         InternLifecycleStatus status = caller.getLifecycleStatus() != null
@@ -74,7 +73,9 @@ public class InternDashboardService {
 
         // Selection acknowledgment block — populated only when the latest
         // completed interview decision is SELECTED and ack hasn't fired.
-        SelectionContext selection = computeSelectionContext(caller, status);
+        // Visibility intentionally NOT lifecycle-status-gated: the card
+        // must mirror the Send-Offer 409 condition exactly.
+        SelectionContext selection = computeSelectionContext(caller);
 
         return new InternDashboardResponse(
                 userSummary(caller),
@@ -111,38 +112,37 @@ public class InternDashboardService {
         }
     }
 
-    private SelectionContext computeSelectionContext(User caller, InternLifecycleStatus status) {
-        // Only relevant in the INTERVIEW_COMPLETED window; past OFFER_SENT
-        // the offer has already been issued and the selection card would
-        // be stale.
-        if (status != InternLifecycleStatus.INTERVIEW_COMPLETED) return null;
+    private SelectionContext computeSelectionContext(User caller) {
+        // Visibility derives ONLY from the same data the Send-Offer gate
+        // reads (latest completed Interview.decision + Application
+        // .selectionAcknowledgedAt). Previously this method short-circuited
+        // when status != INTERVIEW_COMPLETED, but the gate doesn't filter
+        // on lifecycle status — so SELECTED interns whose lifecycle
+        // hadn't advanced to INTERVIEW_COMPLETED (e.g. still
+        // INTERVIEW_SCHEDULED because the completion-driven bump never
+        // fired) saw the offer 409 with no card to acknowledge it.
+        // SelectionAckPolicy.needsAck(app) is now the single shared
+        // predicate driving both surfaces.
         try {
             Candidate candidate = candidateRepository.findByUserId(caller.getId()).orElse(null);
             if (candidate == null) return null;
-            // Latest application is the one whose latest completed interview
-            // carries the decision we care about. Walk candidate's apps and
-            // pick the one with the most recent completed interview.
             List<Application> apps = applicationRepository.findByCandidateId(candidate.getId());
             Application bestApp = null;
             Interview bestInterview = null;
             for (Application a : apps) {
                 if (a == null || a.getId() == null) continue;
-                List<Interview> ivs = interviewRepository
-                        .findByApplicationIdOrderByScheduledAtDesc(a.getId());
-                for (Interview iv : ivs) {
-                    if (iv.getStatus() != InterviewStatus.COMPLETED) continue;
-                    if (bestInterview == null
-                            || (iv.getScheduledAt() != null
-                                && (bestInterview.getScheduledAt() == null
-                                    || iv.getScheduledAt().isAfter(bestInterview.getScheduledAt())))) {
-                        bestApp = a;
-                        bestInterview = iv;
-                    }
-                    break; // only consider the most recent completed iv per app
+                Interview iv = selectionAckPolicy.latestCompletedInterview(a).orElse(null);
+                if (iv == null) continue;
+                if (bestInterview == null
+                        || (iv.getScheduledAt() != null
+                            && (bestInterview.getScheduledAt() == null
+                                || iv.getScheduledAt().isAfter(bestInterview.getScheduledAt())))) {
+                    bestApp = a;
+                    bestInterview = iv;
                 }
             }
             if (bestApp == null || bestInterview == null) return null;
-            boolean selected = "SELECTED".equalsIgnoreCase(bestInterview.getDecision());
+            boolean selected = selectionAckPolicy.isSelected(bestApp);
             return new SelectionContext(
                     bestApp.getId(),
                     bestApp.getJobPosting() != null ? bestApp.getJobPosting().getTitle() : null,
