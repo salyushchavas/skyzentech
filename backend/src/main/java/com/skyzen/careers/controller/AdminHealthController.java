@@ -65,9 +65,20 @@ public class AdminHealthController {
     public Map<String, Object> zoom() {
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("enabled", zoomService.isReady());
+        body.put("credentialsPresent", zoomService.hasCredentials());
+        body.put("forceDisabled", zoomService.isForceDisabled());
         if (!zoomService.isReady()) {
             body.put("authenticated", false);
-            body.put("error", "Zoom integration disabled or credentials missing");
+            if (zoomService.isForceDisabled()) {
+                body.put("error",
+                        "Zoom is force-disabled (ZOOM_ENABLED=false). Unset the var "
+                                + "or set it to true to use the configured credentials.");
+            } else {
+                body.put("error",
+                        "Zoom credentials missing — set ZOOM_ACCOUNT_ID, "
+                                + "ZOOM_CLIENT_ID, ZOOM_CLIENT_SECRET on Railway from "
+                                + "a Server-to-Server OAuth app with meeting:write scope.");
+            }
             return body;
         }
         try {

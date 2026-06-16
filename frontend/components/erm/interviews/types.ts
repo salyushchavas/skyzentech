@@ -84,6 +84,20 @@ export interface AvailableActions {
   canSendReminder: boolean;
 }
 
+/**
+ * Outcome of the most recent Zoom call attempt for the interview.
+ * Mirrors `ErmInterviewDtos.ZoomStatus` on the backend; drives the ERM
+ * detail page's status banner + Regenerate button.
+ */
+export type ZoomStatus =
+  | 'OK'
+  | 'MANUAL_LINK'
+  | 'NOT_CONFIGURED'
+  | 'DISABLED'
+  | 'CREATE_FAILED'
+  | 'UPDATE_FAILED'
+  | 'UNKNOWN';
+
 export interface InterviewDetail {
   id: string;
   status: InterviewStatus;
@@ -96,6 +110,9 @@ export interface InterviewDetail {
   zoomStartUrl: string | null;
   zoomPassword: string | null;
   zoomMeetingId: number | null;
+  zoomStatus: ZoomStatus;
+  /** Truncated Zoom error message — null for non-staff or when no error. */
+  zoomErrorMessage: string | null;
   decision: string | null;
   overallRecommendation: string | null;
   technicalScore: number | null;

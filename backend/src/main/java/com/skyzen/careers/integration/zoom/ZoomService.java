@@ -27,9 +27,18 @@ import java.util.concurrent.locks.ReentrantLock;
  * startup probe on boot, structured error logging.
  *
  * <h2>Boot semantics</h2>
- * Soft-configured. If {@code zoom.enabled=false} or any of the three credential
- * env vars are blank, every public method throws {@link IllegalStateException}
- * with a clean message. The bean still constructs so the rest of the app boots.
+ * Soft-configured. Integration is considered <b>ready</b> when all three
+ * credential env vars ({@code ZOOM_ACCOUNT_ID}, {@code ZOOM_CLIENT_ID},
+ * {@code ZOOM_CLIENT_SECRET}) are present <i>and</i> the optional
+ * {@code ZOOM_ENABLED} kill-switch hasn't been explicitly set to
+ * {@code false}. The default for {@code ZOOM_ENABLED} is {@code true} —
+ * the previous boolean toggle was a footgun (creds set + enabled
+ * forgotten = silently degraded scheduling). Set {@code ZOOM_ENABLED=false}
+ * only when you want to force-disable Zoom while leaving creds in place.
+ *
+ * <p>When not ready, every public meeting CRUD method throws
+ * {@link IllegalStateException} with a clean message. The bean still
+ * constructs so the rest of the app boots.</p>
  *
  * <h2>Token cache</h2>
  * One token per JVM instance; refreshed when the cached value is within
@@ -52,6 +61,7 @@ public class ZoomService {
     private final String accountId;
     private final String clientId;
     private final String clientSecret;
+    /** Force-disable override. Defaults to true so cred-presence alone enables Zoom. */
     @Getter
     private final boolean enabled;
 
@@ -68,11 +78,15 @@ public class ZoomService {
     @Getter
     private volatile String authenticatedHostEmail;
 
+    /** Last startup-probe error, surfaced by admin health endpoint when set. */
+    @Getter
+    private volatile String lastProbeError;
+
     public ZoomService(
             @Value("${zoom.account-id:}") String accountId,
             @Value("${zoom.client-id:}") String clientId,
             @Value("${zoom.client-secret:}") String clientSecret,
-            @Value("${zoom.enabled:false}") boolean enabled
+            @Value("${zoom.enabled:true}") boolean enabled
     ) {
         this.accountId = trimToNull(accountId);
         this.clientId = trimToNull(clientId);
@@ -80,21 +94,37 @@ public class ZoomService {
         this.enabled = enabled;
 
         if (!enabled) {
-            log.info("[Zoom] disabled (zoom.enabled=false). Interview scheduling "
-                    + "will persist rows without Zoom links.");
+            log.info("[Zoom] force-disabled (ZOOM_ENABLED=false). Interview "
+                    + "scheduling will persist rows without Zoom links.");
         } else if (!hasCredentials()) {
-            log.warn("[Zoom] enabled but credentials missing — set ZOOM_ACCOUNT_ID, "
-                    + "ZOOM_CLIENT_ID, ZOOM_CLIENT_SECRET. Calls will throw "
-                    + "IllegalStateException until configured.");
+            log.info("[Zoom] not configured — set ZOOM_ACCOUNT_ID, ZOOM_CLIENT_ID, "
+                    + "ZOOM_CLIENT_SECRET (from a Server-to-Server OAuth app with the "
+                    + "meeting:write scope). Scheduling will work without links until "
+                    + "creds are added.");
         }
     }
 
-    /** True only when zoom.enabled=true AND all three credentials are present. */
+    /**
+     * True when all three creds are present and ZOOM_ENABLED hasn't been
+     * explicitly flipped to false. Cred presence alone is the gate — the
+     * previous explicit enable toggle was the main cause of "Zoom doesn't work":
+     * creds were set but the toggle wasn't.
+     */
     public boolean isReady() {
         return enabled && hasCredentials();
     }
 
-    private boolean hasCredentials() {
+    /**
+     * True when the boolean kill-switch is off (regardless of creds).
+     * Used by the admin health endpoint to differentiate "disabled" vs
+     * "missing creds" vs "auth failing".
+     */
+    public boolean isForceDisabled() {
+        return !enabled;
+    }
+
+    /** True iff all three credential env vars are non-blank. */
+    public boolean hasCredentials() {
         return accountId != null && clientId != null && clientSecret != null;
     }
 
@@ -108,8 +138,10 @@ public class ZoomService {
             try {
                 String email = probeUsersMe();
                 authenticatedHostEmail = email;
+                lastProbeError = null;
                 log.info("[Zoom] authenticated as {}", email);
             } catch (Exception e) {
+                lastProbeError = e.getMessage();
                 log.warn("[Zoom] TOKEN VALIDATION FAILED: {}", e.getMessage());
             }
         }, "zoom-startup-probe");

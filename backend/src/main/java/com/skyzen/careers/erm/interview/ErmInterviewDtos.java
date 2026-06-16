@@ -57,6 +57,27 @@ public final class ErmInterviewDtos {
      *  - MANAGER: scores + recommendation present; internalNotes + decisionReasonText null
      *  - ERM / SUPER_ADMIN / interviewer / panel: full payload
      */
+    /**
+     * Outcome of the most recent Zoom call attempt for the interview.
+     * Surfaced on {@link ErmInterviewDetail} so the ERM UI can render
+     * a "Zoom not configured" / "Zoom failed: …" / "Manual link in use"
+     * banner instead of leaving the user to guess why the join link is
+     * missing.
+     *
+     * <ul>
+     *   <li>{@code OK} — meeting created and join_url stored.</li>
+     *   <li>{@code MANUAL_LINK} — ERM supplied a manual link; Zoom API not called.</li>
+     *   <li>{@code NOT_CONFIGURED} — Zoom credentials are not set on the server.</li>
+     *   <li>{@code DISABLED} — ZOOM_ENABLED=false force-disable is active.</li>
+     *   <li>{@code CREATE_FAILED} — Zoom API returned an error on createMeeting.</li>
+     *   <li>{@code UPDATE_FAILED} — Zoom API returned an error on updateMeeting.</li>
+     *   <li>{@code UNKNOWN} — read-only view; no recent attempt to report.</li>
+     * </ul>
+     */
+    public enum ZoomStatus {
+        OK, MANUAL_LINK, NOT_CONFIGURED, DISABLED, CREATE_FAILED, UPDATE_FAILED, UNKNOWN
+    }
+
     public record ErmInterviewDetail(
             UUID id,
             InterviewStatus status,
@@ -69,6 +90,12 @@ public final class ErmInterviewDtos {
             String zoomStartUrl,             // ERM/interviewer only
             String zoomPassword,             // ERM/interviewer only
             Long zoomMeetingId,
+            /** Phase: surfaces the most recent Zoom outcome so the UI can
+             *  render a clear banner + Regenerate action when needed. */
+            ZoomStatus zoomStatus,
+            /** Truncated Zoom error message for CREATE_FAILED / UPDATE_FAILED.
+             *  Never contains secrets — bodies are pre-truncated by ZoomService. */
+            String zoomErrorMessage,
             String decision,
             String overallRecommendation,
             Integer technicalScore,

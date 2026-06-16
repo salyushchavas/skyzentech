@@ -97,6 +97,22 @@ public class ErmInterviewService {
 
     private static final TypeReference<List<String>> STRING_LIST = new TypeReference<>() {};
 
+    /**
+     * Per-request Zoom outcome — propagated to the response DTO so the UI
+     * can render "Zoom not configured" vs "Zoom call failed: …" vs OK.
+     * {@code null} means "interview created without a Zoom attempt being
+     * relevant to this response" (e.g. read-only fetches).
+     */
+    private final ThreadLocal<ZoomCreateOutcome> lastZoomOutcome = new ThreadLocal<>();
+
+    private static final class ZoomCreateOutcome {
+        final ErmInterviewDtos.ZoomStatus status;
+        final String errorMessage;
+        ZoomCreateOutcome(ErmInterviewDtos.ZoomStatus s, String err) {
+            this.status = s; this.errorMessage = err;
+        }
+    }
+
     // ── List + calendar ───────────────────────────────────────────────────
 
     @Transactional(readOnly = true)
@@ -283,37 +299,10 @@ public class ErmInterviewService {
                     "timezone is not a recognized IANA id: '" + tz + "'.");
         }
 
-        // Zoom create (best-effort).
-        Long zoomId = null;
-        String joinUrl = null;
-        String startUrl = null;
-        String password = null;
-        boolean zoomDegraded = false;
-        if (req.manualZoomLink() != null && !req.manualZoomLink().isBlank()) {
-            joinUrl = req.manualZoomLink().trim();
-        } else if (zoomService.isReady()) {
-            try {
-                String host = interviewer.getZoomEmail() != null
-                        && !interviewer.getZoomEmail().isBlank()
-                        ? interviewer.getZoomEmail() : "me";
-                String topic = "Skyzen interview — "
-                        + candidateName(app) + " — " + jobTitle(app);
-                ZoomMeetingResponse z = zoomService.createMeeting(new ZoomMeetingRequest(
-                        host, topic, req.scheduledFor(), duration, tz,
-                        req.prepInstructions()));
-                zoomId = z.meetingId();
-                joinUrl = z.joinUrl();
-                startUrl = z.startUrl();
-                password = z.password();
-            } catch (Exception e) {
-                log.warn("[ErmInterviews] Zoom create failed (degraded): {}", e.getMessage());
-                zoomDegraded = true;
-            }
-        } else {
-            zoomDegraded = true;
-            log.info("[ErmInterviews] Zoom not configured — interview row created without meeting link");
-        }
-
+        // Build + persist the Interview row FIRST so a Zoom failure never
+        // loses the schedule. Then attach a Zoom meeting in a best-effort
+        // pass, recording the outcome on the per-request ThreadLocal so the
+        // response DTO can render a clear status to the ERM.
         InterviewType type = req.type() != null ? req.type() : InterviewType.TECHNICAL;
         Interview iv = Interview.builder()
                 .application(app)
@@ -323,15 +312,20 @@ public class ErmInterviewService {
                 .timezone(tz)
                 .type(type)
                 .status(InterviewStatus.SCHEDULED)
-                .zoomMeetingId(zoomId)
-                .zoomJoinUrl(joinUrl)
-                .zoomStartUrl(startUrl)
-                .zoomPassword(password)
                 .prepInstructions(req.prepInstructions())
                 .panelInterviewerIdsJson(serializePanel(req.panelInterviewerIds()))
                 .rescheduleCount(0)
                 .createdBy(caller.getId())
                 .build();
+
+        if (req.manualZoomLink() != null && !req.manualZoomLink().isBlank()) {
+            // ERM-supplied link bypasses the Zoom API entirely.
+            iv.setZoomJoinUrl(req.manualZoomLink().trim());
+            lastZoomOutcome.set(new ZoomCreateOutcome(
+                    ErmInterviewDtos.ZoomStatus.MANUAL_LINK, null));
+        } else {
+            attachZoomMeeting(iv, interviewer);
+        }
         iv = interviewRepository.save(iv);
 
         // Application status advance + lifecycle advance.
@@ -364,10 +358,6 @@ public class ErmInterviewService {
                     applicantUserId(app), interviewer.getId(), caller.getId()));
         } catch (Exception e) {
             log.warn("[ErmInterviews] event publish failed: {}", e.getMessage());
-        }
-        if (zoomDegraded) {
-            log.warn("[ErmInterviews] interview {} created with degraded Zoom — ERM should add a manual link",
-                    iv.getId());
         }
         return toDetail(iv, caller);
     }
@@ -425,16 +415,31 @@ public class ErmInterviewService {
 
         if (iv.getZoomMeetingId() != null && zoomService.isReady()) {
             try {
-                zoomService.updateMeeting(iv.getZoomMeetingId(), new ZoomMeetingRequest(
-                        null,
-                        "Skyzen interview — " + candidateName(iv.getApplication())
-                                + " — " + jobTitle(iv.getApplication()),
-                        iv.getScheduledAt(), iv.getDurationMinutes(),
-                        iv.getTimezone(), iv.getPrepInstructions()));
+                // updateMeeting() refetches via GET so joinUrl / password
+                // reflect any Zoom-side rotation that the PATCH may have
+                // triggered. Persist whatever comes back.
+                ZoomMeetingResponse z = zoomService.updateMeeting(
+                        iv.getZoomMeetingId(), new ZoomMeetingRequest(
+                                null,
+                                "Skyzen interview — "
+                                        + candidateName(iv.getApplication())
+                                        + " — " + jobTitle(iv.getApplication()),
+                                iv.getScheduledAt(), iv.getDurationMinutes(),
+                                iv.getTimezone(), iv.getPrepInstructions()));
+                if (z.joinUrl() != null) iv.setZoomJoinUrl(z.joinUrl());
+                if (z.startUrl() != null) iv.setZoomStartUrl(z.startUrl());
+                if (z.password() != null) iv.setZoomPassword(z.password());
+                lastZoomOutcome.set(new ZoomCreateOutcome(
+                        ErmInterviewDtos.ZoomStatus.OK, null));
             } catch (Exception e) {
                 log.warn("[ErmInterviews] Zoom updateMeeting failed (non-fatal): {}",
                         e.getMessage());
+                lastZoomOutcome.set(new ZoomCreateOutcome(
+                        ErmInterviewDtos.ZoomStatus.UPDATE_FAILED, e.getMessage()));
             }
+        } else if (iv.getZoomMeetingId() == null && zoomService.isReady()) {
+            // Previously degraded; try to attach a meeting at reschedule time.
+            attachZoomMeeting(iv, iv.getInterviewer());
         }
         interviewRepository.save(iv);
 
@@ -496,39 +501,9 @@ public class ErmInterviewService {
 
         // Recreate Zoom (S2S OAuth doesn't support host swap on existing
         // meetings; delete + create is the documented workaround).
-        if (iv.getZoomMeetingId() != null && zoomService.isReady()) {
-            try {
-                zoomService.deleteMeeting(iv.getZoomMeetingId());
-            } catch (Exception e) {
-                log.warn("[ErmInterviews] Zoom deleteMeeting on change-interviewer failed: {}",
-                        e.getMessage());
-            }
-        }
-        iv.setZoomMeetingId(null);
-        iv.setZoomJoinUrl(null);
-        iv.setZoomStartUrl(null);
-        iv.setZoomPassword(null);
-        if (zoomService.isReady()) {
-            try {
-                String host = next.getZoomEmail() != null && !next.getZoomEmail().isBlank()
-                        ? next.getZoomEmail() : "me";
-                String topic = "Skyzen interview — "
-                        + candidateName(iv.getApplication()) + " — "
-                        + jobTitle(iv.getApplication());
-                ZoomMeetingResponse z = zoomService.createMeeting(new ZoomMeetingRequest(
-                        host, topic, iv.getScheduledAt(),
-                        iv.getDurationMinutes(), iv.getTimezone(),
-                        iv.getPrepInstructions()));
-                iv.setZoomMeetingId(z.meetingId());
-                iv.setZoomJoinUrl(z.joinUrl());
-                iv.setZoomStartUrl(z.startUrl());
-                iv.setZoomPassword(z.password());
-            } catch (Exception e) {
-                log.warn("[ErmInterviews] Zoom recreate on change-interviewer failed (degraded): {}",
-                        e.getMessage());
-            }
-        }
+        deleteZoomMeetingQuietly(iv);
         iv.setInterviewer(next);
+        attachZoomMeeting(iv, next);
         interviewRepository.save(iv);
 
         Map<String, Object> evtPayload = new LinkedHashMap<>();
@@ -687,14 +662,7 @@ public class ErmInterviewService {
         iv.setCancelledAt(Instant.now());
         iv.setCancelledById(caller.getId());
 
-        if (iv.getZoomMeetingId() != null && zoomService.isReady()) {
-            try {
-                zoomService.deleteMeeting(iv.getZoomMeetingId());
-            } catch (Exception e) {
-                log.warn("[ErmInterviews] Zoom deleteMeeting on cancel failed (non-fatal): {}",
-                        e.getMessage());
-            }
-        }
+        deleteZoomMeetingQuietly(iv);
         interviewRepository.save(iv);
 
         // Revert application + lifecycle. Cancel is the ONLY operation that
@@ -763,6 +731,53 @@ public class ErmInterviewService {
         }
         interviewRepository.save(iv);
         writeEventLog(iv.getId(), caller.getId(), "NOTES_UPDATED", null, null, Map.of());
+    }
+
+    // ── Regenerate Zoom meeting ───────────────────────────────────────────
+
+    /**
+     * Recreate a Zoom meeting for an interview that doesn't have one (or
+     * has one we want to replace). Used by the ERM when the original Zoom
+     * call failed (creds were missing, transient outage) or the meeting
+     * needs a fresh link. Only allowed while the interview is SCHEDULED.
+     *
+     * <p>If a meeting id already exists, we attempt to delete it first so
+     * we don't orphan it in Zoom. Failures on the delete leg are logged
+     * but don't block the recreate.</p>
+     */
+    @Transactional
+    public ErmInterviewDtos.ErmInterviewDetail regenerateZoom(UUID interviewId, User caller) {
+        Interview iv = interviewRepository.findById(interviewId)
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "Interview not found: " + interviewId));
+        if (iv.getStatus() != InterviewStatus.SCHEDULED) {
+            throw new ConflictException(
+                    "Regenerate only allowed from SCHEDULED (current: " + iv.getStatus() + ")");
+        }
+        if (!zoomService.isReady()) {
+            if (zoomService.isForceDisabled()) {
+                throw new ConflictException(
+                        "Zoom is force-disabled (ZOOM_ENABLED=false). "
+                                + "Unset the kill-switch to use the configured credentials.");
+            }
+            throw new ConflictException(
+                    "Zoom is not configured — ZOOM_ACCOUNT_ID / ZOOM_CLIENT_ID / "
+                            + "ZOOM_CLIENT_SECRET are not set on the server.");
+        }
+        deleteZoomMeetingQuietly(iv);
+        attachZoomMeeting(iv, iv.getInterviewer());
+        interviewRepository.save(iv);
+
+        writeEventLog(iv.getId(), caller.getId(), "ZOOM_REGENERATED", null, null,
+                Map.of("hasJoinUrl", iv.getZoomJoinUrl() != null));
+        ZoomCreateOutcome out = lastZoomOutcome.get();
+        if (out != null && out.status != ErmInterviewDtos.ZoomStatus.OK) {
+            // Surface the failure to the caller — they explicitly asked to
+            // regenerate and need a clear signal it didn't work.
+            throw new ConflictException("Zoom meeting recreation failed: "
+                    + (out.errorMessage != null ? out.errorMessage : "unknown error"));
+        }
+        return toDetail(iv, caller);
     }
 
     // ── Eligible interviewers ─────────────────────────────────────────────
@@ -889,6 +904,38 @@ public class ErmInterviewService {
 
         ErmInterviewDtos.AvailableActions actions = computeActions(iv, canSeePrivate);
 
+        // Surface the most recent Zoom outcome to the ERM. If this call
+        // mutated Zoom in some way, the ThreadLocal carries the live
+        // result; on read-only fetches we infer status from the row.
+        ZoomCreateOutcome out = lastZoomOutcome.get();
+        lastZoomOutcome.remove();
+        ErmInterviewDtos.ZoomStatus zStatus;
+        String zErr;
+        if (out != null) {
+            zStatus = out.status;
+            zErr = out.errorMessage;
+        } else if (iv.getZoomJoinUrl() != null && iv.getZoomMeetingId() != null) {
+            zStatus = ErmInterviewDtos.ZoomStatus.OK;
+            zErr = null;
+        } else if (iv.getZoomJoinUrl() != null) {
+            // Manual link path — has a join url but no Zoom-issued meeting id.
+            zStatus = ErmInterviewDtos.ZoomStatus.MANUAL_LINK;
+            zErr = null;
+        } else if (zoomService.isForceDisabled()) {
+            zStatus = ErmInterviewDtos.ZoomStatus.DISABLED;
+            zErr = null;
+        } else if (!zoomService.hasCredentials()) {
+            zStatus = ErmInterviewDtos.ZoomStatus.NOT_CONFIGURED;
+            zErr = null;
+        } else {
+            // Configured but the row has no link — prior attempt failed
+            // and wasn't retried yet. ERM can hit Regenerate.
+            zStatus = ErmInterviewDtos.ZoomStatus.CREATE_FAILED;
+            zErr = null;
+        }
+        // Hide Zoom failure details from non-staff viewers.
+        if (!canSeePrivate) zErr = null;
+
         return new ErmInterviewDtos.ErmInterviewDetail(
                 iv.getId(),
                 iv.getStatus(),
@@ -901,6 +948,8 @@ public class ErmInterviewService {
                 startUrl,
                 zoomPassword,
                 iv.getZoomMeetingId(),
+                zStatus,
+                zErr,
                 iv.getDecision(),
                 recommendation,
                 techScore, commScore, cultScore,
@@ -945,6 +994,68 @@ public class ErmInterviewService {
                 isScheduled && isErmOrInterviewer,
                 isErmOrInterviewer,
                 isScheduled && isErmOrInterviewer);
+    }
+
+    // ── Zoom helpers ──────────────────────────────────────────────────────
+
+    /**
+     * Best-effort attach of a Zoom meeting to the interview row. Records
+     * the outcome on the per-request ThreadLocal so {@link #toDetail} can
+     * project it into the response DTO. Never throws — Zoom failure must
+     * not lose or block the interview.
+     */
+    private void attachZoomMeeting(Interview iv, User host) {
+        if (!zoomService.isReady()) {
+            ErmInterviewDtos.ZoomStatus s = zoomService.isForceDisabled()
+                    ? ErmInterviewDtos.ZoomStatus.DISABLED
+                    : ErmInterviewDtos.ZoomStatus.NOT_CONFIGURED;
+            lastZoomOutcome.set(new ZoomCreateOutcome(s, null));
+            log.info("[ErmInterviews] Zoom {} — interview {} stored without link",
+                    s.name().toLowerCase(), iv.getId());
+            return;
+        }
+        String hostKey = host != null && host.getZoomEmail() != null
+                && !host.getZoomEmail().isBlank()
+                ? host.getZoomEmail() : "me";
+        Application app = iv.getApplication();
+        String topic = "Skyzen interview — " + candidateName(app) + " — " + jobTitle(app);
+        try {
+            ZoomMeetingResponse z = zoomService.createMeeting(new ZoomMeetingRequest(
+                    hostKey, topic, iv.getScheduledAt(), iv.getDurationMinutes(),
+                    iv.getTimezone(), iv.getPrepInstructions()));
+            iv.setZoomMeetingId(z.meetingId());
+            iv.setZoomJoinUrl(z.joinUrl());
+            iv.setZoomStartUrl(z.startUrl());
+            iv.setZoomPassword(z.password());
+            lastZoomOutcome.set(new ZoomCreateOutcome(
+                    ErmInterviewDtos.ZoomStatus.OK, null));
+        } catch (Exception e) {
+            log.warn("[ErmInterviews] Zoom createMeeting failed for interview {} (degraded): {}",
+                    iv.getId(), e.getMessage());
+            lastZoomOutcome.set(new ZoomCreateOutcome(
+                    ErmInterviewDtos.ZoomStatus.CREATE_FAILED, e.getMessage()));
+        }
+    }
+
+    /**
+     * Delete the Zoom meeting bound to the interview row (if any) and
+     * clear all four Zoom columns locally. Used by cancel, change-
+     * interviewer, and regenerate; never throws.
+     */
+    private void deleteZoomMeetingQuietly(Interview iv) {
+        Long mid = iv.getZoomMeetingId();
+        if (mid != null && zoomService.isReady()) {
+            try {
+                zoomService.deleteMeeting(mid);
+            } catch (Exception e) {
+                log.warn("[ErmInterviews] Zoom deleteMeeting failed for interview {} (non-fatal): {}",
+                        iv.getId(), e.getMessage());
+            }
+        }
+        iv.setZoomMeetingId(null);
+        iv.setZoomJoinUrl(null);
+        iv.setZoomStartUrl(null);
+        iv.setZoomPassword(null);
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────

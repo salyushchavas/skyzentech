@@ -14,6 +14,7 @@ import CompleteInterviewModal from '@/components/erm/interviews/CompleteIntervie
 import RescheduleModal from '@/components/erm/interviews/RescheduleModal';
 import CancelModal from '@/components/erm/interviews/CancelModal';
 import ChangeInterviewerModal from '@/components/erm/interviews/ChangeInterviewerModal';
+import ZoomStatusBanner from '@/components/erm/interviews/ZoomStatusBanner';
 import type { InterviewDetail } from '@/components/erm/interviews/types';
 import type { OfferListPage, OfferRow } from '@/components/erm/offers/types';
 import {
@@ -197,6 +198,11 @@ export default function InterviewDetailPage() {
                       </a>
                     </p>
                   )}
+                  {data.zoomPassword && (
+                    <p className="mt-1 text-xs text-slate-600">
+                      Passcode: <span className="font-mono">{data.zoomPassword}</span>
+                    </p>
+                  )}
                   {data.zoomStartUrl && (
                     <p className="mt-1 text-xs text-slate-600 break-all">
                       Host link (ERM-only):{' '}
@@ -205,6 +211,7 @@ export default function InterviewDetailPage() {
                       </a>
                     </p>
                   )}
+                  <ZoomStatusBanner interview={data} onUpdated={setData} />
                   {data.prepInstructions && (
                     <div className="mt-3 rounded-md border border-slate-100 bg-slate-50 p-3 text-xs text-slate-700">
                       <p className="font-semibold">Prep:</p>

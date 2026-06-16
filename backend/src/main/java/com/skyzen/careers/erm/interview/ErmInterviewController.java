@@ -98,6 +98,22 @@ public class ErmInterviewController {
         return ermInterviewService.complete(id, req, caller);
     }
 
+    /**
+     * Regenerate the Zoom meeting attached to this interview. Used when
+     * the original Zoom call failed (creds were missing, transient
+     * outage) or the link needs to be replaced. Deletes the prior Zoom
+     * meeting (best-effort) then creates a fresh one. Returns the
+     * updated detail on success or 409 with the Zoom error message if
+     * recreation fails.
+     */
+    @PostMapping("/{id}/zoom/regenerate")
+    @PreAuthorize("hasAnyRole('ERM', 'SUPER_ADMIN')")
+    public ErmInterviewDtos.ErmInterviewDetail regenerateZoom(
+            @PathVariable UUID id,
+            @AuthenticationPrincipal User caller) {
+        return ermInterviewService.regenerateZoom(id, caller);
+    }
+
     @PostMapping("/{id}/cancel")
     @PreAuthorize("hasAnyRole('ERM', 'SUPER_ADMIN')")
     public ResponseEntity<Void> cancel(
