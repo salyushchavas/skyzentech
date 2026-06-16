@@ -52,6 +52,16 @@ export interface TrainerDashboardResponse {
 
 // ── Active Interns ────────────────────────────────────────────────────
 
+/** Roster-wide month summary returned alongside the row page. */
+export interface MonthRosterSummary {
+  totalActive: number;
+  projectsUnassigned: number;
+  ktNotDone: number;
+  timesheetsIncomplete: number;
+  evaluationsOverdue: number;
+  attentionNeeded: number;
+}
+
 export type ProjectSlotState =
   | 'NOT_ASSIGNED'
   | 'ASSIGNED'
@@ -92,6 +102,9 @@ export interface ProjectSlot {
   status: string | null;
   dueDate: string | null;
   state: ProjectSlotState;
+  /** Phase 0 KT — NOT_DONE | DONE. */
+  ktStatus: 'NOT_DONE' | 'DONE' | null;
+  ktCompletedAt: string | null;
 }
 
 export interface CurrentMonthProjectsBlock {
@@ -151,6 +164,8 @@ export interface ActiveInternListPage {
   pageSize: number;
   totalElements: number;
   totalPages: number;
+  monthYear: string;
+  summary: MonthRosterSummary;
 }
 
 export interface InternProfile {

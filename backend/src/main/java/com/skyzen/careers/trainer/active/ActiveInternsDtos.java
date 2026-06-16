@@ -41,7 +41,26 @@ public final class ActiveInternsDtos {
             int page,
             int pageSize,
             long totalElements,
-            int totalPages
+            int totalPages,
+            /** Always present — the period the roster was rendered for. */
+            String monthYear,
+            /** Roster-wide aggregate for the month-summary strip. */
+            MonthRosterSummary summary
+    ) {}
+
+    /**
+     * Roster-wide counts for the month-summary strip above the table.
+     * All fields are scoped to the requested month + the row set the
+     * roster returned (pre-filter — gives the operator a sense of the
+     * whole month, not just what the filters surfaced).
+     */
+    public record MonthRosterSummary(
+            int totalActive,
+            int projectsUnassigned,
+            int ktNotDone,
+            int timesheetsIncomplete,
+            int evaluationsOverdue,
+            int attentionNeeded
     ) {}
 
     // ── Card-by-card state blocks ────────────────────────────────────────
@@ -53,7 +72,10 @@ public final class ActiveInternsDtos {
             String title,
             String status,
             LocalDate dueDate,
-            String state              // NOT_ASSIGNED | ASSIGNED | IN_PROGRESS | COMPLETED | OVERDUE
+            String state,             // NOT_ASSIGNED | ASSIGNED | IN_PROGRESS | COMPLETED | OVERDUE
+            /** Phase 0 KT — NOT_DONE | DONE. Null when no project. */
+            String ktStatus,
+            Instant ktCompletedAt
     ) {}
 
     public record CurrentMonthProjectsBlock(

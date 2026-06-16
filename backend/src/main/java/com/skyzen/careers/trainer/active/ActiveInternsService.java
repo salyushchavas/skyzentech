@@ -58,14 +58,34 @@ public class ActiveInternsService {
             List<String> meetingFilter,
             List<String> evaluationFilter,
             List<String> timesheetFilter,
+            Integer yearParam, Integer monthParam,
             int page, int pageSize) {
         requireTrainer(caller);
         int p = Math.max(0, page);
         int ps = Math.min(100, Math.max(1, pageSize));
 
-        StringBuilder where = new StringBuilder(" WHERE il.active_status = 'ACTIVE' ");
+        // Resolve the period. Phase A: single org-wide Trainer → no
+        // trainer_id filter; any TRAINER sees all interns active during
+        // the requested month. "Active that month" = started on/before
+        // month-end AND (still active OR ended on/after month-start).
+        YearMonth period = (yearParam != null && monthParam != null)
+                ? YearMonth.of(yearParam, monthParam)
+                : YearMonth.now(ZONE);
+        String monthYear = period.toString(); // "YYYY-MM"
+        LocalDate periodStart = period.atDay(1);
+        LocalDate periodEndExclusive = period.plusMonths(1).atDay(1);
+        java.sql.Timestamp tsStart = java.sql.Timestamp.from(
+                periodStart.atStartOfDay(ZONE).toInstant());
+        java.sql.Timestamp tsEndExclusive = java.sql.Timestamp.from(
+                periodEndExclusive.atStartOfDay(ZONE).toInstant());
+
+        StringBuilder where = new StringBuilder(
+                " WHERE COALESCE(il.started_at, il.hired_at) IS NOT NULL "
+                        + "   AND COALESCE(il.started_at, il.hired_at) < ? "
+                        + "   AND (il.ended_at IS NULL OR il.ended_at >= ?) ");
         List<Object> params = new ArrayList<>();
-        appendTrainerScope(where, params, caller);
+        params.add(tsEndExclusive);
+        params.add(tsStart);
         if (search != null && !search.isBlank()) {
             String s = "%" + search.trim().toLowerCase() + "%";
             where.append(" AND (LOWER(u.full_name) LIKE ? "
@@ -108,21 +128,23 @@ public class ActiveInternsService {
             raw = List.of();
         }
 
-        // Hydrate per-intern state blocks. List page sizes are bounded
-        // (≤100) so the N+1 hit is acceptable.
-        String currentMonth = currentMonthYear();
-        LocalDate currentWeek = mondayOf(LocalDate.now(ZONE));
+        // Hydrate per-intern state blocks for the requested month.
+        // Page sizes ≤100 so the N+1 hit is acceptable.
         List<ActiveInternRow> hydrated = new ArrayList<>(raw.size());
         for (ActiveInternRow r : raw) {
-            hydrated.add(hydrate(r, currentMonth, currentWeek));
+            hydrated.add(hydrateForMonth(r, period));
         }
-        // Apply Java-side state filters (small page → fine).
+
+        MonthRosterSummary summary = computeRosterSummary(hydrated);
+        // Apply Java-side state filters AFTER summary so the strip
+        // reflects the whole month, not just what filters surface.
         List<ActiveInternRow> filtered = applyStateFilters(
                 hydrated, projectFilter, meetingFilter,
                 evaluationFilter, timesheetFilter);
 
         int totalPages = ps == 0 ? 0 : (int) Math.ceil((double) total / ps);
-        return new ActiveInternListPage(filtered, p, ps, total, totalPages);
+        return new ActiveInternListPage(filtered, p, ps, total, totalPages,
+                monthYear, summary);
     }
 
     private ActiveInternRow mapBasicRow(ResultSet rs, int n) throws SQLException {
@@ -160,7 +182,9 @@ public class ActiveInternsService {
 
     private ActiveInternRow hydrate(
             ActiveInternRow basic, String currentMonth, LocalDate currentWeek) {
-        CurrentMonthProjectsBlock projects = loadCurrentMonthProjects(
+        // Legacy entry-point kept for getDetail() which still asks for
+        // "current month + current week" semantics.
+        CurrentMonthProjectsBlock projects = loadMonthProjects(
                 basic.internLifecycleId(), currentMonth);
         MeetingStateBlock meeting = loadMeetingState(basic.internLifecycleId());
         EvaluationStateBlock evaluation = loadEvaluationState(basic.internLifecycleId());
@@ -178,14 +202,38 @@ public class ActiveInternsService {
                 basic.reportingStructure());
     }
 
-    private CurrentMonthProjectsBlock loadCurrentMonthProjects(UUID lifecycleId, String monthYear) {
+    /** Phase A roster: scope every per-intern state block to the
+     *  requested month rather than "right now". */
+    private ActiveInternRow hydrateForMonth(ActiveInternRow basic, YearMonth period) {
+        String monthYear = period.toString();
+        CurrentMonthProjectsBlock projects = loadMonthProjects(
+                basic.internLifecycleId(), monthYear);
+        MeetingStateBlock meeting = loadMeetingState(basic.internLifecycleId());
+        EvaluationStateBlock evaluation = loadMonthEvaluationState(
+                basic.internLifecycleId(), period, projects);
+        TimesheetStateBlock timesheet = loadMonthTimesheetState(basic, period);
+        return new ActiveInternRow(
+                basic.internLifecycleId(),
+                basic.employeeId(),
+                basic.fullName(),
+                basic.email(),
+                basic.phone(),
+                basic.technologyTitle(),
+                basic.startDate(),
+                basic.daysActive(),
+                projects, meeting, evaluation, timesheet,
+                basic.reportingStructure());
+    }
+
+    private CurrentMonthProjectsBlock loadMonthProjects(UUID lifecycleId, String monthYear) {
         if (lifecycleId == null) {
             return new CurrentMonthProjectsBlock(monthYear, null, null, "NO_PROJECTS");
         }
         Map<Short, ProjectSlot> slots = new LinkedHashMap<>();
         try {
             for (Map<String, Object> r : jdbc.queryForList(
-                    "SELECT id, title, status, due_date, project_number "
+                    "SELECT id, title, status, due_date, project_number, "
+                            + "       kt_status, kt_completed_at "
                             + "  FROM projects "
                             + " WHERE intern_lifecycle_id = ? "
                             + "   AND month_year = ? "
@@ -198,10 +246,14 @@ public class ActiveInternsService {
                 LocalDate dd = r.get("due_date") != null
                         ? ((java.sql.Date) r.get("due_date")).toLocalDate() : null;
                 String state = projectSlotState(status, dd);
+                String ktStatus = (String) r.get("kt_status");
+                Instant ktAt = instantOf((java.sql.Timestamp) r.get("kt_completed_at"));
                 slots.put(num, new ProjectSlot(
                         nullableUuid(String.valueOf(r.get("id"))),
                         (String) r.get("title"),
-                        status, dd, state));
+                        status, dd, state,
+                        ktStatus != null ? ktStatus : "NOT_DONE",
+                        ktAt));
             }
         } catch (Exception e) {
             log.debug("[ActiveInterns] project slot load failed: {}", e.getMessage());
@@ -219,6 +271,141 @@ public class ActiveInternsService {
             overall = "OVERDUE".equals(only.state()) ? "OVERDUE" : "PARTIAL";
         }
         return new CurrentMonthProjectsBlock(monthYear, s1, s2, overall);
+    }
+
+    /**
+     * Per-spec gating: Training Evaluation is "—" (NONE) until any
+     * project in the month is COMPLETED. Once a project completes →
+     * DONE if a MONTHLY evaluation exists overlapping the month;
+     * NOT_DONE otherwise. We map NOT_DONE → "OVERDUE" so the existing
+     * StateBadge palette renders the right tone (rose) without
+     * inventing a new state.
+     */
+    private EvaluationStateBlock loadMonthEvaluationState(
+            UUID lifecycleId, YearMonth period, CurrentMonthProjectsBlock projects) {
+        if (lifecycleId == null) {
+            return new EvaluationStateBlock(null, null, null, "NONE");
+        }
+        boolean anyComplete =
+                (projects.project1() != null && "COMPLETED".equals(projects.project1().state()))
+                || (projects.project2() != null && "COMPLETED".equals(projects.project2().state()));
+        if (!anyComplete) {
+            return new EvaluationStateBlock(null, null, null, "NONE");
+        }
+        LocalDate periodStart = period.atDay(1);
+        LocalDate periodEnd = period.atEndOfMonth();
+        Instant publishedAt = null;
+        try {
+            publishedAt = jdbc.query(
+                    "SELECT MAX(published_at) FROM intern_evaluations "
+                            + " WHERE intern_lifecycle_id = ? "
+                            + "   AND evaluation_type = 'MONTHLY' "
+                            + "   AND status IN ('PUBLISHED','ACKNOWLEDGED','AMENDED') "
+                            + "   AND (period_start IS NULL OR period_start <= ?) "
+                            + "   AND (period_end   IS NULL OR period_end   >= ?)",
+                    new Object[]{lifecycleId, periodEnd, periodStart},
+                    (rs, n) -> instantOf(rs.getTimestamp(1)))
+                    .stream().findFirst().orElse(null);
+        } catch (Exception e) {
+            log.debug("[ActiveInterns] month eval load failed: {}", e.getMessage());
+        }
+        String state = publishedAt != null ? "COMPLETED" : "OVERDUE";
+        return new EvaluationStateBlock(publishedAt, "MONTHLY", null, state);
+    }
+
+    /**
+     * Roll up the requested month's weekly timesheets into a single
+     * state pill. ALL_APPROVED → "APPROVED"; any REJECTED → "REJECTED";
+     * any SUBMITTED pending → "SUBMITTED"; else → "MISSING". Counts
+     * carry on {@link TimesheetStateBlock#currentWeekStatus} as a
+     * compact "approved/total" string the frontend renders verbatim.
+     */
+    private TimesheetStateBlock loadMonthTimesheetState(ActiveInternRow basic, YearMonth period) {
+        UUID candidateId = resolveCandidateId(basic.internLifecycleId());
+        LocalDate firstMonday = mondayOf(period.atDay(1));
+        if (candidateId == null) {
+            return new TimesheetStateBlock(firstMonday, "0/0", null, "MISSING");
+        }
+        LocalDate fromWeek = firstMonday;
+        LocalDate toWeekExclusive = mondayOf(period.plusMonths(1).atDay(1));
+        int approved = 0, submitted = 0, rejected = 0, draft = 0, total = 0;
+        Instant lastApprovedAt = null;
+        try {
+            List<Map<String, Object>> rows = jdbc.queryForList(
+                    "SELECT status, approved_at FROM timesheets "
+                            + " WHERE intern_id = ? "
+                            + "   AND week_start >= ? "
+                            + "   AND week_start <  ? ",
+                    candidateId, fromWeek, toWeekExclusive);
+            for (Map<String, Object> r : rows) {
+                total++;
+                String st = (String) r.get("status");
+                if ("APPROVED".equals(st)) approved++;
+                else if ("REJECTED".equals(st)) rejected++;
+                else if ("SUBMITTED".equals(st)) submitted++;
+                else draft++;
+                Instant aAt = instantOf((java.sql.Timestamp) r.get("approved_at"));
+                if (aAt != null && (lastApprovedAt == null || aAt.isAfter(lastApprovedAt))) {
+                    lastApprovedAt = aAt;
+                }
+            }
+        } catch (Exception e) {
+            log.debug("[ActiveInterns] month timesheet load failed: {}", e.getMessage());
+        }
+        // Expected weeks = ISO Mondays falling inside the month, capped
+        // at the intern's first week of activity within the month.
+        int expectedWeeks = countMondaysInRange(fromWeek, toWeekExclusive);
+        String state;
+        if (total == 0) state = "MISSING";
+        else if (rejected > 0) state = "REJECTED";
+        else if (approved >= expectedWeeks && expectedWeeks > 0) state = "APPROVED";
+        else if (submitted + approved > 0) state = "SUBMITTED";
+        else state = "MISSING";
+        String summary = approved + "/" + Math.max(expectedWeeks, total) + " approved";
+        return new TimesheetStateBlock(firstMonday, summary, lastApprovedAt, state);
+    }
+
+    private static int countMondaysInRange(LocalDate fromInclusive, LocalDate toExclusive) {
+        int n = 0;
+        for (LocalDate d = fromInclusive; d.isBefore(toExclusive); d = d.plusDays(7)) n++;
+        return n;
+    }
+
+    private MonthRosterSummary computeRosterSummary(List<ActiveInternRow> rows) {
+        int totalActive = rows.size();
+        int projectsUnassigned = 0, ktNotDone = 0;
+        int timesheetsIncomplete = 0, evaluationsOverdue = 0, attention = 0;
+        for (ActiveInternRow r : rows) {
+            boolean rowAttention = false;
+            CurrentMonthProjectsBlock pr = r.currentMonthProjects();
+            if (pr == null || "NO_PROJECTS".equals(pr.overallState())) {
+                projectsUnassigned++;
+                rowAttention = true;
+            } else {
+                boolean anyKtMissing =
+                        (pr.project1() != null && !"DONE".equalsIgnoreCase(pr.project1().ktStatus()))
+                        || (pr.project2() != null && !"DONE".equalsIgnoreCase(pr.project2().ktStatus()));
+                if (anyKtMissing) {
+                    ktNotDone++;
+                    rowAttention = true;
+                }
+            }
+            String tsState = r.timesheet() != null ? r.timesheet().state() : "MISSING";
+            if (!"APPROVED".equals(tsState)) {
+                timesheetsIncomplete++;
+                if ("REJECTED".equals(tsState) || "MISSING".equals(tsState)) {
+                    rowAttention = true;
+                }
+            }
+            String evState = r.evaluation() != null ? r.evaluation().state() : "NONE";
+            if ("OVERDUE".equals(evState)) {
+                evaluationsOverdue++;
+                rowAttention = true;
+            }
+            if (rowAttention) attention++;
+        }
+        return new MonthRosterSummary(totalActive, projectsUnassigned, ktNotDone,
+                timesheetsIncomplete, evaluationsOverdue, attention);
     }
 
     private static String projectSlotState(String status, LocalDate dueDate) {
@@ -607,7 +794,7 @@ public class ActiveInternsService {
     @Transactional(readOnly = true)
     public List<List<Object>> exportCsvRows(User caller, String search) {
         ActiveInternListPage all = list(caller, search,
-                null, null, null, null, 0, 1000);
+                null, null, null, null, null, null, 0, 1000);
         List<List<Object>> out = new ArrayList<>();
         out.add(List.of(
                 "Employee ID", "Full name", "Phone", "Email", "Technology",
