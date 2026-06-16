@@ -131,17 +131,34 @@ public class InternDashboardService {
         try {
             List<Application> apps = applicationRepository
                     .findByCandidateUserIdOrderByAppliedAtDesc(caller.getId());
+            int byUserId = apps != null ? apps.size() : 0;
             // Fallback: a stale duplicate User row whose id doesn't match
             // the Candidate.user_id can hide all the caller's apps from
             // the user-id query even though the ERM-side flow (which
             // loads the app by id) sees them fine. The email match
             // bridges the gap for that case.
+            int byEmail = 0;
             if ((apps == null || apps.isEmpty())
                     && caller.getEmail() != null && !caller.getEmail().isBlank()) {
                 apps = applicationRepository
                         .findByCandidateUserEmailOrderByAppliedAtDesc(caller.getEmail());
+                byEmail = apps != null ? apps.size() : 0;
             }
-            if (apps == null || apps.isEmpty()) return null;
+            if (apps == null || apps.isEmpty()) {
+                // Visible diagnostic so the deadlock case can be triaged
+                // from the server log: tells the operator immediately
+                // whether the Candidate.user_id / email link is broken
+                // for the caller. INFO so it isn't lost at WARN-only
+                // log levels but doesn't spam ERROR.
+                log.info("[Dashboard] selection-context: caller={} email={} "
+                        + "no Applications found (byUserId={}, byEmail={}); "
+                        + "no SelectionAckCard will render. Most likely the "
+                        + "caller's User.id + email don't match any "
+                        + "Candidate.user_id or Candidate.user.email — verify "
+                        + "the test session is logged in as the candidate.",
+                        caller.getId(), caller.getEmail(), byUserId, byEmail);
+                return null;
+            }
 
             // Pass 1: any application that the gate would 409 on — that
             // application is the one to expose to the intern dashboard.
@@ -472,7 +489,12 @@ public class InternDashboardService {
                                     + "acknowledge and we'll prepare and send your offer letter "
                                     + "right after.",
                             "Receive my offer letter",
-                            "/applications/" + selection.applicationId() + "/acknowledge-selection",
+                            // Full /api/v1 path — the frontend axios client uses
+                            // baseURL=http://localhost:8080 with no prefix
+                            // rewrite, so bare /applications/... 404s. Matches
+                            // ApplicationController @RequestMapping at
+                            // /api/v1/applications.
+                            "/api/v1/applications/" + selection.applicationId() + "/acknowledge-selection",
                             false, null);
                 }
                 if (selection != null && selection.awaitingOffer()) {

@@ -106,7 +106,9 @@ function SelectionAckCard({ ack }: { ack: InternSelectionAck }) {
     setBusy(true);
     setErr(null);
     try {
-      await api.post(`/applications/${ack.applicationId}/acknowledge-selection`);
+      // Full /api/v1 path — the axios baseURL is the bare backend host
+      // (no /api/v1 rewrite), so a bare /applications/... 404s.
+      await api.post(`/api/v1/applications/${ack.applicationId}/acknowledge-selection`);
       // Optimistic refresh — the dashboard endpoint will null out
       // selectionAck and shift NextAction to "Offer on its way".
       await refresh();
@@ -167,8 +169,9 @@ function NextActionCard({ action }: { action: InternNextAction }) {
   // .needsAck is true for the candidate — the NEXT ACTION owns the
   // acknowledge CTA so it can't be missed if the SelectionAckCard
   // above isn't visible. Pattern mirrors the resend-verification
-  // custom-button path.
-  const ackPrefix = '/applications/';
+  // custom-button path. Backend emits the full /api/v1/applications/
+  // prefix because the axios client has no rewrite.
+  const ackPrefix = '/api/v1/applications/';
   const ackSuffix = '/acknowledge-selection';
   const isAcknowledgeSelection =
     typeof action.ctaHref === 'string'
