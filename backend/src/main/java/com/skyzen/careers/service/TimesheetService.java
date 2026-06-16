@@ -1,5 +1,6 @@
 package com.skyzen.careers.service;
 
+import com.skyzen.careers.dto.supervised.InternTimesheetMonthResponse;
 import com.skyzen.careers.dto.supervised.LogTimesheetRequest;
 import com.skyzen.careers.dto.supervised.RejectTimesheetRequest;
 import com.skyzen.careers.dto.supervised.TimesheetDayResponse;
@@ -7,6 +8,7 @@ import com.skyzen.careers.dto.supervised.TimesheetListResponse;
 import com.skyzen.careers.dto.supervised.TimesheetResponse;
 import com.skyzen.careers.dto.supervised.TimesheetWeekResponse;
 import com.skyzen.careers.dto.supervised.UpdateTimesheetRequest;
+import com.skyzen.careers.service.timesheet.MonthWeeks;
 import com.skyzen.careers.entity.Candidate;
 import com.skyzen.careers.entity.Engagement;
 import com.skyzen.careers.entity.Timesheet;
@@ -29,9 +31,12 @@ import java.math.RoundingMode;
 import java.time.DayOfWeek;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.time.YearMonth;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 @Service
@@ -314,6 +319,89 @@ public class TimesheetService {
         timesheetRepository.save(t);
 
         return toWeekResponse(t);
+    }
+
+    /**
+     * Phase B1 — month-roster for the intern entry grid. Returns every
+     * Mon–Fri work-week touching the requested month (edge weeks
+     * partial), each carrying the intern's existing timesheet row if
+     * one's been started. Read-only; the UI calls {@link #saveDayForWeek}
+     * to upsert cells and {@link #submit} to lock a week.
+     */
+    @Transactional(readOnly = true)
+    public InternTimesheetMonthResponse getMyMonth(YearMonth period, User caller) {
+        if (caller == null) throw new ForbiddenException("Authentication required.");
+        if (period == null) throw new BadRequestException("year + month are required");
+
+        List<MonthWeeks.WorkWeek> weeks = MonthWeeks.workWeeksOf(period);
+        // Bulk-fetch the intern's existing rows for these weeks so we
+        // don't N+1 the UI.
+        Map<LocalDate, Timesheet> existing = new HashMap<>();
+        for (MonthWeeks.WorkWeek w : weeks) {
+            timesheetRepository
+                    .findByCandidateUserAndWeek(caller.getId(), w.weekStart())
+                    .ifPresent(t -> existing.put(w.weekStart(), t));
+        }
+
+        List<InternTimesheetMonthResponse.WeekEntry> entries = new ArrayList<>(weeks.size());
+        BigDecimal monthTotal = BigDecimal.ZERO;
+        int submitted = 0;
+        for (MonthWeeks.WorkWeek w : weeks) {
+            Timesheet t = existing.get(w.weekStart());
+            TimesheetWeekResponse weekResp = null;
+            if (t != null) {
+                weekResp = toWeekResponse(t);
+                // Only count hours for days that fall inside the
+                // requested month — edge weeks shouldn't double-count.
+                monthTotal = monthTotal.add(sumDaysInMonth(t, w));
+                TimesheetStatus s = t.getStatus();
+                if (s != TimesheetStatus.DRAFT && s != TimesheetStatus.REJECTED) {
+                    submitted++;
+                }
+            }
+            entries.add(new InternTimesheetMonthResponse.WeekEntry(
+                    w.weekStart(), w.weekNumber(), w.daysInMonth(), weekResp));
+        }
+        monthTotal = monthTotal.setScale(2, RoundingMode.HALF_UP);
+        return new InternTimesheetMonthResponse(
+                period.toString(), monthTotal, submitted, weeks.size(), entries);
+    }
+
+    private BigDecimal sumDaysInMonth(Timesheet t, MonthWeeks.WorkWeek w) {
+        BigDecimal sum = BigDecimal.ZERO;
+        if (w.daysInMonth().size() == 5) {
+            // Full week inside the month — just use the parent total.
+            return t.getHours() != null ? t.getHours() : BigDecimal.ZERO;
+        }
+        java.util.Set<DayOfWeek> inScope = MonthWeeks.asSet(w.daysInMonth());
+        for (TimesheetDay d : timesheetDayRepository
+                .findByTimesheetIdOrderByDayOfWeekAsc(t.getId())) {
+            if (inScope.contains(d.getDayOfWeek()) && d.getHours() != null) {
+                sum = sum.add(d.getHours());
+            }
+        }
+        return sum;
+    }
+
+    /**
+     * Upsert one day for the intern's week, getting-or-creating the
+     * parent timesheet row on the fly. Same lock + range rules as
+     * {@link #patchDay}; collapses the two API hops the UI would
+     * otherwise need on the first edit of each week.
+     */
+    @Transactional
+    public TimesheetWeekResponse saveDayForWeek(
+            LocalDate weekStart, DayOfWeek dayOfWeek,
+            BigDecimal hours, String notes, User caller) {
+        if (weekStart == null) {
+            throw new BadRequestException("weekStart is required.");
+        }
+        if (weekStart.getDayOfWeek() != DayOfWeek.MONDAY) {
+            throw new BadRequestException("weekStart must fall on a Monday.");
+        }
+        // getOrCreateWeek enforces own-data + creates a DRAFT shell if needed.
+        TimesheetWeekResponse shell = getOrCreateWeek(weekStart, caller);
+        return patchDay(shell.id(), dayOfWeek, hours, notes, caller);
     }
 
     /**

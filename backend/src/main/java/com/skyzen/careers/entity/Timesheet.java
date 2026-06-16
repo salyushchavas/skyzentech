@@ -64,6 +64,16 @@ public class Timesheet {
     @Column(name = "approved_at")
     private Instant approvedAt;
 
+    /** Phase B2 — ERM-verify stamp. Populated when status flips DRAFT/
+     *  SUBMITTED → VERIFIED by an ERM (or SUPER_ADMIN). Manager-approve
+     *  later reads this to confirm the row was verified before approval. */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "verified_by")
+    private User verifiedBy;
+
+    @Column(name = "verified_at")
+    private Instant verifiedAt;
+
     /** Free-text reason when the reviewer rejects the timesheet. Null otherwise. */
     @Column(name = "review_note", columnDefinition = "TEXT")
     private String reviewNote;

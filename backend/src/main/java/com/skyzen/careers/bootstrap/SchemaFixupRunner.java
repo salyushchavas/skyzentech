@@ -1059,6 +1059,21 @@ public class SchemaFixupRunner implements CommandLineRunner {
             log.warn("project_submissions Phase 5 columns add failed (non-fatal): {}", e.getMessage(), e);
         }
 
+        // Phase B (timesheet weekly redesign) — two-stage approval chain.
+        // VERIFIED is the new ERM-verify stage that B2 transitions into.
+        // B1 ships only the column so existing readers don't crash when
+        // the enum value lands. Manager-approve continues to write
+        // approved_by / approved_at; B2 will add verified_by / verified_at.
+        try {
+            jdbcTemplate.execute(
+                    "ALTER TABLE timesheets ADD COLUMN IF NOT EXISTS verified_by UUID");
+            jdbcTemplate.execute(
+                    "ALTER TABLE timesheets ADD COLUMN IF NOT EXISTS verified_at TIMESTAMP");
+            log.info("Ensured timesheets Phase B columns exist.");
+        } catch (Exception e) {
+            log.warn("timesheets Phase B columns add failed (non-fatal): {}", e.getMessage(), e);
+        }
+
         // ── Phase 6 (evaluation cycle) ─────────────────────────────────────
 
         // intern_evaluations table — distinct from the legacy `evaluations`

@@ -1,10 +1,12 @@
 package com.skyzen.careers.controller;
 
+import com.skyzen.careers.dto.supervised.InternTimesheetMonthResponse;
 import com.skyzen.careers.dto.supervised.RejectTimesheetRequest;
 import com.skyzen.careers.dto.supervised.ReturnTimesheetRequest;
 import com.skyzen.careers.dto.supervised.TimesheetResponse;
 import com.skyzen.careers.dto.supervised.TimesheetWeekResponse;
 import com.skyzen.careers.dto.supervised.UpdateTimesheetDayRequest;
+import com.skyzen.careers.exception.BadRequestException;
 import com.skyzen.careers.entity.User;
 import com.skyzen.careers.service.TimesheetService;
 import jakarta.validation.Valid;
@@ -23,6 +25,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.time.DayOfWeek;
 import java.time.LocalDate;
+import java.time.YearMonth;
 import java.util.List;
 import java.util.UUID;
 
@@ -45,6 +48,41 @@ public class TimesheetWeekController {
             LocalDate weekStart,
             @AuthenticationPrincipal User caller) {
         return timesheetService.getOrCreateWeek(weekStart, caller);
+    }
+
+    /**
+     * Phase B1 — intern month roster. Returns the Mon–Fri work-weeks
+     * touching the requested year+month, each with the intern's
+     * existing timesheet row (if any). Powers the daily-entry grid on
+     * the intern timesheets page.
+     */
+    @GetMapping("/me/month")
+    @PreAuthorize("hasAnyRole('INTERN', 'SUPER_ADMIN')")
+    public InternTimesheetMonthResponse myMonth(
+            @RequestParam("y") int year,
+            @RequestParam("m") int month,
+            @AuthenticationPrincipal User caller) {
+        if (year < 1900 || year > 2999) throw new BadRequestException("y out of range");
+        if (month < 1 || month > 12) throw new BadRequestException("m must be 1-12");
+        return timesheetService.getMyMonth(YearMonth.of(year, month), caller);
+    }
+
+    /**
+     * Phase B1 — upsert one day cell by (weekStart, dayOfWeek). The
+     * service get-or-creates the parent timesheet row on demand, so
+     * the intern UI doesn't have to chain two requests on the first
+     * edit of each week.
+     */
+    @org.springframework.web.bind.annotation.PutMapping("/me/day")
+    @PreAuthorize("hasAnyRole('INTERN', 'SUPER_ADMIN')")
+    public TimesheetWeekResponse saveMyDay(
+            @RequestParam("weekStart") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE)
+            LocalDate weekStart,
+            @RequestParam("day") DayOfWeek day,
+            @Valid @RequestBody UpdateTimesheetDayRequest req,
+            @AuthenticationPrincipal User caller) {
+        return timesheetService.saveDayForWeek(
+                weekStart, day, req.hours(), req.notes(), caller);
     }
 
     @PatchMapping("/{id}/days/{day}")
