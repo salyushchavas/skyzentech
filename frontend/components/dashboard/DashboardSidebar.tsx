@@ -85,7 +85,7 @@ const STAFF_ROLE_LINKS: Record<UserRole, StaffLink[]> = {
     { icon: ListChecks,     label: 'Shortlist Queue',      href: '/careers/erm/shortlist' },
     { icon: Video,          label: 'Interviews',           href: '/careers/erm/interviews' },
     { icon: Gavel,          label: 'Decision Center',      href: '/careers/erm/decision-center' },
-    { icon: FileSignature,  label: 'Offers / DocuSign',    href: '/careers/erm/offers' },
+    { icon: FileSignature,  label: 'Offers / IDMS',        href: '/careers/erm/offers' },
     { icon: UserPlus,       label: 'New Hire List',        href: '/careers/erm/new-hire' },
     { icon: Package,        label: 'Document Packets',     href: '/careers/erm/document-packets' },
     { icon: ClipboardCheck, label: 'Review Queue',         href: '/careers/erm/document-review' },

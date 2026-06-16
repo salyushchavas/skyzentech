@@ -17,10 +17,9 @@ import java.time.LocalDate;
 import java.util.UUID;
 
 /**
- * Phase 8.6.2 — applicant-side endpoints for the in-house offer signing
- * flow. Separate from {@code OfferController} so the applicant signing
- * page has a stable URL surface independent of the legacy DocuSign-aware
- * endpoints (which stay in place for backward compat).
+ * Applicant-side endpoints for the IDMS offer signing flow. Separate
+ * from {@code OfferController} so the applicant signing page has a
+ * stable URL surface dedicated to the IDMS sign action.
  *
  * <p>All endpoints require INTERN role and ownership of the offer.
  */
@@ -30,7 +29,7 @@ import java.util.UUID;
 @Slf4j
 public class ApplicantOfferController {
 
-    private final OfferDocuSignService offerService;
+    private final OfferIdmsSigningService offerService;
 
     /** Payload for the signing page. Mirrors what the page needs to
      *  render — no internal_notes, no signing PIN, no PDF bytes. */
@@ -76,7 +75,7 @@ public class ApplicantOfferController {
                                    @AuthenticationPrincipal User caller) {
         String typed = req != null ? req.typedName() : null;
         String image = req != null ? req.signatureImage() : null;
-        Offer signed = offerService.signInHouse(id, typed, image, caller);
+        Offer signed = offerService.recordIdmsSignature(id, typed, image, caller);
         return toView(signed);
     }
 

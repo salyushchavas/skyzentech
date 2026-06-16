@@ -55,9 +55,6 @@ public interface OfferRepository extends JpaRepository<Offer, UUID> {
             "ORDER BY o.createdAt DESC")
     List<Offer> findByCandidateUserIdWithGraph(@Param("userId") UUID userId);
 
-    /** Phase 3 — webhook idempotency lookup. */
-    Optional<Offer> findByDocusignEnvelopeId(String docusignEnvelopeId);
-
     /** Phase 3 — one offer per application guard. */
     boolean existsByApplicationId(UUID applicationId);
 }

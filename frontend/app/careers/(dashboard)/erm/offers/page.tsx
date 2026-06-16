@@ -111,8 +111,8 @@ export default function OfferControlPage() {
       <DashboardLayout>
         <div className="flex flex-wrap items-start justify-between gap-3">
           <PageHeader
-            title="Offers / DocuSign"
-            subtitle="Send new offers to selected applicants, then track, void, and resend envelopes."
+            title="Offers / IDMS"
+            subtitle="Send new offers to selected applicants, then track, void, and resend the signing email."
           />
           <Link
             href="/careers/erm/decision-center"

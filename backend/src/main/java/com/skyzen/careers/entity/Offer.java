@@ -82,17 +82,25 @@ public class Offer {
     @Column(name = "revoked_by")
     private UUID revokedBy;
 
-    // ── Phase 3 — DocuSign + offer-letter doc-spec fields ───────────────────
+    // ── Phase 3 — offer-letter doc-spec fields ─────────────────────────────
+    // Legacy external-signing envelope id + template id from the original
+    // third-party signing integration that's been removed (signing now
+    // runs through IDMS — see OfferIdmsSigningService). Columns kept so
+    // pre-removal rows still display + the unique index remains valid.
 
-    /** DocuSign envelope id; null while in DRAFT or in NO-OP mode. UNIQUE. */
+    /** Legacy external-signing envelope id (pre-IDMS). Always null on new
+     *  offers; preserved for historical rows. Column name retained to
+     *  avoid a data-touching rename. */
     @Column(name = "docusign_envelope_id", length = 80, unique = true)
-    private String docusignEnvelopeId;
+    private String legacyEnvelopeId;
 
-    /** DocuSign template id used (mirrors {@code docusign.template-id} at send time). */
+    /** Legacy external-signing template id (pre-IDMS). Always null on new
+     *  offers; preserved for historical rows. */
     @Column(name = "docusign_template_id", length = 80)
-    private String docusignTemplateId;
+    private String legacyTemplateId;
 
-    /** Set by the DocuSign webhook when status flips to SIGNED. */
+    /** Stamped at sign time by {@link
+     *  com.skyzen.careers.intern.OfferIdmsSigningService#finalizeIdmsSigning}. */
     @Column(name = "signed_at")
     private Instant signedAt;
 
@@ -100,8 +108,8 @@ public class Offer {
      * Phase 8.6.2 — applicant's typed name captured at sign time on the
      * in-house signing page. Auto-derived from {@code applicant.fullName}
      * when the applicant draws (rather than types) the signature.
-     * Nullable for legacy rows / DocuSign envelopes that completed before
-     * in-house signing existed.
+     * Nullable for legacy rows that completed before IDMS signing
+     * existed.
      */
     @Column(name = "signed_by_typed_name", length = 200)
     private String signedByTypedName;
@@ -109,7 +117,7 @@ public class Offer {
     /**
      * Phase 8.6.2.1 — base64 data URL of the drawn signature (PNG). Stored
      * as TEXT so the average ~5-30 KB payload fits without overflow.
-     * Null for legacy / DocuSign-signed rows. Render with {@code <img src>}.
+     * Null for legacy externally-signed rows. Render with {@code <img src>}.
      */
     @Column(name = "signed_signature_image", columnDefinition = "TEXT")
     private String signedSignatureImage;

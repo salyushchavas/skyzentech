@@ -26,7 +26,7 @@ export interface OfferRow {
   voidedAt: string | null;
   voidReasonCode: string | null;
   reminderCount: number;
-  docusignEnvelopeId: string | null;
+  legacyEnvelopeId: string | null;
   archived: boolean;
 }
 
@@ -71,7 +71,7 @@ export interface OfferDetail {
   voidReasonText: string | null;
   reminderCount: number;
   lastReminderAt: string | null;
-  docusignEnvelopeId: string | null;
+  legacyEnvelopeId: string | null;
   signedPdfDocumentId: string | null;
   internalNotes: string | null;
   archivedAt: string | null;

@@ -36,12 +36,14 @@ public class CandidateOfferResponse {
     private String compensationSummary;
     private String worksite;
     private Integer expectedHoursPerWeek;
-    /** Present once DocuSign envelope exists. */
-    private String docusignEnvelopeId;
+    /** Legacy external-signing envelope id from the pre-IDMS integration.
+     *  Always null on new offers; preserved on historical rows. */
+    private String legacyEnvelopeId;
     private Instant signedAt;
     private Instant voidedAt;
     private String voidedReason;
-    /** Set after webhook archive; signed-pdf endpoint is available when non-null. */
+    /** Legacy archived signed-PDF document id (pre-IDMS). Null on
+     *  IDMS-signed rows — IDMS stores the signature image inline. */
     private UUID signedPdfDocumentId;
     /** Convenience for the Home + Offer pages. */
     private String employeeId;

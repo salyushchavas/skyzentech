@@ -139,7 +139,7 @@ public class InternActivationJob {
         lc.setActiveStatus("ACTIVE");
         if (lc.getStartedAt() == null) lc.setStartedAt(now);
         // Backstop for the org-wide T/E auto-link. The same call runs at
-        // offer-sign in OfferDocuSignService; running it again here is
+        // offer-sign in OfferIdmsSigningService; running it again here is
         // idempotent (the linker preserves existing non-null assignments)
         // and covers the case where DEFAULT_TRAINER_EMAIL /
         // DEFAULT_EVALUATOR_EMAIL didn't resolve at sign-time (env var

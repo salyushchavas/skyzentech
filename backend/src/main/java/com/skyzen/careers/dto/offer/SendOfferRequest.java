@@ -8,14 +8,15 @@ import java.time.LocalDate;
 import java.util.UUID;
 
 /**
- * Phase 3 doc-spec request for the atomic "create offer + send DocuSign
- * envelope" flow exposed at {@code POST /api/v1/offers}. Differs from the
- * legacy {@link CreateOfferRequest} (which created a DRAFT row for the
- * pre-DocuSign manual flow) — Phase 3 is single-shot and always SENT.
+ * Payload for {@code POST /api/v1/offers/send} — the canonical
+ * "create offer + dispatch via IDMS signing" flow. Renamed from the
+ * legacy {@code SendDocusignOfferRequest} (DocuSign was removed Phase
+ * 8.6.2); field set is identical so existing wire compatibility is
+ * preserved.
  */
 @Getter
 @Setter
-public class SendDocusignOfferRequest {
+public class SendOfferRequest {
 
     @NotNull(message = "applicationId is required")
     private UUID applicationId;

@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
-import { ChevronLeft, Download, ExternalLink } from 'lucide-react';
+import { ChevronLeft, ExternalLink } from 'lucide-react';
 import api from '@/lib/api';
 import ProtectedRoute from '@/components/ProtectedRoute';
 import DashboardLayout from '@/components/dashboard/DashboardLayout';
@@ -14,7 +14,7 @@ import ResendOfferModal from '@/components/erm/offers/ResendOfferModal';
 import UpdateStartDateModal from '@/components/erm/offers/UpdateStartDateModal';
 import type { OfferDetail } from '@/components/erm/offers/types';
 
-type Tab = 'overview' | 'docusign' | 'history' | 'notes';
+type Tab = 'overview' | 'signing' | 'history' | 'notes';
 
 export default function OfferDetailPage() {
   const params = useParams<{ id: string }>();
@@ -76,16 +76,6 @@ export default function OfferDetailPage() {
       alert(e instanceof Error ? e.message : 'Note save failed');
     } finally {
       setSavingNote(false);
-    }
-  }
-
-  async function refreshStatus() {
-    if (!id) return;
-    try {
-      await api.post(`/api/v1/offers/${id}/refresh-status`, {});
-      await load();
-    } catch (e) {
-      alert(e instanceof Error ? e.message : 'Refresh failed');
     }
   }
 
@@ -155,7 +145,7 @@ export default function OfferDetailPage() {
         <div className="grid gap-6 lg:grid-cols-3">
           <main className="lg:col-span-2">
             <div className="mb-4 flex gap-1 border-b border-slate-200 text-sm">
-              {(['overview', 'docusign', 'history', 'notes'] as Tab[]).map((t) => (
+              {(['overview', 'signing', 'history', 'notes'] as Tab[]).map((t) => (
                 <button
                   key={t}
                   type="button"
@@ -184,32 +174,22 @@ export default function OfferDetailPage() {
                   <Row label="Hours / week" value={data.expectedHoursPerWeek?.toString()} />
                   <Row label="Tentative start" value={data.tentativeStartDate} />
                 </div>
-                {data.signedPdfDocumentId && (
-                  <a
-                    href={`/api/v1/offers/${data.id}/signed-pdf`}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="inline-flex items-center gap-1 rounded-md border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
-                  >
-                    <Download className="h-3 w-3" /> Download signed PDF
-                  </a>
-                )}
               </section>
             )}
 
-            {tab === 'docusign' && (
+            {tab === 'signing' && (
               <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
-                <Row label="Envelope ID" value={data.docusignEnvelopeId ?? '(not configured)'} />
+                <p className="mb-3 text-xs text-slate-500">
+                  Signing runs through IDMS (in-house). The applicant signs
+                  at <span className="font-mono">/careers/intern/offer/sign/{data.id}</span>
+                  ; signature image + typed name are stored on the offer row.
+                </p>
                 <Row label="Sent" value={data.sentAt ?? '—'} />
                 <Row label="Signed" value={data.signedAt ?? '—'} />
                 <Row label="Voided" value={data.voidedAt ?? '—'} />
-                <button
-                  type="button"
-                  onClick={refreshStatus}
-                  className="mt-3 inline-flex items-center gap-1 rounded-md border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
-                >
-                  Refresh from DocuSign
-                </button>
+                {data.legacyEnvelopeId && (
+                  <Row label="Legacy envelope ID" value={data.legacyEnvelopeId} />
+                )}
               </section>
             )}
 

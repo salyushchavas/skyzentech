@@ -111,16 +111,10 @@ export default function NewHireDetailPage() {
                   <Row label="Signed at"
                     value={data.signedOffer.signedAt ? new Date(data.signedOffer.signedAt).toLocaleString() : null} />
                 </div>
-                {data.signedOffer.signedPdfDocumentId && (
-                  <a
-                    href={`/api/v1/offers/${data.signedOffer.offerId}/signed-pdf`}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="mt-3 inline-block rounded-md border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
-                  >
-                    Download signed PDF
-                  </a>
-                )}
+                {/* Legacy signed-PDF download has been removed —
+                    IDMS-signed offers store the signature image inline
+                    on the offer row; pre-IDMS archived PDFs are
+                    available through the Document Vault. */}
               </section>
             )}
 

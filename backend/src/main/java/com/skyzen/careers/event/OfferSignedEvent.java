@@ -5,9 +5,9 @@ import lombok.Getter;
 import java.util.UUID;
 
 /**
- * Fired AFTER_COMMIT of the DocuSign webhook completion handler. Listener
- * sends the welcome email and writes a SentNotification row for the Recent
- * Activity feed.
+ * Fired AFTER_COMMIT of {@code OfferIdmsSigningService.finalizeIdmsSigning}.
+ * Listener sends the welcome email and writes a SentNotification row for
+ * the Recent Activity feed.
  */
 @Getter
 public final class OfferSignedEvent extends DomainEvent {

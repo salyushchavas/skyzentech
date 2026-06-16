@@ -51,9 +51,9 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, "/api/v1/jobs").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/v1/jobs/*").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/v1/jobs/featured").permitAll()
-                        // Phase 3 — DocuSign Connect webhook. HMAC-verified
-                        // inside the controller; no Spring Security gate.
-                        .requestMatchers(HttpMethod.POST, "/api/v1/webhooks/docusign").permitAll()
+                        // Signing is now IDMS (in-house) — no inbound
+                        // third-party webhook endpoint to permit. The
+                        // applicant signs at /careers/intern/offer/sign/{id}.
                         .requestMatchers("/api/v1/**").authenticated()
                         .anyRequest().authenticated()
                 )

@@ -16,12 +16,11 @@ import java.util.function.Consumer;
  * to user IDs and applies them to an {@link InternLifecycle} row's
  * {@code trainer_id} / {@code evaluator_id} columns.
  *
- * <p>Single source of truth for the org-wide T/E auto-link. Originally
- * lived inside {@code OfferDocuSignService.applyAutoLinkReportingStructure}
- * and ran only on offer-sign. Extracted so the activation path
- * ({@link InternActivationJob}) and the one-time backfill in
- * {@code SchemaFixupRunner} can call the same resolver without
- * duplicating the lookup logic.</p>
+ * <p>Single source of truth for the org-wide T/E auto-link. Called by
+ * {@link com.skyzen.careers.intern.OfferIdmsSigningService} on offer-
+ * sign, the activation path ({@link InternActivationJob}), and the
+ * one-time backfill in {@code SchemaFixupRunner} so the resolver runs
+ * the same way wherever the lifecycle row is created or activated.</p>
  *
  * <p>The linker NEVER overwrites an existing non-null trainer_id /
  * evaluator_id — ERM's explicit assignments via the AssignManagerModal

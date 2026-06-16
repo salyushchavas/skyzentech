@@ -288,12 +288,12 @@ public class DocumentService {
         return switch (s) {
             case DRAFT -> "gray";
             case SENT -> "blue";
-            // SIGNED is the Phase 3 DocuSign-completed terminal; ACCEPTED is
-            // the legacy manual-accept equivalent.
+            // SIGNED is the IDMS-completed terminal; ACCEPTED is the
+            // legacy manual-accept equivalent.
             case SIGNED, ACCEPTED -> "green";
             case DECLINED -> "orange";
             case EXPIRED -> "amber";
-            // VOIDED is the Phase 3 term; REVOKED is the pre-DocuSign alias.
+            // VOIDED is the current term; REVOKED is the legacy alias.
             case VOIDED, REVOKED -> "red";
         };
     }

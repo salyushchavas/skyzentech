@@ -30,7 +30,7 @@ public final class ErmOfferDtos {
             Instant voidedAt,
             String voidReasonCode,
             Integer reminderCount,
-            String docusignEnvelopeId,
+            String legacyEnvelopeId,
             Boolean archived
     ) {}
 
@@ -64,7 +64,7 @@ public final class ErmOfferDtos {
             String voidReasonText,         // ERM-only
             Integer reminderCount,
             Instant lastReminderAt,
-            String docusignEnvelopeId,
+            String legacyEnvelopeId,
             UUID signedPdfDocumentId,
             String internalNotes,          // ERM-only
             Instant archivedAt,

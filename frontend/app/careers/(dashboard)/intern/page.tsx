@@ -132,7 +132,7 @@ function SelectionAckCard({ ack }: { ack: InternSelectionAck }) {
       </h2>
       <p className="mt-1 text-sm text-emerald-900/90">
         When you&apos;re ready, click the button below. We&apos;ll prepare and
-        send your offer letter right after — you&apos;ll receive a DocuSign
+        send your offer letter right after — you&apos;ll receive an IDMS
         email to review and sign.
       </p>
       {ack.applicantVisibleNotes && (

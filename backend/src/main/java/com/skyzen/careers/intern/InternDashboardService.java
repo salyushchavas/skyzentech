@@ -421,7 +421,7 @@ public class InternDashboardService {
             }
             case OFFER_SENT -> action(
                     "Sign your offer letter",
-                    "Review and sign the offer through DocuSign.",
+                    "Review and sign the offer through IDMS.",
                     "Open offer", "/careers/intern/offer",
                     false, null);
             case OFFER_SIGNED -> waiting(

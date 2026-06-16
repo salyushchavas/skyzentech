@@ -246,7 +246,7 @@ function CreateOfferPageInner() {
                   disabled={submitting}
                   className="rounded-md bg-teal-700 px-4 py-2 text-sm font-semibold text-white hover:bg-teal-800 disabled:opacity-60"
                 >
-                  {submitting ? 'Sending…' : 'Submit & send via DocuSign'}
+                  {submitting ? 'Sending…' : 'Submit & send via IDMS'}
                 </button>
               </div>
             </div>

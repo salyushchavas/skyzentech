@@ -654,7 +654,7 @@ public class OfferService {
                 .compensationSummary(o.getCompensationSummary())
                 .worksite(o.getWorksite())
                 .expectedHoursPerWeek(o.getExpectedHoursPerWeek())
-                .docusignEnvelopeId(o.getDocusignEnvelopeId())
+                .legacyEnvelopeId(o.getLegacyEnvelopeId())
                 .signedAt(o.getSignedAt())
                 .voidedAt(o.getVoidedAt())
                 .voidedReason(voidedReason)

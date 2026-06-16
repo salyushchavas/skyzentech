@@ -65,7 +65,7 @@ import java.util.UUID;
  *
  * <h2>Idempotency</h2>
  * Every row is keyed by a stable identifier (user email, job posting
- * slug, application by candidate+posting, offer by docusign envelope_id).
+ * slug, application by candidate+posting, offer by legacy envelope_id).
  * Re-runs skip cleanly with INFO logs. Per-intern try-catch so a partial
  * failure on one intern doesn't block the others.
  *
@@ -541,7 +541,7 @@ public class TestDataSeeder implements CommandLineRunner {
                         .sentAt(offerSentAt)
                         .respondedAt(signedAt)
                         .signedAt(signedAt)
-                        .docusignEnvelopeId(envelopeId)
+                        .legacyEnvelopeId(envelopeId)
                         .roleTitle("Java Full Stack Developer Intern")
                         .compensationSummary("$28.50 / hr")
                         .worksite("Remote (US)")

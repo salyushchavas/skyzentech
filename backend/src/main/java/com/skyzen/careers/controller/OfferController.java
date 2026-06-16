@@ -40,7 +40,7 @@ public class OfferController {
     private static final Set<UserRole> STAFF_ROLES = EnumSet.of(UserRole.ERM, UserRole.ERM);
 
     private final OfferService offerService;
-    private final com.skyzen.careers.intern.OfferDocuSignService offerDocuSignService;
+    private final com.skyzen.careers.intern.OfferIdmsSigningService offerIdmsSigningService;
 
     @PostMapping
     @PreAuthorize("hasRole('ERM')")
@@ -167,21 +167,25 @@ public class OfferController {
         return isCandidate && !isStaff;
     }
 
-    // ── Phase 3 DocuSign endpoints ──────────────────────────────────────────
+    // ── IDMS send / void / resend ──────────────────────────────────────────
     //
-    // The legacy POST `/` (above) creates a DRAFT row for the pre-DocuSign
-    // manual flow and stays in place for backward compat. Phase 3's atomic
-    // "create + send DocuSign envelope" flow uses the new
-    // POST `/send-docusign` route below — the doc names it POST `/`, but to
-    // keep the legacy /create endpoint operational we route the new flow at
-    // a distinct path. Frontend calls this endpoint.
+    // The legacy POST `/` (above) creates a DRAFT row for the pre-IDMS
+    // manual flow and stays in place for backward compat. The canonical
+    // "create + send via IDMS signing" flow is POST `/send`. The
+    // applicant signs at /careers/intern/offer/sign/{id} via the
+    // separate /api/v1/applicant/offers/{id}/sign endpoint.
+    //
+    // Removed in this rename:
+    //   - GET /{id}/signing-url       (no embedded URL — applicant signs locally)
+    //   - GET /{id}/signed-pdf        (no PDF archive — IDMS stores signature image)
+    //   - POST /{id}/refresh-status   (no external system to reconcile with)
 
-    @PostMapping("/send-docusign")
+    @PostMapping("/send")
     @PreAuthorize("hasAnyRole('ERM', 'SUPER_ADMIN')")
-    public ResponseEntity<CandidateOfferResponse> sendDocusign(
-            @Valid @RequestBody com.skyzen.careers.dto.offer.SendDocusignOfferRequest req,
+    public ResponseEntity<CandidateOfferResponse> sendOffer(
+            @Valid @RequestBody com.skyzen.careers.dto.offer.SendOfferRequest req,
             @AuthenticationPrincipal User actor) {
-        Offer offer = offerDocuSignService.sendDocusignOffer(req, actor);
+        Offer offer = offerIdmsSigningService.sendOffer(req, actor);
         // Return the candidate-shaped DTO so ERM tooling and intern frontend
         // can use the same shape; staff GET /{id} still returns the full
         // staff DTO via the existing endpoint.
@@ -189,7 +193,7 @@ public class OfferController {
                 .body(offerService.toCandidateResponse(offer));
     }
 
-    /** Phase 3 — VOID an offer envelope. Refuses if SIGNED. */
+    /** VOID an offer before it's signed. Refuses if SIGNED. */
     @PostMapping("/{id}/void")
     @PreAuthorize("hasAnyRole('ERM', 'SUPER_ADMIN')")
     public CandidateOfferResponse voidOffer(
@@ -197,64 +201,17 @@ public class OfferController {
             @RequestBody java.util.Map<String, String> body,
             @AuthenticationPrincipal User actor) {
         String reason = body == null ? null : body.get("reason");
-        Offer offer = offerDocuSignService.voidOffer(id, reason, actor);
+        Offer offer = offerIdmsSigningService.voidOffer(id, reason, actor);
         return offerService.toCandidateResponse(offer);
     }
 
-    /** Phase 3 — resend an existing envelope's signing email via DocuSign. */
+    /** Re-send the OFFER_LETTER email so the applicant can reach the
+     *  IDMS signing page again. Only SENT offers are eligible. */
     @PostMapping("/{id}/resend")
     @PreAuthorize("hasAnyRole('ERM', 'SUPER_ADMIN')")
     public ResponseEntity<Void> resend(@PathVariable UUID id,
                                        @AuthenticationPrincipal User actor) {
-        offerDocuSignService.resendOffer(id, actor);
+        offerIdmsSigningService.resendOffer(id, actor);
         return ResponseEntity.noContent().build();
-    }
-
-    /**
-     * Phase 3 — embedded recipient-view URL for the applicant's signing.
-     * Returns {@code signingUrl=null + fallbackMessage} when DocuSign is
-     * disabled so the UI can fall back to the manual share copy.
-     */
-    @GetMapping("/{id}/signing-url")
-    @PreAuthorize("hasRole('INTERN')")
-    public java.util.Map<String, Object> signingUrl(@PathVariable UUID id,
-                                                    @AuthenticationPrincipal User caller) {
-        String url = offerDocuSignService.getSigningUrl(id, caller);
-        java.util.Map<String, Object> body = new java.util.LinkedHashMap<>();
-        body.put("signingUrl", url);
-        if (url == null) {
-            body.put("fallbackMessage",
-                    "DocuSign not configured — ERM will share the link manually.");
-        } else {
-            body.put("expiresInSeconds", 300); // DocuSign default for recipient view URLs
-        }
-        return body;
-    }
-
-    /** Phase 3 — stream the archived signed PDF. Owner-only or staff. */
-    @GetMapping("/{id}/signed-pdf")
-    @PreAuthorize("hasAnyRole('INTERN', 'ERM', 'MANAGER', 'SUPER_ADMIN')")
-    public ResponseEntity<byte[]> signedPdf(@PathVariable UUID id,
-                                             @AuthenticationPrincipal User caller) {
-        var pdf = offerDocuSignService.downloadArchivedSignedPdf(id, caller);
-        return ResponseEntity.ok()
-                .header(HttpHeaders.CONTENT_DISPOSITION,
-                        "attachment; filename=\"" + pdf.fileName() + "\"")
-                .contentType(MediaType.APPLICATION_PDF)
-                .contentLength(pdf.bytes().length)
-                .body(pdf.bytes());
-    }
-
-    /**
-     * Phase 3 — manual reconciliation when the DocuSign webhook didn't fire.
-     * Owner intern OR staff. Calls DocuSign for the live envelope status and
-     * runs the same finalize the webhook would.
-     */
-    @PostMapping("/{id}/refresh-status")
-    @PreAuthorize("hasAnyRole('INTERN', 'ERM', 'MANAGER', 'SUPER_ADMIN')")
-    public CandidateOfferResponse refreshStatus(@PathVariable UUID id,
-                                                 @AuthenticationPrincipal User caller) {
-        Offer offer = offerDocuSignService.refreshStatus(id, caller);
-        return offerService.toCandidateResponse(offer);
     }
 }

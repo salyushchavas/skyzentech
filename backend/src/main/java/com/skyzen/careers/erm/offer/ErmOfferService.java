@@ -2,7 +2,7 @@ package com.skyzen.careers.erm.offer;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.skyzen.careers.dto.offer.SendDocusignOfferRequest;
+import com.skyzen.careers.dto.offer.SendOfferRequest;
 import com.skyzen.careers.entity.Application;
 import com.skyzen.careers.entity.AuditLog;
 import com.skyzen.careers.entity.Candidate;
@@ -22,8 +22,7 @@ import com.skyzen.careers.event.TentativeStartDateUpdatedEvent;
 import com.skyzen.careers.exception.BadRequestException;
 import com.skyzen.careers.exception.ConflictException;
 import com.skyzen.careers.exception.ResourceNotFoundException;
-import com.skyzen.careers.integration.docusign.DocuSignService;
-import com.skyzen.careers.intern.OfferDocuSignService;
+import com.skyzen.careers.intern.OfferIdmsSigningService;
 import com.skyzen.careers.repository.ApplicationRepository;
 import com.skyzen.careers.repository.AuditLogRepository;
 import com.skyzen.careers.repository.InterviewRepository;
@@ -56,7 +55,7 @@ import java.util.UUID;
 
 /**
  * ERM Phase 4 — offer control. Wraps the existing
- * {@link OfferDocuSignService} with ERM-level gates (SELECTED interview
+ * {@link OfferIdmsSigningService} with ERM-level gates (SELECTED interview
  * decision required), reason-code-driven void + reminder + re-offer flow,
  * and an immutable {@link OfferEventLog} history.
  *
@@ -79,8 +78,7 @@ public class ErmOfferService {
     private final InterviewRepository interviewRepository;
     private final UserRepository userRepository;
     private final AuditLogRepository auditLogRepository;
-    private final OfferDocuSignService offerDocuSignService;
-    private final DocuSignService docuSignService;
+    private final OfferIdmsSigningService offerIdmsSigningService;
     private final CommunicationTemplateService templateService;
     private final ApplicationEventPublisher eventPublisher;
     private final ObjectMapper objectMapper;
@@ -247,17 +245,18 @@ public class ErmOfferService {
         // Selection-ack gate: the intern must have clicked "Receive my
         // offer letter" on their dashboard before an offer can be issued.
         // Holds offers until the intern actively requests one — they
-        // shouldn't get an unexpected DocuSign email cold.
+        // shouldn't get an unexpected signing email cold.
         if (app.getSelectionAcknowledgedAt() == null) {
             throw new ConflictException(
                     "Send Offer requires the intern's selection acknowledgment. "
                             + "They haven't clicked 'Receive my offer letter' on their dashboard yet.");
         }
 
-        // Delegate to the existing OfferDocuSignService for the heavy lifting
-        // (entity creation, DocuSign envelope, audit). It already enforces
+        // Delegate to OfferIdmsSigningService for the heavy lifting
+        // (entity creation, OFFER_LETTER email dispatch with the IDMS
+        // signing link, audit). It already enforces
         // application.status=INTERVIEWED + no existing offer.
-        SendDocusignOfferRequest dsReq = new SendDocusignOfferRequest();
+        SendOfferRequest dsReq = new SendOfferRequest();
         dsReq.setApplicationId(req.applicationId());
         dsReq.setTentativeStartDate(req.tentativeStartDate());
         dsReq.setRoleTitle(req.roleTitle().trim());
@@ -265,7 +264,7 @@ public class ErmOfferService {
         dsReq.setWorksite(req.worksite().trim());
         dsReq.setExpectedHoursPerWeek(req.expectedHoursPerWeek());
         dsReq.setExpiryDays(expiryDays);
-        Offer offer = offerDocuSignService.sendDocusignOffer(dsReq, caller);
+        Offer offer = offerIdmsSigningService.sendOffer(dsReq, caller);
 
         // ERM Phase 4 — additional event-log + parallel summary email.
         writeEventLog(offer.getId(), caller.getId(), "CREATED", null, null,
@@ -273,12 +272,7 @@ public class ErmOfferService {
                         "tentativeStartDate", req.tentativeStartDate().toString(),
                         "expiryDays", expiryDays));
         writeEventLog(offer.getId(), caller.getId(), "SENT", null, null,
-                Map.of("docusignEnvelopeId",
-                        offer.getDocusignEnvelopeId() != null
-                                ? offer.getDocusignEnvelopeId() : "(not configured)"));
-        try {
-            offerDocuSignService.refreshStatus(offer.getId(), caller); // hot-warm
-        } catch (Exception ignored) {}
+                Map.of("signingFlow", "IDMS"));
         return toDetail(offer);
     }
 
@@ -307,9 +301,9 @@ public class ErmOfferService {
         offerRepository.save(offer);
 
         try {
-            offerDocuSignService.resendOffer(offerId, caller);
+            offerIdmsSigningService.resendOffer(offerId, caller);
         } catch (Exception e) {
-            log.warn("[ErmOffers] DocuSign resend failed (non-fatal): {}", e.getMessage());
+            log.warn("[ErmOffers] IDMS resend failed (non-fatal): {}", e.getMessage());
         }
 
         String eventType = req != null && req.newExpiryDays() != null ? "RESENT" : "REMINDER_SENT";
@@ -350,8 +344,8 @@ public class ErmOfferService {
             throw new ConflictException(
                     "Void allowed only from SENT (current: " + offer.getStatus() + ")");
         }
-        // Delegate to the existing void path for DocuSign + audit.
-        offerDocuSignService.voidOffer(offerId, rc.humanLabel(), caller);
+        // Delegate to the existing void path for audit + status flip.
+        offerIdmsSigningService.voidOffer(offerId, rc.humanLabel(), caller);
         // Refresh + add ERM-specific fields.
         offer = mustGet(offerId);
         offer.setVoidReasonCode(rc.name());
@@ -569,7 +563,7 @@ public class ErmOfferService {
                 o.getVoidReasonText(),
                 o.getReminderCount(),
                 o.getLastReminderAt(),
-                o.getDocusignEnvelopeId(),
+                o.getLegacyEnvelopeId(),
                 o.getSignedPdfDocumentId(),
                 o.getInternalNotes(),
                 o.getArchivedAt(),

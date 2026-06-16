@@ -8,10 +8,8 @@ import {
   CalendarDays,
   CheckCircle2,
   Clock,
-  Download,
   FileSignature,
   Mail,
-  RefreshCw,
   Sparkles,
   XCircle,
 } from 'lucide-react';
@@ -37,7 +35,6 @@ export default function InternOfferPage() {
   const [offer, setOffer] = useState<CandidateOfferResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
-  const [refreshing, setRefreshing] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -72,7 +69,7 @@ export default function InternOfferPage() {
   }
   if (!offer) {
     return (
-      <InternPageShell title="Offer Letter" subtitle="Your DocuSign offer will appear here.">
+      <InternPageShell title="Offer Letter" subtitle="Your IDMS offer will appear here.">
         <p className="rounded-md border border-dashed border-slate-300 bg-white p-10 text-center text-sm text-slate-500">
           No offer letter yet. We'll notify you the moment ERM sends one.
         </p>
@@ -81,30 +78,9 @@ export default function InternOfferPage() {
   }
 
   function startSigning() {
-    // Phase 8.6.2 — DocuSign removed; route to the in-house signing page.
+    // Routes to the IDMS in-house signing page.
     if (!offer) return;
     router.push(`/careers/intern/offer/sign/${offer.id}`);
-  }
-
-  async function manualRefresh() {
-    if (!offer) return;
-    setRefreshing(true);
-    try {
-      const res = await api.post<CandidateOfferResponse>(
-        `/api/v1/offers/${offer.id}/refresh-status`,
-      );
-      setOffer(res.data);
-      await refresh();
-    } catch (e) {
-      alert(e instanceof Error ? e.message : 'Could not refresh status');
-    } finally {
-      setRefreshing(false);
-    }
-  }
-
-  function downloadSignedPdf() {
-    if (!offer) return;
-    window.open(`/api/v1/offers/${offer.id}/signed-pdf`, '_blank');
   }
 
   const subtitle = (
@@ -119,12 +95,10 @@ export default function InternOfferPage() {
         <SentVariant
           offer={offer}
           onSign={startSigning}
-          onRefresh={manualRefresh}
-          refreshing={refreshing}
         />
       )}
       {(offer.status === 'SIGNED' || offer.status === 'ACCEPTED') && (
-        <SignedVariant offer={offer} onDownload={downloadSignedPdf} />
+        <SignedVariant offer={offer} />
       )}
       {(offer.status === 'VOIDED' || offer.status === 'REVOKED') && (
         <VoidedVariant offer={offer} />
@@ -140,13 +114,9 @@ export default function InternOfferPage() {
 function SentVariant({
   offer,
   onSign,
-  onRefresh,
-  refreshing,
 }: {
   offer: CandidateOfferResponse;
   onSign: () => void;
-  onRefresh: () => void;
-  refreshing: boolean;
 }) {
   const daysUntilExpiry = useMemo(() => {
     if (!offer.expiresAt) return null;
@@ -207,15 +177,6 @@ function SentVariant({
           <FileSignature className="h-4 w-4" />
           Review and sign
         </button>
-        <button
-          type="button"
-          onClick={onRefresh}
-          disabled={refreshing}
-          className="inline-flex items-center gap-1 rounded-md border border-slate-200 px-3 py-2 text-sm text-slate-600 hover:bg-slate-50 disabled:opacity-60"
-        >
-          <RefreshCw className={'h-3 w-3 ' + (refreshing ? 'animate-spin' : '')} />
-          Refresh status
-        </button>
       </div>
 
       {(offer.createdByName || offer.createdByEmail) && (
@@ -225,7 +186,7 @@ function SentVariant({
   );
 }
 
-function SignedVariant({ offer, onDownload }: { offer: CandidateOfferResponse; onDownload: () => void }) {
+function SignedVariant({ offer }: { offer: CandidateOfferResponse }) {
   return (
     <section className="overflow-hidden rounded-lg border border-emerald-200 bg-white shadow-sm">
       <div className="bg-emerald-600 px-6 py-3 text-sm font-semibold text-white">
@@ -250,19 +211,6 @@ function SignedVariant({ offer, onDownload }: { offer: CandidateOfferResponse; o
         <p className="mt-4 text-sm text-slate-700">
           Welcome to Skyzen! Your onboarding documents will appear next.
         </p>
-
-        <div className="mt-5 flex flex-wrap gap-3 border-t border-slate-100 pt-5">
-          {offer.signedPdfDocumentId && (
-            <button
-              type="button"
-              onClick={onDownload}
-              className="inline-flex items-center gap-2 rounded-md bg-teal-700 px-4 py-2 text-sm font-semibold text-white hover:bg-teal-800"
-            >
-              <Download className="h-4 w-4" />
-              Download signed offer
-            </button>
-          )}
-        </div>
 
         <section className="mt-6 rounded-md border border-slate-200 bg-slate-50 p-4">
           <h3 className="text-sm font-semibold text-slate-900">What happens next</h3>

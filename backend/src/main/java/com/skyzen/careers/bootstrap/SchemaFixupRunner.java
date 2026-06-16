@@ -713,7 +713,7 @@ public class SchemaFixupRunner implements CommandLineRunner {
                     "ALTER TABLE offers ADD COLUMN IF NOT EXISTS docusign_envelope_id VARCHAR(64)");
             jdbcTemplate.execute(
                     "ALTER TABLE offers ADD COLUMN IF NOT EXISTS signed_pdf_file_id VARCHAR(128)");
-            log.info("Ensured offers docusign_envelope_id + signed_pdf_file_id columns exist.");
+            log.info("Ensured offers legacy envelope id + signed_pdf_file_id columns exist.");
         } catch (Exception e) {
             log.warn("offers doc-spec columns add failed (non-fatal): {}", e.getMessage(), e);
         }
@@ -775,10 +775,12 @@ public class SchemaFixupRunner implements CommandLineRunner {
             log.warn("applications selection_acknowledged columns add failed (non-fatal): {}", e.getMessage(), e);
         }
 
-        // ── Phase 3 (offer letter + DocuSign + employee id) ────────────────
+        // ── Phase 3 (offer letter + IDMS signing + employee id) ────────────
 
-        // documents table — the document vault. Phase 3 writes SIGNED_OFFER
-        // rows on the DocuSign webhook; Phase 4 adds W4 / I9 / ACH / etc.
+        // documents table — the document vault. Phase 3 wrote SIGNED_OFFER
+        // rows; under IDMS the signature image is stored inline on the
+        // offer row, so SIGNED_OFFER documents only land for legacy
+        // externally-signed offers. Phase 4 adds W4 / I9 / ACH / etc.
         try {
             jdbcTemplate.execute(
                     "CREATE TABLE IF NOT EXISTS documents ("
@@ -826,13 +828,15 @@ public class SchemaFixupRunner implements CommandLineRunner {
                     "ALTER TABLE offers ADD COLUMN IF NOT EXISTS expected_hours_per_week INTEGER");
             jdbcTemplate.execute(
                     "ALTER TABLE offers ADD COLUMN IF NOT EXISTS signed_pdf_document_id UUID");
-            log.info("Ensured offers Phase 3 columns exist (docusign / signed / voided / etc.).");
+            log.info("Ensured offers Phase 3 columns exist (signing / voided / etc.).");
         } catch (Exception e) {
             log.warn("offers Phase 3 columns add failed (non-fatal): {}", e.getMessage(), e);
         }
 
         // docusign_envelope_id was added in Phase 0 (varchar 64) — widen to 80
-        // to match DocuSign's id format and add the UNIQUE index defensively.
+        // to match the legacy external-signing id format and add the UNIQUE
+        // index defensively. Column name kept post-IDMS-migration for data
+        // preservation; new offers leave it null.
         try {
             jdbcTemplate.execute(
                     "ALTER TABLE offers ALTER COLUMN docusign_envelope_id TYPE VARCHAR(80)");
@@ -2090,7 +2094,7 @@ public class SchemaFixupRunner implements CommandLineRunner {
                 "ALTER TABLE offers ADD COLUMN IF NOT EXISTS last_reminder_at TIMESTAMP",
                 "ALTER TABLE offers ADD COLUMN IF NOT EXISTS archived_at TIMESTAMP",
                 // Phase 8.6.2 — in-house signing captures the applicant's
-                // typed name; nullable so legacy/DocuSign-signed rows are
+                // typed name; nullable so legacy externally-signed rows are
                 // preserved as-is. Idempotent ADD IF NOT EXISTS.
                 "ALTER TABLE offers ADD COLUMN IF NOT EXISTS signed_by_typed_name VARCHAR(200)",
                 // Phase 8.6.2.1 — drawn signature stored as a PNG data URL.
@@ -2101,7 +2105,7 @@ public class SchemaFixupRunner implements CommandLineRunner {
                 // created with a stale whitelist that pre-dates the current
                 // OfferStatus enum (DRAFT/SENT/SIGNED/VOIDED/EXPIRED/DECLINED
                 // + deprecated ACCEPTED/REVOKED). Without this, the SIGNED
-                // commit in finalizeInHouseSigning fails with 23514 and the
+                // commit in finalizeIdmsSigning fails with 23514 and the
                 // whole sign transaction rolls back. Drop + recreate with the
                 // full set; idempotent because DROP IF EXISTS runs first.
                 "ALTER TABLE offers DROP CONSTRAINT IF EXISTS offers_status_check",

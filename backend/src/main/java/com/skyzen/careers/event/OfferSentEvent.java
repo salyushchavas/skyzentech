@@ -5,7 +5,7 @@ import lombok.Getter;
 import java.util.UUID;
 
 /**
- * Fired AFTER_COMMIT of {@code OfferDocuSignService.sendDocusignOffer}. Phase 7
+ * Fired AFTER_COMMIT of {@code OfferIdmsSigningService.sendOffer}. Phase 7
  * will fan this out into notification rows; for now the offer's own
  * NotificationService.sendOfferExtended path covers the email.
  */

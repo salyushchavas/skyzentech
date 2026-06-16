@@ -427,7 +427,7 @@ export type OfferStatus =
   | 'VOIDED'
   | 'EXPIRED'
   | 'DECLINED'
-  // Pre-DocuSign legacy values; retained so existing rows still deserialize.
+  // Pre-IDMS legacy values; retained so existing rows still deserialize.
   | 'ACCEPTED'
   | 'REVOKED';
 
@@ -496,7 +496,7 @@ export interface CandidateOfferResponse {
   compensationSummary?: string;
   worksite?: string;
   expectedHoursPerWeek?: number;
-  docusignEnvelopeId?: string;
+  legacyEnvelopeId?: string;
   signedAt?: IsoDateTime;
   voidedAt?: IsoDateTime;
   voidedReason?: string;

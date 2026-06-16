@@ -2,7 +2,6 @@ package com.skyzen.careers.intern;
 
 import com.skyzen.careers.entity.Offer;
 import com.skyzen.careers.enums.OfferStatus;
-import com.skyzen.careers.integration.docusign.DocuSignService;
 import com.skyzen.careers.notification.UserNotificationDispatcher;
 import com.skyzen.careers.repository.OfferRepository;
 import lombok.RequiredArgsConstructor;
@@ -25,7 +24,8 @@ import java.util.List;
  *       UserNotification side; this job re-fires harmlessly since the
  *       dispatcher writes per recipient per call.</li>
  *   <li>Expiry pass — for offers in SENT with {@code expires_at} in the
- *       past, set status=EXPIRED, best-effort DocuSign void, notify ERM.</li>
+ *       past, set status=EXPIRED + notify ERM. Signing is in-house via
+ *       IDMS so there's no external envelope to void.</li>
  * </ol>
  *
  * <p>Lifecycle status is NOT regressed; ERM decides whether to re-offer
@@ -37,7 +37,6 @@ import java.util.List;
 public class OfferExpiryJob {
 
     private final OfferRepository offerRepository;
-    private final DocuSignService docuSignService;
     private final UserNotificationDispatcher notificationDispatcher;
 
     @Scheduled(cron = "0 0 * * * *") // every hour, on the hour
@@ -91,15 +90,7 @@ public class OfferExpiryJob {
     }
 
     private void expireOne(Offer offer) {
-        if (offer.getDocusignEnvelopeId() != null && docuSignService.isReady()) {
-            try {
-                docuSignService.voidEnvelope(offer.getDocusignEnvelopeId(),
-                        "Auto-expired past expiry_at");
-            } catch (Exception e) {
-                log.warn("[OfferExpiry] DocuSign void failed (non-fatal) for {}: {}",
-                        offer.getId(), e.getMessage());
-            }
-        }
+        // No external envelope to void — signing is in-house via IDMS.
         offer.setStatus(OfferStatus.EXPIRED);
         offer.setVoidedAt(Instant.now());
         if (offer.getVoidedReason() == null || offer.getVoidedReason().isBlank()) {
