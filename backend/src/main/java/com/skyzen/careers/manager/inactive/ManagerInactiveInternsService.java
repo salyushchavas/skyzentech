@@ -24,9 +24,17 @@ import java.util.List;
 import java.util.UUID;
 
 /**
- * Phase 4B-1 — Manager's read-only Inactive Interns list. SQL-filtered
- * to {@code intern_lifecycles.manager_id = caller.id} (SUPER_ADMIN
- * bypasses), with an optional period filter on {@code exit_records.exit_date}.
+ * Phase 4B-1 — Manager's read-only Inactive Interns list. Org-wide for
+ * any MANAGER (and SUPER_ADMIN) — matches the rest of the Manager
+ * surfaces (overview, pipeline, onboarding, risk-center, timesheet
+ * list) which are portfolio-wide per the canonical design. An optional
+ * period filter on {@code exit_records.exit_date} narrows the result
+ * set when {@code y/m} are supplied.
+ *
+ * <p>The earlier per-manager fence ({@code manager_id = caller.id} for
+ * non-SUPER_ADMIN) made newly-active interns with null
+ * {@code manager_id} invisible to anyone — paired with the timesheet
+ * approval deadlock that's now also resolved.</p>
  *
  * <p>Reuses {@link com.skyzen.careers.entity.ExitRecord} as the source
  * of closure data — mirrors {@code ExitService.getInternSummary} for
@@ -51,8 +59,6 @@ public class ManagerInactiveInternsService {
             User caller, Integer year, Integer month) {
         requireManagerOrSuperAdmin(caller);
 
-        boolean superAdmin = caller.getRoles() != null
-                && caller.getRoles().contains(UserRole.SUPER_ADMIN);
         // Build period filter (optional). Default = all time.
         YearMonth period = null;
         java.sql.Date exitFromInclusive = null, exitToExclusive = null;
@@ -66,10 +72,8 @@ public class ManagerInactiveInternsService {
                 " WHERE (u.lifecycle_status = 'INACTIVE_INTERN' "
                         + "      OR il.active_status IN ('COMPLETED','RESIGNED','TERMINATED')) ");
         List<Object> params = new ArrayList<>();
-        if (!superAdmin) {
-            where.append(" AND il.manager_id = ? ");
-            params.add(caller.getId());
-        }
+        // Manager scope is org-wide — no manager_id filter. SUPER_ADMIN
+        // and MANAGER see the same set; the role gate ran above.
         if (period != null) {
             // Period applies to exit_date when an ExitRecord exists; we
             // OR with lifecycle.ended_at so rows without a record still

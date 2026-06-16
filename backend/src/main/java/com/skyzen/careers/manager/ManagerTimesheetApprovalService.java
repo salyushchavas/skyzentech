@@ -4,15 +4,10 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.skyzen.careers.dto.supervised.RejectTimesheetRequest;
 import com.skyzen.careers.dto.supervised.TimesheetResponse;
 import com.skyzen.careers.entity.AuditLog;
-import com.skyzen.careers.entity.InternLifecycle;
-import com.skyzen.careers.entity.Timesheet;
 import com.skyzen.careers.entity.User;
 import com.skyzen.careers.enums.UserRole;
 import com.skyzen.careers.exception.ForbiddenException;
-import com.skyzen.careers.exception.ResourceNotFoundException;
 import com.skyzen.careers.repository.AuditLogRepository;
-import com.skyzen.careers.repository.InternLifecycleRepository;
-import com.skyzen.careers.repository.TimesheetRepository;
 import com.skyzen.careers.service.TimesheetService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -26,30 +21,27 @@ import java.util.UUID;
 /**
  * Manager Phase 3B — write side. Wraps the existing
  * {@link TimesheetService#approve(UUID, User)} and
- * {@link TimesheetService#reject(UUID, RejectTimesheetRequest, User)} with a
- * resource-ownership gate: a MANAGER may approve/reject ONLY when the
- * timesheet's intern is assigned to them via
- * {@code intern_lifecycles.manager_id}. SUPER_ADMIN bypasses the gate.
+ * {@link TimesheetService#reject(UUID, RejectTimesheetRequest, User)} with
+ * a role-only gate: any MANAGER (and SUPER_ADMIN) can act. The original
+ * per-manager {@code manager_id == caller} fence was dropped — Manager
+ * is an organization-level oversight role in the canonical design, and
+ * the rest of the Manager surfaces (overview, pipeline, onboarding,
+ * risk-center, timesheet list) are already org-wide. Per-intern fencing
+ * here had created a deadlock: newly-active interns whose
+ * {@code manager_id} is null (manual-only assignment) had VERIFIED
+ * timesheets nobody could approve.
  *
- * <p>The gate runs at the service layer (not just {@code @PreAuthorize}),
- * so a direct API call with a valid session token still 403s when the
- * caller isn't the assigned manager. The actual SUBMITTED → APPROVED /
- * REJECTED transition is delegated to {@code TimesheetService} unchanged,
- * preserving the single state machine + approver-id wiring + (any
- * future) notification path.</p>
- *
- * <p>An audit row is written before delegation so Manager actions are
- * recorded even though the legacy timesheet approval path doesn't write
- * audits today — a small, additive improvement scoped to Manager
- * decisions only.</p>
+ * <p>The actual VERIFIED → APPROVED / REJECTED transition is delegated
+ * to {@code TimesheetService} unchanged, preserving the single state
+ * machine + approver-id wiring + (any future) notification path. An
+ * audit row is still written before delegation so Manager actions
+ * surface in the audit log.</p>
  */
 @Service
 @RequiredArgsConstructor
 @Slf4j
 public class ManagerTimesheetApprovalService {
 
-    private final TimesheetRepository timesheetRepository;
-    private final InternLifecycleRepository internLifecycleRepository;
     private final TimesheetService timesheetService;
     private final AuditLogRepository auditLogRepository;
     private final ObjectMapper objectMapper;
@@ -74,11 +66,13 @@ public class ManagerTimesheetApprovalService {
     }
 
     /**
-     * Phase B2 — batch-approve every VERIFIED timesheet the caller is
-     * the assigned Manager for. Skips wrong-state rows silently (returns
-     * a per-id outcome map). Each row is approved via the per-row
-     * service so the state-machine gate + audit + AFTER_COMMIT notify
-     * chain run identically to the single-action path.
+     * Phase B2 — batch-approve a list of VERIFIED timesheets. Manager
+     * scope is org-wide, so the caller can batch over any MANAGER's
+     * verified timesheets (typically the rows the UI's filter just
+     * returned). Wrong-state rows are skipped silently (returns a
+     * per-id outcome map). Each row goes through the per-row service so
+     * the state-machine gate + audit + AFTER_COMMIT notify chain run
+     * identically to the single-action path.
      */
     @Transactional
     public java.util.Map<UUID, String> approveBatch(java.util.List<UUID> ids, User caller) {
@@ -99,13 +93,14 @@ public class ManagerTimesheetApprovalService {
         return out;
     }
 
-    // ── Resource ownership gate ──────────────────────────────────────────
+    // ── Role gate ────────────────────────────────────────────────────────
 
     /**
-     * Loads the timesheet, resolves the intern's lifecycle, and confirms
-     * the caller is the assigned manager OR a SUPER_ADMIN. Throws
-     * ForbiddenException otherwise — same behavior whether the caller is
-     * a manager hitting their own UI or hand-crafting a request.
+     * Role-only gate. Any MANAGER (or SUPER_ADMIN) may act. No per-intern
+     * ownership fence — Manager is portfolio-wide. The {@code timesheetId}
+     * + {@code action} parameters are retained so the signature can carry
+     * extra context in the future (and so we can swap in stricter checks
+     * without re-threading the call-sites if the policy ever changes).
      */
     private void gate(UUID timesheetId, User caller, String action) {
         if (caller == null) throw new ForbiddenException("Authentication required");
@@ -115,24 +110,6 @@ public class ManagerTimesheetApprovalService {
         if (caller.getRoles() == null
                 || !caller.getRoles().contains(UserRole.MANAGER)) {
             throw new ForbiddenException("MANAGER role required to " + action + " a timesheet");
-        }
-
-        Timesheet ts = timesheetRepository.findByIdWithGraph(timesheetId)
-                .orElseThrow(() -> new ResourceNotFoundException(
-                        "Timesheet not found: " + timesheetId));
-        UUID internUserId = ts.getIntern() != null && ts.getIntern().getUser() != null
-                ? ts.getIntern().getUser().getId() : null;
-        if (internUserId == null) {
-            throw new ForbiddenException(
-                    "Cannot resolve intern for timesheet " + timesheetId);
-        }
-        InternLifecycle lc = internLifecycleRepository.findByUserId(internUserId)
-                .orElseThrow(() -> new ForbiddenException(
-                        "No InternLifecycle for intern — cannot verify ownership"));
-        if (lc.getManagerId() == null
-                || !caller.getId().equals(lc.getManagerId())) {
-            throw new ForbiddenException(
-                    "Not the assigned Manager for this intern (" + action + ")");
         }
     }
 

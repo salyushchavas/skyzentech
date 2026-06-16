@@ -11,11 +11,10 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * Phase 4B-1 — Manager's read-only Inactive Interns endpoint. Scope
- * enforced server-side: {@code MANAGER} sees only interns whose
- * {@code intern_lifecycles.manager_id == caller.id}; SUPER_ADMIN
- * bypasses. Period filter optional — default is "all time" since
- * exits are infrequent and the operator usually wants the full cohort.
+ * Phase 4B-1 — Manager's read-only Inactive Interns endpoint. Org-wide
+ * for any MANAGER (and SUPER_ADMIN) — matches the rest of the Manager
+ * surfaces. Period filter optional — default is "all time" since exits
+ * are infrequent and the operator usually wants the full cohort.
  */
 @RestController
 @RequestMapping("/api/v1/manager/inactive-interns")
