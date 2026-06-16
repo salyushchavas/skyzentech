@@ -11,9 +11,11 @@ import {
   ExternalLink,
   GitBranch,
   Github,
+  GraduationCap,
   Plus,
   Send,
   Trash2,
+  Video,
 } from 'lucide-react';
 import api from '@/lib/api';
 import InternPageShell from '@/components/intern/InternPageShell';
@@ -111,6 +113,7 @@ export default function InternProjectDetailPage() {
         </main>
         <aside className="space-y-6">
           <MetaCard a={data} />
+          <KtCard a={data} />
           <RepositoryCard a={data} />
         </aside>
       </div>
@@ -524,6 +527,66 @@ function RepositoryCard({ a }: { a: AssignmentSummary }) {
       {a.accessGranted === false && (
         <p className="mt-2 text-xs text-amber-700">
           Repository access not granted yet. Ask your trainer to invite you.
+        </p>
+      )}
+    </section>
+  );
+}
+
+function KtCard({ a }: { a: AssignmentSummary }) {
+  const kt = a.project?.kt;
+  if (!kt) return null; // Catalog-only, no assignment → KT is N/A.
+  const done = kt.status === 'DONE';
+  return (
+    <section className={
+      'rounded-lg border p-5 shadow-sm text-sm '
+      + (done
+          ? 'border-emerald-200 bg-emerald-50'
+          : 'border-slate-200 bg-white')
+    }>
+      <div className="flex items-center gap-2">
+        <GraduationCap className={'h-4 w-4 ' + (done ? 'text-emerald-700' : 'text-slate-500')} />
+        <h3 className="text-sm font-semibold text-slate-900">KT session</h3>
+        <span className={
+          'ml-auto rounded-full px-2 py-0.5 text-[11px] font-medium '
+          + (done
+              ? 'bg-emerald-100 text-emerald-800'
+              : 'bg-slate-100 text-slate-700')
+        }>
+          {done ? 'Done' : 'Not done'}
+        </span>
+      </div>
+      {done ? (
+        <>
+          <p className="mt-2 text-xs text-slate-600">
+            Marked on {kt.completedAt ? formatInstant(kt.completedAt) : '—'}
+            {kt.markedByName ? ' · by ' + kt.markedByName : ''}
+          </p>
+          {kt.meetingLink && (
+            <a
+              href={kt.meetingLink}
+              target="_blank"
+              rel="noreferrer"
+              className="mt-2 inline-flex items-center gap-1 break-all text-xs text-teal-700 hover:underline"
+            >
+              <Video className="h-3 w-3" /> {kt.meetingLink}
+            </a>
+          )}
+          {kt.notes && (
+            <div className="mt-2 rounded-md border border-emerald-200 bg-white p-2">
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-emerald-700">
+                Notes
+              </p>
+              <p className="mt-1 whitespace-pre-wrap text-xs text-slate-700">
+                {kt.notes}
+              </p>
+            </div>
+          )}
+        </>
+      ) : (
+        <p className="mt-2 text-xs text-slate-500">
+          Your trainer will schedule a Knowledge Transfer session to walk
+          you through the project, then mark it done here.
         </p>
       )}
     </section>

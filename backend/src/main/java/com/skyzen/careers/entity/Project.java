@@ -222,6 +222,35 @@ public class Project {
     @Builder.Default
     private Boolean notifyStakeholdersInternal = Boolean.TRUE;
 
+    // ── KT (Knowledge Transfer) session — Trainer-marked, per monthly project.
+    // The Trainer assigns the project, holds a KT call to explain it, and
+    // marks it done. Surfaces a "KT" column on the monthly roster + a
+    // status row on the intern's My Projects detail.
+
+    /** {@code NOT_DONE} or {@code DONE}. DB default {@code NOT_DONE}. */
+    @Column(name = "kt_status", length = 16, nullable = false,
+            columnDefinition = "varchar(16) not null default 'NOT_DONE'")
+    @Builder.Default
+    private String ktStatus = "NOT_DONE";
+
+    /** When the Trainer marked KT done. Null while NOT_DONE. */
+    @Column(name = "kt_completed_at")
+    private Instant ktCompletedAt;
+
+    /** Optional meeting link (Zoom / Meet / Teams) the Trainer supplied
+     *  alongside the KT mark. Phase 0 — manual link only; Zoom
+     *  auto-create is a follow-up. */
+    @Column(name = "kt_meeting_link", columnDefinition = "TEXT")
+    private String ktMeetingLink;
+
+    /** Optional Trainer note about the KT (covered topics, recording link…). */
+    @Column(name = "kt_notes", columnDefinition = "TEXT")
+    private String ktNotes;
+
+    /** UUID of the Trainer (or SUPER_ADMIN) who marked KT done. */
+    @Column(name = "kt_marked_by_id")
+    private java.util.UUID ktMarkedById;
+
     @UpdateTimestamp
     @Column(name = "updated_at", nullable = false)
     private Instant updatedAt;

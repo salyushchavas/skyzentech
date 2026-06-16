@@ -124,7 +124,12 @@ public final class ActiveInternsDtos {
             Short projectNumber,
             String monthYear,
             LocalDate dueDate,
-            Instant reviewedAt
+            Instant reviewedAt,
+            /** {@code NOT_DONE} or {@code DONE}. Drives the trainer's
+             *  Mark KT button + the upcoming monthly-roster KT column. */
+            String ktStatus,
+            Instant ktCompletedAt,
+            String ktMeetingLink
     ) {}
 
     public record RecentMeetingRow(

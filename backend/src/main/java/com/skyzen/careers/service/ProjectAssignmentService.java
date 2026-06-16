@@ -699,6 +699,17 @@ public class ProjectAssignmentService {
                     .ifPresent(l -> repos.put(pid, l));
         }
 
+        // Collect KT-marker user ids so the bulk fetch picks them up too.
+        Set<UUID> ktMarkerIds = projects.values().stream()
+                .map(Project::getKtMarkedById)
+                .filter(java.util.Objects::nonNull)
+                .collect(Collectors.toSet());
+        if (!ktMarkerIds.isEmpty()) {
+            for (User u : userRepository.findAllById(ktMarkerIds)) {
+                users.putIfAbsent(u.getId(), u);
+            }
+        }
+
         return rows.stream().map(r -> {
             Project p = projects.get(r.getProjectId());
             User intern = users.get(r.getInternId());
@@ -730,6 +741,9 @@ public class ProjectAssignmentService {
                                     && users.get(top.getReviewedById()) != null
                                     ? users.get(top.getReviewedById()).getFullName()
                                     : null);
+            ProjectAssignmentResponse.KtSummary ktSummary = p == null
+                    ? null
+                    : buildKtSummary(p, users);
             return new ProjectAssignmentResponse(
                     r.getId(),
                     p == null ? null : new ProjectAssignmentResponse.ProjectRef(
@@ -745,7 +759,8 @@ public class ProjectAssignmentService {
                             p.getExpectedDurationDays(),
                             p.getStartDate(),
                             p.getDueDate(),
-                            repoSummary),
+                            repoSummary,
+                            ktSummary),
                     userRef(intern),
                     userRef(assignedBy),
                     r.getAssignmentDate(),
@@ -763,6 +778,25 @@ public class ProjectAssignmentService {
                     r.getUpdatedAt()
             );
         }).toList();
+    }
+
+    private static ProjectAssignmentResponse.KtSummary buildKtSummary(Project p, Map<UUID, User> users) {
+        // KT only meaningful for assigned projects (the intern's My
+        // Projects detail uses this; catalog rows aren't surfaced via
+        // the intern endpoint).
+        if (p == null) return null;
+        String status = p.getKtStatus() != null ? p.getKtStatus() : "NOT_DONE";
+        String markedByName = null;
+        if (p.getKtMarkedById() != null) {
+            User u = users.get(p.getKtMarkedById());
+            if (u != null) markedByName = u.getFullName();
+        }
+        return new ProjectAssignmentResponse.KtSummary(
+                status,
+                p.getKtCompletedAt(),
+                p.getKtMeetingLink(),
+                p.getKtNotes(),
+                markedByName);
     }
 
     private static ProjectAssignmentResponse.UserRef userRef(User u) {

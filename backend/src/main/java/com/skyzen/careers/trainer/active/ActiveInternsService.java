@@ -475,7 +475,8 @@ public class ActiveInternsService {
     private List<RecentProjectRow> loadRecentProjects(UUID lifecycleId) {
         try {
             return jdbc.query(
-                    "SELECT id, title, status, project_number, month_year, due_date, reviewed_at "
+                    "SELECT id, title, status, project_number, month_year, due_date, "
+                            + "       reviewed_at, kt_status, kt_completed_at, kt_meeting_link "
                             + "  FROM projects "
                             + " WHERE intern_lifecycle_id = ? "
                             + " ORDER BY COALESCE(month_year, '0000-00') DESC, "
@@ -489,7 +490,10 @@ public class ActiveInternsService {
                             rs.getString("month_year"),
                             rs.getDate("due_date") != null
                                     ? rs.getDate("due_date").toLocalDate() : null,
-                            instantOf(rs.getTimestamp("reviewed_at"))));
+                            instantOf(rs.getTimestamp("reviewed_at")),
+                            rs.getString("kt_status"),
+                            instantOf(rs.getTimestamp("kt_completed_at")),
+                            rs.getString("kt_meeting_link")));
         } catch (Exception e) {
             return List.of();
         }

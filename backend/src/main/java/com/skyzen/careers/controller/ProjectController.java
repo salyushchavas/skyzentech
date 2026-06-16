@@ -96,6 +96,21 @@ public class ProjectController {
         return catalogService.listAllCatalog();
     }
 
+    /**
+     * Trainer marks the KT (Knowledge Transfer) session done for an
+     * assigned monthly project. Optional meeting link + notes. Service
+     * verifies the project is assigned and the caller owns it.
+     */
+    @org.springframework.web.bind.annotation.PostMapping("/{id}/kt-done")
+    @PreAuthorize("hasAnyRole('TRAINER', 'SUPER_ADMIN')")
+    public com.skyzen.careers.dto.project.catalog.CatalogProjectResponse markKtDone(
+            @PathVariable UUID id,
+            @jakarta.validation.Valid @org.springframework.web.bind.annotation.RequestBody(required = false)
+            com.skyzen.careers.dto.project.catalog.KtMarkRequest req,
+            @AuthenticationPrincipal User caller) {
+        return catalogService.markKtDone(id, req, caller);
+    }
+
     @org.springframework.web.bind.annotation.PostMapping("/catalog/{id}/repository")
     @PreAuthorize("hasAnyRole('TRAINER', 'SUPER_ADMIN')")
     public com.skyzen.careers.dto.project.catalog.CatalogProjectResponse linkRepository(

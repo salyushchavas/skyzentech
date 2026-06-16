@@ -2,10 +2,17 @@ package com.skyzen.careers.service;
 
 import com.skyzen.careers.dto.project.catalog.CatalogProjectResponse;
 import com.skyzen.careers.dto.project.catalog.CreateCatalogProjectRequest;
+import com.skyzen.careers.dto.project.catalog.KtMarkRequest;
+import com.skyzen.careers.entity.InternLifecycle;
 import com.skyzen.careers.entity.Project;
 import com.skyzen.careers.entity.User;
+import com.skyzen.careers.enums.UserRole;
 import com.skyzen.careers.exception.BadRequestException;
+import com.skyzen.careers.exception.ConflictException;
+import com.skyzen.careers.exception.ForbiddenException;
 import com.skyzen.careers.exception.ResourceNotFoundException;
+import com.skyzen.careers.notification.UserNotificationDispatcher;
+import com.skyzen.careers.repository.InternLifecycleRepository;
 import com.skyzen.careers.repository.ProjectAssignmentRepository;
 import com.skyzen.careers.repository.ProjectRepository;
 import com.skyzen.careers.repository.UserRepository;
@@ -38,6 +45,8 @@ public class ProjectCatalogService {
     private final UserRepository userRepository;
     private final com.skyzen.careers.repository.ProjectRepositoryLinkRepository
             repositoryLinkRepository;
+    private final InternLifecycleRepository internLifecycleRepository;
+    private final UserNotificationDispatcher userNotificationDispatcher;
 
     @Transactional
     public CatalogProjectResponse createCatalogProject(
@@ -76,6 +85,127 @@ public class ProjectCatalogService {
                 project.getId(),
                 actor.getId());
         return toResponse(project, actor);
+    }
+
+    /**
+     * Trainer-only action: mark the KT session done for an assigned
+     * monthly project. Optional meeting link (validated as absolute
+     * http/https URL) + free-text notes. Idempotent on re-mark (returns
+     * the row with the existing KT stamp untouched — keeps the original
+     * completion timestamp authoritative).
+     *
+     * <p>Owner check: the project must be assigned (intern_lifecycle_id
+     * non-null) and the caller must be either SUPER_ADMIN or the
+     * Trainer recorded on that {@link InternLifecycle} (matches Phase 5
+     * trainer-scoped patterns).</p>
+     */
+    @Transactional
+    public CatalogProjectResponse markKtDone(UUID projectId, KtMarkRequest req, User caller) {
+        if (caller == null) throw new ForbiddenException("Authentication required");
+        Project project = projectRepository.findById(projectId)
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "Project not found: " + projectId));
+        if (project.getInternLifecycleId() == null) {
+            throw new ConflictException(
+                    "KT cannot be marked — this project isn't assigned to an intern yet.");
+        }
+        ensureTrainerForProject(project, caller);
+
+        String meetingLink = req != null ? trimToNull(req.meetingLink()) : null;
+        String notes = req != null ? trimToNull(req.notes()) : null;
+        if (meetingLink != null) validateUrl(meetingLink);
+
+        boolean alreadyDone = "DONE".equalsIgnoreCase(project.getKtStatus());
+        if (!alreadyDone) {
+            project.setKtStatus("DONE");
+            project.setKtCompletedAt(Instant.now());
+            project.setKtMarkedById(caller.getId());
+        }
+        // Always allow updating the link/notes — Trainer may add the recording
+        // link or polish the topic summary after the live call.
+        if (meetingLink != null) project.setKtMeetingLink(meetingLink);
+        if (notes != null) project.setKtNotes(notes);
+        project = projectRepository.save(project);
+
+        if (!alreadyDone) {
+            dispatchKtDoneNotification(project);
+        }
+        log.info("[ProjectCatalogService] KT done project={} by={} (firstMark={})",
+                project.getId(), caller.getId(), !alreadyDone);
+        User creator = resolveCreator(project.getCreatedById());
+        return toResponse(project, creator);
+    }
+
+    private void ensureTrainerForProject(Project project, User caller) {
+        boolean isSuperAdmin = caller.getRoles() != null
+                && caller.getRoles().contains(UserRole.SUPER_ADMIN);
+        if (isSuperAdmin) return;
+        boolean isTrainer = caller.getRoles() != null
+                && caller.getRoles().contains(UserRole.TRAINER);
+        if (!isTrainer) {
+            throw new ForbiddenException(
+                    "Only the assigned Trainer (or SUPER_ADMIN) may mark KT done.");
+        }
+        // Verify this Trainer is the one assigned to the intern's lifecycle.
+        InternLifecycle il = internLifecycleRepository.findById(project.getInternLifecycleId())
+                .orElse(null);
+        if (il == null || il.getTrainerId() == null) {
+            // Single-trainer org (DEFAULT_TRAINER_EMAIL) often leaves the
+            // lifecycle.trainer_id unpopulated. Fall back to allowing any
+            // TRAINER — they are the de-facto owner of every assignment.
+            log.debug("[ProjectCatalogService] KT mark: no trainer on lifecycle={} — "
+                            + "allowing TRAINER caller {} as de-facto owner",
+                    project.getInternLifecycleId(), caller.getId());
+            return;
+        }
+        if (!caller.getId().equals(il.getTrainerId())) {
+            throw new ForbiddenException(
+                    "Only this intern's assigned Trainer may mark KT done.");
+        }
+    }
+
+    private void dispatchKtDoneNotification(Project project) {
+        try {
+            UUID lifecycleId = project.getInternLifecycleId();
+            if (lifecycleId == null) return;
+            UUID internUserId = internLifecycleRepository.findById(lifecycleId)
+                    .map(InternLifecycle::getUserId).orElse(null);
+            if (internUserId == null) return;
+            String projectLabel = project.getName() != null && !project.getName().isBlank()
+                    ? project.getName()
+                    : (project.getTitle() != null ? project.getTitle() : "your project");
+            String title = "KT session marked complete";
+            String body = "Your Trainer marked KT done for " + projectLabel + "."
+                    + (project.getKtMeetingLink() != null && !project.getKtMeetingLink().isBlank()
+                        ? " A meeting link is available on the project page." : "");
+            userNotificationDispatcher.dispatch(internUserId, "KT_DONE",
+                    project.getKtMarkedById(), title, body,
+                    "/careers/intern/projects", false);
+        } catch (Exception e) {
+            log.warn("[ProjectCatalogService] KT-done notify failed (non-fatal): {}",
+                    e.getMessage());
+        }
+    }
+
+    private static String trimToNull(String s) {
+        if (s == null) return null;
+        String t = s.trim();
+        return t.isEmpty() ? null : t;
+    }
+
+    private static void validateUrl(String s) {
+        try {
+            java.net.URI uri = new java.net.URI(s);
+            if (!uri.isAbsolute() || uri.getScheme() == null || uri.getHost() == null
+                    || !(uri.getScheme().equalsIgnoreCase("http")
+                        || uri.getScheme().equalsIgnoreCase("https"))) {
+                throw new BadRequestException(
+                        "KT meeting link must be an absolute http/https URL: '" + s + "'");
+            }
+        } catch (java.net.URISyntaxException e) {
+            throw new BadRequestException(
+                    "KT meeting link is not a valid URL: '" + s + "'");
+        }
     }
 
     @Transactional(readOnly = true)
@@ -197,9 +327,27 @@ public class ProjectCatalogService {
                         : null,
                 0L,
                 null,
+                buildKtSummary(p),
                 p.getCreatedAt(),
                 p.getUpdatedAt()
         );
+    }
+
+    private CatalogProjectResponse.KtSummary buildKtSummary(Project p) {
+        // Only surface KT for assigned projects — for catalog rows the
+        // intern_lifecycle_id is null and KT is conceptually N/A.
+        if (p.getInternLifecycleId() == null) return null;
+        String markedByName = null;
+        if (p.getKtMarkedById() != null) {
+            User u = userRepository.findById(p.getKtMarkedById()).orElse(null);
+            markedByName = u != null ? u.getFullName() : null;
+        }
+        return new CatalogProjectResponse.KtSummary(
+                p.getKtStatus() != null ? p.getKtStatus() : "NOT_DONE",
+                p.getKtCompletedAt(),
+                p.getKtMeetingLink(),
+                p.getKtNotes(),
+                markedByName);
     }
 
     private CatalogProjectResponse toResponseWithCount(Project p, User creator) {
@@ -237,6 +385,7 @@ public class ProjectCatalogService {
                 base.createdBy(),
                 count,
                 repoRef,
+                base.kt(),
                 base.createdAt(),
                 base.updatedAt()
         );

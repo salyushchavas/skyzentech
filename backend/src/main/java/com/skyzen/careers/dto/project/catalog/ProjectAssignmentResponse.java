@@ -52,7 +52,17 @@ public record ProjectAssignmentResponse(
             Integer expectedDurationDays,
             LocalDate startDate,
             LocalDate endDate,
-            RepositorySummary repository
+            RepositorySummary repository,
+            /** KT (Knowledge Transfer) — null when not assigned (catalog-only). */
+            KtSummary kt
+    ) {}
+
+    public record KtSummary(
+            String status,            // NOT_DONE | DONE
+            Instant completedAt,
+            String meetingLink,
+            String notes,
+            String markedByName
     ) {}
 
     public record RepositorySummary(

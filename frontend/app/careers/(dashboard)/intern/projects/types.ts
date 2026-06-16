@@ -16,6 +16,14 @@ export type TrainerDecision =
   | 'ESCALATE'
   | 'NO_ACTION_YET';
 
+export interface KtSummary {
+  status: 'NOT_DONE' | 'DONE';
+  completedAt: string | null;
+  meetingLink: string | null;
+  notes: string | null;
+  markedByName: string | null;
+}
+
 export interface ProjectRef {
   id: string;
   name: string | null;
@@ -30,6 +38,7 @@ export interface ProjectRef {
   startDate: string | null;
   endDate: string | null;
   repository: { repositoryName: string | null; repositoryUrl: string | null } | null;
+  kt: KtSummary | null;
 }
 
 export interface LatestSubmission {

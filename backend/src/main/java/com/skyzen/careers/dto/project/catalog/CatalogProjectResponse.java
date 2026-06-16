@@ -24,6 +24,8 @@ public record CatalogProjectResponse(
         UserRef createdBy,
         Long assignmentCount,
         RepositoryRef repository,
+        /** KT (Knowledge Transfer) — populated for assigned projects. */
+        KtSummary kt,
         Instant createdAt,
         Instant updatedAt
 ) {
@@ -35,5 +37,13 @@ public record CatalogProjectResponse(
             String repositoryUrl,
             UserRef linkedBy,
             Instant linkedAt
+    ) {}
+
+    public record KtSummary(
+            String status,            // NOT_DONE | DONE
+            Instant completedAt,
+            String meetingLink,
+            String notes,
+            String markedByName
     ) {}
 }

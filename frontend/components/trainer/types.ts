@@ -178,6 +178,10 @@ export interface RecentProjectRow {
   monthYear: string | null;
   dueDate: string | null;
   reviewedAt: string | null;
+  /** KT (Knowledge Transfer) — Trainer-marked, per monthly project. */
+  ktStatus: 'NOT_DONE' | 'DONE' | null;
+  ktCompletedAt: string | null;
+  ktMeetingLink: string | null;
 }
 
 export interface RecentMeetingRow {

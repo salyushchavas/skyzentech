@@ -1018,6 +1018,28 @@ public class SchemaFixupRunner implements CommandLineRunner {
             log.warn("projects Phase 5 columns add failed (non-fatal): {}", e.getMessage(), e);
         }
 
+        // KT (Knowledge Transfer) session — Trainer-marked, per monthly
+        // project. Tracked on the project row because Project is already
+        // per-intern-per-month-slot (intern_lifecycle_id + month_year +
+        // project_number is the canonical assignment key). Default
+        // NOT_DONE; flipped to DONE by the Trainer after the session.
+        try {
+            jdbcTemplate.execute(
+                    "ALTER TABLE projects ADD COLUMN IF NOT EXISTS kt_status VARCHAR(16) "
+                            + "NOT NULL DEFAULT 'NOT_DONE'");
+            jdbcTemplate.execute(
+                    "ALTER TABLE projects ADD COLUMN IF NOT EXISTS kt_completed_at TIMESTAMP");
+            jdbcTemplate.execute(
+                    "ALTER TABLE projects ADD COLUMN IF NOT EXISTS kt_meeting_link TEXT");
+            jdbcTemplate.execute(
+                    "ALTER TABLE projects ADD COLUMN IF NOT EXISTS kt_notes TEXT");
+            jdbcTemplate.execute(
+                    "ALTER TABLE projects ADD COLUMN IF NOT EXISTS kt_marked_by_id UUID");
+            log.info("Ensured projects KT (Knowledge Transfer) columns exist.");
+        } catch (Exception e) {
+            log.warn("projects KT columns add failed (non-fatal): {}", e.getMessage(), e);
+        }
+
         // project_submissions Phase 5 columns — versioned reviews.
         try {
             jdbcTemplate.execute(
