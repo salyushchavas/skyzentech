@@ -8,6 +8,7 @@ import DashboardLayout from '@/components/dashboard/DashboardLayout';
 import PageHeader from '@/components/ui/PageHeader';
 import InterviewStatusPill from '@/components/erm/interviews/InterviewStatusPill';
 import DecisionPill from '@/components/erm/interviews/DecisionPill';
+import { formatInZone } from '@/lib/format-interview-time';
 import type {
   InterviewListPage,
   InterviewRow,
@@ -192,7 +193,6 @@ export default function InterviewSchedulerPage() {
 }
 
 function Row({ row }: { row: InterviewRow }) {
-  const d = new Date(row.scheduledAt);
   return (
     <tr>
       <td className="px-3 py-2">
@@ -211,9 +211,9 @@ function Row({ row }: { row: InterviewRow }) {
         <span className="block text-[11px] text-slate-500">{row.jobType}</span>
       </td>
       <td className="px-3 py-2 text-xs">
-        <span className="block">{d.toLocaleString()}</span>
+        <span className="block">{formatInZone(row.scheduledAt, row.timezone)}</span>
         <span className="block text-[11px] text-slate-500">
-          {row.durationMinutes ?? 60} min · {row.timezone}
+          {row.durationMinutes ?? 60} min
         </span>
       </td>
       <td className="px-3 py-2 text-xs text-slate-700">
@@ -312,11 +312,7 @@ function CalendarView() {
                     href={`/careers/erm/interviews/${e.interviewId}`}
                     className="text-sm font-medium text-slate-900 hover:underline"
                   >
-                    {new Date(e.scheduledAt).toLocaleTimeString([], {
-                      hour: '2-digit',
-                      minute: '2-digit',
-                    })}{' '}
-                    · {e.applicantName ?? '(unknown)'}
+                    {formatInZone(e.scheduledAt, e.timezone)} · {e.applicantName ?? '(unknown)'}
                   </Link>
                   <p className="text-[11px] text-slate-500">
                     {e.jobTitle} · {e.interviewerName ?? 'no interviewer'}

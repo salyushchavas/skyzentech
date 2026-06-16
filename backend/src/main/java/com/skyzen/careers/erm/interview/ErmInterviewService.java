@@ -266,8 +266,22 @@ public class ErmInterviewService {
                 .orElseThrow(() -> new ResourceNotFoundException(
                         "Caller not found: " + caller.getId()));
         validateInterviewer(interviewer);
-        String tz = req.timezone() != null && !req.timezone().isBlank()
-                ? req.timezone() : "UTC";
+        // Phase 1.7 — timezone is now required at the API. Defaulting silently
+        // to UTC let typos / blank inputs through (e.g. ERM Asia ⇄ US confusion
+        // bug). The frontend selector defaults the input to the ERM's browser
+        // zone; a hand-crafted request must supply a valid IANA id.
+        String tz = req.timezone() != null ? req.timezone().trim() : "";
+        if (tz.isBlank()) {
+            throw new BadRequestException(
+                    "timezone is required (IANA id, e.g. America/New_York). "
+                            + "Pick one in the scheduling form.");
+        }
+        try {
+            java.time.ZoneId.of(tz);
+        } catch (Exception e) {
+            throw new BadRequestException(
+                    "timezone is not a recognized IANA id: '" + tz + "'.");
+        }
 
         // Zoom create (best-effort).
         Long zoomId = null;
@@ -387,6 +401,19 @@ public class ErmInterviewService {
         Instant previous = iv.getScheduledAt();
         Integer previousDuration = iv.getDurationMinutes();
 
+        // Phase 1.7 — optional new timezone on reschedule. Omitted preserves
+        // the interview's existing zone; supplied must parse as a valid IANA
+        // id so we don't write a typo.
+        if (req.timezone() != null && !req.timezone().isBlank()) {
+            String newTz = req.timezone().trim();
+            try {
+                java.time.ZoneId.of(newTz);
+            } catch (Exception e) {
+                throw new BadRequestException(
+                        "timezone is not a recognized IANA id: '" + newTz + "'.");
+            }
+            iv.setTimezone(newTz);
+        }
         iv.setScheduledAt(req.scheduledFor());
         iv.setDurationMinutes(newDur);
         iv.setRescheduleCount((iv.getRescheduleCount() != null

@@ -13,6 +13,10 @@ import {
 import api from '@/lib/api';
 import InternPageShell from '@/components/intern/InternPageShell';
 import type { CandidateInterviewResponse, InterviewStatus } from '@/types';
+import {
+  formatInZone,
+  formatLocalIfDifferent,
+} from '@/lib/format-interview-time';
 
 const STATUS_STYLE: Record<InterviewStatus, string> = {
   SCHEDULED: 'bg-amber-100 text-amber-800',
@@ -93,7 +97,7 @@ export default function InternInterviewsPage() {
                       {i.jobPostingTitle ?? 'Interview'}
                     </div>
                     <div className="text-xs text-slate-500">
-                      {new Date(i.scheduledAt).toLocaleString()}
+                      {formatInZone(i.scheduledAt, i.timezone)}
                     </div>
                   </div>
                   <span className={'rounded-full px-2 py-0.5 text-xs font-medium ' + (STATUS_STYLE[i.status] ?? 'bg-slate-100 text-slate-600')}>
@@ -134,8 +138,17 @@ function InterviewHeroCard({ interview }: { interview: CandidateInterviewRespons
             {interview.jobPostingTitle ?? 'Interview'}
           </h2>
           <p className="mt-1 text-sm text-slate-600">
-            Scheduled for {new Date(interview.scheduledAt).toLocaleString()} ({interview.timezone ?? 'UTC'})
+            Scheduled for{' '}
+            <span className="font-medium text-slate-800">
+              {formatInZone(interview.scheduledAt, interview.timezone)}
+            </span>
           </p>
+          {(() => {
+            const local = formatLocalIfDifferent(interview.scheduledAt, interview.timezone);
+            return local ? (
+              <p className="mt-0.5 text-xs text-slate-500">({local})</p>
+            ) : null;
+          })()}
           <p className="mt-1 text-xs text-slate-500">
             <Clock className="mr-1 inline h-3 w-3" />
             {countdownLabel(minutesUntil)}

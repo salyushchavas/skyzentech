@@ -3,6 +3,12 @@
 import { useEffect, useState } from 'react';
 import api from '@/lib/api';
 import type { InterviewDetail, ReasonGroup, ReasonOption } from './types';
+import TimezoneSelect from '@/components/ui/TimezoneSelect';
+import {
+  detectBrowserZone,
+  formatInZone,
+  isValidIanaTimezone,
+} from '@/lib/format-interview-time';
 
 interface Props {
   interview: InterviewDetail;
@@ -17,6 +23,11 @@ export default function RescheduleModal({ interview, open, onClose, onApplied }:
   const [duration, setDuration] = useState<number>(
     interview.durationMinutes ?? 60,
   );
+  // Phase 1.7 — preserve the interview's stored zone by default; ERM
+  // can explicitly switch it if the rescheduled slot is in another zone.
+  const [timezone, setTimezone] = useState<string>(
+    interview.timezone || detectBrowserZone(),
+  );
   const [reasonCode, setReasonCode] = useState('');
   const [reasonText, setReasonText] = useState('');
   const [notifyApplicant, setNotifyApplicant] = useState(true);
@@ -29,6 +40,7 @@ export default function RescheduleModal({ interview, open, onClose, onApplied }:
     setReasonCode('');
     setReasonText('');
     setScheduledFor('');
+    setTimezone(interview.timezone || detectBrowserZone());
     setErr(null);
     void (async () => {
       try {
@@ -52,6 +64,10 @@ export default function RescheduleModal({ interview, open, onClose, onApplied }:
       setErr('Pick a new date/time.');
       return;
     }
+    if (!timezone || !isValidIanaTimezone(timezone)) {
+      setErr('Pick a valid timezone for the rescheduled slot.');
+      return;
+    }
     if (!reasonCode) {
       setErr('Select a reason.');
       return;
@@ -65,6 +81,7 @@ export default function RescheduleModal({ interview, open, onClose, onApplied }:
       await api.post(`/api/v1/erm/interviews/${interview.id}/reschedule`, {
         scheduledFor: new Date(scheduledFor).toISOString(),
         durationMinutes: duration,
+        timezone,
         reasonCode,
         reasonText: reasonText.trim() || null,
         notifyApplicant,
@@ -108,6 +125,18 @@ export default function RescheduleModal({ interview, open, onClose, onApplied }:
               onChange={(e) => setDuration(Number(e.target.value))}
               className="mt-1 w-32 rounded-md border border-slate-200 px-3 py-2 text-sm"
             />
+          </div>
+          <div>
+            <label className="text-sm font-medium text-slate-800">Timezone</label>
+            <TimezoneSelect value={timezone} onChange={setTimezone} />
+            {scheduledFor && isValidIanaTimezone(timezone) && (
+              <p className="mt-1 text-xs text-slate-600">
+                New slot:{' '}
+                <span className="font-medium text-slate-800">
+                  {formatInZone(new Date(scheduledFor).toISOString(), timezone)}
+                </span>
+              </p>
+            )}
           </div>
           <div>
             <label className="text-sm font-medium text-slate-800">

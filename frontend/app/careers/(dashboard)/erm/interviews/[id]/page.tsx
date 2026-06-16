@@ -16,6 +16,10 @@ import CancelModal from '@/components/erm/interviews/CancelModal';
 import ChangeInterviewerModal from '@/components/erm/interviews/ChangeInterviewerModal';
 import type { InterviewDetail } from '@/components/erm/interviews/types';
 import type { OfferListPage, OfferRow } from '@/components/erm/offers/types';
+import {
+  formatInZone,
+  formatLocalIfDifferent,
+} from '@/lib/format-interview-time';
 
 type Tab = 'overview' | 'decision' | 'notes' | 'history';
 
@@ -112,7 +116,7 @@ export default function InterviewDetailPage() {
 
   const ap = data.applicant;
   const title = ap ? `${ap.firstName} ${ap.lastName}`.trim() : 'Interview';
-  const d = new Date(data.scheduledAt);
+  const localView = formatLocalIfDifferent(data.scheduledAt, data.timezone);
 
   return (
     <ProtectedRoute requiredRoles={['ERM', 'SUPER_ADMIN', 'MANAGER', 'TRAINER']}>
@@ -129,7 +133,7 @@ export default function InterviewDetailPage() {
           <InterviewStatusPill status={data.status} />
           <DecisionPill decision={data.decision} />
           <span className="text-xs text-slate-500">
-            {d.toLocaleString()} · {data.durationMinutes ?? 60} min · {data.timezone}
+            {formatInZone(data.scheduledAt, data.timezone)} · {data.durationMinutes ?? 60} min
           </span>
           {data.rescheduleCount > 0 && (
             <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] text-slate-600">
@@ -137,6 +141,9 @@ export default function InterviewDetailPage() {
             </span>
           )}
         </div>
+        {localView && (
+          <p className="mb-4 text-xs text-slate-500">({localView})</p>
+        )}
 
         <div className="grid gap-6 lg:grid-cols-3">
           <main className="lg:col-span-2">

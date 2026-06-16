@@ -6,6 +6,12 @@ import api from '@/lib/api';
 import ProtectedRoute from '@/components/ProtectedRoute';
 import DashboardLayout from '@/components/dashboard/DashboardLayout';
 import PageHeader from '@/components/ui/PageHeader';
+import TimezoneSelect from '@/components/ui/TimezoneSelect';
+import {
+  detectBrowserZone,
+  formatInZone,
+  isValidIanaTimezone,
+} from '@/lib/format-interview-time';
 
 // useSearchParams is unsafe outside <Suspense> during static prerendering.
 // Wrap the inner reader so Next 14 build doesn't bail.
@@ -26,7 +32,9 @@ function CreateInterviewPageInner() {
   // picker is shown. Backend sets interview.interviewer_id = caller.id.
   const [scheduledFor, setScheduledFor] = useState('');
   const [duration, setDuration] = useState<number>(30);
-  const [timezone, setTimezone] = useState('America/Chicago');
+  // Phase 1.7 — default to the ERM's browser zone (not a hardcoded
+  // Central US guess). They can still pick another from the selector.
+  const [timezone, setTimezone] = useState(() => detectBrowserZone());
   const [prepInstructions, setPrepInstructions] = useState('');
   const [manualZoomLink, setManualZoomLink] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -36,6 +44,10 @@ function CreateInterviewPageInner() {
     setErr(null);
     if (!applicationId) { setErr('applicationId is required (open from an Application).'); return; }
     if (!scheduledFor) { setErr('Pick a date/time.'); return; }
+    if (!timezone || !isValidIanaTimezone(timezone)) {
+      setErr('Pick a valid timezone for the interview.');
+      return;
+    }
     setSubmitting(true);
     try {
       const res = await api.post<{ id: string }>(
@@ -108,11 +120,15 @@ function CreateInterviewPageInner() {
 
             <div>
               <label className="text-sm font-medium text-slate-800">Timezone</label>
-              <input
-                value={timezone}
-                onChange={(e) => setTimezone(e.target.value)}
-                className="mt-1 w-full rounded-md border border-slate-200 px-3 py-2 text-sm"
-              />
+              <TimezoneSelect value={timezone} onChange={setTimezone} />
+              {scheduledFor && isValidIanaTimezone(timezone) && (
+                <p className="mt-1 text-xs text-slate-600">
+                  Scheduled:{' '}
+                  <span className="font-medium text-slate-800">
+                    {formatInZone(new Date(scheduledFor).toISOString(), timezone)}
+                  </span>
+                </p>
+              )}
             </div>
 
             <div>

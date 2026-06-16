@@ -159,6 +159,11 @@ public final class ErmInterviewDtos {
     public record ErmRescheduleRequest(
             Instant scheduledFor,
             Integer durationMinutes,
+            /** Phase 1.7 — optional new IANA zone for the rescheduled
+             *  slot. Omitted means "keep the interview's existing
+             *  timezone"; supplied means "store this and use it for the
+             *  rescheduled time / Zoom payload". */
+            String timezone,
             String reasonCode,
             String reasonText,
             Boolean notifyApplicant,
