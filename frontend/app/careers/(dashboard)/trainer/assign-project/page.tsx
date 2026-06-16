@@ -135,10 +135,19 @@ function AssignProjectPageInner() {
         const res = await api.get<SlotStatus>(
           `/api/v1/trainer/projects/slot-status?internLifecycleId=${internLifecycleId}&monthYear=${monthYear}`,
         );
-        if (!cancelled) setSlot(res.data);
+        if (!cancelled) {
+          setSlot(res.data);
+          setErr(null);
+        }
       } catch (e) {
         const ax = e as { response?: { data?: { error?: string } }; message?: string };
-        if (!cancelled) setErr(ax.response?.data?.error ?? ax.message ?? 'Slot status failed');
+        if (!cancelled) {
+          // Clear stale slot so the Next gate stays disabled — better than
+          // letting a previous intern's slot fall through into the new
+          // selection's flow.
+          setSlot(null);
+          setErr(ax.response?.data?.error ?? ax.message ?? 'Slot status failed');
+        }
       }
     })();
     return () => { cancelled = true; };

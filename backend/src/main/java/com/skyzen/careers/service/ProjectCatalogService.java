@@ -6,7 +6,6 @@ import com.skyzen.careers.dto.project.catalog.KtMarkRequest;
 import com.skyzen.careers.entity.InternLifecycle;
 import com.skyzen.careers.entity.Project;
 import com.skyzen.careers.entity.User;
-import com.skyzen.careers.enums.UserRole;
 import com.skyzen.careers.exception.BadRequestException;
 import com.skyzen.careers.exception.ConflictException;
 import com.skyzen.careers.exception.ForbiddenException;
@@ -16,6 +15,7 @@ import com.skyzen.careers.repository.InternLifecycleRepository;
 import com.skyzen.careers.repository.ProjectAssignmentRepository;
 import com.skyzen.careers.repository.ProjectRepository;
 import com.skyzen.careers.repository.UserRepository;
+import com.skyzen.careers.trainer.TrainerScopeGuard;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -47,6 +47,7 @@ public class ProjectCatalogService {
             repositoryLinkRepository;
     private final InternLifecycleRepository internLifecycleRepository;
     private final UserNotificationDispatcher userNotificationDispatcher;
+    private final TrainerScopeGuard trainerScopeGuard;
 
     @Transactional
     public CatalogProjectResponse createCatalogProject(
@@ -137,31 +138,14 @@ public class ProjectCatalogService {
     }
 
     private void ensureTrainerForProject(Project project, User caller) {
-        boolean isSuperAdmin = caller.getRoles() != null
-                && caller.getRoles().contains(UserRole.SUPER_ADMIN);
-        if (isSuperAdmin) return;
-        boolean isTrainer = caller.getRoles() != null
-                && caller.getRoles().contains(UserRole.TRAINER);
-        if (!isTrainer) {
-            throw new ForbiddenException(
-                    "Only the assigned Trainer (or SUPER_ADMIN) may mark KT done.");
-        }
-        // Verify this Trainer is the one assigned to the intern's lifecycle.
-        InternLifecycle il = internLifecycleRepository.findById(project.getInternLifecycleId())
-                .orElse(null);
-        if (il == null || il.getTrainerId() == null) {
-            // Single-trainer org (DEFAULT_TRAINER_EMAIL) often leaves the
-            // lifecycle.trainer_id unpopulated. Fall back to allowing any
-            // TRAINER — they are the de-facto owner of every assignment.
-            log.debug("[ProjectCatalogService] KT mark: no trainer on lifecycle={} — "
-                            + "allowing TRAINER caller {} as de-facto owner",
-                    project.getInternLifecycleId(), caller.getId());
-            return;
-        }
-        if (!caller.getId().equals(il.getTrainerId())) {
-            throw new ForbiddenException(
-                    "Only this intern's assigned Trainer may mark KT done.");
-        }
+        // Delegate ownership check to the shared TrainerScopeGuard so KT
+        // mark-done and the project-assign endpoints share one model
+        // (SUPER_ADMIN bypass, TRAINER required, null-trainer_id fallback).
+        InternLifecycle il = project.getInternLifecycleId() == null
+                ? null
+                : internLifecycleRepository.findById(project.getInternLifecycleId())
+                        .orElse(null);
+        trainerScopeGuard.requireTrainerOwnership(il, caller);
     }
 
     private void dispatchKtDoneNotification(Project project) {

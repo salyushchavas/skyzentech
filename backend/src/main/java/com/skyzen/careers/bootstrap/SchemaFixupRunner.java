@@ -1275,6 +1275,17 @@ public class SchemaFixupRunner implements CommandLineRunner {
         // InternActivationJob (via ReportingStructureAutoLinker).
         backfillAutoLinkV1();
 
+        // V2 sweep. V1 stamps migration_log unconditionally on first
+        // boot, so any interns already activated before
+        // DEFAULT_TRAINER_EMAIL / DEFAULT_EVALUATOR_EMAIL resolved
+        // stayed NULL forever (their dashboards saw "Intern not in your
+        // roster" 403s on project / KT actions). V2 re-runs the same
+        // fill-nulls-only update under a fresh migration_log key so the
+        // gap closes once without any risk of overwriting explicit ERM
+        // assignments. Future activations remain covered by the runtime
+        // backstop in InternActivationJob.
+        backfillAutoLinkV2();
+
         // Job ID backfill — one-shot, idempotent. Stamps the new
         // SKZ-JOB-YYYY-NNNNNN job_id on any existing job_postings row
         // missing one. Future postings are stamped at creation via
@@ -1298,7 +1309,31 @@ public class SchemaFixupRunner implements CommandLineRunner {
      * fires on first boot after this fix lands.</p>
      */
     private void backfillAutoLinkV1() {
-        final String migKey = "BACKFILL_AUTO_LINK_V1";
+        backfillAutoLinkUnderKey("BACKFILL_AUTO_LINK_V1");
+    }
+
+    /**
+     * Re-run the V1 auto-link sweep under a fresh migration_log key.
+     *
+     * <p>V1 wrote its migration_log row unconditionally on first boot
+     * even when {@code DEFAULT_TRAINER_EMAIL} / {@code
+     * DEFAULT_EVALUATOR_EMAIL} were unset, so any intern that activated
+     * between the V1 run and the env vars being configured kept a NULL
+     * {@code trainer_id} / {@code evaluator_id} forever. That null is
+     * what produced the Trainer "Intern is not in your roster." 403 on
+     * the project-assign + slot-status endpoints (the
+     * {@link com.skyzen.careers.trainer.TrainerScopeGuard} fallback
+     * masks it but durable data is preferable — the dashboard counters
+     * and assignment audits expect a real {@code trainer_id} on every
+     * active lifecycle). V2 reuses the same fill-nulls-only update,
+     * never overwriting explicit ERM assignments. Idempotent — gated
+     * by a separate {@code BACKFILL_AUTO_LINK_V2} migration_log key.</p>
+     */
+    private void backfillAutoLinkV2() {
+        backfillAutoLinkUnderKey("BACKFILL_AUTO_LINK_V2");
+    }
+
+    private void backfillAutoLinkUnderKey(final String migKey) {
         try {
             Integer existing = jdbcTemplate.queryForObject(
                     "SELECT COUNT(*) FROM migration_log WHERE migration_key = ?",

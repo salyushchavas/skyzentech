@@ -22,6 +22,7 @@ import com.skyzen.careers.repository.ProjectAssignmentEventLogRepository;
 import com.skyzen.careers.repository.ProjectRepository;
 import com.skyzen.careers.repository.ProjectTemplateRepository;
 import com.skyzen.careers.repository.UserRepository;
+import com.skyzen.careers.trainer.TrainerScopeGuard;
 import com.skyzen.careers.trainer.projects.TrainerProjectDtos.AssignProjectRequest;
 import com.skyzen.careers.trainer.projects.TrainerProjectDtos.ProjectDetail;
 import com.skyzen.careers.trainer.projects.TrainerProjectDtos.SlotStatusResponse;
@@ -86,6 +87,7 @@ public class TrainerProjectAssignmentService {
     private final DocumentVaultService documentVault;
     private final ProjectNotificationDispatcher notifier;
     private final ObjectMapper objectMapper;
+    private final TrainerScopeGuard trainerScopeGuard;
 
     // ── Slot status (live wizard indicator) ───────────────────────────────
 
@@ -394,11 +396,13 @@ public class TrainerProjectAssignmentService {
     }
 
     private void requireInScope(InternLifecycle lc, User caller) {
-        if (caller.getRoles().contains(UserRole.SUPER_ADMIN)) return;
-        if (lc.getTrainerId() == null
-                || !lc.getTrainerId().equals(caller.getId())) {
-            throw new ForbiddenException("Intern is not in your roster.");
-        }
+        // Delegate to the shared TrainerScopeGuard so the project endpoints
+        // share one ownership model with KT mark-done + Phase A roster.
+        // The guard's null-trainer_id fallback (single-trainer org default)
+        // is what fixes the prior strict-check 403 on already-active interns
+        // whose lifecycle row was created before DEFAULT_TRAINER_EMAIL
+        // resolved.
+        trainerScopeGuard.requireTrainerOwnership(lc, caller);
     }
 
     private InternLifecycle mustLoadLifecycle(UUID id) {
