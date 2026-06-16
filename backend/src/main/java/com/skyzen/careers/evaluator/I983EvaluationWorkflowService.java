@@ -49,6 +49,7 @@ public class I983EvaluationWorkflowService {
     private final EvaluationNotificationFanout fanout;
     private final ObjectMapper objectMapper;
     private final JdbcTemplate jdbc;
+    private final EvaluatorScopeGuard evaluatorScopeGuard;
 
     // ── List (3 tabs in one response) ─────────────────────────────────────
 
@@ -73,7 +74,14 @@ public class I983EvaluationWorkflowService {
                 + "      FROM i983_plans WHERE candidate_id = c.id "
                 + "      ORDER BY created_at DESC LIMIT 1 "
                 + ") ip ON TRUE "
-                + (orgWide ? "" : "WHERE ie.evaluator_id = ? ")
+                // Single-evaluator fallback — include rows where the
+                // row's evaluator_id is null OR the lifecycle's
+                // evaluator_id is null, so the list matches the
+                // EvaluatorScopeGuard's null-fallback semantics used by
+                // the detail/write paths.
+                + (orgWide ? "" : "WHERE (ie.evaluator_id = ? "
+                        + "OR ie.evaluator_id IS NULL "
+                        + "OR il.evaluator_id IS NULL) ")
                 + "ORDER BY COALESCE(ie.published_at, ie.created_at) DESC";
         List<I983WorkflowDtos.I983ListRow> evalRows = new ArrayList<>();
         try {
@@ -119,7 +127,12 @@ public class I983EvaluationWorkflowService {
                 + ") ip ON TRUE "
                 + "WHERE il.active_status = 'ACTIVE' "
                 + "  AND w.work_auth_type = 'F1_STEM_OPT' "
-                + (orgWide ? "" : "  AND il.evaluator_id = ? ");
+                // Eligible-interns tab — same null fallback: a
+                // null-evaluator STEM-OPT intern shouldn't be invisible
+                // to the org evaluator just because the explicit link
+                // was never stamped.
+                + (orgWide ? "" : "  AND (il.evaluator_id = ? "
+                        + "OR il.evaluator_id IS NULL) ");
         List<I983WorkflowDtos.I983ListRow> eligible = new ArrayList<>();
         try {
             eligible = jdbc.query(eligibleSql,
@@ -483,14 +496,13 @@ public class I983EvaluationWorkflowService {
     public I983WorkflowDtos.EvaluatorI983Detail getEvaluatorDetail(UUID id, User caller) {
         I983Evaluation ev = mustGet(id);
         InternLifecycle lc = mustGetLifecycle(ev.getInternLifecycleId());
-        boolean superAdmin = caller.getRoles() != null
-                && caller.getRoles().contains(UserRole.SUPER_ADMIN);
-        if (!superAdmin
-                && !caller.getId().equals(ev.getEvaluatorId())
-                && !caller.getId().equals(lc.getEvaluatorId())) {
-            throw new ForbiddenException(
-                    "Not the assigned Evaluator for this I-983 evaluation");
-        }
+        // Read AND write now share the same EvaluatorScopeGuard predicate.
+        // Previously this read had a 3-way fallback (super_admin OR
+        // ev.evaluatorId OR lc.evaluatorId) while writes used a strict
+        // lc.evaluatorId check, so a user could read an I-983 but not
+        // write to it. The guard's null-lc.evaluatorId fallback covers
+        // every case the old 3-way OR allowed.
+        evaluatorScopeGuard.requireEvaluatorOwnership(lc, caller);
         return toEvaluatorDetail(ev, lc);
     }
 
@@ -570,21 +582,20 @@ public class I983EvaluationWorkflowService {
     }
 
     private void requireOwnership(InternLifecycle lc, User caller) {
-        boolean superAdmin = caller.getRoles() != null
-                && caller.getRoles().contains(UserRole.SUPER_ADMIN);
-        if (!superAdmin && !caller.getId().equals(lc.getEvaluatorId())) {
-            throw new ForbiddenException(
-                    "Not the assigned Evaluator for this intern");
-        }
+        // Delegate to the shared EvaluatorScopeGuard — single-evaluator
+        // null-fallback applies uniformly to schedule / saveDraft /
+        // publish / amend / markDsoSubmitted.
+        evaluatorScopeGuard.requireEvaluatorOwnership(lc, caller);
     }
 
     private void requireEvaluatorIs(I983Evaluation ev, User caller) {
-        boolean superAdmin = caller.getRoles() != null
-                && caller.getRoles().contains(UserRole.SUPER_ADMIN);
-        if (!superAdmin && !caller.getId().equals(ev.getEvaluatorId())) {
-            throw new ForbiddenException(
-                    "Only the publishing Evaluator can act on this I-983");
-        }
+        // Row-level check now reuses the lifecycle-level predicate so
+        // the row's evaluator_id can't lock the current org evaluator
+        // out of a row stamped under a prior default account.
+        InternLifecycle lc = ev.getInternLifecycleId() != null
+                ? lifecycleRepo.findById(ev.getInternLifecycleId()).orElse(null)
+                : null;
+        evaluatorScopeGuard.requireEvaluatorOwnership(lc, caller);
     }
 
     private boolean isStemOpt(UUID userId) {

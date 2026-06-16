@@ -1,9 +1,10 @@
 package com.skyzen.careers.evaluator;
 
+import com.skyzen.careers.entity.InternLifecycle;
 import com.skyzen.careers.entity.User;
 import com.skyzen.careers.enums.UserRole;
-import com.skyzen.careers.exception.ForbiddenException;
 import com.skyzen.careers.exception.ResourceNotFoundException;
+import com.skyzen.careers.repository.InternLifecycleRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.PageRequest;
@@ -33,6 +34,8 @@ import java.util.UUID;
 public class EvaluatorEvalueesService {
 
     private final JdbcTemplate jdbc;
+    private final InternLifecycleRepository lifecycleRepository;
+    private final EvaluatorScopeGuard evaluatorScopeGuard;
 
     // ── Active Evaluees list ──────────────────────────────────────────────
 
@@ -53,7 +56,12 @@ public class EvaluatorEvalueesService {
                 " WHERE il.active_status = 'ACTIVE' ");
         List<Object> params = new ArrayList<>();
         if (!orgWide) {
-            where.append(" AND il.evaluator_id = ? ");
+            // Single-evaluator fallback (matches EvaluatorScopeGuard):
+            // include null-evaluator interns so the list never disagrees
+            // with what the per-intern detail/write guards will allow.
+            // Without this, a null-evaluator intern wouldn't appear here
+            // even though the org evaluator could open + write them.
+            where.append(" AND (il.evaluator_id = ? OR il.evaluator_id IS NULL) ");
             params.add(caller.getId());
         }
         if (search != null && !search.isBlank()) {
@@ -173,22 +181,17 @@ public class EvaluatorEvalueesService {
 
     @Transactional(readOnly = true)
     public EvaluatorDtos.EvalueeDetail getDetail(UUID lifecycleId, User caller) {
-        boolean orgWide = caller.getRoles() != null
-                && caller.getRoles().contains(UserRole.SUPER_ADMIN);
-
         EvaluatorDtos.EvalueeProfile profile = loadProfile(lifecycleId);
         if (profile == null) {
             throw new ResourceNotFoundException(
                     "Evaluee not found: " + lifecycleId);
         }
-        if (!orgWide) {
-            UUID assignedEvaluator = lookupAssignedEvaluator(lifecycleId);
-            if (assignedEvaluator == null
-                    || !assignedEvaluator.equals(caller.getId())) {
-                throw new ForbiddenException(
-                        "Not assigned as Evaluator for this intern");
-            }
-        }
+        // Delegate to EvaluatorScopeGuard — same single-evaluator
+        // null-fallback predicate the list() WHERE clause now uses.
+        // Detail + list always agree: any row visible in list opens
+        // without a 403 here.
+        InternLifecycle lc = lifecycleRepository.findById(lifecycleId).orElse(null);
+        evaluatorScopeGuard.requireEvaluatorOwnership(lc, caller);
 
         EvaluatorDtos.CurrentMonthCard currentMonth = loadCurrentMonth(lifecycleId);
         EvaluatorDtos.HistorySummaryCard historySummary = loadHistorySummary(lifecycleId);
@@ -201,19 +204,6 @@ public class EvaluatorEvalueesService {
 
         return new EvaluatorDtos.EvalueeDetail(
                 profile, currentMonth, historySummary, i983, trainer, timeline);
-    }
-
-    private UUID lookupAssignedEvaluator(UUID lifecycleId) {
-        try {
-            return jdbc.queryForObject(
-                    "SELECT evaluator_id FROM intern_lifecycles WHERE id = ?",
-                    (rs, n) -> {
-                        String s = rs.getString(1);
-                        return s != null ? UUID.fromString(s) : null;
-                    }, lifecycleId);
-        } catch (Exception e) {
-            return null;
-        }
     }
 
     private EvaluatorDtos.EvalueeProfile loadProfile(UUID lifecycleId) {

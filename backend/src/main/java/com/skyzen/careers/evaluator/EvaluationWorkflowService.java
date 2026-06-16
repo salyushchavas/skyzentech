@@ -61,6 +61,7 @@ public class EvaluationWorkflowService {
     private final EvaluationNotificationFanout fanout;
     private final ObjectMapper objectMapper;
     private final JdbcTemplate jdbc;
+    private final EvaluatorScopeGuard evaluatorScopeGuard;
 
     // ── 1. Schedule ───────────────────────────────────────────────────────
 
@@ -599,21 +600,24 @@ public class EvaluationWorkflowService {
     }
 
     private void requireOwnership(InternLifecycle lc, User caller, String action) {
-        boolean superAdmin = caller.getRoles() != null
-                && caller.getRoles().contains(UserRole.SUPER_ADMIN);
-        if (!superAdmin && !caller.getId().equals(lc.getEvaluatorId())) {
-            throw new ForbiddenException(
-                    "Not the assigned Evaluator for this intern (" + action + ")");
-        }
+        // Delegate to the shared EvaluatorScopeGuard so schedule /
+        // scheduleFinal inherit the single-evaluator null-fallback the
+        // trainer side already uses. The `action` label is retained on
+        // call-sites for log context; the guard's message is
+        // role-agnostic + intent-clear.
+        evaluatorScopeGuard.requireEvaluatorOwnership(lc, caller);
     }
 
     private void requireEvaluatorIs(InternEvaluation ev, User caller, String action) {
-        boolean superAdmin = caller.getRoles() != null
-                && caller.getRoles().contains(UserRole.SUPER_ADMIN);
-        if (!superAdmin && !caller.getId().equals(ev.getEvaluatorId())) {
-            throw new ForbiddenException(
-                    "Only the original Evaluator can " + action + " this evaluation");
-        }
+        // Row-level check now derives from the SAME predicate as the
+        // lifecycle-level guard so the org evaluator on a null-link
+        // intern (or one whose evaluation row was stamped under a
+        // prior default-evaluator account) is never locked out. Load
+        // the lifecycle for the row and delegate.
+        InternLifecycle lc = ev.getInternLifecycleId() != null
+                ? lifecycleRepo.findById(ev.getInternLifecycleId()).orElse(null)
+                : null;
+        evaluatorScopeGuard.requireEvaluatorOwnership(lc, caller);
     }
 
     private void applyRubric(InternEvaluation ev,

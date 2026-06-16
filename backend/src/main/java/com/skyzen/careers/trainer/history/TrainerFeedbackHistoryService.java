@@ -12,6 +12,7 @@ import com.skyzen.careers.repository.InternLifecycleRepository;
 import com.skyzen.careers.repository.ProjectRepository;
 import com.skyzen.careers.repository.ProjectSubmissionRepository;
 import com.skyzen.careers.repository.UserRepository;
+import com.skyzen.careers.trainer.TrainerScopeGuard;
 import com.skyzen.careers.trainer.history.TrainerFeedbackHistoryDtos.HistoryDetail;
 import com.skyzen.careers.trainer.history.TrainerFeedbackHistoryDtos.HistoryPage;
 import com.skyzen.careers.trainer.history.TrainerFeedbackHistoryDtos.HistoryRow;
@@ -46,6 +47,7 @@ public class TrainerFeedbackHistoryService {
     private final InternLifecycleRepository lifecycleRepository;
     private final UserRepository userRepository;
     private final JdbcTemplate jdbc;
+    private final TrainerScopeGuard trainerScopeGuard;
 
     @Transactional(readOnly = true)
     public HistoryPage list(UUID internLifecycleId, LocalDate from, LocalDate to,
@@ -74,7 +76,13 @@ public class TrainerFeedbackHistoryService {
             params.add(internLifecycleId);
         }
         if (!caller.getRoles().contains(UserRole.SUPER_ADMIN)) {
-            where.append(" AND il.trainer_id = ? ");
+            // Single-trainer fallback — include null-trainer interns so the
+            // history list matches what the per-intern guard now accepts.
+            // Without this, null-trainer interns whose projects were
+            // accepted/returned by the org TRAINER would be invisible
+            // here even though the row-level guard would allow opening
+            // their detail page.
+            where.append(" AND (il.trainer_id = ? OR il.trainer_id IS NULL) ");
             params.add(caller.getId());
         }
         if (decision != null && !decision.isBlank()
@@ -236,12 +244,9 @@ public class TrainerFeedbackHistoryService {
     }
 
     private void requireProjectScope(InternLifecycle lc, User caller) {
-        if (caller.getRoles().contains(UserRole.SUPER_ADMIN)) return;
-        if (lc == null) throw new ForbiddenException("Not in your scope");
-        if (lc.getTrainerId() == null
-                || !lc.getTrainerId().equals(caller.getId())) {
-            throw new ForbiddenException("Intern is not in your roster");
-        }
+        // Delegate to TrainerScopeGuard so feedback-history detail/timeline
+        // inherits the single-trainer null-fallback used everywhere else.
+        trainerScopeGuard.requireTrainerOwnership(lc, caller);
     }
 
     private HistoryRow mapRow(Map<String, Object> r) {

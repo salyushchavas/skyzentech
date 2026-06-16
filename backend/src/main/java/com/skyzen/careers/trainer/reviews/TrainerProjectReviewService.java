@@ -24,6 +24,7 @@ import com.skyzen.careers.repository.ProjectAssignmentEventLogRepository;
 import com.skyzen.careers.repository.ProjectRepository;
 import com.skyzen.careers.repository.ProjectSubmissionRepository;
 import com.skyzen.careers.repository.UserRepository;
+import com.skyzen.careers.trainer.TrainerScopeGuard;
 import com.skyzen.careers.trainer.reviews.TrainerProjectReviewDtos.PendingPage;
 import com.skyzen.careers.trainer.reviews.TrainerProjectReviewDtos.PendingRow;
 import com.skyzen.careers.trainer.reviews.TrainerProjectReviewDtos.PriorRound;
@@ -91,6 +92,7 @@ public class TrainerProjectReviewService {
     private final ApplicationEventPublisher eventPublisher;
     private final ObjectMapper objectMapper;
     private final JdbcTemplate jdbc;
+    private final TrainerScopeGuard trainerScopeGuard;
 
     // ── List + read ───────────────────────────────────────────────────────
 
@@ -507,19 +509,22 @@ public class TrainerProjectReviewService {
     }
 
     private void requireProjectInScope(Project p, User caller) {
-        if (caller.getRoles().contains(UserRole.SUPER_ADMIN)) return;
+        // Legacy single-allocation rows have no lifecycle binding; preserve
+        // the assigned_by fallback for those (no guard applies). For
+        // catalog rows bound to a lifecycle, delegate to the shared
+        // TrainerScopeGuard so the queue / accept / return / escalate
+        // flows inherit the single-trainer null-fallback that KT and
+        // project-assign already use.
         if (p.getInternLifecycleId() == null) {
-            // Legacy single-allocation row — fall back to assigned_by check.
+            if (caller.getRoles() != null
+                    && caller.getRoles().contains(UserRole.SUPER_ADMIN)) return;
             if (p.getAssignedBy() != null
                     && caller.getId().equals(p.getAssignedBy().getId())) return;
             throw new ForbiddenException("Project is not in your scope");
         }
         InternLifecycle lc = lifecycleRepository.findById(p.getInternLifecycleId())
                 .orElse(null);
-        if (lc == null || lc.getTrainerId() == null
-                || !lc.getTrainerId().equals(caller.getId())) {
-            throw new ForbiddenException("Project is not in your scope");
-        }
+        trainerScopeGuard.requireTrainerOwnership(lc, caller);
     }
 
     private ProjectSubmission mustLoad(UUID id) {

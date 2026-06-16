@@ -14,6 +14,7 @@ import com.skyzen.careers.integration.zoom.ZoomService;
 import com.skyzen.careers.repository.InternLifecycleRepository;
 import com.skyzen.careers.repository.UserRepository;
 import com.skyzen.careers.repository.WeeklyMeetingRepository;
+import com.skyzen.careers.trainer.TrainerScopeGuard;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -46,6 +47,7 @@ public class WeeklyMeetingService {
     private final InternLifecycleRepository lifecycleRepository;
     private final UserRepository userRepository;
     private final ZoomService zoomService;
+    private final TrainerScopeGuard trainerScopeGuard;
 
     // ── Trainer commands ────────────────────────────────────────────────────
 
@@ -306,10 +308,11 @@ public class WeeklyMeetingService {
     // ── Internals ──────────────────────────────────────────────────────────
 
     private void ensureTrainerScope(InternLifecycle lc, User actor) {
-        if (actor.getRoles().contains(UserRole.SUPER_ADMIN)) return;
-        if (lc.getTrainerId() != null && lc.getTrainerId().equals(actor.getId())) return;
-        throw new ForbiddenException(
-                "Caller is not the assigned trainer for this lifecycle");
+        // Delegate to the shared TrainerScopeGuard so meeting-schedule
+        // inherits the same single-trainer fallback as KT / project
+        // assign / project review — null lc.trainerId now allows any
+        // TRAINER instead of 403-ing.
+        trainerScopeGuard.requireTrainerOwnership(lc, actor);
     }
 
     private void ensureHostOrSuperAdmin(WeeklyMeeting m, User actor) {
