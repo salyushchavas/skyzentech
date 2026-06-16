@@ -51,6 +51,14 @@ public class ActiveInternsService {
 
     // ── List ─────────────────────────────────────────────────────────────
 
+    /**
+     * Phase C — roster scope. {@code ALL} is the Trainer + ERM view (no
+     * ownership filter); {@code MANAGER_OWNED} narrows to interns whose
+     * {@code intern_lifecycles.manager_id == caller.id}. SUPER_ADMIN
+     * always sees {@code ALL} regardless of which scope is requested.
+     */
+    public enum Scope { ALL, MANAGER_OWNED }
+
     @Transactional(readOnly = true)
     public ActiveInternListPage list(
             User caller, String search,
@@ -60,14 +68,30 @@ public class ActiveInternsService {
             List<String> timesheetFilter,
             Integer yearParam, Integer monthParam,
             int page, int pageSize) {
-        requireTrainer(caller);
+        // Back-compat overload — Trainer path keeps its existing signature.
+        return list(caller, search, projectFilter, meetingFilter,
+                evaluationFilter, timesheetFilter,
+                yearParam, monthParam, page, pageSize, Scope.ALL);
+    }
+
+    @Transactional(readOnly = true)
+    public ActiveInternListPage list(
+            User caller, String search,
+            List<String> projectFilter,
+            List<String> meetingFilter,
+            List<String> evaluationFilter,
+            List<String> timesheetFilter,
+            Integer yearParam, Integer monthParam,
+            int page, int pageSize,
+            Scope scope) {
+        requireRosterRole(caller, scope);
         int p = Math.max(0, page);
         int ps = Math.min(100, Math.max(1, pageSize));
 
-        // Resolve the period. Phase A: single org-wide Trainer → no
-        // trainer_id filter; any TRAINER sees all interns active during
-        // the requested month. "Active that month" = started on/before
-        // month-end AND (still active OR ended on/after month-start).
+        // Resolve the period. Single org-wide Trainer → no trainer_id
+        // filter; ERM sees all; Manager is filtered by manager_id.
+        // "Active that month" = started on/before month-end AND
+        // (still active OR ended on/after month-start).
         YearMonth period = (yearParam != null && monthParam != null)
                 ? YearMonth.of(yearParam, monthParam)
                 : YearMonth.now(ZONE);
@@ -86,6 +110,13 @@ public class ActiveInternsService {
         List<Object> params = new ArrayList<>();
         params.add(tsEndExclusive);
         params.add(tsStart);
+        // SUPER_ADMIN sees everything regardless of requested scope.
+        boolean isSuperAdmin = caller.getRoles() != null
+                && caller.getRoles().contains(UserRole.SUPER_ADMIN);
+        if (scope == Scope.MANAGER_OWNED && !isSuperAdmin) {
+            where.append(" AND il.manager_id = ? ");
+            params.add(caller.getId());
+        }
         if (search != null && !search.isBlank()) {
             String s = "%" + search.trim().toLowerCase() + "%";
             where.append(" AND (LOWER(u.full_name) LIKE ? "
@@ -158,7 +189,11 @@ public class ActiveInternsService {
                 rs.getString("trainer_name"),
                 rs.getString("evaluator_name"),
                 rs.getString("manager_name"),
-                rs.getString("erm_name"));
+                rs.getString("erm_name"),
+                nullableUuid(rs.getString("manager_id")),
+                nullableUuid(rs.getString("trainer_id")),
+                nullableUuid(rs.getString("evaluator_id")),
+                nullableUuid(rs.getString("erm_id")));
 
         // Empty state blocks; hydrate() fills them.
         CurrentMonthProjectsBlock emptyProjects = new CurrentMonthProjectsBlock(
@@ -382,6 +417,7 @@ public class ActiveInternsService {
         int totalActive = rows.size();
         int projectsUnassigned = 0, ktNotDone = 0;
         int timesheetsIncomplete = 0, evaluationsOverdue = 0, attention = 0;
+        int noManager = 0;
         for (ActiveInternRow r : rows) {
             boolean rowAttention = false;
             CurrentMonthProjectsBlock pr = r.currentMonthProjects();
@@ -409,10 +445,18 @@ public class ActiveInternsService {
                 evaluationsOverdue++;
                 rowAttention = true;
             }
+            // Phase C — "no manager" is an attention signal for the ERM
+            // roster. Trainer + Manager don't see this counter render
+            // (the frontend tile hides at zero anyway).
+            if (r.reportingStructure() == null
+                    || r.reportingStructure().managerId() == null) {
+                noManager++;
+                rowAttention = true;
+            }
             if (rowAttention) attention++;
         }
         return new MonthRosterSummary(totalActive, projectsUnassigned, ktNotDone,
-                timesheetsIncomplete, evaluationsOverdue, attention);
+                timesheetsIncomplete, evaluationsOverdue, attention, noManager);
     }
 
     private static String projectSlotState(String status, LocalDate dueDate) {
@@ -832,6 +876,41 @@ public class ActiveInternsService {
         if (!caller.getRoles().contains(UserRole.TRAINER)
                 && !caller.getRoles().contains(UserRole.SUPER_ADMIN)) {
             throw new ForbiddenException("TRAINER or SUPER_ADMIN required");
+        }
+    }
+
+    /**
+     * Phase C — gate the roster by requested scope.
+     * <ul>
+     *   <li>{@code ALL} — TRAINER, MANAGER, ERM, or SUPER_ADMIN (the
+     *       Manager + ERM rosters request {@code ALL} too; ERM's view
+     *       is "all interns", so no SQL filter applies. The Manager
+     *       roster uses {@code MANAGER_OWNED}.)</li>
+     *   <li>{@code MANAGER_OWNED} — MANAGER or SUPER_ADMIN. The SQL
+     *       filter on {@code manager_id} is added in {@link #list} so
+     *       a Manager can never see another manager's interns even
+     *       with a crafted request.</li>
+     * </ul>
+     */
+    private void requireRosterRole(User caller, Scope scope) {
+        if (caller == null) throw new ForbiddenException("Caller required");
+        if (caller.getRoles() == null) {
+            throw new ForbiddenException("Caller has no roles");
+        }
+        boolean superAdmin = caller.getRoles().contains(UserRole.SUPER_ADMIN);
+        if (superAdmin) return;
+        if (scope == Scope.MANAGER_OWNED) {
+            if (!caller.getRoles().contains(UserRole.MANAGER)) {
+                throw new ForbiddenException("MANAGER or SUPER_ADMIN required");
+            }
+            return;
+        }
+        // Scope.ALL — anyone with a roster-eligible role.
+        boolean ok = caller.getRoles().contains(UserRole.TRAINER)
+                || caller.getRoles().contains(UserRole.MANAGER)
+                || caller.getRoles().contains(UserRole.ERM);
+        if (!ok) {
+            throw new ForbiddenException("TRAINER, MANAGER, ERM or SUPER_ADMIN required");
         }
     }
 

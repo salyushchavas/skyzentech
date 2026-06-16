@@ -60,6 +60,9 @@ export interface MonthRosterSummary {
   timesheetsIncomplete: number;
   evaluationsOverdue: number;
   attentionNeeded: number;
+  /** Phase C — interns with no manager assigned. Only meaningful on
+   *  the ERM roster (Manager roster is filtered to manager_id == caller). */
+  noManager: number;
 }
 
 export type ProjectSlotState =
@@ -147,6 +150,12 @@ export interface ReportingStructure {
   evaluatorName: string | null;
   managerName: string | null;
   ermName: string | null;
+  /** Phase C — IDs alongside names so the ERM roster can detect
+   *  "no manager" and link the AssignManager flow. */
+  managerId: string | null;
+  trainerId: string | null;
+  evaluatorId: string | null;
+  ermId: string | null;
 }
 
 export interface ActiveInternRow {

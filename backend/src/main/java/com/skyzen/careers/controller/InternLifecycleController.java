@@ -79,6 +79,35 @@ public class InternLifecycleController {
         return assignRole(id, body, "managerUserId", UserRole.MANAGER, "manager_id");
     }
 
+    /**
+     * Phase C — lightweight directory of active MANAGER users for the
+     * ERM AssignManager dropdown. ERM-gated since the only caller today
+     * is the ERM roster's "Assign manager" affordance for "no manager"
+     * interns; SUPER_ADMIN bypasses too.
+     */
+    @GetMapping("/eligible-managers")
+    @PreAuthorize("hasAnyRole('ERM', 'SUPER_ADMIN')")
+    public java.util.List<Map<String, Object>> eligibleManagers() {
+        java.util.List<Map<String, Object>> out = new java.util.ArrayList<>();
+        try {
+            for (User u : userRepository.findByRole(UserRole.MANAGER)) {
+                if (u == null || u.getId() == null) continue;
+                if (!Boolean.TRUE.equals(u.getActive())) continue;
+                Map<String, Object> row = new LinkedHashMap<>();
+                row.put("userId", u.getId());
+                row.put("fullName", u.getFullName());
+                row.put("email", u.getEmail());
+                out.add(row);
+            }
+        } catch (Exception ignored) {}
+        out.sort((a, b) -> {
+            String an = String.valueOf(a.getOrDefault("fullName", ""));
+            String bn = String.valueOf(b.getOrDefault("fullName", ""));
+            return an.compareToIgnoreCase(bn);
+        });
+        return out;
+    }
+
     private Map<String, Object> assignRole(UUID lifecycleId,
                                             Map<String, String> body,
                                             String bodyKey,

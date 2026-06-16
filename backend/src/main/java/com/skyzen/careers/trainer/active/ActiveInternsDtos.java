@@ -60,7 +60,12 @@ public final class ActiveInternsDtos {
             int ktNotDone,
             int timesheetsIncomplete,
             int evaluationsOverdue,
-            int attentionNeeded
+            int attentionNeeded,
+            /** Phase C — interns with no manager assigned. Surfaced on
+             *  the ERM roster so the operator can spot + fix them via
+             *  the existing AssignManager flow. Always zero on the
+             *  Manager roster (the scope filter implies a manager). */
+            int noManager
     ) {}
 
     // ── Card-by-card state blocks ────────────────────────────────────────
@@ -124,7 +129,13 @@ public final class ActiveInternsDtos {
             String trainerName,
             String evaluatorName,
             String managerName,
-            String ermName
+            String ermName,
+            /** Phase C — IDs alongside the names so the ERM roster can
+             *  detect "no manager" and link the AssignManager flow. */
+            UUID managerId,
+            UUID trainerId,
+            UUID evaluatorId,
+            UUID ermId
     ) {}
 
     // ── Detail view ──────────────────────────────────────────────────────
