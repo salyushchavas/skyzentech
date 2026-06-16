@@ -34,6 +34,21 @@ public interface ApplicationRepository
             "ORDER BY a.appliedAt DESC")
     List<Application> findByCandidateUserIdOrderByAppliedAtDesc(@Param("userId") UUID userId);
 
+    /**
+     * Email-keyed fallback for the intern dashboard's selection-ack
+     * picker. Used when the user-id lookup above returns empty — which
+     * happens when a candidate's {@code Candidate.user_id} points at a
+     * stale duplicate User row even though the logged-in caller has the
+     * same email. Without this fallback the dashboard would silently
+     * say "Awaiting interview feedback" while the ERM Send-Offer gate
+     * (which loads the application by id, no user join) correctly
+     * 409's on the same application.
+     */
+    @Query("SELECT a FROM Application a " +
+            "WHERE LOWER(a.candidate.user.email) = LOWER(:email) " +
+            "ORDER BY a.appliedAt DESC")
+    List<Application> findByCandidateUserEmailOrderByAppliedAtDesc(@Param("email") String email);
+
     /** Phase 3 step 11 — bounded lookup for the engagement backfill runner. */
     List<Application> findByStatusIn(java.util.Collection<ApplicationStatus> statuses);
 

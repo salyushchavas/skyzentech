@@ -163,6 +163,17 @@ function SelectionAckCard({ ack }: { ack: InternSelectionAck }) {
 function NextActionCard({ action }: { action: InternNextAction }) {
   const isResendVerification =
     action.ctaHref === '/api/v1/auth/resend-verification';
+  // Backend buildNextAction emits this href when SelectionAckPolicy
+  // .needsAck is true for the candidate — the NEXT ACTION owns the
+  // acknowledge CTA so it can't be missed if the SelectionAckCard
+  // above isn't visible. Pattern mirrors the resend-verification
+  // custom-button path.
+  const ackPrefix = '/applications/';
+  const ackSuffix = '/acknowledge-selection';
+  const isAcknowledgeSelection =
+    typeof action.ctaHref === 'string'
+    && action.ctaHref.startsWith(ackPrefix)
+    && action.ctaHref.endsWith(ackSuffix);
 
   return (
     <section className="rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
@@ -188,6 +199,8 @@ function NextActionCard({ action }: { action: InternNextAction }) {
         <div className="mt-4">
           {isResendVerification ? (
             <ResendVerificationButton label={action.ctaLabel} />
+          ) : isAcknowledgeSelection ? (
+            <AcknowledgeSelectionButton label={action.ctaLabel} href={action.ctaHref} />
           ) : (
             <Link
               href={action.ctaHref}
@@ -199,6 +212,43 @@ function NextActionCard({ action }: { action: InternNextAction }) {
         </div>
       )}
     </section>
+  );
+}
+
+function AcknowledgeSelectionButton({ label, href }: { label: string; href: string }) {
+  const { refresh } = useInternDashboard();
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  async function onClick() {
+    setBusy(true);
+    setErr(null);
+    try {
+      await api.post(href);
+      await refresh();
+    } catch (e) {
+      const ax = e as { response?: { data?: { error?: string } } };
+      setErr(
+        ax.response?.data?.error
+          ?? (e instanceof Error ? e.message : 'Could not record acknowledgment'),
+      );
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div>
+      <button
+        type="button"
+        onClick={onClick}
+        disabled={busy}
+        className="inline-flex items-center rounded-md bg-teal-700 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-teal-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500 focus-visible:ring-offset-2 disabled:opacity-60"
+      >
+        {busy ? 'Sending…' : label}
+      </button>
+      {err && <p className="mt-2 text-xs text-rose-700">{err}</p>}
+    </div>
   );
 }
 

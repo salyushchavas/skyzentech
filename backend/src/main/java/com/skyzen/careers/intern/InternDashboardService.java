@@ -131,6 +131,16 @@ public class InternDashboardService {
         try {
             List<Application> apps = applicationRepository
                     .findByCandidateUserIdOrderByAppliedAtDesc(caller.getId());
+            // Fallback: a stale duplicate User row whose id doesn't match
+            // the Candidate.user_id can hide all the caller's apps from
+            // the user-id query even though the ERM-side flow (which
+            // loads the app by id) sees them fine. The email match
+            // bridges the gap for that case.
+            if ((apps == null || apps.isEmpty())
+                    && caller.getEmail() != null && !caller.getEmail().isBlank()) {
+                apps = applicationRepository
+                        .findByCandidateUserEmailOrderByAppliedAtDesc(caller.getEmail());
+            }
             if (apps == null || apps.isEmpty()) return null;
 
             // Pass 1: any application that the gate would 409 on — that
@@ -446,13 +456,24 @@ public class InternDashboardService {
                     false, null);
             case INTERVIEW_COMPLETED -> {
                 if (selection != null && selection.pendingAck()) {
-                    // The dedicated SelectionAckCard on the dashboard
-                    // owns the CTA. Keep NextAction as a soft "waiting on
-                    // you" so the two cards don't fight for attention.
-                    yield waiting(
-                            "You've been selected",
-                            "See the highlighted card above — click \"Receive my offer letter\" when you're ready.",
-                            "you");
+                    // Same shared SelectionAckPolicy as the ERM
+                    // Send-Offer gate — when needsAck is true the
+                    // candidate must act, so the NEXT ACTION is the
+                    // ack prompt itself with the button. The CTA href
+                    // points at the existing POST endpoint; the
+                    // frontend NextActionCard renders an inline
+                    // button (mirroring the resend-verification
+                    // pattern). The action() helper produces no
+                    // "Waiting on ERM" badge, fixing the prior
+                    // mislabel.
+                    yield action(
+                            "You've been selected — receive your offer letter",
+                            "Great news — your interview was a success. Click below to "
+                                    + "acknowledge and we'll prepare and send your offer letter "
+                                    + "right after.",
+                            "Receive my offer letter",
+                            "/applications/" + selection.applicationId() + "/acknowledge-selection",
+                            false, null);
                 }
                 if (selection != null && selection.awaitingOffer()) {
                     yield waiting(
