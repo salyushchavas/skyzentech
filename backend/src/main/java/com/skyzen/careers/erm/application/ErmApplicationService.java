@@ -14,6 +14,7 @@ import com.skyzen.careers.enums.ApplicationStatus;
 import com.skyzen.careers.enums.InternLifecycleStatus;
 import com.skyzen.careers.enums.UserRole;
 import com.skyzen.careers.erm.ReasonCode;
+import com.skyzen.careers.erm.offer.SelectionAckPolicy;
 import com.skyzen.careers.event.ApplicationDecisionEvent;
 import com.skyzen.careers.exception.BadRequestException;
 import com.skyzen.careers.exception.ConflictException;
@@ -85,6 +86,7 @@ public class ErmApplicationService {
     private final ApplicationEventPublisher eventPublisher;
     private final ObjectMapper objectMapper;
     private final JdbcTemplate jdbc;
+    private final SelectionAckPolicy selectionAckPolicy;
 
     // ── Inbox list ─────────────────────────────────────────────────────────
 
@@ -535,7 +537,7 @@ public class ErmApplicationService {
                 .map(this::toDecisionLogEntry)
                 .toList();
 
-        ErmApplicationDtos.AvailableActions actions = availableActions(app.getStatus());
+        ErmApplicationDtos.AvailableActions actions = availableActions(app);
 
         return new ErmApplicationDtos.ErmApplicationDetail(
                 appView, applicant, profile, resume, job, history, actions);
@@ -563,11 +565,16 @@ public class ErmApplicationService {
                 l.getDecidedAt());
     }
 
-    private static ErmApplicationDtos.AvailableActions availableActions(ApplicationStatus s) {
+    private ErmApplicationDtos.AvailableActions availableActions(Application app) {
+        ApplicationStatus s = app.getStatus();
         boolean isApplied = s == ApplicationStatus.APPLIED;
         boolean isHold = s == ApplicationStatus.HOLD;
+        // Read the same predicate the Send-Offer 409 uses — the
+        // create-offer UI disables Submit + shows a warning when true,
+        // so the ERM doesn't click into a guaranteed 409.
+        boolean needsAck = selectionAckPolicy.needsAck(app);
         return new ErmApplicationDtos.AvailableActions(
-                isApplied, isApplied, isApplied, isApplied, isHold);
+                isApplied, isApplied, isApplied, isApplied, isHold, needsAck);
     }
 
     // ── Validation helpers ────────────────────────────────────────────────

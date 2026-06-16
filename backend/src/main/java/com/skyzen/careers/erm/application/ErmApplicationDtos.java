@@ -144,7 +144,14 @@ public final class ErmApplicationDtos {
             boolean canHold,
             boolean canRequestInfo,
             boolean canReject,
-            boolean canResumeFromHold
+            boolean canResumeFromHold,
+            /** True when SelectionAckPolicy.needsAck(app) — candidate is
+             *  SELECTED on the latest completed interview AND
+             *  selectionAcknowledgedAt is null. The ERM create-offer page
+             *  reads this to disable Submit + show a warning that
+             *  mirrors the server's 409. Single shared predicate; no
+             *  drift with the gate. */
+            boolean needsSelectionAck
     ) {}
 
     public record ErmDecisionRequest(

@@ -65,6 +65,11 @@ function CreateOfferPageInner() {
     worksite?: string;
     applicantName?: string;
   }>({});
+  // Mirrors SelectionAckPolicy.needsAck(app) — when true, the applicant
+  // is SELECTED but hasn't clicked "Receive my offer letter" yet, so
+  // the Send-Offer endpoint would 409. Used to disable Submit + show a
+  // warning so the ERM can't click into a guaranteed-fail call.
+  const [needsSelectionAck, setNeedsSelectionAck] = useState(false);
 
   useEffect(() => {
     if (!applicationId) return;
@@ -73,6 +78,7 @@ function CreateOfferPageInner() {
         const res = await api.get<{
           applicant?: { firstName?: string; lastName?: string };
           job?: { title?: string | null; location?: string | null };
+          availableActions?: { needsSelectionAck?: boolean };
         }>(`/api/v1/erm/applications/${applicationId}`);
         const jobTitle = res.data.job?.title?.trim() ?? '';
         const jobLocation = res.data.job?.location?.trim() ?? '';
@@ -89,6 +95,7 @@ function CreateOfferPageInner() {
         }
         if (applicantName) filled.applicantName = applicantName;
         setAutoFilled(filled);
+        setNeedsSelectionAck(Boolean(res.data.availableActions?.needsSelectionAck));
       } catch {
         // Non-fatal — the form still works, just without pre-fill.
       }
@@ -226,6 +233,15 @@ function CreateOfferPageInner() {
                 />
               </div>
 
+              {needsSelectionAck && (
+                <p className="rounded-md border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800">
+                  <strong>Selection acknowledgment required.</strong>{' '}
+                  The applicant hasn&apos;t clicked &quot;Receive my offer letter&quot;
+                  on their dashboard yet, so the offer can&apos;t be sent. The
+                  Submit button will re-enable as soon as they acknowledge.
+                </p>
+              )}
+
               {err && (
                 <p className="rounded-md border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800">
                   {err}
@@ -243,8 +259,11 @@ function CreateOfferPageInner() {
                 <button
                   type="button"
                   onClick={submit}
-                  disabled={submitting}
-                  className="rounded-md bg-teal-700 px-4 py-2 text-sm font-semibold text-white hover:bg-teal-800 disabled:opacity-60"
+                  disabled={submitting || needsSelectionAck}
+                  title={needsSelectionAck
+                    ? 'Waiting on the applicant\'s selection acknowledgment.'
+                    : undefined}
+                  className="rounded-md bg-teal-700 px-4 py-2 text-sm font-semibold text-white hover:bg-teal-800 disabled:opacity-60 disabled:cursor-not-allowed"
                 >
                   {submitting ? 'Sending…' : 'Submit & send via IDMS'}
                 </button>

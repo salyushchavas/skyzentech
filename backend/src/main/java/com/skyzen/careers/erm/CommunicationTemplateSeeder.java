@@ -165,7 +165,10 @@ public class CommunicationTemplateSeeder implements CommandLineRunner {
                             + "Worksite: {{worksite}}\n"
                             + "Expected hours: {{expectedHoursPerWeek}}/week\n\n"
                             + "{{contingencies}}\n\n"
-                            + "Please review and sign your offer within {{expiryDays}} days:\n"
+                            + "Please review and sign your offer within {{expiryDays}} days. "
+                            + "The link below opens the signing page directly on your Skyzen "
+                            + "dashboard — there's no separate signing email or third-party "
+                            + "tool to install.\n\n"
                             + "{{signingLink}}\n\n"
                             + "— {{ermName}}",
                     "firstName,roleTitle,tentativeStartDate,compensationSummary,"
@@ -177,7 +180,9 @@ public class CommunicationTemplateSeeder implements CommandLineRunner {
                     "Hello {{firstName}},\n\n"
                             + "This is a reminder that your offer for {{roleTitle}} is awaiting "
                             + "your signature. The offer expires on {{expiryDate}}.\n\n"
-                            + "Review and sign here:\n{{signingLink}}\n\n"
+                            + "Open the link below to review and sign directly on your Skyzen "
+                            + "dashboard (no separate signing email to look for).\n\n"
+                            + "{{signingLink}}\n\n"
                             + "— {{ermName}}",
                     "firstName,roleTitle,expiryDate,ermName,signingLink"),
             new Seed(
@@ -539,6 +544,52 @@ public class CommunicationTemplateSeeder implements CommandLineRunner {
                 seeded, skipped);
         deactivateLegacyTemplates();
         refreshPhase8_2DocumentTemplates();
+        refreshOfferTemplatesIfStale();
+    }
+
+    /**
+     * Overwrite OFFER_LETTER / OFFER_REMINDER bodies when the existing DB
+     * row carries DocuSign-era wording ("DocuSign", "docusign",
+     * "envelope") — pre-IDMS rows that the strict idempotent seed leaves
+     * untouched on boot. Safe for ERM-customized rows: only fires when
+     * the legacy DocuSign tokens are present, so a hand-edited row with
+     * neutral wording is preserved.
+     */
+    private void refreshOfferTemplatesIfStale() {
+        List<String> offerKeys = List.of("OFFER_LETTER", "OFFER_REMINDER");
+        int refreshed = 0;
+        for (Seed s : SEEDS) {
+            if (!offerKeys.contains(s.key())) continue;
+            try {
+                var existing = repository.findByKeyAndChannel(s.key(), s.channel());
+                if (existing.isEmpty()) continue;
+                var t = existing.get();
+                String body = t.getBodyTemplate() != null ? t.getBodyTemplate() : "";
+                String subj = t.getSubjectTemplate() != null ? t.getSubjectTemplate() : "";
+                boolean stale = containsLegacySigningToken(body)
+                        || containsLegacySigningToken(subj);
+                if (!stale) continue;
+                t.setSubjectTemplate(s.subject());
+                t.setBodyTemplate(s.body());
+                t.setVariablesCsv(s.vars());
+                t.setActive(true);
+                repository.save(t);
+                refreshed++;
+            } catch (Exception e) {
+                log.warn("[CommunicationTemplateSeeder] OFFER refresh skipped for {}: {}",
+                        s.key(), e.getMessage());
+            }
+        }
+        if (refreshed > 0) {
+            log.info("[CommunicationTemplateSeeder] refreshed {} stale DocuSign-era "
+                    + "offer template(s) to the IDMS in-house signing copy", refreshed);
+        }
+    }
+
+    private static boolean containsLegacySigningToken(String s) {
+        if (s == null) return false;
+        String lc = s.toLowerCase();
+        return lc.contains("docusign") || lc.contains("envelope");
     }
 
     /**
