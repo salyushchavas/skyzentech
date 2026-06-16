@@ -150,7 +150,12 @@ export default function ReviewTaskModal({ taskId, onClose, onReviewed }: Props) 
                       checked={decision === d}
                       onChange={() => { setDecision(d); setReasonCode(''); }}
                     />
-                    {d === 'ACCEPT' && 'Accept submission'}
+                    {/* Phase 1.6 — "Verified" is the ERM-facing label
+                        for the existing ACCEPT decision. The backend
+                        decision enum stays ACCEPT; only the UI label
+                        changes so the affordance reads clearly as the
+                        verification gesture. */}
+                    {d === 'ACCEPT' && 'Verified (accept this document)'}
                     {d === 'REJECT' && 'Reject (intern must redo this document)'}
                     {d === 'RESEND_REQUEST' && 'Request re-send (file unreadable / wrong scan)'}
                   </label>
@@ -267,7 +272,7 @@ export default function ReviewTaskModal({ taskId, onClose, onReviewed }: Props) 
                 : 'bg-rose-700 hover:bg-rose-800')
             }
           >
-            {submitting ? 'Submitting…' : decision === 'ACCEPT' ? 'Accept' : 'Send back'}
+            {submitting ? 'Submitting…' : decision === 'ACCEPT' ? 'Mark verified' : 'Send back'}
           </button>
         </div>
       </div>

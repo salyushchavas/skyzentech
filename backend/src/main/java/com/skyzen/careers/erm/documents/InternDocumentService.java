@@ -94,6 +94,17 @@ public class InternDocumentService {
             throw new ConflictException(
                     "Task is " + t.getStatus() + "; cannot upload");
         }
+        // Phase 1.6 — block uploads while the packet is locked. An ERM
+        // REJECT / RESEND_REQUEST clears the lock so the intern can
+        // re-upload the affected task(s) and re-submit. Locked is a
+        // packet-wide flag (not per-task) because the intern's "I'm
+        // done" gesture is whole-packet by design.
+        DocumentPacket pk = packetRepository.findById(t.getPacketId()).orElse(null);
+        if (pk != null && Boolean.TRUE.equals(pk.getInternLocked())) {
+            throw new ConflictException(
+                    "Packet was submitted to ERM and is locked for review. "
+                            + "Wait for ERM to reject a document or contact them to reopen.");
+        }
 
         SkyzenDocument doc = t.getDocumentKey();
         String sensitivity = doc != null ? doc.getSensitivity() : "GENERAL";
@@ -156,6 +167,67 @@ public class InternDocumentService {
         }
     }
 
+    // ── Submit all documents to ERM (Phase 1.6) ──────────────────────────
+
+    /**
+     * Explicit intern handoff: lock the packet, stamp the timestamp, and
+     * let {@code checkPacketCompletion} auto-flip the packet status to
+     * ALL_SUBMITTED (it was likely there already once the last task was
+     * uploaded; the call is idempotent).
+     *
+     * <p>Server-enforced gate: the caller must own the packet AND every
+     * task on it must be out of PENDING. Activation is NOT triggered —
+     * only ERM ACCEPT advances the lifecycle.</p>
+     */
+    @Transactional
+    public InternPacketView submitToErm(UUID packetId, User caller) {
+        if (caller == null) throw new ForbiddenException("Caller required");
+        DocumentPacket pk = packetRepository.findById(packetId)
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "Packet not found: " + packetId));
+        InternLifecycle lc = lifecycleRepository.findById(pk.getInternLifecycleId())
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "InternLifecycle missing"));
+        if (!caller.getId().equals(lc.getUserId())) {
+            throw new ForbiddenException("Packet does not belong to caller");
+        }
+        if ("CANCELLED".equals(pk.getStatus())) {
+            throw new ConflictException("Packet has been cancelled");
+        }
+        if ("COMPLETED".equals(pk.getStatus())) {
+            throw new ConflictException(
+                    "Packet has already been verified by ERM — nothing to submit");
+        }
+        if (Boolean.TRUE.equals(pk.getInternLocked())) {
+            // Idempotent: a second click after the first success just
+            // re-returns the locked state, not a 409. Avoids confusing
+            // the intern if they double-click.
+            return toInternPacketView(pk);
+        }
+        long pending = taskRepository.countByPacketIdAndStatus(packetId, "PENDING");
+        if (pending > 0) {
+            throw new BadRequestException(
+                    pending + " required document(s) still need to be uploaded "
+                            + "before you can submit.");
+        }
+
+        pk.setInternLocked(Boolean.TRUE);
+        pk.setInternSubmittedAt(Instant.now());
+        packetRepository.save(pk);
+        // Auto-promote packet status to ALL_SUBMITTED if not already
+        // there (every task is non-PENDING by the gate above).
+        try {
+            packetService.checkPacketCompletion(packetId, caller);
+        } catch (Exception e) {
+            log.warn("[InternDocument] checkPacketCompletion on submit failed: {}",
+                    e.getMessage());
+        }
+        // Re-read so the response carries the new packet status set by
+        // checkPacketCompletion (idempotent if already ALL_SUBMITTED).
+        DocumentPacket fresh = packetRepository.findById(packetId).orElse(pk);
+        return toInternPacketView(fresh);
+    }
+
     // ── Helpers ──────────────────────────────────────────────────────────
 
     private DocumentTask mustLoadOwnTask(UUID taskId, User caller) {
@@ -179,16 +251,22 @@ public class InternDocumentService {
     private InternPacketView toInternPacketView(DocumentPacket pk) {
         List<InternTaskView> tasks = new ArrayList<>();
         int accepted = 0;
+        int pending = 0;
         for (DocumentTask t : taskRepository.findByPacketIdOrderByCreatedAtAsc(pk.getId())) {
             tasks.add(toInternTaskView(t));
             if ("ACCEPTED".equals(t.getStatus()) || "WAIVED".equals(t.getStatus())) {
                 accepted++;
+            } else if ("PENDING".equals(t.getStatus())) {
+                pending++;
             }
         }
         return new InternPacketView(
                 pk.getId(), pk.getStatus(), pk.getCustomInstructions(),
                 pk.getAssignedAt(), pk.getCompletedAt(),
-                tasks, tasks.size(), accepted);
+                tasks, tasks.size(), accepted,
+                Boolean.TRUE.equals(pk.getInternLocked()),
+                pk.getInternSubmittedAt(),
+                pending);
     }
 
     private InternTaskView toInternTaskView(DocumentTask t) {

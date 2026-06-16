@@ -41,7 +41,12 @@ public final class DocumentDtos {
             int rejectedTasks,
             int waivedTasks,
             Instant assignedAt,
-            Instant completedAt
+            Instant completedAt,
+            /** Phase 1.6 — the intern has explicitly handed the packet off
+             *  for verification. Surface a "Submitted, awaiting verification"
+             *  badge on the ERM listing when true. */
+            boolean internLocked,
+            Instant internSubmittedAt
     ) {}
 
     public record DocumentPacketListPage(
@@ -203,6 +208,15 @@ public final class DocumentDtos {
             Instant completedAt,
             List<InternTaskView> tasks,
             int totalTasks,
-            int acceptedTasks
+            int acceptedTasks,
+            /** Phase 1.6 — explicit intern handoff signal. While true, the
+             *  intern cannot upload or replace files; ERM owns the packet
+             *  for review. Reset to false when ERM rejects / requests
+             *  resend on any task. */
+            boolean internLocked,
+            Instant internSubmittedAt,
+            /** Convenience: number of tasks still PENDING (i.e. not yet
+             *  uploaded). When 0 the intern can submit. */
+            int pendingTasks
     ) {}
 }

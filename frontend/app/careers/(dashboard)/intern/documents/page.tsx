@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Download, Upload } from 'lucide-react';
+import { CheckCircle2, Download, Lock, Send, Upload } from 'lucide-react';
 import api from '@/lib/api';
 import InternPageShell from '@/components/intern/InternPageShell';
 import type {
@@ -74,6 +74,7 @@ function PacketView({ packet, onChanged }: {
   const total = packet.tasks.length;
   const done = packet.tasks.filter((t) => t.status === 'ACCEPTED' || t.status === 'WAIVED').length;
   const pct = total === 0 ? 0 : Math.round((done * 100) / total);
+  const pending = packet.pendingTasks ?? 0;
 
   return (
     <>
@@ -102,17 +103,142 @@ function PacketView({ packet, onChanged }: {
         )}
       </section>
 
+      <SubmitHandoffCard packet={packet} pending={pending}
+        onSubmitted={onChanged} />
+
       <div className="space-y-3">
         {packet.tasks.map((t) => (
-          <TaskCard key={t.taskId} task={t} onChanged={onChanged} />
+          <TaskCard key={t.taskId} task={t} packet={packet} onChanged={onChanged} />
         ))}
       </div>
     </>
   );
 }
 
-function TaskCard({ task, onChanged }: {
+/**
+ * Top-of-page handoff banner. Three visual states:
+ *  - tasks still PENDING → disabled Submit + "X document(s) still to upload"
+ *  - all uploaded, not yet submitted → enabled Submit
+ *  - already submitted (internLocked) → green "Submitted, awaiting ERM
+ *    verification" — uploads disabled on every task below.
+ *  - packet COMPLETED → green "ERM verified all documents".
+ */
+function SubmitHandoffCard({
+  packet, pending, onSubmitted,
+}: {
+  packet: InternPacketView;
+  pending: number;
+  onSubmitted: () => void;
+}) {
+  const [submitting, setSubmitting] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  async function submit() {
+    if (pending > 0 || packet.internLocked) return;
+    if (!confirm(
+      'Submit all documents to ERM for verification?\n\n'
+      + 'You won\'t be able to change them while ERM is reviewing. '
+      + 'If ERM rejects any document, that document will reopen for '
+      + 'you to upload again and re-submit.',
+    )) return;
+    setSubmitting(true);
+    setErr(null);
+    try {
+      await api.post(`/api/v1/intern/documents/packets/${packet.packetId}/submit`);
+      onSubmitted();
+    } catch (e) {
+      const ax = e as { response?: { data?: { error?: string } }; message?: string };
+      setErr(ax.response?.data?.error ?? ax.message ?? 'Submit failed');
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  if (packet.status === 'COMPLETED') {
+    return (
+      <section className="mb-4 rounded-lg border border-emerald-200 bg-emerald-50 p-4 shadow-sm">
+        <p className="inline-flex items-center gap-2 text-sm font-semibold text-emerald-900">
+          <CheckCircle2 className="h-4 w-4" />
+          ERM has verified all your documents. You&apos;re onboarded.
+        </p>
+      </section>
+    );
+  }
+
+  if (packet.internLocked) {
+    return (
+      <section className="mb-4 rounded-lg border border-violet-200 bg-violet-50 p-4 shadow-sm">
+        <div className="flex items-start gap-3">
+          <Lock className="mt-0.5 h-4 w-4 text-violet-700" />
+          <div className="flex-1">
+            <p className="text-sm font-semibold text-violet-900">
+              Submitted to ERM — awaiting verification
+            </p>
+            <p className="mt-0.5 text-xs text-violet-800">
+              Your uploads are locked while ERM reviews each document.
+              If anything needs changes, ERM will reject that document
+              and it will reopen for you to upload again.
+            </p>
+            {packet.internSubmittedAt && (
+              <p className="mt-1 text-[11px] text-violet-700">
+                Submitted {new Date(packet.internSubmittedAt).toLocaleString()}
+              </p>
+            )}
+          </div>
+        </div>
+      </section>
+    );
+  }
+
+  const enabled = pending === 0 && !submitting;
+  return (
+    <section className="mb-4 rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <p className="text-sm font-semibold text-slate-900">
+            Ready to hand off?
+          </p>
+          <p className="mt-0.5 text-xs text-slate-600">
+            Once you&apos;ve uploaded every required document, submit the
+            full packet to ERM for verification.
+          </p>
+          {pending > 0 && (
+            <p className="mt-1 text-xs font-medium text-amber-700">
+              {pending} required document{pending === 1 ? '' : 's'} still need
+              to be uploaded before you can submit.
+            </p>
+          )}
+        </div>
+        <button
+          type="button"
+          onClick={submit}
+          disabled={!enabled}
+          title={pending > 0
+            ? `Upload the remaining ${pending} document(s) first`
+            : 'Submit the entire packet to ERM for verification'}
+          className={
+            'inline-flex items-center gap-1.5 rounded-md px-4 py-2 text-sm font-semibold transition-colors '
+            + (enabled
+              ? 'bg-teal-700 text-white hover:bg-teal-800'
+              : 'cursor-not-allowed bg-slate-200 text-slate-500')
+          }
+        >
+          <Send className="h-3.5 w-3.5" />
+          {submitting ? 'Submitting…' : 'Submit all documents to ERM'}
+        </button>
+      </div>
+      {err && (
+        <p className="mt-2 rounded-md border border-rose-200 bg-rose-50 p-2 text-xs text-rose-800">
+          {err}
+        </p>
+      )}
+    </section>
+  );
+}
+
+function TaskCard({ task, packet, onChanged }: {
   task: InternTaskView;
+  packet: InternPacketView;
   onChanged: () => void;
 }) {
   const fileRef = useRef<HTMLInputElement>(null);
@@ -153,7 +279,11 @@ function TaskCard({ task, onChanged }: {
   const showReviewerComments =
     (task.status === 'REJECTED' || task.status === 'RESEND_REQUESTED')
     && task.reviewComments;
-  const canUpload = task.status !== 'ACCEPTED' && task.status !== 'WAIVED';
+  // Phase 1.6 — also hide Upload while the packet is locked. The server
+  // enforces the same rule (409) so hiding the button here is just UX.
+  const canUpload = task.status !== 'ACCEPTED'
+    && task.status !== 'WAIVED'
+    && !packet.internLocked;
 
   return (
     <section className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">

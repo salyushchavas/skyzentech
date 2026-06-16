@@ -97,6 +97,7 @@ public class DocumentPacketService {
                     "SELECT pk.id, pk.intern_lifecycle_id, il.user_id, "
                             + "       u.full_name, il.employee_id, "
                             + "       pk.status, pk.assigned_at, pk.completed_at, "
+                            + "       pk.intern_locked, pk.intern_submitted_at, "
                             + "       (SELECT COUNT(*) FROM document_tasks t WHERE t.packet_id = pk.id) AS total_tasks, "
                             + "       (SELECT COUNT(*) FROM document_tasks t WHERE t.packet_id = pk.id AND t.status='ACCEPTED') AS accepted, "
                             + "       (SELECT COUNT(*) FROM document_tasks t WHERE t.packet_id = pk.id AND t.status='SUBMITTED') AS submitted, "
@@ -116,7 +117,9 @@ public class DocumentPacketService {
                         intVal(r.get("submitted")), intVal(r.get("pending")),
                         intVal(r.get("rejected")), intVal(r.get("waived")),
                         instantOf((java.sql.Timestamp) r.get("assigned_at")),
-                        instantOf((java.sql.Timestamp) r.get("completed_at"))));
+                        instantOf((java.sql.Timestamp) r.get("completed_at")),
+                        Boolean.TRUE.equals(r.get("intern_locked")),
+                        instantOf((java.sql.Timestamp) r.get("intern_submitted_at"))));
             }
         } catch (Exception e) {
             log.warn("[DocumentPacket] list query failed: {}", e.getMessage());
@@ -490,6 +493,23 @@ public class DocumentPacketService {
 
         if ("ACCEPT".equals(decision)) {
             checkPacketCompletion(saved.getPacketId(), caller);
+        } else {
+            // Phase 1.6 — REJECT / RESEND_REQUEST reopens this task for the
+            // intern. Clear the packet's intern_locked flag so the intern
+            // can re-upload + re-submit; other already-accepted tasks stay
+            // accepted (per-task semantics unchanged). If the lock was
+            // never set (legacy packet), this is a no-op.
+            try {
+                packetRepository.findById(saved.getPacketId()).ifPresent(pk -> {
+                    if (Boolean.TRUE.equals(pk.getInternLocked())) {
+                        pk.setInternLocked(Boolean.FALSE);
+                        packetRepository.save(pk);
+                    }
+                });
+            } catch (Exception e) {
+                log.warn("[DocumentPacket] clear intern_locked on reject failed: {}",
+                        e.getMessage());
+            }
         }
         return toTaskDetail(saved);
     }

@@ -165,6 +165,13 @@ function Row({ p }: { p: DocumentPacketRow }) {
       <td className="px-3 py-2 text-xs text-slate-700">{p.internEmployeeId ?? '—'}</td>
       <td className="px-3 py-2">
         <StatusPill status={p.status} />
+        {/* Phase 1.6 — surface the intern handoff so ERM knows the
+            packet is awaiting verification (vs in-progress upload). */}
+        {p.internLocked && p.status !== 'COMPLETED' && (
+          <span className="mt-1 block rounded-full bg-violet-100 px-2 py-0.5 text-[10px] font-semibold text-violet-700">
+            Awaiting verification
+          </span>
+        )}
       </td>
       <td className="px-3 py-2">
         <div className="flex items-center gap-2">

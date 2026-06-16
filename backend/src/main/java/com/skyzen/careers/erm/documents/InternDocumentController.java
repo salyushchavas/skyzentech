@@ -44,4 +44,18 @@ public class InternDocumentController {
             @AuthenticationPrincipal User caller) {
         return service.uploadFilled(id, file, caller);
     }
+
+    /**
+     * Phase 1.6 — explicit intern handoff. Locks the packet against
+     * further intern uploads and signals "ready for verification" to
+     * ERM. Service-layer ownership check ensures the caller can only
+     * submit their own packet.
+     */
+    @PostMapping("/packets/{packetId}/submit")
+    @PreAuthorize("hasAnyRole('INTERN', 'SUPER_ADMIN')")
+    public InternPacketView submitPacket(
+            @PathVariable UUID packetId,
+            @AuthenticationPrincipal User caller) {
+        return service.submitToErm(packetId, caller);
+    }
 }

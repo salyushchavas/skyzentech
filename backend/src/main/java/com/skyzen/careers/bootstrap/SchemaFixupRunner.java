@@ -598,6 +598,21 @@ public class SchemaFixupRunner implements CommandLineRunner {
             }
         }
 
+        // Phase 1.6 — explicit intern handoff on the document packet.
+        // intern_locked defaults to FALSE so existing packets keep
+        // their current "intern may upload anytime" behaviour. The
+        // backfill is the column default; no UPDATE needed.
+        for (String sql : new String[] {
+                "ALTER TABLE document_packets ADD COLUMN IF NOT EXISTS intern_locked BOOLEAN NOT NULL DEFAULT FALSE",
+                "ALTER TABLE document_packets ADD COLUMN IF NOT EXISTS intern_submitted_at TIMESTAMP"
+        }) {
+            try { jdbcTemplate.execute(sql); }
+            catch (Exception e) {
+                log.warn("[SchemaFixup] document_packets Phase 1.6 ALTER skipped ({}): {}",
+                        sql, e.getMessage());
+            }
+        }
+
         // Phase 2.2: scorecard dimensions. New columns are nullable (legacy
         // rows pre-2.2 simply won't have a problem-solving score) so the
         // ADD COLUMN IF NOT EXISTS is safe on a populated table.

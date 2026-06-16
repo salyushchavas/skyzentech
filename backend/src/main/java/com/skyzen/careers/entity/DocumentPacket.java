@@ -66,6 +66,26 @@ public class DocumentPacket {
     @Column(name = "cancellation_reason", columnDefinition = "TEXT")
     private String cancellationReason;
 
+    /**
+     * Phase 1.6 — explicit intern handoff signal. Set to {@code true}
+     * by {@code DocumentPacketService.submitByIntern} when the intern
+     * clicks "Submit all documents to ERM". While true, the intern can
+     * no longer upload or replace files on this packet; ERM owns the
+     * packet for verification. Reset to {@code false} the moment ERM
+     * REJECTs or RESEND_REQUESTs any single task (via
+     * {@code reviewTask}), reopening the rejected doc(s) for the
+     * intern to re-upload + re-submit. Orthogonal to {@code status}:
+     * the existing 6-status state machine is unchanged.
+     */
+    @Column(name = "intern_locked", nullable = false)
+    @Builder.Default
+    private Boolean internLocked = Boolean.FALSE;
+
+    /** Timestamp of the most recent intern submit. Never cleared; useful
+     *  for "submitted X hours ago" copy on the ERM review surface. */
+    @Column(name = "intern_submitted_at")
+    private Instant internSubmittedAt;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
 

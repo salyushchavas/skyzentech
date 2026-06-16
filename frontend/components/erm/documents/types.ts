@@ -37,6 +37,10 @@ export type DocumentPacketRow = {
   waivedTasks: number;
   assignedAt: string | null;
   completedAt: string | null;
+  /** Phase 1.6 — intern has handed off; ERM should verify. Reset to
+   *  false when ERM rejects any task on the packet. */
+  internLocked: boolean;
+  internSubmittedAt: string | null;
 };
 
 export type DocumentPacketListPage = {
@@ -216,4 +220,12 @@ export type InternPacketView = {
   tasks: InternTaskView[];
   totalTasks: number;
   acceptedTasks: number;
+  /** Phase 1.6 — true when the intern has explicitly clicked "Submit
+   *  all documents to ERM". Locks per-task upload until ERM rejects
+   *  a task (which clears the flag server-side). */
+  internLocked: boolean;
+  internSubmittedAt: string | null;
+  /** Tasks still PENDING (not yet uploaded). When 0 the Submit button
+   *  enables. */
+  pendingTasks: number;
 };
