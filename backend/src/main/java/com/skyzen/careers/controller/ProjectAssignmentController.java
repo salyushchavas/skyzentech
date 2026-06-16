@@ -61,7 +61,8 @@ public class ProjectAssignmentController {
             @Valid @RequestBody(required = false) SubmitAssignmentRequest req,
             @AuthenticationPrincipal User caller) {
         String notes = req != null ? req.submissionNotes() : null;
-        return service.submitAssignment(id, notes, caller);
+        java.util.List<String> links = req != null ? req.deliverableLinks() : null;
+        return service.submitAssignment(id, notes, links, caller);
     }
 
     @GetMapping("/mine")

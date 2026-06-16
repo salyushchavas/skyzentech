@@ -4,23 +4,30 @@ import com.skyzen.careers.dto.project.catalog.AssignProjectRequest;
 import com.skyzen.careers.dto.project.catalog.AssignProjectResultResponse;
 import com.skyzen.careers.dto.project.catalog.EligibleInternResponse;
 import com.skyzen.careers.dto.project.catalog.ProjectAssignmentResponse;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.skyzen.careers.entity.Candidate;
 import com.skyzen.careers.entity.Engagement;
 import com.skyzen.careers.entity.Project;
 import com.skyzen.careers.entity.ProjectAssignment;
+import com.skyzen.careers.entity.ProjectSubmission;
 import com.skyzen.careers.entity.User;
 import com.skyzen.careers.enums.EngagementStatus;
 import com.skyzen.careers.enums.ProjectAssignmentStatus;
 import com.skyzen.careers.enums.UserRole;
+import com.skyzen.careers.event.ProjectSubmittedEvent;
 import com.skyzen.careers.exception.BadRequestException;
 import com.skyzen.careers.exception.ForbiddenException;
 import com.skyzen.careers.exception.ResourceNotFoundException;
 import com.skyzen.careers.github.GitHubIntegrationException;
 import com.skyzen.careers.github.GitHubService;
 import com.skyzen.careers.repository.EngagementRepository;
+import com.skyzen.careers.repository.InternLifecycleRepository;
 import com.skyzen.careers.repository.ProjectAssignmentRepository;
 import com.skyzen.careers.repository.ProjectRepository;
+import com.skyzen.careers.repository.ProjectSubmissionRepository;
 import com.skyzen.careers.repository.UserRepository;
+import org.springframework.context.ApplicationEventPublisher;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -60,6 +67,12 @@ public class ProjectAssignmentService {
             repositoryLinkRepository;
     private final GitHubService gitHubService;
     private final LifecycleAccessPolicy lifecycleAccessPolicy;
+    private final ProjectSubmissionRepository projectSubmissionRepository;
+    private final InternLifecycleRepository internLifecycleRepository;
+    private final ApplicationEventPublisher eventPublisher;
+    private final ObjectMapper objectMapper;
+
+    private static final TypeReference<List<String>> STRING_LIST = new TypeReference<>() {};
 
     /**
      * GitHub repo URL parsing — same shape as the legacy resource-link mirror
@@ -248,26 +261,171 @@ public class ProjectAssignmentService {
         return mapWithGraph(List.of(a)).get(0);
     }
 
+    /**
+     * Intern submits (or re-submits) work for an assignment. Accepts
+     * deliverable links + free-text notes; creates a {@link ProjectSubmission}
+     * history row so the trainer's Pending Reviews queue (which reads
+     * from {@code project_submissions}) picks it up, stamps the
+     * assignment row, and publishes a {@link ProjectSubmittedEvent} so
+     * the trainer is notified after commit.
+     *
+     * <p>Re-submission is allowed when the assignment is back in
+     * {@code IN_PROGRESS} (returned-for-revisions) OR when the prior
+     * submission carries {@code trainer_decision=REQUEST_REVISION}. The
+     * version on the new {@code ProjectSubmission} row is the prior max
+     * plus one — matches the trainer-review service's expectations.</p>
+     */
     @Transactional
     public ProjectAssignmentResponse submitAssignment(
-            UUID assignmentId, String submissionNotes, User actor) {
+            UUID assignmentId, String submissionNotes,
+            List<String> deliverableLinks, User actor) {
         ProjectAssignment a = loadAssignment(assignmentId);
         ensureOwningIntern(a, actor);
-        if (a.getStatus() == ProjectAssignmentStatus.SUBMITTED) {
-            throw new BadRequestException("Project is already submitted.");
+
+        List<String> validatedLinks = validateLinks(deliverableLinks);
+        String trimmedNotes = submissionNotes != null && !submissionNotes.isBlank()
+                ? submissionNotes.trim() : null;
+        if (validatedLinks.isEmpty() && trimmedNotes == null) {
+            throw new BadRequestException(
+                    "Submission requires at least one deliverable link or notes.");
         }
-        if (a.getStatus() != ProjectAssignmentStatus.IN_PROGRESS) {
-            throw new BadRequestException("Project has not been started.");
+
+        // Re-submission gate: allow when (a) intern is still IN_PROGRESS
+        // (first submit, or trainer/RM returned-for-revisions via the
+        // assignment endpoint), (b) status is SUBMITTED but the latest
+        // ProjectSubmission carries REQUEST_REVISION (trainer review
+        // pipe). Anything else (COMPLETED, TECH_APPROVED, etc.) is
+        // locked.
+        List<ProjectSubmission> history = projectSubmissionRepository
+                .findByProjectIdOrderBySubmittedAtDesc(a.getProjectId());
+        ProjectSubmission previousLatest = history.isEmpty() ? null : history.get(0);
+        boolean revisionRequested = previousLatest != null
+                && "REQUEST_REVISION".equalsIgnoreCase(previousLatest.getTrainerDecision());
+        if (a.getStatus() == ProjectAssignmentStatus.IN_PROGRESS) {
+            // first submit or resubmit after assignment-level return
+        } else if (a.getStatus() == ProjectAssignmentStatus.SUBMITTED && revisionRequested) {
+            // resubmit after trainer requested revisions on the submission row
+        } else if (a.getStatus() == ProjectAssignmentStatus.ASSIGNED) {
+            throw new BadRequestException(
+                    "Start the project first — submission only allowed after the intern accepts the assignment.");
+        } else if (a.getStatus() == ProjectAssignmentStatus.SUBMITTED) {
+            throw new BadRequestException(
+                    "Project is already submitted and awaiting trainer review.");
+        } else {
+            throw new BadRequestException(
+                    "Cannot submit in status " + a.getStatus() + ".");
         }
+
+        java.time.Instant now = java.time.Instant.now();
+        Project project = projectRepository.findById(a.getProjectId())
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "Project not found: " + a.getProjectId()));
+        int nextVersion = history.stream()
+                .mapToInt(s -> s.getVersion() != null ? s.getVersion() : 1)
+                .max().orElse(0) + 1;
+        ProjectSubmission sub = ProjectSubmission.builder()
+                .project(project)
+                .description(trimmedNotes)
+                .linksJson(serializeLinks(validatedLinks))
+                .submittedAt(now)
+                .version(nextVersion)
+                .build();
+        sub = projectSubmissionRepository.save(sub);
+
         a.setStatus(ProjectAssignmentStatus.SUBMITTED);
-        a.setSubmittedAt(java.time.Instant.now());
-        if (submissionNotes != null && !submissionNotes.isBlank()) {
-            a.setSubmissionNotes(submissionNotes.trim());
-        }
+        a.setSubmittedAt(now);
+        if (trimmedNotes != null) a.setSubmissionNotes(trimmedNotes);
         projectAssignmentRepository.save(a);
-        log.info("[ProjectAssignmentService] assignment={} intern={} submitted",
-                assignmentId, actor.getId());
+
+        UUID trainerUserId = resolveTrainerUserId(project, a);
+        try {
+            eventPublisher.publishEvent(new ProjectSubmittedEvent(
+                    a.getId(), project.getId(), sub.getId(),
+                    actor.getId(), trainerUserId,
+                    project.getName() != null ? project.getName() : project.getTitle(),
+                    nextVersion));
+        } catch (Exception e) {
+            log.warn("[ProjectAssignmentService] project-submitted event publish failed (non-fatal): {}",
+                    e.getMessage());
+        }
+        log.info("[ProjectAssignmentService] assignment={} intern={} submitted v{} (links={}, hasNotes={})",
+                assignmentId, actor.getId(), nextVersion,
+                validatedLinks.size(), trimmedNotes != null);
         return mapWithGraph(List.of(a)).get(0);
+    }
+
+    /**
+     * Validate each non-blank link parses as an absolute URL. Returns a
+     * cleaned, de-duplicated list preserving input order. Empty / null
+     * input → empty list (not an error — notes-only submissions are
+     * allowed downstream).
+     */
+    private List<String> validateLinks(List<String> raw) {
+        if (raw == null || raw.isEmpty()) return List.of();
+        java.util.LinkedHashSet<String> out = new java.util.LinkedHashSet<>();
+        for (String link : raw) {
+            if (link == null) continue;
+            String trimmed = link.trim();
+            if (trimmed.isEmpty()) continue;
+            try {
+                java.net.URI uri = new java.net.URI(trimmed);
+                if (!uri.isAbsolute()
+                        || uri.getScheme() == null
+                        || uri.getHost() == null
+                        || !(uri.getScheme().equalsIgnoreCase("http")
+                            || uri.getScheme().equalsIgnoreCase("https"))) {
+                    throw new BadRequestException(
+                            "Deliverable link must be an absolute http/https URL: '"
+                                    + trimmed + "'");
+                }
+            } catch (java.net.URISyntaxException e) {
+                throw new BadRequestException(
+                        "Deliverable link is not a valid URL: '" + trimmed + "'");
+            }
+            out.add(trimmed);
+        }
+        return new ArrayList<>(out);
+    }
+
+    private String serializeLinks(List<String> links) {
+        if (links == null || links.isEmpty()) return null;
+        try {
+            return objectMapper.writeValueAsString(links);
+        } catch (Exception e) {
+            log.warn("[ProjectAssignmentService] serializeLinks failed (non-fatal): {}",
+                    e.getMessage());
+            return null;
+        }
+    }
+
+    private List<String> deserializeLinks(String json) {
+        if (json == null || json.isBlank()) return List.of();
+        try {
+            return objectMapper.readValue(json, STRING_LIST);
+        } catch (Exception e) {
+            log.debug("deserializeLinks failed (non-fatal): {}", e.getMessage());
+            return List.of();
+        }
+    }
+
+    /**
+     * Resolve which Trainer to notify on submission. Preferred path:
+     * Project.internLifecycleId → InternLifecycle.trainerId. Falls back
+     * to ProjectAssignment.assignedById (the TE who created the
+     * assignment) when the lifecycle linkage isn't populated.
+     */
+    private UUID resolveTrainerUserId(Project project, ProjectAssignment a) {
+        try {
+            if (project.getInternLifecycleId() != null) {
+                UUID t = internLifecycleRepository.findById(project.getInternLifecycleId())
+                        .map(il -> il.getTrainerId())
+                        .orElse(null);
+                if (t != null) return t;
+            }
+        } catch (Exception e) {
+            log.debug("trainer lookup via lifecycle failed (non-fatal): {}", e.getMessage());
+        }
+        return a.getAssignedById();
     }
 
     // ── Reviewer lifecycle (TE + RM on ProjectAssignment) ──────────────────
@@ -519,6 +677,19 @@ public class ProjectAssignmentService {
         }
         Map<UUID, Project> projects = projectRepository.findAllById(projectIds).stream()
                 .collect(Collectors.toMap(Project::getId, p -> p));
+        // Bulk-fetch latest ProjectSubmission per project so the intern
+        // surface can render what they sent + any trainer feedback
+        // without N+1 round-trips.
+        Map<UUID, ProjectSubmission> latestSubByProject = new HashMap<>();
+        for (UUID pid : projectIds) {
+            List<ProjectSubmission> hist = projectSubmissionRepository
+                    .findByProjectIdOrderBySubmittedAtDesc(pid);
+            if (!hist.isEmpty()) {
+                ProjectSubmission top = hist.get(0);
+                latestSubByProject.put(pid, top);
+                if (top.getReviewedById() != null) userIds.add(top.getReviewedById());
+            }
+        }
         Map<UUID, User> users = userRepository.findAllById(userIds).stream()
                 .collect(Collectors.toMap(User::getId, u -> u));
         // Bulk-fetch repository links so per-row mapping doesn't N+1.
@@ -544,6 +715,21 @@ public class ProjectAssignmentService {
             // for rows persisted before the column was added.
             String remarks = r.getRemarks() != null && !r.getRemarks().isBlank()
                     ? r.getRemarks() : r.getNotes();
+            ProjectSubmission top = p != null ? latestSubByProject.get(p.getId()) : null;
+            ProjectAssignmentResponse.LatestSubmission latest = top == null ? null
+                    : new ProjectAssignmentResponse.LatestSubmission(
+                            top.getId(),
+                            top.getVersion(),
+                            deserializeLinks(top.getLinksJson()),
+                            top.getDescription(),
+                            top.getSubmittedAt(),
+                            top.getTrainerDecision(),
+                            top.getTrainerFeedback(),
+                            top.getReviewedAt(),
+                            top.getReviewedById() != null
+                                    && users.get(top.getReviewedById()) != null
+                                    ? users.get(top.getReviewedById()).getFullName()
+                                    : null);
             return new ProjectAssignmentResponse(
                     r.getId(),
                     p == null ? null : new ProjectAssignmentResponse.ProjectRef(
@@ -572,6 +758,7 @@ public class ProjectAssignmentService {
                     r.getStartedAt(),
                     r.getSubmittedAt(),
                     r.getSubmissionNotes(),
+                    latest,
                     r.getCreatedAt(),
                     r.getUpdatedAt()
             );

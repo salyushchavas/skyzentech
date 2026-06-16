@@ -6,6 +6,7 @@ import com.skyzen.careers.enums.ProjectAssignmentStatus;
 
 import java.time.Instant;
 import java.time.LocalDate;
+import java.util.List;
 import java.util.UUID;
 
 @JsonInclude(JsonInclude.Include.NON_NULL)
@@ -28,6 +29,12 @@ public record ProjectAssignmentResponse(
         Instant startedAt,
         Instant submittedAt,
         String submissionNotes,
+
+        /** Latest {@code ProjectSubmission} row for this project (if any) —
+         *  carries the deliverable links + trainer feedback so the intern's
+         *  My Projects detail page can show what was submitted and what
+         *  the trainer said. Null until the intern submits at least once. */
+        LatestSubmission latestSubmission,
 
         Instant createdAt,
         Instant updatedAt
@@ -58,5 +65,24 @@ public record ProjectAssignmentResponse(
             String fullName,
             String email,
             String githubUsername
+    ) {}
+
+    /**
+     * Projection of {@code ProjectSubmission} relevant to the intern:
+     * what they sent, when, what version, and whatever the trainer
+     * decided/wrote. Trainer-private fields (scores, blockers note) are
+     * intentionally left off — the intern surface only needs the public
+     * decision + feedback.
+     */
+    public record LatestSubmission(
+            UUID id,
+            Integer version,
+            List<String> links,
+            String description,
+            Instant submittedAt,
+            String trainerDecision,    // ACCEPT | REQUEST_REVISION | ESCALATE | NO_ACTION_YET
+            String trainerFeedback,    // verbatim text — shown to intern
+            Instant reviewedAt,
+            String reviewedByName
     ) {}
 }
