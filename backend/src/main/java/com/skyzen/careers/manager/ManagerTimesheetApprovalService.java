@@ -73,6 +73,32 @@ public class ManagerTimesheetApprovalService {
         return out;
     }
 
+    /**
+     * Phase B2 — batch-approve every VERIFIED timesheet the caller is
+     * the assigned Manager for. Skips wrong-state rows silently (returns
+     * a per-id outcome map). Each row is approved via the per-row
+     * service so the state-machine gate + audit + AFTER_COMMIT notify
+     * chain run identically to the single-action path.
+     */
+    @Transactional
+    public java.util.Map<UUID, String> approveBatch(java.util.List<UUID> ids, User caller) {
+        java.util.Map<UUID, String> out = new java.util.LinkedHashMap<>();
+        if (ids == null || ids.isEmpty()) return out;
+        for (UUID id : ids) {
+            try {
+                approve(id, caller);
+                out.put(id, "APPROVED");
+            } catch (ForbiddenException fe) {
+                out.put(id, "FORBIDDEN");
+            } catch (Exception e) {
+                String msg = e.getMessage() != null ? e.getMessage() : "FAILED";
+                // Cap so the response doesn't carry pages of stack traces.
+                out.put(id, msg.length() > 200 ? msg.substring(0, 200) : msg);
+            }
+        }
+        return out;
+    }
+
     // ── Resource ownership gate ──────────────────────────────────────────
 
     /**

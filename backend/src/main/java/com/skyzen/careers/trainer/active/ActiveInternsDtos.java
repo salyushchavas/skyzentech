@@ -108,7 +108,16 @@ public final class ActiveInternsDtos {
             LocalDate currentWeekStart,
             String currentWeekStatus,
             Instant lastApprovedAt,
-            String state             // SUBMITTED | APPROVED | REJECTED | MISSING
+            String state,            // SUBMITTED | APPROVED | REJECTED | MISSING (overall pill)
+            /** Phase B2 — per-status counts for the month, drive the
+             *  per-stage chip row in the roster's Timesheets cell. All
+             *  zero when no rows exist for the month. */
+            int submittedCount,
+            int verifiedCount,
+            int approvedCount,
+            int rejectedCount,
+            int missingCount,
+            int expectedWeeks
     ) {}
 
     public record ReportingStructure(

@@ -133,6 +133,13 @@ export interface TimesheetStateBlock {
   currentWeekStatus: string | null;
   lastApprovedAt: string | null;
   state: TimesheetState;
+  /** Phase B2 — per-status counts for the requested month. */
+  submittedCount: number;
+  verifiedCount: number;
+  approvedCount: number;
+  rejectedCount: number;
+  missingCount: number;
+  expectedWeeks: number;
 }
 
 export interface ReportingStructure {

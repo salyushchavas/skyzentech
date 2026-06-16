@@ -353,42 +353,58 @@ function EvalCell({ row }: { row: ActiveInternRow }) {
 }
 
 function TimesheetCell({ row }: { row: ActiveInternRow }) {
-  const s = row.timesheet.state;
-  const summary = row.timesheet.currentWeekStatus;
-  const tone =
-    s === 'APPROVED' ? 'emerald'
-    : s === 'REJECTED' ? 'rose'
-    : s === 'SUBMITTED' ? 'amber'
-    : 'slate';
-  const label =
-    s === 'APPROVED' ? 'All approved'
-    : s === 'REJECTED' ? 'Some rejected'
-    : s === 'SUBMITTED' ? 'Pending review'
-    : 'Missing';
+  const ts = row.timesheet;
+  // Per-stage chips drive scanability — VERIFIED kept distinct from
+  // SUBMITTED so the ERM/Manager queue depth is visible at a glance.
+  const chips: Array<{ label: string; count: number; tone: PillTone }> = ([
+    { label: 'Approved',  count: ts.approvedCount,  tone: 'emerald' as PillTone },
+    { label: 'Verified',  count: ts.verifiedCount,  tone: 'indigo' as PillTone },
+    { label: 'Submitted', count: ts.submittedCount, tone: 'sky' as PillTone },
+    { label: 'Rejected',  count: ts.rejectedCount,  tone: 'rose' as PillTone },
+    { label: 'Missing',   count: ts.missingCount,   tone: 'amber' as PillTone },
+  ]).filter((c) => c.count > 0);
+
+  if (chips.length === 0) {
+    return (
+      <div className="flex flex-col gap-0.5">
+        <Pill tone="slate">
+          <FileWarning className="mr-1 inline h-3 w-3" /> Missing
+        </Pill>
+      </div>
+    );
+  }
   return (
     <div className="flex flex-col gap-0.5">
-      <Pill tone={tone}>
-        {s === 'REJECTED' && (
-          <FileWarning className="mr-1 inline h-3 w-3" />
-        )}
-        {label}
-      </Pill>
-      {summary && <span className="text-[10px] text-slate-500">{summary}</span>}
+      <div className="flex flex-wrap gap-1">
+        {chips.map((c) => (
+          <Pill key={c.label} tone={c.tone}>
+            {c.label} · {c.count}
+          </Pill>
+        ))}
+      </div>
+      {ts.expectedWeeks > 0 && (
+        <span className="text-[10px] text-slate-500">
+          {ts.approvedCount}/{ts.expectedWeeks} approved
+        </span>
+      )}
     </div>
   );
 }
 
 // ── Primitives ───────────────────────────────────────────────────────────
 
+type PillTone = 'emerald' | 'amber' | 'rose' | 'sky' | 'slate' | 'indigo';
+
 function Pill({
   tone, children,
-}: { tone: 'emerald' | 'amber' | 'rose' | 'sky' | 'slate'; children: React.ReactNode }) {
-  const tones: Record<typeof tone, string> = {
+}: { tone: PillTone; children: React.ReactNode }) {
+  const tones: Record<PillTone, string> = {
     emerald: 'bg-emerald-50 text-emerald-800 ring-emerald-200',
     amber:   'bg-amber-50  text-amber-800  ring-amber-200',
     rose:    'bg-rose-50   text-rose-800   ring-rose-200',
     sky:     'bg-sky-50    text-sky-800    ring-sky-200',
     slate:   'bg-slate-100 text-slate-700  ring-slate-200',
+    indigo:  'bg-indigo-50 text-indigo-800 ring-indigo-200',
   };
   return (
     <span className={

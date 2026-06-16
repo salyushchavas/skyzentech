@@ -169,6 +169,20 @@ public class ManagerController {
         return managerTimesheetApprovalService.reject(id, req, caller);
     }
 
+    /**
+     * Phase B2 — batch-approve every VERIFIED row in the supplied id
+     * list. Returns a per-id outcome map (APPROVED / FORBIDDEN / error
+     * message). Wrong-state rows are skipped silently with their
+     * server-side error captured in the response.
+     */
+    @PostMapping("/timesheets/approve-batch")
+    @PreAuthorize("hasAnyRole('MANAGER', 'SUPER_ADMIN')")
+    public java.util.Map<UUID, String> approveBatch(
+            @Valid @RequestBody com.skyzen.careers.dto.supervised.TimesheetBatchRequest req,
+            @AuthenticationPrincipal User caller) {
+        return managerTimesheetApprovalService.approveBatch(req.ids(), caller);
+    }
+
     // ── Phase 4A — Risk Center (aggregated exceptions + escalation) ──────
 
     @GetMapping("/risk-center")

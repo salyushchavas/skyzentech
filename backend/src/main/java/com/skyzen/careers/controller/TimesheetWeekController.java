@@ -3,10 +3,12 @@ package com.skyzen.careers.controller;
 import com.skyzen.careers.dto.supervised.InternTimesheetMonthResponse;
 import com.skyzen.careers.dto.supervised.RejectTimesheetRequest;
 import com.skyzen.careers.dto.supervised.ReturnTimesheetRequest;
+import com.skyzen.careers.dto.supervised.TimesheetMonthRollupResponse;
 import com.skyzen.careers.dto.supervised.TimesheetResponse;
 import com.skyzen.careers.dto.supervised.TimesheetWeekResponse;
 import com.skyzen.careers.dto.supervised.UpdateTimesheetDayRequest;
 import com.skyzen.careers.exception.BadRequestException;
+import com.skyzen.careers.service.timesheet.TimesheetRollupService;
 import com.skyzen.careers.entity.User;
 import com.skyzen.careers.service.TimesheetService;
 import jakarta.validation.Valid;
@@ -40,6 +42,7 @@ import java.util.UUID;
 public class TimesheetWeekController {
 
     private final TimesheetService timesheetService;
+    private final TimesheetRollupService rollupService;
 
     @GetMapping("/week")
     @PreAuthorize("hasAnyRole('INTERN', 'SUPER_ADMIN')")
@@ -114,6 +117,30 @@ public class TimesheetWeekController {
     public List<TimesheetWeekResponse> pendingApproval(
             @AuthenticationPrincipal User caller) {
         return timesheetService.listPendingApproval(caller);
+    }
+
+    /**
+     * Phase B2 — shared weekly rollup for the ERM verify + Manager
+     * approve surfaces. Same payload shape both ways; only the intern
+     * roster differs (ERM = all active-this-month, MANAGER = managed by
+     * caller). Role gate scoped per requested {@code scope}.
+     */
+    @GetMapping("/rollup")
+    @PreAuthorize("hasAnyRole('ERM', 'MANAGER', 'SUPER_ADMIN')")
+    public TimesheetMonthRollupResponse rollup(
+            @RequestParam("y") int year,
+            @RequestParam("m") int month,
+            @RequestParam("scope") String scope,
+            @AuthenticationPrincipal User caller) {
+        if (year < 1900 || year > 2999) throw new BadRequestException("y out of range");
+        if (month < 1 || month > 12) throw new BadRequestException("m must be 1-12");
+        TimesheetRollupService.Scope s;
+        try {
+            s = TimesheetRollupService.Scope.valueOf(scope.toUpperCase());
+        } catch (Exception e) {
+            throw new BadRequestException("scope must be 'erm' or 'manager'");
+        }
+        return rollupService.getRollup(s, java.time.YearMonth.of(year, month), caller);
     }
 
     @PostMapping("/{id}/approve")

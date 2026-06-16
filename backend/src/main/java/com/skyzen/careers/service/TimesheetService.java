@@ -16,6 +16,10 @@ import com.skyzen.careers.entity.TimesheetDay;
 import com.skyzen.careers.entity.User;
 import com.skyzen.careers.enums.TimesheetStatus;
 import com.skyzen.careers.enums.UserRole;
+import com.skyzen.careers.event.TimesheetApprovedEvent;
+import com.skyzen.careers.event.TimesheetRejectedEvent;
+import com.skyzen.careers.event.TimesheetSubmittedEvent;
+import com.skyzen.careers.event.TimesheetVerifiedEvent;
 import com.skyzen.careers.exception.BadRequestException;
 import com.skyzen.careers.exception.ForbiddenException;
 import com.skyzen.careers.exception.ResourceNotFoundException;
@@ -23,6 +27,7 @@ import com.skyzen.careers.repository.CandidateRepository;
 import com.skyzen.careers.repository.TimesheetDayRepository;
 import com.skyzen.careers.repository.TimesheetRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -50,6 +55,7 @@ public class TimesheetService {
     private final CandidateRepository candidateRepository;
     private final EngagementService engagementService;
     private final LifecycleAccessPolicy lifecycleAccessPolicy;
+    private final ApplicationEventPublisher eventPublisher;
 
     @Transactional
     public TimesheetResponse logHours(LogTimesheetRequest req, User caller) {
@@ -112,7 +118,12 @@ public class TimesheetService {
         // Clear any stale rejection reason on resubmit.
         t.setReviewNote(null);
         t.setStatus(TimesheetStatus.SUBMITTED);
+        // Clear stale verified stamp on resubmit (status moved backward).
+        t.setVerifiedBy(null);
+        t.setVerifiedAt(null);
         timesheetRepository.save(t);
+        publishChainEvent(new TimesheetSubmittedEvent(
+                t.getId(), internUserIdOf(t), caller.getId()));
         return toResponse(t);
     }
 
@@ -141,6 +152,49 @@ public class TimesheetService {
                 .build();
     }
 
+    /**
+     * Phase B2 — ERM-side verification. Transition {@code SUBMITTED → VERIFIED}
+     * and stamp {@code verified_by} / {@code verified_at}. The Manager
+     * approve gate downstream now requires VERIFIED, so verification is
+     * the mandatory middle stage of the chain.
+     *
+     * <p>The role + ERM-scope gate lives on {@code ErmTimesheetVerifyService}
+     * (mirrors {@code ManagerTimesheetApprovalService}); this method just
+     * enforces the state machine + access policy.</p>
+     */
+    @Transactional
+    public TimesheetResponse verify(UUID id, User caller) {
+        Timesheet t = timesheetRepository.findByIdWithGraph(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Timesheet not found: " + id));
+        Candidate ownerForCheck = t.getIntern();
+        UUID ownerUserId = ownerForCheck != null && ownerForCheck.getUser() != null
+                ? ownerForCheck.getUser().getId() : null;
+        lifecycleAccessPolicy.ensureCanWrite(caller, ownerUserId,
+                LifecycleAccessPolicy.WriteIntent.RESOLVE_EXISTING);
+        if (t.getStatus() == TimesheetStatus.VERIFIED
+                || t.getStatus() == TimesheetStatus.APPROVED) {
+            // Idempotent on re-verify; already-approved is also a no-op.
+            return toResponse(t);
+        }
+        if (t.getStatus() != TimesheetStatus.SUBMITTED) {
+            throw new BadRequestException(
+                    "Only SUBMITTED timesheets can be verified (current: " + t.getStatus() + ")");
+        }
+        t.setStatus(TimesheetStatus.VERIFIED);
+        t.setVerifiedBy(caller);
+        t.setVerifiedAt(Instant.now());
+        t.setReviewNote(null);
+        timesheetRepository.save(t);
+        publishChainEvent(new TimesheetVerifiedEvent(
+                t.getId(), internUserIdOf(t), caller.getId()));
+        return toResponse(t);
+    }
+
+    /**
+     * Phase B2 — Manager approve now requires {@link TimesheetStatus#VERIFIED}.
+     * Attempting to approve a still-SUBMITTED row returns 400 with a clear
+     * message — the ERM verify step is mandatory.
+     */
     @Transactional
     public TimesheetResponse approve(UUID id, User caller) {
         Timesheet t = timesheetRepository.findByIdWithGraph(id)
@@ -152,18 +206,31 @@ public class TimesheetService {
                 ? ownerForCheck.getUser().getId() : null;
         lifecycleAccessPolicy.ensureCanWrite(caller, ownerUserId,
                 LifecycleAccessPolicy.WriteIntent.RESOLVE_EXISTING);
-        if (t.getStatus() != TimesheetStatus.SUBMITTED) {
+        if (t.getStatus() == TimesheetStatus.APPROVED) {
+            return toResponse(t); // idempotent
+        }
+        if (t.getStatus() != TimesheetStatus.VERIFIED) {
             throw new BadRequestException(
-                    "Only SUBMITTED timesheets can be approved (current: " + t.getStatus() + ")");
+                    "Only VERIFIED timesheets can be approved (current: " + t.getStatus()
+                            + "). The ERM must verify the week first.");
         }
         t.setStatus(TimesheetStatus.APPROVED);
         t.setApprovedBy(caller);
         t.setApprovedAt(Instant.now());
         t.setReviewNote(null);
         timesheetRepository.save(t);
+        publishChainEvent(new TimesheetApprovedEvent(
+                t.getId(), internUserIdOf(t), caller.getId()));
         return toResponse(t);
     }
 
+    /**
+     * Reviewer rejects a SUBMITTED (ERM stage) or VERIFIED (Manager stage)
+     * timesheet back to the intern. Reason is required and shown verbatim
+     * on the intern's REJECTED card (B1's reviewNote channel). Clears any
+     * approver/verifier stamps so the response doesn't leak stale
+     * attribution.
+     */
     @Transactional
     public TimesheetResponse reject(UUID id, RejectTimesheetRequest req, User caller) {
         Timesheet t = timesheetRepository.findByIdWithGraph(id)
@@ -173,19 +240,43 @@ public class TimesheetService {
                 ? ownerForCheck.getUser().getId() : null;
         lifecycleAccessPolicy.ensureCanWrite(caller, ownerUserId,
                 LifecycleAccessPolicy.WriteIntent.RESOLVE_EXISTING);
-        if (t.getStatus() != TimesheetStatus.SUBMITTED) {
+        if (t.getStatus() != TimesheetStatus.SUBMITTED
+                && t.getStatus() != TimesheetStatus.VERIFIED) {
             throw new BadRequestException(
-                    "Only SUBMITTED timesheets can be rejected (current: " + t.getStatus() + ")");
+                    "Only SUBMITTED or VERIFIED timesheets can be rejected (current: "
+                            + t.getStatus() + ")");
         }
+        String reason = req != null ? req.getReason() : null;
+        if (reason == null || reason.trim().length() < 5) {
+            throw new BadRequestException(
+                    "A reason of at least 5 characters is required to reject a timesheet.");
+        }
+        TimesheetStatus from = t.getStatus();
         t.setStatus(TimesheetStatus.REJECTED);
-        t.setReviewNote(req.getReason());
-        // Reviewer attribution lives on approvedBy/approvedAt only when actually
-        // approved; clear them on reject so the response doesn't show a stale
-        // "approved by" line for a rejected row.
+        t.setReviewNote(reason.trim());
         t.setApprovedBy(null);
         t.setApprovedAt(null);
+        t.setVerifiedBy(null);
+        t.setVerifiedAt(null);
         timesheetRepository.save(t);
+        publishChainEvent(new TimesheetRejectedEvent(
+                t.getId(), internUserIdOf(t), caller.getId(),
+                from.name(), reason.trim()));
         return toResponse(t);
+    }
+
+    private UUID internUserIdOf(Timesheet t) {
+        return t.getIntern() != null && t.getIntern().getUser() != null
+                ? t.getIntern().getUser().getId() : null;
+    }
+
+    private void publishChainEvent(Object event) {
+        try {
+            eventPublisher.publishEvent(event);
+        } catch (Exception ignored) {
+            // Listeners are best-effort; the event publisher itself
+            // shouldn't crash a state transition.
+        }
     }
 
     /**

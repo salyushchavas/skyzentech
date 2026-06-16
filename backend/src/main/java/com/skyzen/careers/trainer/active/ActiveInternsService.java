@@ -165,7 +165,8 @@ public class ActiveInternsService {
                 currentMonthYear(), null, null, "NO_PROJECTS");
         MeetingStateBlock emptyMeeting = new MeetingStateBlock(null, null, null, "NONE");
         EvaluationStateBlock emptyEval = new EvaluationStateBlock(null, null, null, "NONE");
-        TimesheetStateBlock emptyTs = new TimesheetStateBlock(null, null, null, "MISSING");
+        TimesheetStateBlock emptyTs = new TimesheetStateBlock(null, null, null, "MISSING",
+                0, 0, 0, 0, 0, 0);
 
         return new ActiveInternRow(
                 nullableUuid(rs.getString("lifecycle_id")),
@@ -324,11 +325,13 @@ public class ActiveInternsService {
         UUID candidateId = resolveCandidateId(basic.internLifecycleId());
         LocalDate firstMonday = mondayOf(period.atDay(1));
         if (candidateId == null) {
-            return new TimesheetStateBlock(firstMonday, "0/0", null, "MISSING");
+            return new TimesheetStateBlock(firstMonday, "0/0", null, "MISSING",
+                    0, 0, 0, 0, 0, countMondaysInRange(firstMonday,
+                            mondayOf(period.plusMonths(1).atDay(1))));
         }
         LocalDate fromWeek = firstMonday;
         LocalDate toWeekExclusive = mondayOf(period.plusMonths(1).atDay(1));
-        int approved = 0, submitted = 0, rejected = 0, draft = 0, total = 0;
+        int approved = 0, verified = 0, submitted = 0, rejected = 0, draft = 0, total = 0;
         Instant lastApprovedAt = null;
         try {
             List<Map<String, Object>> rows = jdbc.queryForList(
@@ -341,6 +344,7 @@ public class ActiveInternsService {
                 total++;
                 String st = (String) r.get("status");
                 if ("APPROVED".equals(st)) approved++;
+                else if ("VERIFIED".equals(st)) verified++;
                 else if ("REJECTED".equals(st)) rejected++;
                 else if ("SUBMITTED".equals(st)) submitted++;
                 else draft++;
@@ -352,17 +356,20 @@ public class ActiveInternsService {
         } catch (Exception e) {
             log.debug("[ActiveInterns] month timesheet load failed: {}", e.getMessage());
         }
-        // Expected weeks = ISO Mondays falling inside the month, capped
-        // at the intern's first week of activity within the month.
         int expectedWeeks = countMondaysInRange(fromWeek, toWeekExclusive);
+        // Overall pill keeps the existing semantics so existing readers
+        // (Phase A roster, exit checks) aren't disturbed. The new
+        // per-status counts power the per-stage chip row on the cell.
         String state;
         if (total == 0) state = "MISSING";
         else if (rejected > 0) state = "REJECTED";
         else if (approved >= expectedWeeks && expectedWeeks > 0) state = "APPROVED";
-        else if (submitted + approved > 0) state = "SUBMITTED";
+        else if (submitted + approved + verified > 0) state = "SUBMITTED";
         else state = "MISSING";
         String summary = approved + "/" + Math.max(expectedWeeks, total) + " approved";
-        return new TimesheetStateBlock(firstMonday, summary, lastApprovedAt, state);
+        int missing = Math.max(0, expectedWeeks - total);
+        return new TimesheetStateBlock(firstMonday, summary, lastApprovedAt, state,
+                submitted, verified, approved, rejected, missing, expectedWeeks);
     }
 
     private static int countMondaysInRange(LocalDate fromInclusive, LocalDate toExclusive) {
@@ -499,7 +506,8 @@ public class ActiveInternsService {
     private TimesheetStateBlock loadTimesheetState(ActiveInternRow basic, LocalDate currentWeek) {
         UUID candidateId = resolveCandidateId(basic.internLifecycleId());
         if (candidateId == null) {
-            return new TimesheetStateBlock(currentWeek, null, null, "MISSING");
+            return new TimesheetStateBlock(currentWeek, null, null, "MISSING",
+                    0, 0, 0, 0, 0, 0);
         }
         String currentStatus = null;
         Instant lastApprovedAt = null;
@@ -519,7 +527,10 @@ public class ActiveInternsService {
             log.debug("[ActiveInterns] timesheet state load failed: {}", e.getMessage());
         }
         String state = currentStatus == null ? "MISSING" : currentStatus;
-        return new TimesheetStateBlock(currentWeek, currentStatus, lastApprovedAt, state);
+        // Detail-view single-week block — counts are 0; the roster path
+        // populates them via loadMonthTimesheetState.
+        return new TimesheetStateBlock(currentWeek, currentStatus, lastApprovedAt, state,
+                0, 0, 0, 0, 0, 0);
     }
 
     private UUID resolveCandidateId(UUID lifecycleId) {
