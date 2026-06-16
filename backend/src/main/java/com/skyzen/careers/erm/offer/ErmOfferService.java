@@ -244,6 +244,16 @@ public class ErmOfferService {
                     "Send Offer requires SELECTED interview decision.");
         }
 
+        // Selection-ack gate: the intern must have clicked "Receive my
+        // offer letter" on their dashboard before an offer can be issued.
+        // Holds offers until the intern actively requests one — they
+        // shouldn't get an unexpected DocuSign email cold.
+        if (app.getSelectionAcknowledgedAt() == null) {
+            throw new ConflictException(
+                    "Send Offer requires the intern's selection acknowledgment. "
+                            + "They haven't clicked 'Receive my offer letter' on their dashboard yet.");
+        }
+
         // Delegate to the existing OfferDocuSignService for the heavy lifting
         // (entity creation, DocuSign envelope, audit). It already enforces
         // application.status=INTERVIEWED + no existing offer.

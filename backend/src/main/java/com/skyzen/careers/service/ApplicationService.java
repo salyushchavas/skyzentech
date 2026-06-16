@@ -26,12 +26,16 @@ import com.skyzen.careers.exception.InterviewRequiredException;
 import com.skyzen.careers.exception.ResourceNotFoundException;
 import com.skyzen.careers.notification.NotificationService;
 import com.skyzen.careers.notification.NotificationStub;
+import com.skyzen.careers.event.SelectionAcknowledgedEvent;
 import com.skyzen.careers.repository.ApplicationRepository;
 import com.skyzen.careers.repository.ApplicationSpecifications;
 import com.skyzen.careers.repository.AuditLogRepository;
 import com.skyzen.careers.repository.CandidateRepository;
+import com.skyzen.careers.repository.InterviewRepository;
 import com.skyzen.careers.repository.JobPostingRepository;
 import com.skyzen.careers.repository.ResumeRepository;
+import com.skyzen.careers.entity.Interview;
+import com.skyzen.careers.enums.InterviewStatus;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -59,6 +63,7 @@ public class ApplicationService {
     private final ResumeRepository resumeRepository;
     private final CandidateRepository candidateRepository;
     private final AuditLogRepository auditLogRepository;
+    private final InterviewRepository interviewRepository;
     private final ObjectMapper objectMapper;
     private final NotificationStub notificationStub;
     private final NotificationService notificationService;
@@ -483,6 +488,69 @@ public class ApplicationService {
             throw new ConflictException("Application can only be withdrawn at APPLIED or SHORTLISTED");
         }
         transitionTo(application, ApplicationStatus.WITHDRAWN, "WITHDRAW", caller);
+        return toResponse(application);
+    }
+
+    /**
+     * Intern-initiated selection acknowledgment. The intern clicks
+     * "Receive my offer letter" on their dashboard after the ERM marks
+     * them SELECTED on the interview; this records the timestamp so
+     * {@link com.skyzen.careers.erm.offer.ErmOfferService#createAndSend}
+     * can be unblocked and the ERM can issue the offer via the existing
+     * flow. Idempotent — a re-click on an already-acknowledged
+     * application returns the current row without changing state.
+     */
+    @Transactional
+    public ApplicationResponse acknowledgeSelection(UUID id, User caller) {
+        Application application = applicationRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Application not found: " + id));
+        if (caller == null
+                || application.getCandidate() == null
+                || application.getCandidate().getUser() == null
+                || !caller.getId().equals(application.getCandidate().getUser().getId())) {
+            throw new ForbiddenException("Only the applicant may acknowledge their own selection");
+        }
+        if (application.getSelectionAcknowledgedAt() != null) {
+            // Idempotent — already acknowledged.
+            return toResponse(application);
+        }
+        // Gate on a SELECTED interview decision so a non-shortlisted
+        // candidate can never trigger the offer flow by hitting this URL.
+        Interview latest = interviewRepository
+                .findByApplicationIdOrderByScheduledAtDesc(application.getId()).stream()
+                .filter(i -> i.getStatus() == InterviewStatus.COMPLETED)
+                .findFirst()
+                .orElseThrow(() -> new ConflictException(
+                        "Acknowledge selection requires a completed interview"));
+        if (!"SELECTED".equalsIgnoreCase(latest.getDecision())) {
+            throw new ConflictException(
+                    "Acknowledge selection requires a SELECTED interview decision (current: "
+                            + latest.getDecision() + ")");
+        }
+        application.setSelectionAcknowledgedAt(Instant.now());
+        application.setSelectionAcknowledgedBy(caller.getId());
+        applicationRepository.save(application);
+
+        Map<String, Object> afterJson = new LinkedHashMap<>();
+        afterJson.put("selectionAcknowledgedAt", application.getSelectionAcknowledgedAt().toString());
+        auditLogRepository.save(AuditLog.builder()
+                .entityType("Application")
+                .entityId(application.getId())
+                .action("SELECTION_ACKNOWLEDGED")
+                .userId(caller.getId())
+                .afterJson(serializeJson(afterJson))
+                .build());
+
+        try {
+            String jobTitle = application.getJobPosting() != null
+                    ? application.getJobPosting().getTitle() : null;
+            eventPublisher.publishEvent(new SelectionAcknowledgedEvent(
+                    application.getId(), caller.getId(),
+                    application.getErmOwnerId(), jobTitle));
+        } catch (Exception e) {
+            log.warn("[ApplicationService] selection-ack event publish failed (non-fatal): {}",
+                    e.getMessage());
+        }
         return toResponse(application);
     }
 

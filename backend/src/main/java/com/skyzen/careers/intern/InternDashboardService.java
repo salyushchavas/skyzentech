@@ -1,11 +1,18 @@
 package com.skyzen.careers.intern;
 
+import com.skyzen.careers.entity.Application;
+import com.skyzen.careers.entity.Candidate;
 import com.skyzen.careers.entity.InternLifecycle;
+import com.skyzen.careers.entity.Interview;
 import com.skyzen.careers.entity.Offer;
 import com.skyzen.careers.entity.User;
 import com.skyzen.careers.enums.InternLifecycleStatus;
+import com.skyzen.careers.enums.InterviewStatus;
 import com.skyzen.careers.enums.OfferStatus;
+import com.skyzen.careers.repository.ApplicationRepository;
+import com.skyzen.careers.repository.CandidateRepository;
 import com.skyzen.careers.repository.InternLifecycleRepository;
+import com.skyzen.careers.repository.InterviewRepository;
 import com.skyzen.careers.repository.OfferRepository;
 import com.skyzen.careers.repository.UserRepository;
 import com.skyzen.careers.service.ExitService;
@@ -40,6 +47,9 @@ public class InternDashboardService {
     private final InternEvaluationService internEvaluationService;
     private final ExitService exitService;
     private final OfferRepository offerRepository;
+    private final CandidateRepository candidateRepository;
+    private final ApplicationRepository applicationRepository;
+    private final InterviewRepository interviewRepository;
 
     public InternDashboardResponse getDashboard(User caller) {
         InternLifecycleStatus status = caller.getLifecycleStatus() != null
@@ -62,6 +72,10 @@ public class InternDashboardService {
         ExitSummary exitSummary = "INACTIVE".equals(mode) ? loadExitSummary(caller) : null;
         boolean feedbackSubmitted = exitSummary != null && exitSummary.feedbackSubmitted();
 
+        // Selection acknowledgment block — populated only when the latest
+        // completed interview decision is SELECTED and ack hasn't fired.
+        SelectionContext selection = computeSelectionContext(caller, status);
+
         return new InternDashboardResponse(
                 userSummary(caller),
                 status,
@@ -69,11 +83,79 @@ public class InternDashboardService {
                 emailVerified,
                 buildStepper(caller, status, hasPublishedEval),
                 buildModules(mode),
-                buildNextAction(status, mode, emailVerified, exitSummary, feedbackSubmitted),
+                buildNextAction(status, mode, emailVerified,
+                        exitSummary, feedbackSubmitted, selection),
                 buildContacts(caller),
                 exitSummary,
+                selection != null && selection.pendingAck() ? selection.toAck() : null,
                 Instant.now()
         );
+    }
+
+    // ── Selection-acknowledgment context ────────────────────────────────────
+
+    /**
+     * Lightweight value object describing the most recent application's
+     * selection state — used to drive both the dedicated selection-ack card
+     * and the INTERVIEW_COMPLETED next-action ("Awaiting decision" vs
+     * "Selected — request offer" vs "Offer on its way").
+     */
+    private record SelectionContext(
+            UUID applicationId, String jobTitle, String applicantVisibleNotes,
+            boolean isSelected, boolean acknowledged) {
+        boolean pendingAck() { return isSelected && !acknowledged; }
+        boolean awaitingOffer() { return isSelected && acknowledged; }
+        InternDashboardResponse.SelectionAck toAck() {
+            return new InternDashboardResponse.SelectionAck(
+                    applicationId, jobTitle, applicantVisibleNotes);
+        }
+    }
+
+    private SelectionContext computeSelectionContext(User caller, InternLifecycleStatus status) {
+        // Only relevant in the INTERVIEW_COMPLETED window; past OFFER_SENT
+        // the offer has already been issued and the selection card would
+        // be stale.
+        if (status != InternLifecycleStatus.INTERVIEW_COMPLETED) return null;
+        try {
+            Candidate candidate = candidateRepository.findByUserId(caller.getId()).orElse(null);
+            if (candidate == null) return null;
+            // Latest application is the one whose latest completed interview
+            // carries the decision we care about. Walk candidate's apps and
+            // pick the one with the most recent completed interview.
+            List<Application> apps = applicationRepository.findByCandidateId(candidate.getId());
+            Application bestApp = null;
+            Interview bestInterview = null;
+            for (Application a : apps) {
+                if (a == null || a.getId() == null) continue;
+                List<Interview> ivs = interviewRepository
+                        .findByApplicationIdOrderByScheduledAtDesc(a.getId());
+                for (Interview iv : ivs) {
+                    if (iv.getStatus() != InterviewStatus.COMPLETED) continue;
+                    if (bestInterview == null
+                            || (iv.getScheduledAt() != null
+                                && (bestInterview.getScheduledAt() == null
+                                    || iv.getScheduledAt().isAfter(bestInterview.getScheduledAt())))) {
+                        bestApp = a;
+                        bestInterview = iv;
+                    }
+                    break; // only consider the most recent completed iv per app
+                }
+            }
+            if (bestApp == null || bestInterview == null) return null;
+            boolean selected = "SELECTED".equalsIgnoreCase(bestInterview.getDecision());
+            return new SelectionContext(
+                    bestApp.getId(),
+                    bestApp.getJobPosting() != null ? bestApp.getJobPosting().getTitle() : null,
+                    bestApp.getApplicantVisibleFeedback() != null
+                            ? bestApp.getApplicantVisibleFeedback()
+                            : bestInterview.getApplicantVisibleNotes(),
+                    selected,
+                    bestApp.getSelectionAcknowledgedAt() != null);
+        } catch (Exception e) {
+            log.warn("[Dashboard] selection-context lookup failed (non-fatal) for {}: {}",
+                    caller.getId(), e.getMessage());
+            return null;
+        }
     }
 
     private ExitSummary loadExitSummary(User caller) {
@@ -270,7 +352,8 @@ public class InternDashboardService {
     private NextAction buildNextAction(InternLifecycleStatus s, String mode,
                                        boolean emailVerified,
                                        ExitSummary exitSummary,
-                                       boolean feedbackSubmitted) {
+                                       boolean feedbackSubmitted,
+                                       SelectionContext selection) {
         if (s == InternLifecycleStatus.INACTIVE_INTERN) {
             if (!feedbackSubmitted) {
                 return action(
@@ -315,10 +398,27 @@ public class InternDashboardService {
                     "Join the Zoom call at the scheduled time.",
                     "View interview", "/careers/intern/interviews",
                     false, null);
-            case INTERVIEW_COMPLETED -> waiting(
-                    "Awaiting interview feedback",
-                    "The interviewer is recording feedback.",
-                    "ERM");
+            case INTERVIEW_COMPLETED -> {
+                if (selection != null && selection.pendingAck()) {
+                    // The dedicated SelectionAckCard on the dashboard
+                    // owns the CTA. Keep NextAction as a soft "waiting on
+                    // you" so the two cards don't fight for attention.
+                    yield waiting(
+                            "You've been selected",
+                            "See the highlighted card above — click \"Receive my offer letter\" when you're ready.",
+                            "you");
+                }
+                if (selection != null && selection.awaitingOffer()) {
+                    yield waiting(
+                            "Offer letter on its way",
+                            "Thanks for acknowledging. ERM will issue your offer shortly — you'll get an email when it's ready to sign.",
+                            "ERM");
+                }
+                yield waiting(
+                        "Awaiting interview feedback",
+                        "The interviewer is recording feedback.",
+                        "ERM");
+            }
             case OFFER_SENT -> action(
                     "Sign your offer letter",
                     "Review and sign the offer through DocuSign.",

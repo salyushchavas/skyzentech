@@ -25,6 +25,10 @@ public record InternDashboardResponse(
         NextAction nextAction,
         Contacts contacts,
         ExitSummary exitSummary,
+        /** Present when the intern has been SELECTED post-interview but
+         *  has not yet clicked "Receive my offer letter". Null otherwise.
+         *  Drives the dedicated selection-ack card on the intern home. */
+        SelectionAck selectionAck,
         Instant lastUpdatedAt
 ) {
     public record UserSummary(
@@ -86,6 +90,19 @@ public record InternDashboardResponse(
     public record Contact(
             String name,
             String email
+    ) {}
+
+    /**
+     * Surfaced only when the latest interview decision is SELECTED and the
+     * applicant hasn't acknowledged yet. Frontend renders a dedicated
+     * card with a "Receive my offer letter" button that POSTs to
+     * {@code /api/v1/applications/{applicationId}/acknowledge-selection}.
+     */
+    public record SelectionAck(
+            UUID applicationId,
+            String jobTitle,
+            /** Optional applicant-visible feedback ERM wrote at decision time. */
+            String applicantVisibleNotes
     ) {}
 
     /**

@@ -72,6 +72,20 @@ public class ApplicationController {
     }
 
     /**
+     * Intern-initiated selection acknowledgment. Recorded after the ERM
+     * marks the candidate SELECTED on the interview; the intern clicks
+     * "Receive my offer letter" on the dashboard which fires this. The
+     * service enforces (a) caller-is-applicant ownership and (b) the
+     * latest completed interview decision is SELECTED. Idempotent.
+     */
+    @PostMapping("/{id}/acknowledge-selection")
+    @PreAuthorize("hasRole('INTERN')")
+    public ApplicationResponse acknowledgeSelection(@PathVariable UUID id,
+                                                     @AuthenticationPrincipal User caller) {
+        return applicationService.acknowledgeSelection(id, caller);
+    }
+
+    /**
      * Richer per-application journey for the candidate's My Applications page.
      * Same source-of-truth as {@code /me}, plus interview/offer/audit-derived
      * stage dates and an action-needed CTA when something is pending.

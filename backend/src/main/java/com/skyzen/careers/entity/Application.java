@@ -110,6 +110,19 @@ public class Application {
     @Column(name = "internal_notes", columnDefinition = "TEXT")
     private String internalNotes;
 
+    /**
+     * Set when the intern clicks "Receive my offer letter" on their
+     * dashboard after the ERM marks them SELECTED. Gates
+     * {@code ErmOfferService.createAndSend} — an offer cannot be issued
+     * until the intern has acknowledged selection. Null until ack.
+     */
+    @Column(name = "selection_acknowledged_at")
+    private Instant selectionAcknowledgedAt;
+
+    /** UUID of the intern user who acknowledged selection (== candidate.user.id). */
+    @Column(name = "selection_acknowledged_by")
+    private UUID selectionAcknowledgedBy;
+
     @PrePersist
     void onCreate() {
         Instant now = Instant.now();

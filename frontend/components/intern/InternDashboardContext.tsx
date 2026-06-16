@@ -93,6 +93,17 @@ export interface InternExitSummary {
   finalEvaluationId: string | null;
 }
 
+/**
+ * Surfaced only when the latest interview decision is SELECTED and the
+ * applicant hasn't acknowledged yet. Powers the dedicated selection-ack
+ * card on the intern home with the "Receive my offer letter" button.
+ */
+export interface InternSelectionAck {
+  applicationId: string;
+  jobTitle: string | null;
+  applicantVisibleNotes: string | null;
+}
+
 export interface InternDashboardResponse {
   user: {
     firstName: string;
@@ -109,6 +120,7 @@ export interface InternDashboardResponse {
   nextAction: InternNextAction;
   contacts: InternContacts;
   exitSummary: InternExitSummary | null;
+  selectionAck: InternSelectionAck | null;
   lastUpdatedAt: string;
 }
 

@@ -218,18 +218,43 @@ public class InterviewEmailListener {
         vars.put("firstName", firstName(applicant));
         vars.put("jobTitle", jobTitle(app));
         String fallbackSubject = switch (decision) {
-            case "SELECTED" -> "Great news from your Skyzen interview";
+            case "SELECTED" -> "Welcome to Skyzen — you've been selected for "
+                    + vars.get("jobTitle");
             case "HOLD" -> "Skyzen interview — under consideration";
             default -> "Skyzen interview decision";
         };
-        String fallbackBody = "Hello " + vars.get("firstName") + ",\n\n"
-                + (iv.getApplicantVisibleNotes() != null
-                        ? iv.getApplicantVisibleNotes()
-                        : "Thank you for interviewing.")
-                + "\n\n— Skyzen ERM";
+        String visibleNotes = iv.getApplicantVisibleNotes() != null
+                ? iv.getApplicantVisibleNotes() : "";
+        String fallbackBody;
+        String actionUrl;
+        if ("SELECTED".equals(decision)) {
+            // Selection welcome: confirm the position, set expectations,
+            // and direct the intern to their dashboard where the
+            // "Receive my offer letter" card now appears. The actual
+            // offer is issued only after they click it.
+            fallbackBody = "Hello " + vars.get("firstName") + ",\n\n"
+                    + "Congratulations — you've been selected for the "
+                    + vars.get("jobTitle") + " role at Skyzen.\n\n"
+                    + (visibleNotes.isEmpty()
+                            ? ""
+                            : visibleNotes + "\n\n")
+                    + "When you're ready to receive your offer letter, "
+                    + "sign in to your Skyzen dashboard and click "
+                    + "\"Receive my offer letter\". We'll prepare and "
+                    + "send your offer right after.\n\n"
+                    + "— Skyzen ERM";
+            actionUrl = "/careers/intern";
+        } else {
+            fallbackBody = "Hello " + vars.get("firstName") + ",\n\n"
+                    + (visibleNotes.isEmpty()
+                            ? "Thank you for interviewing."
+                            : visibleNotes)
+                    + "\n\n— Skyzen ERM";
+            actionUrl = "/careers/intern/applications";
+        }
         renderAndSend(templateKey, vars, applicant,
                 fallbackSubject, fallbackBody, "INTERVIEW_" + decision,
-                "/careers/intern/applications");
+                actionUrl);
     }
 
     // ── Shared render+send+dispatch ───────────────────────────────────────

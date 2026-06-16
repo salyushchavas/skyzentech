@@ -762,6 +762,19 @@ public class SchemaFixupRunner implements CommandLineRunner {
             log.warn("applications Phase 2 columns add failed (non-fatal): {}", e.getMessage(), e);
         }
 
+        // Selection acknowledgment — intern's explicit "I've been selected,
+        // please send my offer letter" click. Gates ErmOfferService.createAndSend
+        // so an offer isn't issued until the intern actively requests it.
+        try {
+            jdbcTemplate.execute(
+                    "ALTER TABLE applications ADD COLUMN IF NOT EXISTS selection_acknowledged_at TIMESTAMP");
+            jdbcTemplate.execute(
+                    "ALTER TABLE applications ADD COLUMN IF NOT EXISTS selection_acknowledged_by UUID");
+            log.info("Ensured applications selection_acknowledged_at + selection_acknowledged_by columns exist.");
+        } catch (Exception e) {
+            log.warn("applications selection_acknowledged columns add failed (non-fatal): {}", e.getMessage(), e);
+        }
+
         // ── Phase 3 (offer letter + DocuSign + employee id) ────────────────
 
         // documents table — the document vault. Phase 3 writes SIGNED_OFFER

@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { Mail, Sparkles } from 'lucide-react';
+import { Mail, PartyPopper, Sparkles } from 'lucide-react';
 import api from '@/lib/api';
 import InternPageShell from '@/components/intern/InternPageShell';
 import ExitSummaryCard from '@/components/exit/ExitSummaryCard';
@@ -11,6 +11,7 @@ import {
   type InternLifecycleStatus,
   type InternMode,
   type InternNextAction,
+  type InternSelectionAck,
 } from '@/components/intern/InternDashboardContext';
 import { useState } from 'react';
 
@@ -77,6 +78,11 @@ export default function InternHomePage() {
         </div>
       ) : (
         <>
+          {data.selectionAck && (
+            <div className="mb-6">
+              <SelectionAckCard ack={data.selectionAck} />
+            </div>
+          )}
           <NextActionCard action={data.nextAction} />
           <div className="mt-6 grid gap-6 lg:grid-cols-2">
             <ContactsCard contacts={data.contacts} />
@@ -85,6 +91,70 @@ export default function InternHomePage() {
         </>
       )}
     </InternPageShell>
+  );
+}
+
+// ── Selection acknowledgment ─────────────────────────────────────────────
+
+function SelectionAckCard({ ack }: { ack: InternSelectionAck }) {
+  const { refresh } = useInternDashboard();
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const jobLabel = ack.jobTitle?.trim() || 'the role';
+
+  async function onClick() {
+    setBusy(true);
+    setErr(null);
+    try {
+      await api.post(`/applications/${ack.applicationId}/acknowledge-selection`);
+      // Optimistic refresh — the dashboard endpoint will null out
+      // selectionAck and shift NextAction to "Offer on its way".
+      await refresh();
+    } catch (e) {
+      const ax = e as { response?: { data?: { error?: string } } };
+      setErr(
+        ax.response?.data?.error
+          ?? (e instanceof Error ? e.message : 'Could not record acknowledgment'),
+      );
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <section className="rounded-lg border border-emerald-200 bg-emerald-50 p-6 shadow-sm">
+      <div className="inline-flex items-center gap-1.5 rounded-full bg-emerald-100 px-2.5 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-emerald-800">
+        <PartyPopper className="h-3 w-3" strokeWidth={2.5} />
+        Congratulations
+      </div>
+      <h2 className="mt-2 text-xl font-semibold text-emerald-900">
+        You&apos;ve been selected for {jobLabel}
+      </h2>
+      <p className="mt-1 text-sm text-emerald-900/90">
+        When you&apos;re ready, click the button below. We&apos;ll prepare and
+        send your offer letter right after — you&apos;ll receive a DocuSign
+        email to review and sign.
+      </p>
+      {ack.applicantVisibleNotes && (
+        <div className="mt-3 rounded-md border border-emerald-200 bg-white p-3 text-sm text-slate-700">
+          <p className="text-[11px] font-semibold uppercase tracking-wide text-emerald-700">
+            From the interview team
+          </p>
+          <p className="mt-1 whitespace-pre-wrap">{ack.applicantVisibleNotes}</p>
+        </div>
+      )}
+      <div className="mt-4">
+        <button
+          type="button"
+          onClick={onClick}
+          disabled={busy}
+          className="inline-flex items-center rounded-md bg-emerald-700 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-emerald-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-2 disabled:opacity-60"
+        >
+          {busy ? 'Sending…' : 'Receive my offer letter'}
+        </button>
+        {err && <p className="mt-2 text-xs text-rose-700">{err}</p>}
+      </div>
+    </section>
   );
 }
 
