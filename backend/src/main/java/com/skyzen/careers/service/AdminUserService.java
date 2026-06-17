@@ -324,10 +324,14 @@ public class AdminUserService {
                 "DELETE FROM document_packets "
                         + "WHERE intern_lifecycle_id IN " + lifecycleIds, userId);
 
-        // Phase 6 — legacy onboarding packets
+        // Phase 6 — legacy onboarding packets. onboarding_tasks carries
+        // BOTH a packet_id link AND a direct candidate_id FK, so we
+        // sweep by candidate_id too — covers rows orphaned from a
+        // packet whose intern_lifecycle is missing.
         del(deleted, "onboarding_tasks",
                 "DELETE FROM onboarding_tasks "
-                        + "WHERE packet_id IN " + onboardingPacketIds, userId);
+                        + "WHERE packet_id IN " + onboardingPacketIds
+                        + " OR candidate_id IN " + candidateIds, userId, userId);
         del(deleted, "onboarding_packets",
                 "DELETE FROM onboarding_packets "
                         + "WHERE intern_lifecycle_id IN " + lifecycleIds, userId);
@@ -363,8 +367,12 @@ public class AdminUserService {
         del(deleted, "application_decision_logs",
                 "DELETE FROM application_decision_logs WHERE application_id IN "
                         + applicationIds, userId);
+        // engagements carries a direct candidate_id FK too — sweep by
+        // both application_id AND candidate_id to catch orphans.
         del(deleted, "engagements",
-                "DELETE FROM engagements WHERE application_id IN " + applicationIds, userId);
+                "DELETE FROM engagements "
+                        + "WHERE application_id IN " + applicationIds
+                        + " OR candidate_id IN " + candidateIds, userId, userId);
         del(deleted, "applications",
                 "DELETE FROM applications WHERE candidate_id IN " + candidateIds, userId);
 
