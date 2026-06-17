@@ -376,9 +376,15 @@ public class AdminUserService {
         del(deleted, "applications",
                 "DELETE FROM applications WHERE candidate_id IN " + candidateIds, userId);
 
-        // Phase 9 — compliance
+        // Phase 9 — compliance. everify_cases is keyed by i9_form_id
+        // (no candidate_id column), so we delete via the i9_forms
+        // chain. Doing this in the wrong order leaves an i9_form row
+        // an everify_case still references, which then blocks the
+        // candidates DELETE further down.
         del(deleted, "everify_cases",
-                "DELETE FROM everify_cases WHERE candidate_id IN " + candidateIds, userId);
+                "DELETE FROM everify_cases WHERE i9_form_id IN "
+                        + "(SELECT id FROM i9_forms WHERE candidate_id IN "
+                        + candidateIds + ")", userId);
         del(deleted, "i9_forms",
                 "DELETE FROM i9_forms WHERE candidate_id IN " + candidateIds, userId);
         del(deleted, "i983_plans",
