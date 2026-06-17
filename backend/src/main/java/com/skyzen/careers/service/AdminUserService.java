@@ -446,6 +446,20 @@ public class AdminUserService {
                 "DELETE FROM user_roles WHERE user_id = ?", userId);
         deleted.put("user_roles", roleRows);
 
+        // Pre-flight: enumerate any child rows still referencing this
+        // user via candidates / intern_lifecycles / any direct user FK.
+        // Surfaces the real blocker in the error message instead of
+        // letting the GlobalExceptionHandler swallow the FK violation
+        // into a generic "data integrity violation".
+        Map<String, Object> blockers = findBlockers(userId);
+        if (!blockers.isEmpty()) {
+            log.warn("[AdminUserService] pre-flight found blockers for user {} ({}): {}",
+                    userId, target.getEmail(), blockers);
+            throw new ConflictException(
+                    "User row still referenced — wipe is incomplete. Blockers: "
+                            + blockers + ". Per-table summary: " + deleted);
+        }
+
         // Phase 14 — terminal user delete. NOT wrapped in a savepoint
         // either — if any FK still references this row we want to fail
         // the whole transaction so the caller sees the error instead of
@@ -486,7 +500,7 @@ public class AdminUserService {
                 long n = jdbcTemplate.update(sql, args);
                 deleted.put(tableName, n);
             } catch (Exception e) {
-                log.debug("[AdminUserService] delete {} skipped (no savepoint, fallback failed): {}",
+                log.warn("[AdminUserService] delete {} FAILED (no savepoint, fallback): {}",
                         tableName, e.getMessage());
                 deleted.put(tableName, -1L);
             }
@@ -504,9 +518,67 @@ public class AdminUserService {
                 log.warn("[AdminUserService] rollback to {} failed: {}",
                         savepoint, rbErr.getMessage());
             }
-            log.debug("[AdminUserService] delete {} skipped: {}", tableName, e.getMessage());
+            // WARN (not DEBUG) so the row-cause shows up in Railway
+            // logs and we can see which column/FK is breaking the wipe.
+            log.warn("[AdminUserService] delete {} FAILED: {}", tableName, e.getMessage());
             deleted.put(tableName, -1L);
         }
+    }
+
+    /**
+     * Pre-flight: count any rows still referencing this user via the
+     * three primary identity tables (users / candidates /
+     * intern_lifecycles) plus the standard child-FK tables we sweep.
+     * Returns a map of {tableName -> rowCount} for everything still
+     * holding on. Empty map ⇒ safe to issue the terminal users DELETE.
+     */
+    private Map<String, Object> findBlockers(UUID userId) {
+        Map<String, Object> out = new LinkedHashMap<>();
+        // Probe each suspect — wrap in savepoint so a missing table
+        // doesn't poison the txn. The COUNT(*) sql is parameter-safe
+        // because table/column names are hard-coded.
+        Map<String, String> probes = new LinkedHashMap<>();
+        probes.put("candidates",
+                "SELECT COUNT(*) FROM candidates WHERE user_id = ?");
+        probes.put("intern_lifecycles",
+                "SELECT COUNT(*) FROM intern_lifecycles WHERE user_id = ?");
+        probes.put("user_roles",
+                "SELECT COUNT(*) FROM user_roles WHERE user_id = ?");
+        probes.put("password_reset_tokens",
+                "SELECT COUNT(*) FROM password_reset_tokens WHERE user_id = ?");
+        probes.put("user_sessions",
+                "SELECT COUNT(*) FROM user_sessions WHERE user_id = ?");
+        probes.put("documents",
+                "SELECT COUNT(*) FROM documents WHERE owner_user_id = ?");
+        probes.put("user_notifications",
+                "SELECT COUNT(*) FROM user_notifications "
+                        + "WHERE recipient_user_id = ? OR subject_user_id = ?");
+        probes.put("work_authorization_records",
+                "SELECT COUNT(*) FROM work_authorization_records WHERE user_id = ?");
+        probes.put("support_tickets",
+                "SELECT COUNT(*) FROM support_tickets WHERE opener_user_id = ?");
+
+        for (Map.Entry<String, String> e : probes.entrySet()) {
+            String savepoint = "probe_" + e.getKey().replaceAll("[^a-zA-Z0-9_]", "_");
+            try {
+                jdbcTemplate.execute("SAVEPOINT " + savepoint);
+                Long n;
+                if (e.getKey().equals("user_notifications")) {
+                    n = jdbcTemplate.queryForObject(e.getValue(), Long.class, userId, userId);
+                } else {
+                    n = jdbcTemplate.queryForObject(e.getValue(), Long.class, userId);
+                }
+                jdbcTemplate.execute("RELEASE SAVEPOINT " + savepoint);
+                if (n != null && n > 0) out.put(e.getKey(), n);
+            } catch (Exception probeErr) {
+                try {
+                    jdbcTemplate.execute("ROLLBACK TO SAVEPOINT " + savepoint);
+                    jdbcTemplate.execute("RELEASE SAVEPOINT " + savepoint);
+                } catch (Exception ignored) {}
+                // Missing-table probe is harmless.
+            }
+        }
+        return out;
     }
 
     private UUID queryForUuid(String sql, Object... args) {
