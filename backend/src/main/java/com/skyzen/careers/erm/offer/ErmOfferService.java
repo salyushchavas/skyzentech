@@ -635,6 +635,13 @@ public class ErmOfferService {
                 req.expiryDays() != null ? req.expiryDays().toString() : "7");
         vars.put("ermName", caller != null && caller.getFullName() != null
                 ? caller.getFullName() : "Skyzen ERM");
+        // {{signingLink}} is built per-offer at SEND time by
+        // OfferIdmsSigningService.sendOfferLetterEmail (offerId doesn't
+        // exist yet at preview). Supply a human-friendly placeholder so
+        // the OFFER_LETTER template renders cleanly in the ERM preview
+        // pane instead of failing with "missing variable 'signingLink'".
+        vars.put("signingLink",
+                "(a secure signing link is generated when the offer is sent)");
         return vars;
     }
 

@@ -16,6 +16,7 @@ import com.skyzen.careers.service.ExitService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
 import java.util.ArrayList;
@@ -47,6 +48,17 @@ public class InternDashboardService {
     private final ApplicationRepository applicationRepository;
     private final SelectionAckPolicy selectionAckPolicy;
 
+    /**
+     * Read-only transaction so lazy associations the dashboard touches
+     * resolve cleanly. Specifically: {@code Application.jobPosting} is
+     * {@code @ManyToOne(LAZY)} and the selection-context picker reads
+     * {@code app.getJobPosting().getTitle()}; without an open session
+     * that access throws LazyInitializationException, the catch returns
+     * null, and the SELECTED candidate falls through to "Awaiting
+     * interview feedback". Other reads in the method (exit summary,
+     * offers, evaluations) also benefit from the open session.
+     */
+    @Transactional(readOnly = true)
     public InternDashboardResponse getDashboard(User caller) {
         InternLifecycleStatus status = caller.getLifecycleStatus() != null
                 ? caller.getLifecycleStatus()
