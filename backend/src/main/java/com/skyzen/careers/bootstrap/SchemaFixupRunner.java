@@ -1298,6 +1298,17 @@ public class SchemaFixupRunner implements CommandLineRunner {
         // backstop in InternActivationJob.
         backfillAutoLinkV2();
 
+        // Self-healing every-boot pass. V1 + V2 are migration_log-gated
+        // and only ran once each, so an intern activated AFTER both
+        // backfills but BEFORE DEFAULT_TRAINER_EMAIL /
+        // DEFAULT_EVALUATOR_EMAIL resolved still has null links forever.
+        // This pass runs unconditionally on every boot, idempotently
+        // filling nulls on ACTIVE lifecycles — a no-op when nothing is
+        // null, and self-heals new env-var configurations the moment
+        // they land. Never overwrites explicit ERM assignments
+        // (WHERE trainer_id IS NULL guarantees this).
+        selfHealActiveInternAutoLinks();
+
         // Job ID backfill — one-shot, idempotent. Stamps the new
         // SKZ-JOB-YYYY-NNNNNN job_id on any existing job_postings row
         // missing one. Future postings are stamped at creation via
@@ -1343,6 +1354,87 @@ public class SchemaFixupRunner implements CommandLineRunner {
      */
     private void backfillAutoLinkV2() {
         backfillAutoLinkUnderKey("BACKFILL_AUTO_LINK_V2");
+    }
+
+    /**
+     * Self-healing auto-link pass for ACTIVE interns. Runs on every boot;
+     * fills nulls on {@code intern_lifecycles.trainer_id /
+     * evaluator_id} where active_status = 'ACTIVE'. Idempotent — no-op
+     * once nothing is null. Never overwrites a non-null assignment
+     * (the WHERE … IS NULL guarantees ERM's explicit assignments are
+     * preserved).
+     *
+     * <p>Reason this is unconditional (no migration_log gate): V1 + V2
+     * each only run ONCE per database. An intern activated after both
+     * gates closed, but before DEFAULT_TRAINER_EMAIL /
+     * DEFAULT_EVALUATOR_EMAIL resolved, keeps null links forever — and
+     * with null links they're invisible on the Trainer/Evaluator
+     * rosters and show an incomplete "Your team" on the intern
+     * dashboard. This pass closes that gap the moment the env vars
+     * resolve, on the next deploy.</p>
+     */
+    private void selfHealActiveInternAutoLinks() {
+        java.util.UUID trainerUserId = resolveEmailToUserId(defaultTrainerEmail, "trainer");
+        java.util.UUID evaluatorUserId = resolveEmailToUserId(defaultEvaluatorEmail, "evaluator");
+
+        if (trainerUserId == null && evaluatorUserId == null) {
+            // Both unconfigured / unresolvable — log once at WARN so it
+            // surfaces on every boot until configured.
+            log.warn("[SchemaFixup] self-heal auto-link: BOTH "
+                    + "DEFAULT_TRAINER_EMAIL and DEFAULT_EVALUATOR_EMAIL "
+                    + "unset or unresolvable. ACTIVE interns will have "
+                    + "null trainer_id/evaluator_id until configured.");
+            return;
+        }
+
+        int trainersFilled = 0;
+        int evaluatorsFilled = 0;
+        if (trainerUserId != null) {
+            try {
+                trainersFilled = jdbcTemplate.update(
+                        "UPDATE intern_lifecycles "
+                                + "   SET trainer_id = ? "
+                                + " WHERE active_status = 'ACTIVE' "
+                                + "   AND trainer_id IS NULL",
+                        trainerUserId);
+            } catch (Exception e) {
+                log.warn("[SchemaFixup] self-heal trainer_id failed: {}", e.getMessage());
+            }
+        }
+        if (evaluatorUserId != null) {
+            try {
+                evaluatorsFilled = jdbcTemplate.update(
+                        "UPDATE intern_lifecycles "
+                                + "   SET evaluator_id = ? "
+                                + " WHERE active_status = 'ACTIVE' "
+                                + "   AND evaluator_id IS NULL",
+                        evaluatorUserId);
+            } catch (Exception e) {
+                log.warn("[SchemaFixup] self-heal evaluator_id failed: {}", e.getMessage());
+            }
+        }
+        try {
+            int structureCompleted = jdbcTemplate.update(
+                    "UPDATE intern_lifecycles "
+                            + "   SET reporting_structure_complete = TRUE, "
+                            + "       reporting_structure_completed_at = NOW() "
+                            + " WHERE active_status = 'ACTIVE' "
+                            + "   AND trainer_id IS NOT NULL "
+                            + "   AND evaluator_id IS NOT NULL "
+                            + "   AND (reporting_structure_complete IS NULL "
+                            + "        OR reporting_structure_complete = FALSE)");
+            if (trainersFilled > 0 || evaluatorsFilled > 0 || structureCompleted > 0) {
+                log.info("[SchemaFixup] self-heal auto-link: trainer_id={} "
+                                + "evaluator_id={} structure_complete={}",
+                        trainersFilled, evaluatorsFilled, structureCompleted);
+            } else {
+                log.debug("[SchemaFixup] self-heal auto-link: all ACTIVE "
+                        + "lifecycles already linked (no-op).");
+            }
+        } catch (Exception e) {
+            log.warn("[SchemaFixup] self-heal structure-complete flip failed: {}",
+                    e.getMessage());
+        }
     }
 
     private void backfillAutoLinkUnderKey(final String migKey) {

@@ -58,12 +58,15 @@ public class ReportingStructureAutoLinker {
     public boolean apply(InternLifecycle lc, UUID actorId, Instant now) {
         if (lc == null) return false;
 
+        UUID lifecycleId = lc.getId();
         boolean changed = false;
         if (lc.getTrainerId() == null) {
-            changed |= tryAutoLink(lc::setTrainerId, defaultTrainerEmail, "trainer");
+            changed |= tryAutoLink(lc::setTrainerId, defaultTrainerEmail,
+                    "trainer", lifecycleId);
         }
         if (lc.getEvaluatorId() == null) {
-            changed |= tryAutoLink(lc::setEvaluatorId, defaultEvaluatorEmail, "evaluator");
+            changed |= tryAutoLink(lc::setEvaluatorId, defaultEvaluatorEmail,
+                    "evaluator", lifecycleId);
         }
         if (lc.getTrainerId() != null && lc.getEvaluatorId() != null
                 && !Boolean.TRUE.equals(lc.getReportingStructureComplete())) {
@@ -75,22 +78,38 @@ public class ReportingStructureAutoLinker {
         return changed;
     }
 
-    private boolean tryAutoLink(Consumer<UUID> setter, String email, String roleLabel) {
+    private boolean tryAutoLink(Consumer<UUID> setter, String email,
+                                 String roleLabel, UUID lifecycleId) {
+        // WARN (not INFO) so the operator notices the gap. A
+        // newly-activated intern with a null trainer_id / evaluator_id
+        // is INVISIBLE on the Trainer / Evaluator rosters, blocks
+        // project-assign + every per-intern action gated by the scope
+        // guards, and shows an incomplete "Your team" on the intern
+        // dashboard — all symptoms with no obvious cause until the
+        // operator finds this log.
         if (email == null || email.isBlank()) {
-            log.info("[AutoLink] {} default email not set — leaving {}_id null "
-                    + "(non-blocking; ERM may set inline)", roleLabel, roleLabel);
+            log.warn("[AutoLink] {} default email not configured — lifecycle {} "
+                            + "will have a null {}_id until DEFAULT_{}_EMAIL is set "
+                            + "or ERM assigns manually. Intern is invisible on the "
+                            + "{} roster until then.",
+                    roleLabel, lifecycleId, roleLabel,
+                    roleLabel.toUpperCase(), roleLabel);
             return false;
         }
         return userRepository.findByEmail(email.trim())
                 .map(u -> {
                     setter.accept(u.getId());
-                    log.info("[AutoLink] linked default {} = {} ({})",
-                            roleLabel, u.getFullName(), u.getEmail());
+                    log.info("[AutoLink] linked default {} = {} ({}) on lifecycle {}",
+                            roleLabel, u.getFullName(), u.getEmail(), lifecycleId);
                     return true;
                 })
                 .orElseGet(() -> {
-                    log.info("[AutoLink] {} email '{}' did not resolve to a user — "
-                            + "leaving null (non-blocking)", roleLabel, email);
+                    log.warn("[AutoLink] {} email '{}' did NOT resolve to any user "
+                                    + "on lifecycle {} — check DEFAULT_{}_EMAIL is set "
+                                    + "to a seeded account. {}_id left null; intern "
+                                    + "is invisible on the {} roster.",
+                            roleLabel, email, lifecycleId,
+                            roleLabel.toUpperCase(), roleLabel, roleLabel);
                     return false;
                 });
     }
