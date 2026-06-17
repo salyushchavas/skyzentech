@@ -99,6 +99,10 @@ const STAFF_ROLE_LINKS: Record<UserRole, StaffLink[]> = {
   ],
   SUPER_ADMIN: [
     { icon: LayoutDashboard, label: 'Super Admin Dashboard', href: '/careers/admin' },
+    { icon: Users,           label: 'Users',                 href: '/careers/admin/users' },
+    { icon: Briefcase,       label: 'Job Postings',          href: '/careers/admin/postings' },
+    { icon: Package,         label: 'Entities',              href: '/careers/admin/entities' },
+    { icon: ShieldCheck,     label: 'Audit Log',             href: '/careers/admin/audit-log' },
   ],
 };
 
