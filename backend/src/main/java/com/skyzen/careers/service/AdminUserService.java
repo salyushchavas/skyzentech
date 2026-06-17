@@ -237,14 +237,16 @@ public class AdminUserService {
                 + applicationIds + ")";
         String screeningIds = "(SELECT id FROM screenings WHERE application_id IN "
                 + applicationIds + ")";
+        // Timesheet.intern_id → candidates.id (NOT intern_lifecycle_id).
+        // The Timesheet entity's @JoinColumn(name = "intern_id") targets
+        // the Candidate, matching the codebase convention where "intern"
+        // means the candidate row of an active intern.
         String timesheetIds = "(SELECT id FROM timesheets "
-                + "WHERE intern_lifecycle_id IN " + lifecycleIds + ")";
+                + "WHERE intern_id IN " + candidateIds + ")";
         String documentPacketIds = "(SELECT id FROM document_packets "
                 + "WHERE intern_lifecycle_id IN " + lifecycleIds + ")";
         String documentTaskIds = "(SELECT id FROM document_tasks "
                 + "WHERE packet_id IN " + documentPacketIds + ")";
-        String onboardingPacketIds = "(SELECT id FROM onboarding_packets "
-                + "WHERE intern_lifecycle_id IN " + lifecycleIds + ")";
         String exitRecordIds = "(SELECT id FROM exit_records "
                 + "WHERE intern_lifecycle_id IN " + lifecycleIds + ")";
 
@@ -302,13 +304,14 @@ public class AdminUserService {
                 "DELETE FROM projects "
                         + "WHERE intern_lifecycle_id IN " + lifecycleIds, userId);
 
-        // Phase 4 — timesheets + weekly meetings
+        // Phase 4 — timesheets + weekly meetings. Timesheet.intern_id
+        // is the FK to candidates.id (see timesheetIds fragment above).
         del(deleted, "timesheet_days",
                 "DELETE FROM timesheet_days "
                         + "WHERE timesheet_id IN " + timesheetIds, userId);
         del(deleted, "timesheets",
                 "DELETE FROM timesheets "
-                        + "WHERE intern_lifecycle_id IN " + lifecycleIds, userId);
+                        + "WHERE intern_id IN " + candidateIds, userId);
         del(deleted, "weekly_meetings",
                 "DELETE FROM weekly_meetings "
                         + "WHERE intern_lifecycle_id IN " + lifecycleIds, userId);
@@ -326,18 +329,13 @@ public class AdminUserService {
 
         // Phase 6 — onboarding_tasks FIRST (before offers), because
         // onboarding_tasks.offer_id → offers blocks the offers DELETE.
-        // Split into TWO statements so a missing onboarding_packets
-        // table on partial deployments doesn't poison the candidate_id
-        // sweep (an OR-joined DELETE fails wholesale on grammar).
-        del(deleted, "onboarding_tasks (via packet)",
-                "DELETE FROM onboarding_tasks "
-                        + "WHERE packet_id IN " + onboardingPacketIds, userId);
-        del(deleted, "onboarding_tasks (via candidate)",
+        // OnboardingTask has NO packet_id column (Phase 8 dropped the
+        // onboarding_packets parent table — see
+        // SchemaFixupRunner:2912-2915). The candidate_id FK is the only
+        // path; the prior "via packet" branch was dead.
+        del(deleted, "onboarding_tasks",
                 "DELETE FROM onboarding_tasks "
                         + "WHERE candidate_id IN " + candidateIds, userId);
-        del(deleted, "onboarding_packets",
-                "DELETE FROM onboarding_packets "
-                        + "WHERE intern_lifecycle_id IN " + lifecycleIds, userId);
 
         // Phase 7 — exit
         del(deleted, "exit_checklist_items",
@@ -355,14 +353,16 @@ public class AdminUserService {
         // themselves). Parents come after engagements has died, since
         // engagement.offer_id and engagement.application_id block
         // offers and applications respectively.
+        //
+        // Dropped from this phase: offer_envelopes (DocuSign-era,
+        // purged with IDMS migration), interview_scorecards (scorecard
+        // data is INLINE on Interview — technical_score /
+        // communication_score / cultural_fit_score columns — no
+        // separate table). Neither table exists on the current schema.
         del(deleted, "offer_event_logs",
                 "DELETE FROM offer_event_logs WHERE offer_id IN " + offerIds, userId);
-        del(deleted, "offer_envelopes",
-                "DELETE FROM offer_envelopes WHERE offer_id IN " + offerIds, userId);
         del(deleted, "interview_event_logs",
                 "DELETE FROM interview_event_logs WHERE interview_id IN " + interviewIds, userId);
-        del(deleted, "interview_scorecards",
-                "DELETE FROM interview_scorecards WHERE interview_id IN " + interviewIds, userId);
         del(deleted, "interviews",
                 "DELETE FROM interviews WHERE application_id IN " + applicationIds, userId);
         del(deleted, "screening_answers",
@@ -375,7 +375,9 @@ public class AdminUserService {
 
         // Phase 9 — compliance. Order: everify_cases (via i9_form_id)
         // → i9_forms (which has engagement_id + candidate_id FKs to
-        // free) → i983_plans / training_plans / work_authorization.
+        // free) → i983_plans → work_authorization. Dropped from this
+        // phase: training_plans (no entity, table doesn't exist on
+        // current schema — legacy from pre-IDMS).
         del(deleted, "everify_cases",
                 "DELETE FROM everify_cases WHERE i9_form_id IN "
                         + "(SELECT id FROM i9_forms WHERE candidate_id IN "
@@ -384,8 +386,6 @@ public class AdminUserService {
                 "DELETE FROM i9_forms WHERE candidate_id IN " + candidateIds, userId);
         del(deleted, "i983_plans",
                 "DELETE FROM i983_plans WHERE candidate_id IN " + candidateIds, userId);
-        del(deleted, "training_plans",
-                "DELETE FROM training_plans WHERE candidate_id IN " + candidateIds, userId);
         del(deleted, "work_authorization_records",
                 "DELETE FROM work_authorization_records WHERE user_id = ?", userId);
 
@@ -440,6 +440,23 @@ public class AdminUserService {
                 userId, userId);
         del(deleted, "support_tickets",
                 "DELETE FROM support_tickets WHERE opener_user_id = ?", userId);
+
+        // Phase 12b — orphan purge. Prior resets ran with broken column
+        // names (timesheets WHERE intern_lifecycle_id, onboarding_tasks
+        // WHERE packet_id) and silently rolled back inside their
+        // savepoints, leaving rows pointing at candidates that have
+        // since been deleted. Sweep those orphans now so the database
+        // converges to a clean state. Idempotent — re-running is a
+        // no-op once the rows are gone.
+        del(deleted, "orphan timesheet_days",
+                "DELETE FROM timesheet_days WHERE timesheet_id NOT IN "
+                        + "(SELECT id FROM timesheets)");
+        del(deleted, "orphan timesheets",
+                "DELETE FROM timesheets WHERE intern_id NOT IN "
+                        + "(SELECT id FROM candidates)");
+        del(deleted, "orphan onboarding_tasks",
+                "DELETE FROM onboarding_tasks WHERE candidate_id NOT IN "
+                        + "(SELECT id FROM candidates)");
 
         // Audit the delete BEFORE we drop the user row — caller is the
         // actor; target is the subject. Both audit columns are plain
