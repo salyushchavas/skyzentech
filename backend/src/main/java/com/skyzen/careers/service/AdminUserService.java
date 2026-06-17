@@ -227,8 +227,23 @@ public class AdminUserService {
         String lifecycleIds = "(SELECT id FROM intern_lifecycles WHERE user_id = ?)";
         String applicationIds = "(SELECT id FROM applications WHERE candidate_id IN "
                 + candidateIds + ")";
-        String projectIds = "(SELECT id FROM projects WHERE intern_lifecycle_id IN "
-                + lifecycleIds + ")";
+        // engagementIds — the user's engagements are reachable from
+        // either application_id (engagement.application_id → applications)
+        // OR candidate_id (engagement.candidate_id → candidates). Needed
+        // because Project carries an optional engagement_id FK that
+        // bypasses the lifecycle path for legacy single-allocation rows.
+        String engagementIds = "(SELECT id FROM engagements WHERE application_id IN "
+                + applicationIds + " OR candidate_id IN " + candidateIds + ")";
+        // projectIds — Project has THREE possible parent paths
+        // (intern_lifecycle_id, engagement_id, intern_id → candidates).
+        // Scoping by lifecycle alone misses Phase A legacy projects whose
+        // intern_lifecycle_id is null but engagement_id/intern_id are
+        // populated — they survive and pin the engagement → cascade
+        // FK failure on the whole downstream chain.
+        String projectIds = "(SELECT id FROM projects "
+                + "WHERE intern_lifecycle_id IN " + lifecycleIds
+                + " OR engagement_id IN " + engagementIds
+                + " OR intern_id IN " + candidateIds + ")";
         String internEvalIds = "(SELECT id FROM intern_evaluations "
                 + "WHERE intern_lifecycle_id IN " + lifecycleIds + ")";
         String offerIds = "(SELECT id FROM offers WHERE application_id IN "
@@ -294,15 +309,26 @@ public class AdminUserService {
         del(deleted, "project_repositories",
                 "DELETE FROM project_repositories "
                         + "WHERE project_id IN " + projectIds, userId);
-        del(deleted, "project_assignments",
+        // project_assignments — chase by widened project_id AND by
+        // intern_id which (per ProjectAssignment.intern_id) points at
+        // Candidate.id. Both branches needed to catch every row.
+        del(deleted, "project_assignments (via project)",
                 "DELETE FROM project_assignments "
-                        + "WHERE intern_id IN " + lifecycleIds, userId);
+                        + "WHERE project_id IN " + projectIds, userId);
+        del(deleted, "project_assignments (via candidate)",
+                "DELETE FROM project_assignments "
+                        + "WHERE intern_id IN " + candidateIds, userId);
         del(deleted, "qa_sessions",
                 "DELETE FROM qa_sessions "
                         + "WHERE project_id IN " + projectIds, userId);
+        // projects DELETE itself uses the same widened WHERE so every
+        // legacy single-allocation row dies — no surviving project can
+        // pin the engagement DELETE in Phase 10.
         del(deleted, "projects",
                 "DELETE FROM projects "
-                        + "WHERE intern_lifecycle_id IN " + lifecycleIds, userId);
+                        + "WHERE intern_lifecycle_id IN " + lifecycleIds
+                        + " OR engagement_id IN " + engagementIds
+                        + " OR intern_id IN " + candidateIds, userId);
 
         // Phase 4 — timesheets + weekly meetings. Timesheet.intern_id
         // is the FK to candidates.id (see timesheetIds fragment above).
@@ -441,13 +467,12 @@ public class AdminUserService {
         del(deleted, "support_tickets",
                 "DELETE FROM support_tickets WHERE opener_user_id = ?", userId);
 
-        // Phase 12b — orphan purge. Prior resets ran with broken column
-        // names (timesheets WHERE intern_lifecycle_id, onboarding_tasks
-        // WHERE packet_id) and silently rolled back inside their
-        // savepoints, leaving rows pointing at candidates that have
-        // since been deleted. Sweep those orphans now so the database
-        // converges to a clean state. Idempotent — re-running is a
-        // no-op once the rows are gone.
+        // Phase 12b — orphan purge. Prior failed deletes (broken column
+        // names, missed FK paths) silently rolled back inside their
+        // savepoints, leaving rows pointing at parents that have since
+        // been deleted. Sweep those orphans now in FK-safe order so the
+        // database converges to a clean state. Idempotent — every
+        // statement is a no-op once nothing's orphaned.
         del(deleted, "orphan timesheet_days",
                 "DELETE FROM timesheet_days WHERE timesheet_id NOT IN "
                         + "(SELECT id FROM timesheets)");
@@ -457,6 +482,87 @@ public class AdminUserService {
         del(deleted, "orphan onboarding_tasks",
                 "DELETE FROM onboarding_tasks WHERE candidate_id NOT IN "
                         + "(SELECT id FROM candidates)");
+
+        // Project graph orphans (leaves → projects). Critical to chase
+        // because a surviving project pins its engagement, cascading
+        // FK violations through offers/applications/resumes/candidates.
+        del(deleted, "orphan project_assignment_event_logs",
+                "DELETE FROM project_assignment_event_logs WHERE project_id NOT IN "
+                        + "(SELECT id FROM projects)");
+        del(deleted, "orphan project_submissions",
+                "DELETE FROM project_submissions WHERE project_id NOT IN "
+                        + "(SELECT id FROM projects)");
+        del(deleted, "orphan project_workspace_files",
+                "DELETE FROM project_workspace_files WHERE project_id NOT IN "
+                        + "(SELECT id FROM projects)");
+        del(deleted, "orphan project_tasks",
+                "DELETE FROM project_tasks WHERE project_id NOT IN "
+                        + "(SELECT id FROM projects)");
+        del(deleted, "orphan project_repositories",
+                "DELETE FROM project_repositories WHERE project_id NOT IN "
+                        + "(SELECT id FROM projects)");
+        del(deleted, "orphan project_assignments",
+                "DELETE FROM project_assignments WHERE project_id NOT IN "
+                        + "(SELECT id FROM projects) OR intern_id NOT IN "
+                        + "(SELECT id FROM candidates)");
+        del(deleted, "orphan qa_sessions",
+                "DELETE FROM qa_sessions WHERE project_id NOT IN "
+                        + "(SELECT id FROM projects)");
+        del(deleted, "orphan projects",
+                "DELETE FROM projects WHERE "
+                        + "(intern_lifecycle_id IS NOT NULL AND intern_lifecycle_id NOT IN "
+                        + "(SELECT id FROM intern_lifecycles)) OR "
+                        + "(engagement_id IS NOT NULL AND engagement_id NOT IN "
+                        + "(SELECT id FROM engagements)) OR "
+                        + "(intern_id IS NOT NULL AND intern_id NOT IN "
+                        + "(SELECT id FROM candidates))");
+
+        // Application graph orphans, again in FK-safe order. engagements
+        // last among these so any project still pinning it has died.
+        del(deleted, "orphan offer_event_logs",
+                "DELETE FROM offer_event_logs WHERE offer_id NOT IN "
+                        + "(SELECT id FROM offers)");
+        del(deleted, "orphan interview_event_logs",
+                "DELETE FROM interview_event_logs WHERE interview_id NOT IN "
+                        + "(SELECT id FROM interviews)");
+        del(deleted, "orphan interviews",
+                "DELETE FROM interviews WHERE application_id NOT IN "
+                        + "(SELECT id FROM applications)");
+        del(deleted, "orphan screening_answers",
+                "DELETE FROM screening_answers WHERE screening_id NOT IN "
+                        + "(SELECT id FROM screenings)");
+        del(deleted, "orphan screenings",
+                "DELETE FROM screenings WHERE application_id NOT IN "
+                        + "(SELECT id FROM applications)");
+        del(deleted, "orphan application_decision_logs",
+                "DELETE FROM application_decision_logs WHERE application_id NOT IN "
+                        + "(SELECT id FROM applications)");
+        del(deleted, "orphan everify_cases",
+                "DELETE FROM everify_cases WHERE i9_form_id NOT IN "
+                        + "(SELECT id FROM i9_forms)");
+        del(deleted, "orphan i9_forms",
+                "DELETE FROM i9_forms WHERE candidate_id NOT IN "
+                        + "(SELECT id FROM candidates)");
+        del(deleted, "orphan engagements",
+                "DELETE FROM engagements WHERE "
+                        + "candidate_id NOT IN (SELECT id FROM candidates) OR "
+                        + "application_id NOT IN (SELECT id FROM applications) OR "
+                        + "offer_id NOT IN (SELECT id FROM offers)");
+        del(deleted, "orphan offers",
+                "DELETE FROM offers WHERE application_id NOT IN "
+                        + "(SELECT id FROM applications)");
+        del(deleted, "orphan applications",
+                "DELETE FROM applications WHERE candidate_id NOT IN "
+                        + "(SELECT id FROM candidates)");
+        del(deleted, "orphan resumes",
+                "DELETE FROM resumes WHERE candidate_id NOT IN "
+                        + "(SELECT id FROM candidates)");
+        del(deleted, "orphan candidates",
+                "DELETE FROM candidates WHERE user_id NOT IN "
+                        + "(SELECT id FROM users)");
+        del(deleted, "orphan intern_lifecycles",
+                "DELETE FROM intern_lifecycles WHERE user_id NOT IN "
+                        + "(SELECT id FROM users)");
 
         // Audit the delete BEFORE we drop the user row — caller is the
         // actor; target is the subject. Both audit columns are plain
