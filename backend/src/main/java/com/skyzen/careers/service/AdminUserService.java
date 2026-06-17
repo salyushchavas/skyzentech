@@ -293,38 +293,42 @@ public class AdminUserService {
                 "DELETE FROM i983_evaluations "
                         + "WHERE intern_lifecycle_id IN " + lifecycleIds, userId);
 
-        // Phase 3 — project graph
-        del(deleted, "project_assignment_event_logs",
+        // Phase 3 — project graph. Every fragment here that uses
+        // `projectIds` has 4 `?` placeholders (lifecycleIds=1 +
+        // engagementIds=2 + candidateIds=1), so delByUser counts and
+        // pads userId per-placeholder — fixes the "No value specified
+        // for parameter 2" trap from the prior widening.
+        delByUser(deleted, "project_assignment_event_logs",
                 "DELETE FROM project_assignment_event_logs "
                         + "WHERE project_id IN " + projectIds, userId);
-        del(deleted, "project_submissions",
+        delByUser(deleted, "project_submissions",
                 "DELETE FROM project_submissions "
                         + "WHERE project_id IN " + projectIds, userId);
-        del(deleted, "project_workspace_files",
+        delByUser(deleted, "project_workspace_files",
                 "DELETE FROM project_workspace_files "
                         + "WHERE project_id IN " + projectIds, userId);
-        del(deleted, "project_tasks",
+        delByUser(deleted, "project_tasks",
                 "DELETE FROM project_tasks "
                         + "WHERE project_id IN " + projectIds, userId);
-        del(deleted, "project_repositories",
+        delByUser(deleted, "project_repositories",
                 "DELETE FROM project_repositories "
                         + "WHERE project_id IN " + projectIds, userId);
         // project_assignments — chase by widened project_id AND by
         // intern_id which (per ProjectAssignment.intern_id) points at
         // Candidate.id. Both branches needed to catch every row.
-        del(deleted, "project_assignments (via project)",
+        delByUser(deleted, "project_assignments (via project)",
                 "DELETE FROM project_assignments "
                         + "WHERE project_id IN " + projectIds, userId);
-        del(deleted, "project_assignments (via candidate)",
+        delByUser(deleted, "project_assignments (via candidate)",
                 "DELETE FROM project_assignments "
                         + "WHERE intern_id IN " + candidateIds, userId);
-        del(deleted, "qa_sessions",
+        delByUser(deleted, "qa_sessions",
                 "DELETE FROM qa_sessions "
                         + "WHERE project_id IN " + projectIds, userId);
         // projects DELETE itself uses the same widened WHERE so every
         // legacy single-allocation row dies — no surviving project can
         // pin the engagement DELETE in Phase 10.
-        del(deleted, "projects",
+        delByUser(deleted, "projects",
                 "DELETE FROM projects "
                         + "WHERE intern_lifecycle_id IN " + lifecycleIds
                         + " OR engagement_id IN " + engagementIds
@@ -632,6 +636,37 @@ public class AdminUserService {
      * count under {@code tableName}; failed statements are recorded as
      * -1 so the per-table summary still shows what happened.
      */
+    /**
+     * Convenience for DELETEs whose every {@code ?} placeholder binds
+     * to the same caller {@code user_id}. Counts the placeholders in
+     * the SQL and pads the args. Removes the hand-counting trap that
+     * caused "No value specified for parameter 2" when the projectIds
+     * fragment was widened from 1 placeholder to 4.
+     */
+    private void delByUser(Map<String, Long> deleted, String tableName,
+                             String sql, UUID userId) {
+        int placeholders = countPlaceholders(sql);
+        Object[] args = new Object[placeholders];
+        java.util.Arrays.fill(args, userId);
+        del(deleted, tableName, sql, args);
+    }
+
+    private static int countPlaceholders(String sql) {
+        int n = 0;
+        boolean inSingle = false;
+        for (int i = 0; i < sql.length(); i++) {
+            char c = sql.charAt(i);
+            if (c == '\'') {
+                // Toggle string-literal context — naive but the wipe SQL
+                // never contains escaped quotes.
+                inSingle = !inSingle;
+            } else if (c == '?' && !inSingle) {
+                n++;
+            }
+        }
+        return n;
+    }
+
     private void del(Map<String, Long> deleted, String tableName, String sql, Object... args) {
         String savepoint = "sp_" + tableName.replaceAll("[^a-zA-Z0-9_]", "_");
         try {
