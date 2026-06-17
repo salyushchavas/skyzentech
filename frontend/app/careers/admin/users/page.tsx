@@ -35,6 +35,12 @@ const STAFF_ROLES: UserRole[] = [
   'REPORTING_MANAGER',
 ];
 
+// FILTER_ROLES are what the list filter dropdown offers — STAFF_ROLES plus
+// INTERN so the operator can narrow down to candidate users (e.g. to find
+// the one they want to hard-delete). INTERN is NOT added to the create-user
+// picker for the reason called out above.
+const FILTER_ROLES: UserRole[] = [...STAFF_ROLES, 'INTERN'];
+
 const ROLE_LABEL: Record<UserRole, string> = {
   INTERN: 'Intern',
   TRAINER: 'Trainer',
@@ -250,7 +256,7 @@ function UsersTable() {
               className="rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
             >
               <option value="ALL">All roles</option>
-              {STAFF_ROLES.map((r) => (
+              {FILTER_ROLES.map((r) => (
                 <option key={r} value={r}>
                   {ROLE_LABEL[r]}
                 </option>
