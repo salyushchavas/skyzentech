@@ -101,6 +101,30 @@ api.interceptors.response.use(
     const status = error?.response?.status;
     const cfg = error?.config as RetryConfig | undefined;
 
+    // F4 — enrich the AxiosError so any caller can read a normalized
+    // user-facing message + the per-request traceId without re-parsing
+    // the response shape. Back-compat: the existing 191 call sites
+    // continue to read `error.response.data.error` unchanged because
+    // the backend keeps emitting both `error` and `message` (same
+    // string).
+    try {
+      const data = error?.response?.data as
+        | { error?: string; message?: string; traceId?: string; code?: string }
+        | undefined;
+      const headerTraceId =
+        (error?.response?.headers?.['x-trace-id'] as string | undefined) ?? undefined;
+      (error as AxiosError & {
+        userMessage?: string;
+        traceId?: string;
+        errorCode?: string;
+      }).userMessage = data?.message ?? data?.error ?? undefined;
+      (error as AxiosError & { traceId?: string }).traceId =
+        data?.traceId ?? headerTraceId;
+      (error as AxiosError & { errorCode?: string }).errorCode = data?.code;
+    } catch {
+      // Enrichment is best-effort — never break the original error path.
+    }
+
     // Try a refresh-and-retry once per request. The presence of a refresh
     // token decides whether we attempt — without one we go straight to the
     // login redirect below.

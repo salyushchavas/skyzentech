@@ -1,11 +1,16 @@
 package com.skyzen.careers.exception;
 
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.ConstraintViolationException;
 import lombok.extern.slf4j.Slf4j;
+import org.slf4j.MDC;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.security.access.AccessDeniedException;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.HttpMediaTypeNotSupportedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -13,205 +18,270 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.multipart.MaxUploadSizeExceededException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 
+import java.sql.SQLException;
+import java.time.Instant;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
+/**
+ * F4 — single error-response contract. Every branch emits an
+ * {@link ErrorResponse} carrying the per-request {@code traceId} from
+ * {@link TraceIdFilter}, so a user-reported failure (which sees the
+ * traceId in the response body + the {@code X-Trace-Id} header) is
+ * greppable in one step in the backend log.
+ *
+ * <p>The legacy {@code error} field is preserved on every response (it
+ * duplicates {@link ErrorResponse#message}) so the 191 existing call
+ * sites that read {@code response.data.error} keep working unchanged.</p>
+ *
+ * <p>4xx client errors log at WARN (the caller did something wrong);
+ * 5xx + uncaught exceptions log at ERROR with the full exception chain
+ * + endpoint + authenticated user, never user-facing.</p>
+ */
 @RestControllerAdvice
 @Slf4j
 public class GlobalExceptionHandler {
 
+    // ── Domain exceptions ────────────────────────────────────────────────
+
     @ExceptionHandler(ResourceNotFoundException.class)
-    public ResponseEntity<Map<String, Object>> handleNotFound(ResourceNotFoundException ex) {
-        return error(HttpStatus.NOT_FOUND, ex.getMessage(), null);
+    public ResponseEntity<ErrorResponse> handleNotFound(ResourceNotFoundException ex) {
+        return body(HttpStatus.NOT_FOUND, null, ex.getMessage(), null);
     }
 
     @ExceptionHandler(BadRequestException.class)
-    public ResponseEntity<Map<String, Object>> handleBadRequest(BadRequestException ex) {
-        return error(HttpStatus.BAD_REQUEST, ex.getMessage(), null);
+    public ResponseEntity<ErrorResponse> handleBadRequest(BadRequestException ex) {
+        return body(HttpStatus.BAD_REQUEST, null, ex.getMessage(), null);
     }
 
     @ExceptionHandler(ConflictException.class)
-    public ResponseEntity<Map<String, Object>> handleConflict(ConflictException ex) {
-        return error(HttpStatus.CONFLICT, ex.getMessage(), null);
+    public ResponseEntity<ErrorResponse> handleConflict(ConflictException ex) {
+        return body(HttpStatus.CONFLICT, null, ex.getMessage(), null);
     }
 
-    /**
-     * Phase 8 — write attempted against an exited / terminal lifecycle.
-     * 409 with a stable {@code code = "LIFECYCLE_CLOSED"} so the frontend
-     * can render a clean "Internship is inactive" toast.
-     */
     @ExceptionHandler(LifecycleClosedException.class)
-    public ResponseEntity<Map<String, Object>> handleLifecycleClosed(LifecycleClosedException ex) {
-        Map<String, Object> body = new LinkedHashMap<>();
-        body.put("error", ex.getMessage());
-        body.put("code", "LIFECYCLE_CLOSED");
-        return ResponseEntity.status(HttpStatus.CONFLICT).body(body);
+    public ResponseEntity<ErrorResponse> handleLifecycleClosed(LifecycleClosedException ex) {
+        return body(HttpStatus.CONFLICT, "LIFECYCLE_CLOSED", ex.getMessage(), null);
     }
 
-    /**
-     * ERM Phase 4 — onboarding assignment attempted before Trainer +
-     * Evaluator + Manager all set. 409 with a structured {@code missing}
-     * array so the ERM UI can highlight which slots are blank.
-     */
     @ExceptionHandler(ReportingStructureIncompleteException.class)
-    public ResponseEntity<Map<String, Object>> handleReportingStructureIncomplete(
+    public ResponseEntity<ErrorResponse> handleReportingStructureIncomplete(
             ReportingStructureIncompleteException ex) {
-        Map<String, Object> body = new LinkedHashMap<>();
-        body.put("error", ex.getMessage());
-        body.put("code", "REPORTING_STRUCTURE_INCOMPLETE");
-        body.put("missing", ex.getMissing());
-        return ResponseEntity.status(HttpStatus.CONFLICT).body(body);
+        Map<String, Object> details = new LinkedHashMap<>();
+        details.put("missing", ex.getMissing());
+        return body(HttpStatus.CONFLICT, "REPORTING_STRUCTURE_INCOMPLETE",
+                ex.getMessage(), details);
     }
 
     @ExceptionHandler(ForbiddenException.class)
-    public ResponseEntity<Map<String, Object>> handleForbidden(ForbiddenException ex) {
-        return error(HttpStatus.FORBIDDEN, ex.getMessage(), null);
+    public ResponseEntity<ErrorResponse> handleForbidden(ForbiddenException ex) {
+        return body(HttpStatus.FORBIDDEN, null, ex.getMessage(), null);
     }
 
-    /**
-     * GitHub upstream failure (auth / scope / network). 502 Bad Gateway with
-     * a top-level {@code code = "github_call_failed"} so the TE UI can render
-     * a dedicated toast instead of treating it as a generic 500. The
-     * exception's message is the operator-readable reason — the token is
-     * never included.
-     */
     @ExceptionHandler(com.skyzen.careers.github.GitHubIntegrationException.class)
-    public ResponseEntity<Map<String, Object>> handleGithubIntegration(
+    public ResponseEntity<ErrorResponse> handleGithubIntegration(
             com.skyzen.careers.github.GitHubIntegrationException ex) {
-        Map<String, Object> body = new java.util.LinkedHashMap<>();
-        body.put("error", ex.getMessage());
-        body.put("code", "github_call_failed");
-        return ResponseEntity.status(HttpStatus.BAD_GATEWAY).body(body);
+        return body(HttpStatus.BAD_GATEWAY, "github_call_failed", ex.getMessage(), null);
     }
 
-    /**
-     * Email-verification gate (phase 1.3). Returns 403 with a top-level
-     * {@code code} field so the frontend can distinguish this from generic
-     * forbidden responses and render the verify-email prompt instead of a raw
-     * "Access denied" toast.
-     */
     @ExceptionHandler(EmailUnverifiedException.class)
-    public ResponseEntity<Map<String, Object>> handleEmailUnverified(EmailUnverifiedException ex) {
-        return codedForbidden(ex.getMessage(), "EMAIL_UNVERIFIED");
+    public ResponseEntity<ErrorResponse> handleEmailUnverified(EmailUnverifiedException ex) {
+        return body(HttpStatus.FORBIDDEN, "EMAIL_UNVERIFIED", ex.getMessage(), null);
     }
 
-    /**
-     * Post-offer gate (GAP_REPORT A1). A candidate is hitting I-9 create or
-     * Section-1 submit before they have an ACCEPTED offer (or while their
-     * engagement is BLOCKED_NO_AUTHORIZATION). Returns 403 + code
-     * {@code OFFER_REQUIRED} so the frontend can render a clean
-     * "available after your offer is accepted" state.
-     */
     @ExceptionHandler(OfferRequiredException.class)
-    public ResponseEntity<Map<String, Object>> handleOfferRequired(OfferRequiredException ex) {
-        return codedForbidden(ex.getMessage(), "OFFER_REQUIRED");
+    public ResponseEntity<ErrorResponse> handleOfferRequired(OfferRequiredException ex) {
+        return body(HttpStatus.FORBIDDEN, "OFFER_REQUIRED", ex.getMessage(), null);
     }
 
-    /**
-     * E-Verify sequencing gate (GAP_REPORT A2). Federal rule: E-Verify case
-     * may only be created once Form I-9 is COMPLETED. Returns 403 + code
-     * {@code I9_NOT_COMPLETE}.
-     */
     @ExceptionHandler(I9NotCompleteException.class)
-    public ResponseEntity<Map<String, Object>> handleI9NotComplete(I9NotCompleteException ex) {
-        return codedForbidden(ex.getMessage(), "I9_NOT_COMPLETE");
+    public ResponseEntity<ErrorResponse> handleI9NotComplete(I9NotCompleteException ex) {
+        return body(HttpStatus.FORBIDDEN, "I9_NOT_COMPLETE", ex.getMessage(), null);
     }
 
-    /**
-     * I-983 track gate (GAP_REPORT A5). A non-STEM_OPT candidate is hitting an
-     * I-983 endpoint. Returns 403 + code {@code STEM_OPT_REQUIRED} so the
-     * frontend can render the "training plan not required" panel.
-     */
     @ExceptionHandler(StemOptRequiredException.class)
-    public ResponseEntity<Map<String, Object>> handleStemOptRequired(StemOptRequiredException ex) {
-        return codedForbidden(ex.getMessage(), "STEM_OPT_REQUIRED");
+    public ResponseEntity<ErrorResponse> handleStemOptRequired(StemOptRequiredException ex) {
+        return body(HttpStatus.FORBIDDEN, "STEM_OPT_REQUIRED", ex.getMessage(), null);
     }
 
-    /**
-     * Interview-before-offer gate (GAP_REPORT A3). Offer create or
-     * conditional-select against an application that hasn't reached INTERVIEWED
-     * / SELECTED_CONDITIONAL. Returns 403 + code {@code INTERVIEW_REQUIRED}.
-     * Hard gate — no admin / HR override path.
-     */
     @ExceptionHandler(InterviewRequiredException.class)
-    public ResponseEntity<Map<String, Object>> handleInterviewRequired(InterviewRequiredException ex) {
-        return codedForbidden(ex.getMessage(), "INTERVIEW_REQUIRED");
+    public ResponseEntity<ErrorResponse> handleInterviewRequired(InterviewRequiredException ex) {
+        return body(HttpStatus.FORBIDDEN, "INTERVIEW_REQUIRED", ex.getMessage(), null);
     }
 
     @ExceptionHandler(AccessDeniedException.class)
-    public ResponseEntity<Map<String, Object>> handleAccessDenied(AccessDeniedException ex) {
-        return error(HttpStatus.FORBIDDEN, "Access denied", null);
+    public ResponseEntity<ErrorResponse> handleAccessDenied(AccessDeniedException ex) {
+        return body(HttpStatus.FORBIDDEN, null, "Access denied", null);
     }
 
+    // ── Request parsing + validation ─────────────────────────────────────
+
     @ExceptionHandler(MethodArgumentNotValidException.class)
-    public ResponseEntity<Map<String, Object>> handleValidation(MethodArgumentNotValidException ex) {
+    public ResponseEntity<ErrorResponse> handleValidation(MethodArgumentNotValidException ex) {
         Map<String, String> fieldErrors = new HashMap<>();
         ex.getBindingResult().getFieldErrors().forEach(fe ->
                 fieldErrors.put(fe.getField(), fe.getDefaultMessage()));
-        return error(HttpStatus.BAD_REQUEST, "Validation failed", Map.of("fields", fieldErrors));
+        Map<String, Object> details = new LinkedHashMap<>();
+        details.put("fields", fieldErrors);
+        String summary = fieldErrors.isEmpty()
+                ? "Validation failed"
+                : "Validation failed: " + String.join(", ", fieldErrors.keySet());
+        return body(HttpStatus.BAD_REQUEST, "VALIDATION_FAILED", summary, details);
     }
 
     @ExceptionHandler(ConstraintViolationException.class)
-    public ResponseEntity<Map<String, Object>> handleConstraint(ConstraintViolationException ex) {
-        return error(HttpStatus.BAD_REQUEST, "Constraint violation: " + ex.getMessage(), null);
+    public ResponseEntity<ErrorResponse> handleConstraint(ConstraintViolationException ex) {
+        return body(HttpStatus.BAD_REQUEST, "VALIDATION_FAILED",
+                "Constraint violation: " + ex.getMessage(), null);
+    }
+
+    /**
+     * Jackson deserialization failures + missing request bodies. Before
+     * F4 these fell through to the generic {@link Exception} handler
+     * and rendered as a bare 500 with no hint that the body was the
+     * problem. Now: 400 + a short summary.
+     */
+    @ExceptionHandler(HttpMessageNotReadableException.class)
+    public ResponseEntity<ErrorResponse> handleNotReadable(HttpMessageNotReadableException ex) {
+        Throwable root = rootCause(ex);
+        log.warn("[F4] HttpMessageNotReadable {}: {}",
+                root.getClass().getSimpleName(), root.getMessage());
+        return body(HttpStatus.BAD_REQUEST, "MALFORMED_BODY",
+                "Request body is malformed or missing required fields.", null);
     }
 
     @ExceptionHandler(MaxUploadSizeExceededException.class)
-    public ResponseEntity<Map<String, Object>> handleMaxUpload(MaxUploadSizeExceededException ex) {
-        return error(HttpStatus.BAD_REQUEST, "Uploaded file exceeds the maximum allowed size", null);
+    public ResponseEntity<ErrorResponse> handleMaxUpload(MaxUploadSizeExceededException ex) {
+        return body(HttpStatus.BAD_REQUEST, "UPLOAD_TOO_LARGE",
+                "Uploaded file exceeds the maximum allowed size", null);
     }
 
     @ExceptionHandler(HttpMediaTypeNotSupportedException.class)
-    public ResponseEntity<Map<String, Object>> handleMediaType(HttpMediaTypeNotSupportedException ex) {
-        log.warn("Unsupported media type: {}", ex.getMessage());
-        return error(HttpStatus.UNSUPPORTED_MEDIA_TYPE,
+    public ResponseEntity<ErrorResponse> handleMediaType(HttpMediaTypeNotSupportedException ex) {
+        log.warn("[F4] Unsupported media type: {}", ex.getMessage());
+        return body(HttpStatus.UNSUPPORTED_MEDIA_TYPE, "UNSUPPORTED_MEDIA_TYPE",
                 "Unsupported content type for this endpoint", null);
     }
 
+    // ── Persistence ──────────────────────────────────────────────────────
+
+    /**
+     * F4 — distinguish the SQLState so the user gets an accurate
+     * message. The legacy "duplicate or conflicting record" was wrong
+     * for CHECK / FK / NOT NULL violations (e.g. the document_tasks
+     * CHECK violation showed as "duplicate"). Constraint name + state
+     * go to the log, never the user.
+     */
     @ExceptionHandler(DataIntegrityViolationException.class)
-    public ResponseEntity<Map<String, Object>> handleDataIntegrity(DataIntegrityViolationException ex) {
-        log.warn("Data integrity violation: {}", ex.getMostSpecificCause().getMessage());
-        return error(HttpStatus.CONFLICT,
-                "Data integrity violation: a duplicate or conflicting record exists", null);
-    }
-
-    /**
-     * Unmatched routes (Spring 6 stopped auto-trimming trailing slashes; any URL
-     * that no controller maps falls through to the static-resource handler and
-     * throws this). Return a clean 404 instead of logging "Unhandled exception"
-     * and emitting 500.
-     */
-    @ExceptionHandler(NoResourceFoundException.class)
-    public ResponseEntity<Map<String, Object>> handleNoResource(NoResourceFoundException ex) {
-        return error(HttpStatus.NOT_FOUND, "Not Found", null);
-    }
-
-    @ExceptionHandler(Exception.class)
-    public ResponseEntity<Map<String, Object>> handleGeneric(Exception ex) {
-        log.error("Unhandled exception", ex);
-        return error(HttpStatus.INTERNAL_SERVER_ERROR, "Internal server error", null);
-    }
-
-    private ResponseEntity<Map<String, Object>> error(HttpStatus status, String message, Map<String, Object> details) {
-        Map<String, Object> body = new LinkedHashMap<>();
-        body.put("error", message);
-        if (details != null) {
-            body.put("details", details);
+    public ResponseEntity<ErrorResponse> handleDataIntegrity(DataIntegrityViolationException ex) {
+        Throwable root = rootCause(ex);
+        String sqlState = null;
+        String constraint = null;
+        if (root instanceof SQLException sqlEx) {
+            sqlState = sqlEx.getSQLState();
+            // Postgres includes the constraint name in the message —
+            // capture it for the log so the constraint is greppable.
+            String msg = sqlEx.getMessage();
+            if (msg != null) {
+                int idx = msg.indexOf("constraint \"");
+                if (idx >= 0) {
+                    int end = msg.indexOf('"', idx + 12);
+                    if (end > idx) constraint = msg.substring(idx + 12, end);
+                }
+            }
         }
-        return ResponseEntity.status(status).body(body);
+        log.warn("[F4] DataIntegrityViolation sqlState={} constraint={} root={}: {}",
+                sqlState, constraint,
+                root.getClass().getSimpleName(), root.getMessage());
+
+        // Map the well-known Postgres SQLState codes to a friendly,
+        // accurate user message. Unknown / driver-specific states fall
+        // through to the generic 409.
+        return switch (sqlState == null ? "" : sqlState) {
+            case "23505" -> body(HttpStatus.CONFLICT, "UNIQUE_VIOLATION",
+                    "A record with these details already exists.", null);
+            case "23514" -> body(HttpStatus.BAD_REQUEST, "CHECK_VIOLATION",
+                    "A submitted value isn't allowed here. "
+                            + "Please review the form and try again.", null);
+            case "23503" -> body(HttpStatus.CONFLICT, "FK_VIOLATION",
+                    "This action can't be completed because related records "
+                            + "still exist, or a referenced record is missing.", null);
+            case "23502" -> body(HttpStatus.BAD_REQUEST, "NOT_NULL_VIOLATION",
+                    "A required field is missing. "
+                            + "Please review the form and try again.", null);
+            default -> body(HttpStatus.CONFLICT, "DATA_INTEGRITY_VIOLATION",
+                    "The change conflicts with the current state of the data. "
+                            + "Please refresh and try again.", null);
+        };
+    }
+
+    // ── Routing 404 + catch-all 500 ──────────────────────────────────────
+
+    @ExceptionHandler(NoResourceFoundException.class)
+    public ResponseEntity<ErrorResponse> handleNoResource(NoResourceFoundException ex) {
+        return body(HttpStatus.NOT_FOUND, null, "Not Found", null);
     }
 
     /**
-     * Shared shape for 403 responses that carry a stable {@code code} the
-     * frontend keys off (EMAIL_UNVERIFIED, OFFER_REQUIRED, I9_NOT_COMPLETE,
-     * STEM_OPT_REQUIRED). Keeping the body shape uniform across these gated
-     * forbids lets the API client share one error handler.
+     * F4 — catch-all for anything we didn't explicitly handle. NEVER
+     * leaks the exception class, stack, or SQL to the user. Logs at
+     * ERROR with full context (endpoint, method, user, the entire
+     * cause chain) so the user-reported traceId is one grep away from
+     * the root cause.
      */
-    private ResponseEntity<Map<String, Object>> codedForbidden(String message, String code) {
-        Map<String, Object> body = new LinkedHashMap<>();
-        body.put("error", message);
-        body.put("code", code);
-        return ResponseEntity.status(HttpStatus.FORBIDDEN).body(body);
+    @ExceptionHandler(Exception.class)
+    public ResponseEntity<ErrorResponse> handleGeneric(Exception ex, HttpServletRequest req) {
+        String traceId = MDC.get(TraceIdFilter.MDC_KEY);
+        String endpoint = req != null
+                ? req.getMethod() + " " + req.getRequestURI()
+                : "(unknown endpoint)";
+        String user = currentUserDescription();
+        log.error("[F4] Unhandled exception at {} (user={}) — {}: {} | root cause: {}",
+                endpoint, user, ex.getClass().getName(), ex.getMessage(),
+                rootCauseMessage(ex), ex);
+        String friendly = "Something went wrong on our end — we've logged it. "
+                + "Please try again, or contact support"
+                + (traceId != null ? " with reference " + traceId : "")
+                + ".";
+        return body(HttpStatus.INTERNAL_SERVER_ERROR, "INTERNAL_ERROR", friendly, null);
+    }
+
+    // ── Helpers ──────────────────────────────────────────────────────────
+
+    private ResponseEntity<ErrorResponse> body(HttpStatus status, String code,
+                                                String message,
+                                                Map<String, Object> details) {
+        String traceId = MDC.get(TraceIdFilter.MDC_KEY);
+        ErrorResponse er = new ErrorResponse(
+                status.value(),
+                message,          // legacy `error` field — back-compat for 191 call sites
+                message,          // canonical `message`
+                code,
+                traceId,
+                Instant.now(),
+                details);
+        return ResponseEntity.status(status).body(er);
+    }
+
+    private static Throwable rootCause(Throwable t) {
+        Throwable cur = t;
+        while (cur.getCause() != null && cur.getCause() != cur) cur = cur.getCause();
+        return cur;
+    }
+
+    private static String rootCauseMessage(Throwable t) {
+        Throwable r = rootCause(t);
+        return r.getClass().getName() + ": " + r.getMessage();
+    }
+
+    private static String currentUserDescription() {
+        try {
+            Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+            if (auth == null) return "anonymous";
+            return auth.getName() + " (" + auth.getAuthorities() + ")";
+        } catch (Exception e) {
+            return "unknown";
+        }
     }
 }
