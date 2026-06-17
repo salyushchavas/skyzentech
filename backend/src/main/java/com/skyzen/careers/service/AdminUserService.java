@@ -227,7 +227,9 @@ public class AdminUserService {
 
         // Phase 1 — notification leaves
         del(deleted, "user_notifications",
-                "DELETE FROM user_notifications WHERE recipient_user_id = ?", userId);
+                "DELETE FROM user_notifications "
+                        + "WHERE recipient_user_id = ? OR subject_user_id = ?",
+                userId, userId);
         // sent_notifications is keyed by recipient EMAIL + target_id (an
         // entity uuid), not by recipient_user_id. Delete by email; any
         // rows still pointing at the user's deleted entities will be
@@ -407,19 +409,28 @@ public class AdminUserService {
         }
 
         // Phase 12 — auxiliary user-keyed rows
+        del(deleted, "documents",
+                "DELETE FROM documents WHERE owner_user_id = ?", userId);
         del(deleted, "password_reset_tokens",
                 "DELETE FROM password_reset_tokens WHERE user_id = ?", userId);
         del(deleted, "user_sessions",
                 "DELETE FROM user_sessions WHERE user_id = ?", userId);
+        del(deleted, "support_ticket_replies",
+                "DELETE FROM support_ticket_replies WHERE author_user_id = ? "
+                        + "OR ticket_id IN "
+                        + "(SELECT id FROM support_tickets WHERE opener_user_id = ?)",
+                userId, userId);
         del(deleted, "support_tickets",
-                "DELETE FROM support_tickets WHERE created_by_id = ?", userId);
+                "DELETE FROM support_tickets WHERE opener_user_id = ?", userId);
 
         // Audit the delete BEFORE we drop the user row — caller is the
         // actor; target is the subject. Both audit columns are plain
         // UUIDs (no FK), so the row survives the user delete and stays
         // as the forensic record. Total deleted-row count is the headline
         // value; per-table breakdown lives in afterJson for debugging.
-        long totalRows = deleted.values().stream().mapToLong(Long::longValue).sum();
+        long totalRows = deleted.values().stream()
+                .filter(n -> n != null && n > 0)
+                .mapToLong(Long::longValue).sum();
         Map<String, Object> snap = new LinkedHashMap<>();
         snap.put("targetEmail", target.getEmail());
         snap.put("targetUserId", userId.toString());
@@ -427,9 +438,30 @@ public class AdminUserService {
         snap.put("perTable", deleted);
         writeAudit("USER_HARD_DELETE", target, caller, snap);
 
-        // Phase 13 — terminal user delete (user_roles cascades via
-        // @ElementCollection on User.roles).
-        del(deleted, "users", "DELETE FROM users WHERE id = ?", userId);
+        // Phase 13 — user_roles MUST be deleted explicitly. The
+        // @ElementCollection cascade only fires for JPA deletes; raw
+        // SQL bypasses it, so without this the FK from user_roles.user_id
+        // → users.id blocks the terminal users delete. NOT wrapped in a
+        // savepoint — if this fails the whole txn must rollback so we
+        // don't silently leave a broken user row.
+        long roleRows = jdbcTemplate.update(
+                "DELETE FROM user_roles WHERE user_id = ?", userId);
+        deleted.put("user_roles", roleRows);
+
+        // Phase 14 — terminal user delete. NOT wrapped in a savepoint
+        // either — if any FK still references this row we want to fail
+        // the whole transaction so the caller sees the error instead of
+        // a misleading 200 + a still-present user row.
+        long userRows = jdbcTemplate.update(
+                "DELETE FROM users WHERE id = ?", userId);
+        deleted.put("users", userRows);
+        if (userRows == 0) {
+            // Defensive — should never happen because we loaded the user
+            // by id above. If it does, throw so the txn rolls back.
+            throw new ConflictException(
+                    "User row was not removed (concurrent delete or FK retention). "
+                            + "Per-table summary: " + deleted);
+        }
 
         log.warn("[AdminUserService] hard-deleted user {} ({}) — totalRows={}, perTable={}",
                 userId, target.getEmail(), totalRows, deleted);
