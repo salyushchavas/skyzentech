@@ -218,10 +218,35 @@ public class AdminUserService {
         }
 
         UUID userId = target.getId();
-        UUID candidateId = queryForUuid(
-                "SELECT id FROM candidates WHERE user_id = ?", userId);
-        UUID lifecycleId = queryForUuid(
-                "SELECT id FROM intern_lifecycles WHERE user_id = ?", userId);
+        // SQL fragments resolved against the live tables — every DELETE is
+        // self-contained against the user_id, so we never depend on a
+        // Java-side cache of candidate_id / lifecycle_id (the prior
+        // approach silently skipped phases when queryForUuid returned
+        // null even though the rows existed).
+        String candidateIds = "(SELECT id FROM candidates WHERE user_id = ?)";
+        String lifecycleIds = "(SELECT id FROM intern_lifecycles WHERE user_id = ?)";
+        String applicationIds = "(SELECT id FROM applications WHERE candidate_id IN "
+                + candidateIds + ")";
+        String projectIds = "(SELECT id FROM projects WHERE intern_lifecycle_id IN "
+                + lifecycleIds + ")";
+        String internEvalIds = "(SELECT id FROM intern_evaluations "
+                + "WHERE intern_lifecycle_id IN " + lifecycleIds + ")";
+        String offerIds = "(SELECT id FROM offers WHERE application_id IN "
+                + applicationIds + ")";
+        String interviewIds = "(SELECT id FROM interviews WHERE application_id IN "
+                + applicationIds + ")";
+        String screeningIds = "(SELECT id FROM screenings WHERE application_id IN "
+                + applicationIds + ")";
+        String timesheetIds = "(SELECT id FROM timesheets "
+                + "WHERE intern_lifecycle_id IN " + lifecycleIds + ")";
+        String documentPacketIds = "(SELECT id FROM document_packets "
+                + "WHERE intern_lifecycle_id IN " + lifecycleIds + ")";
+        String documentTaskIds = "(SELECT id FROM document_tasks "
+                + "WHERE packet_id IN " + documentPacketIds + ")";
+        String onboardingPacketIds = "(SELECT id FROM onboarding_packets "
+                + "WHERE intern_lifecycle_id IN " + lifecycleIds + ")";
+        String exitRecordIds = "(SELECT id FROM exit_records "
+                + "WHERE intern_lifecycle_id IN " + lifecycleIds + ")";
 
         Map<String, Long> deleted = new LinkedHashMap<>();
 
@@ -230,183 +255,142 @@ public class AdminUserService {
                 "DELETE FROM user_notifications "
                         + "WHERE recipient_user_id = ? OR subject_user_id = ?",
                 userId, userId);
-        // sent_notifications is keyed by recipient EMAIL + target_id (an
-        // entity uuid), not by recipient_user_id. Delete by email; any
-        // rows still pointing at the user's deleted entities will be
-        // orphaned but harmless (target_id has no FK).
         del(deleted, "sent_notifications",
                 "DELETE FROM sent_notifications WHERE LOWER(recipient) = LOWER(?)",
                 target.getEmail());
 
-        if (lifecycleId != null) {
-            // Phase 2 — evaluation children + I-983
-            del(deleted, "evaluation_rubric_scores",
-                    "DELETE FROM evaluation_rubric_scores WHERE evaluation_id IN "
-                            + "(SELECT id FROM intern_evaluations WHERE intern_lifecycle_id = ?)",
-                    lifecycleId);
-            del(deleted, "evaluation_self_reviews",
-                    "DELETE FROM evaluation_self_reviews WHERE evaluation_id IN "
-                            + "(SELECT id FROM intern_evaluations WHERE intern_lifecycle_id = ?)",
-                    lifecycleId);
-            del(deleted, "evaluation_amendments",
-                    "DELETE FROM evaluation_amendments WHERE evaluation_id IN "
-                            + "(SELECT id FROM intern_evaluations WHERE intern_lifecycle_id = ?)",
-                    lifecycleId);
-            del(deleted, "intern_evaluations",
-                    "DELETE FROM intern_evaluations WHERE intern_lifecycle_id = ?", lifecycleId);
-            del(deleted, "i983_evaluations",
-                    "DELETE FROM i983_evaluations WHERE intern_lifecycle_id = ?", lifecycleId);
+        // Phase 2 — evaluation children + I-983
+        del(deleted, "evaluation_rubric_scores",
+                "DELETE FROM evaluation_rubric_scores "
+                        + "WHERE evaluation_id IN " + internEvalIds, userId);
+        del(deleted, "evaluation_self_reviews",
+                "DELETE FROM evaluation_self_reviews "
+                        + "WHERE evaluation_id IN " + internEvalIds, userId);
+        del(deleted, "evaluation_amendments",
+                "DELETE FROM evaluation_amendments "
+                        + "WHERE evaluation_id IN " + internEvalIds, userId);
+        del(deleted, "intern_evaluations",
+                "DELETE FROM intern_evaluations "
+                        + "WHERE intern_lifecycle_id IN " + lifecycleIds, userId);
+        del(deleted, "i983_evaluations",
+                "DELETE FROM i983_evaluations "
+                        + "WHERE intern_lifecycle_id IN " + lifecycleIds, userId);
 
-            // Phase 3 — project graph
-            del(deleted, "project_assignment_event_logs",
-                    "DELETE FROM project_assignment_event_logs WHERE project_id IN "
-                            + "(SELECT id FROM projects WHERE intern_lifecycle_id = ?)",
-                    lifecycleId);
-            del(deleted, "project_submissions",
-                    "DELETE FROM project_submissions WHERE project_id IN "
-                            + "(SELECT id FROM projects WHERE intern_lifecycle_id = ?)",
-                    lifecycleId);
-            del(deleted, "project_workspace_files",
-                    "DELETE FROM project_workspace_files WHERE project_id IN "
-                            + "(SELECT id FROM projects WHERE intern_lifecycle_id = ?)",
-                    lifecycleId);
-            del(deleted, "project_tasks",
-                    "DELETE FROM project_tasks WHERE project_id IN "
-                            + "(SELECT id FROM projects WHERE intern_lifecycle_id = ?)",
-                    lifecycleId);
-            del(deleted, "project_repositories",
-                    "DELETE FROM project_repositories WHERE project_id IN "
-                            + "(SELECT id FROM projects WHERE intern_lifecycle_id = ?)",
-                    lifecycleId);
-            del(deleted, "project_assignments",
-                    "DELETE FROM project_assignments WHERE intern_id = ?", lifecycleId);
-            del(deleted, "qa_sessions",
-                    "DELETE FROM qa_sessions WHERE project_id IN "
-                            + "(SELECT id FROM projects WHERE intern_lifecycle_id = ?)",
-                    lifecycleId);
-            del(deleted, "projects",
-                    "DELETE FROM projects WHERE intern_lifecycle_id = ?", lifecycleId);
+        // Phase 3 — project graph
+        del(deleted, "project_assignment_event_logs",
+                "DELETE FROM project_assignment_event_logs "
+                        + "WHERE project_id IN " + projectIds, userId);
+        del(deleted, "project_submissions",
+                "DELETE FROM project_submissions "
+                        + "WHERE project_id IN " + projectIds, userId);
+        del(deleted, "project_workspace_files",
+                "DELETE FROM project_workspace_files "
+                        + "WHERE project_id IN " + projectIds, userId);
+        del(deleted, "project_tasks",
+                "DELETE FROM project_tasks "
+                        + "WHERE project_id IN " + projectIds, userId);
+        del(deleted, "project_repositories",
+                "DELETE FROM project_repositories "
+                        + "WHERE project_id IN " + projectIds, userId);
+        del(deleted, "project_assignments",
+                "DELETE FROM project_assignments "
+                        + "WHERE intern_id IN " + lifecycleIds, userId);
+        del(deleted, "qa_sessions",
+                "DELETE FROM qa_sessions "
+                        + "WHERE project_id IN " + projectIds, userId);
+        del(deleted, "projects",
+                "DELETE FROM projects "
+                        + "WHERE intern_lifecycle_id IN " + lifecycleIds, userId);
 
-            // Phase 4 — timesheets + weekly meetings
-            del(deleted, "timesheet_days",
-                    "DELETE FROM timesheet_days WHERE timesheet_id IN "
-                            + "(SELECT id FROM timesheets WHERE intern_lifecycle_id = ?)",
-                    lifecycleId);
-            del(deleted, "timesheets",
-                    "DELETE FROM timesheets WHERE intern_lifecycle_id = ?", lifecycleId);
-            del(deleted, "weekly_meetings",
-                    "DELETE FROM weekly_meetings WHERE intern_lifecycle_id = ?", lifecycleId);
+        // Phase 4 — timesheets + weekly meetings
+        del(deleted, "timesheet_days",
+                "DELETE FROM timesheet_days "
+                        + "WHERE timesheet_id IN " + timesheetIds, userId);
+        del(deleted, "timesheets",
+                "DELETE FROM timesheets "
+                        + "WHERE intern_lifecycle_id IN " + lifecycleIds, userId);
+        del(deleted, "weekly_meetings",
+                "DELETE FROM weekly_meetings "
+                        + "WHERE intern_lifecycle_id IN " + lifecycleIds, userId);
 
-            // Phase 5 — document packets (Phase 8.2)
-            del(deleted, "document_task_review_logs",
-                    "DELETE FROM document_task_review_logs WHERE task_id IN "
-                            + "(SELECT t.id FROM document_tasks t "
-                            + "  JOIN document_packets p ON p.id = t.packet_id "
-                            + " WHERE p.intern_lifecycle_id = ?)",
-                    lifecycleId);
-            del(deleted, "document_tasks",
-                    "DELETE FROM document_tasks WHERE packet_id IN "
-                            + "(SELECT id FROM document_packets WHERE intern_lifecycle_id = ?)",
-                    lifecycleId);
-            del(deleted, "document_packets",
-                    "DELETE FROM document_packets WHERE intern_lifecycle_id = ?", lifecycleId);
+        // Phase 5 — document packets (Phase 8.2)
+        del(deleted, "document_task_review_logs",
+                "DELETE FROM document_task_review_logs "
+                        + "WHERE task_id IN " + documentTaskIds, userId);
+        del(deleted, "document_tasks",
+                "DELETE FROM document_tasks "
+                        + "WHERE packet_id IN " + documentPacketIds, userId);
+        del(deleted, "document_packets",
+                "DELETE FROM document_packets "
+                        + "WHERE intern_lifecycle_id IN " + lifecycleIds, userId);
 
-            // Phase 6 — legacy onboarding packets
-            del(deleted, "onboarding_tasks",
-                    "DELETE FROM onboarding_tasks WHERE packet_id IN "
-                            + "(SELECT id FROM onboarding_packets WHERE intern_lifecycle_id = ?)",
-                    lifecycleId);
-            del(deleted, "onboarding_packets",
-                    "DELETE FROM onboarding_packets WHERE intern_lifecycle_id = ?", lifecycleId);
+        // Phase 6 — legacy onboarding packets
+        del(deleted, "onboarding_tasks",
+                "DELETE FROM onboarding_tasks "
+                        + "WHERE packet_id IN " + onboardingPacketIds, userId);
+        del(deleted, "onboarding_packets",
+                "DELETE FROM onboarding_packets "
+                        + "WHERE intern_lifecycle_id IN " + lifecycleIds, userId);
 
-            // Phase 7 — exit
-            del(deleted, "exit_checklist_items",
-                    "DELETE FROM exit_checklist_items WHERE exit_record_id IN "
-                            + "(SELECT id FROM exit_records WHERE intern_lifecycle_id = ?)",
-                    lifecycleId);
-            del(deleted, "exit_feedback",
-                    "DELETE FROM exit_feedback WHERE exit_record_id IN "
-                            + "(SELECT id FROM exit_records WHERE intern_lifecycle_id = ?)",
-                    lifecycleId);
-            del(deleted, "exit_records",
-                    "DELETE FROM exit_records WHERE intern_lifecycle_id = ?", lifecycleId);
-        }
+        // Phase 7 — exit
+        del(deleted, "exit_checklist_items",
+                "DELETE FROM exit_checklist_items "
+                        + "WHERE exit_record_id IN " + exitRecordIds, userId);
+        del(deleted, "exit_feedback",
+                "DELETE FROM exit_feedback "
+                        + "WHERE exit_record_id IN " + exitRecordIds, userId);
+        del(deleted, "exit_records",
+                "DELETE FROM exit_records "
+                        + "WHERE intern_lifecycle_id IN " + lifecycleIds, userId);
 
-        if (candidateId != null) {
-            // Phase 8 — application chain (offers / interviews / screenings)
-            del(deleted, "offer_event_logs",
-                    "DELETE FROM offer_event_logs WHERE offer_id IN "
-                            + "(SELECT o.id FROM offers o JOIN applications a ON a.id = o.application_id "
-                            + "  WHERE a.candidate_id = ?)",
-                    candidateId);
-            del(deleted, "offer_envelopes",
-                    "DELETE FROM offer_envelopes WHERE offer_id IN "
-                            + "(SELECT o.id FROM offers o JOIN applications a ON a.id = o.application_id "
-                            + "  WHERE a.candidate_id = ?)",
-                    candidateId);
-            del(deleted, "offers",
-                    "DELETE FROM offers WHERE application_id IN "
-                            + "(SELECT id FROM applications WHERE candidate_id = ?)",
-                    candidateId);
-            del(deleted, "interview_event_logs",
-                    "DELETE FROM interview_event_logs WHERE interview_id IN "
-                            + "(SELECT i.id FROM interviews i JOIN applications a ON a.id = i.application_id "
-                            + "  WHERE a.candidate_id = ?)",
-                    candidateId);
-            del(deleted, "interview_scorecards",
-                    "DELETE FROM interview_scorecards WHERE interview_id IN "
-                            + "(SELECT i.id FROM interviews i JOIN applications a ON a.id = i.application_id "
-                            + "  WHERE a.candidate_id = ?)",
-                    candidateId);
-            del(deleted, "interviews",
-                    "DELETE FROM interviews WHERE application_id IN "
-                            + "(SELECT id FROM applications WHERE candidate_id = ?)",
-                    candidateId);
-            del(deleted, "screening_answers",
-                    "DELETE FROM screening_answers WHERE screening_id IN "
-                            + "(SELECT s.id FROM screenings s JOIN applications a ON a.id = s.application_id "
-                            + "  WHERE a.candidate_id = ?)",
-                    candidateId);
-            del(deleted, "screenings",
-                    "DELETE FROM screenings WHERE application_id IN "
-                            + "(SELECT id FROM applications WHERE candidate_id = ?)",
-                    candidateId);
-            del(deleted, "application_decision_logs",
-                    "DELETE FROM application_decision_logs WHERE application_id IN "
-                            + "(SELECT id FROM applications WHERE candidate_id = ?)",
-                    candidateId);
-            del(deleted, "engagements",
-                    "DELETE FROM engagements WHERE application_id IN "
-                            + "(SELECT id FROM applications WHERE candidate_id = ?)",
-                    candidateId);
-            del(deleted, "applications",
-                    "DELETE FROM applications WHERE candidate_id = ?", candidateId);
+        // Phase 8 — application chain (offers / interviews / screenings)
+        del(deleted, "offer_event_logs",
+                "DELETE FROM offer_event_logs WHERE offer_id IN " + offerIds, userId);
+        del(deleted, "offer_envelopes",
+                "DELETE FROM offer_envelopes WHERE offer_id IN " + offerIds, userId);
+        del(deleted, "offers",
+                "DELETE FROM offers WHERE application_id IN " + applicationIds, userId);
+        del(deleted, "interview_event_logs",
+                "DELETE FROM interview_event_logs WHERE interview_id IN " + interviewIds, userId);
+        del(deleted, "interview_scorecards",
+                "DELETE FROM interview_scorecards WHERE interview_id IN " + interviewIds, userId);
+        del(deleted, "interviews",
+                "DELETE FROM interviews WHERE application_id IN " + applicationIds, userId);
+        del(deleted, "screening_answers",
+                "DELETE FROM screening_answers WHERE screening_id IN " + screeningIds, userId);
+        del(deleted, "screenings",
+                "DELETE FROM screenings WHERE application_id IN " + applicationIds, userId);
+        del(deleted, "application_decision_logs",
+                "DELETE FROM application_decision_logs WHERE application_id IN "
+                        + applicationIds, userId);
+        del(deleted, "engagements",
+                "DELETE FROM engagements WHERE application_id IN " + applicationIds, userId);
+        del(deleted, "applications",
+                "DELETE FROM applications WHERE candidate_id IN " + candidateIds, userId);
 
-            // Phase 9 — compliance
-            del(deleted, "everify_cases",
-                    "DELETE FROM everify_cases WHERE candidate_id = ?", candidateId);
-            del(deleted, "i9_forms",
-                    "DELETE FROM i9_forms WHERE candidate_id = ?", candidateId);
-            del(deleted, "i983_plans",
-                    "DELETE FROM i983_plans WHERE candidate_id = ?", candidateId);
-            del(deleted, "training_plans",
-                    "DELETE FROM training_plans WHERE candidate_id = ?", candidateId);
-            del(deleted, "work_authorization_records",
-                    "DELETE FROM work_authorization_records WHERE user_id = ?", userId);
+        // Phase 9 — compliance
+        del(deleted, "everify_cases",
+                "DELETE FROM everify_cases WHERE candidate_id IN " + candidateIds, userId);
+        del(deleted, "i9_forms",
+                "DELETE FROM i9_forms WHERE candidate_id IN " + candidateIds, userId);
+        del(deleted, "i983_plans",
+                "DELETE FROM i983_plans WHERE candidate_id IN " + candidateIds, userId);
+        del(deleted, "training_plans",
+                "DELETE FROM training_plans WHERE candidate_id IN " + candidateIds, userId);
+        del(deleted, "work_authorization_records",
+                "DELETE FROM work_authorization_records WHERE user_id = ?", userId);
 
-            // Phase 10 — resumes
-            del(deleted, "resumes",
-                    "DELETE FROM resumes WHERE candidate_id = ?", candidateId);
-        }
+        // Phase 10 — resumes
+        del(deleted, "resumes",
+                "DELETE FROM resumes WHERE candidate_id IN " + candidateIds, userId);
 
-        // Phase 11 — identity rows pointing at the user
-        if (lifecycleId != null) {
-            del(deleted, "intern_lifecycles",
-                    "DELETE FROM intern_lifecycles WHERE id = ?", lifecycleId);
-        }
-        if (candidateId != null) {
-            del(deleted, "candidates", "DELETE FROM candidates WHERE id = ?", candidateId);
-        }
+        // Phase 11 — identity rows pointing at the user (always run by
+        // user_id directly so a previously-failed partial delete still
+        // gets cleaned up on retry).
+        del(deleted, "intern_lifecycles",
+                "DELETE FROM intern_lifecycles WHERE user_id = ?", userId);
+        del(deleted, "candidates",
+                "DELETE FROM candidates WHERE user_id = ?", userId);
 
         // Phase 12 — auxiliary user-keyed rows
         del(deleted, "documents",
