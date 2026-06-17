@@ -228,8 +228,13 @@ public class AdminUserService {
         // Phase 1 — notification leaves
         del(deleted, "user_notifications",
                 "DELETE FROM user_notifications WHERE recipient_user_id = ?", userId);
+        // sent_notifications is keyed by recipient EMAIL + target_id (an
+        // entity uuid), not by recipient_user_id. Delete by email; any
+        // rows still pointing at the user's deleted entities will be
+        // orphaned but harmless (target_id has no FK).
         del(deleted, "sent_notifications",
-                "DELETE FROM sent_notifications WHERE recipient_user_id = ?", userId);
+                "DELETE FROM sent_notifications WHERE LOWER(recipient) = LOWER(?)",
+                target.getEmail());
 
         if (lifecycleId != null) {
             // Phase 2 — evaluation children + I-983
@@ -432,17 +437,44 @@ public class AdminUserService {
     }
 
     /**
-     * Per-table DELETE wrapper. Records the row count under {@code tableName}
-     * and swallows missing-table exceptions so a partial deployment doesn't
-     * halt the wipe. Matches the {@code CleanSlateRunner} try/catch shape.
+     * Per-table DELETE wrapper. Each statement runs inside its own
+     * PostgreSQL SAVEPOINT so a column-not-exists or missing-table
+     * error rolls back ONLY that one statement instead of poisoning
+     * the outer transaction (Postgres aborts every subsequent command
+     * until the txn ends if any statement fails). Records the row
+     * count under {@code tableName}; failed statements are recorded as
+     * -1 so the per-table summary still shows what happened.
      */
     private void del(Map<String, Long> deleted, String tableName, String sql, Object... args) {
+        String savepoint = "sp_" + tableName.replaceAll("[^a-zA-Z0-9_]", "_");
+        try {
+            jdbcTemplate.execute("SAVEPOINT " + savepoint);
+        } catch (Exception spErr) {
+            // No active transaction — fall back to the legacy try/catch
+            // path. Should never happen for a @Transactional method call.
+            try {
+                long n = jdbcTemplate.update(sql, args);
+                deleted.put(tableName, n);
+            } catch (Exception e) {
+                log.debug("[AdminUserService] delete {} skipped (no savepoint, fallback failed): {}",
+                        tableName, e.getMessage());
+                deleted.put(tableName, -1L);
+            }
+            return;
+        }
         try {
             long n = jdbcTemplate.update(sql, args);
+            jdbcTemplate.execute("RELEASE SAVEPOINT " + savepoint);
             deleted.put(tableName, n);
         } catch (Exception e) {
-            log.debug("[AdminUserService] delete {} skipped (table missing or in-use): {}",
-                    tableName, e.getMessage());
+            try {
+                jdbcTemplate.execute("ROLLBACK TO SAVEPOINT " + savepoint);
+                jdbcTemplate.execute("RELEASE SAVEPOINT " + savepoint);
+            } catch (Exception rbErr) {
+                log.warn("[AdminUserService] rollback to {} failed: {}",
+                        savepoint, rbErr.getMessage());
+            }
+            log.debug("[AdminUserService] delete {} skipped: {}", tableName, e.getMessage());
             deleted.put(tableName, -1L);
         }
     }
