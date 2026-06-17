@@ -120,6 +120,34 @@ public class TrainerProjectAssignmentService {
 
     @Transactional
     public ProjectDetail assignProject(AssignProjectRequest req, User caller) {
+        try {
+            return assignProjectInternal(req, caller);
+        } catch (BadRequestException | ConflictException | ForbiddenException
+                | ResourceNotFoundException rethrow) {
+            // User-facing exceptions render cleanly via GlobalExceptionHandler;
+            // no need to ERROR-log them here.
+            throw rethrow;
+        } catch (Exception unexpected) {
+            // Self-explanatory log line so the next 500 is unambiguous in
+            // Railway: prints class + message + the entire cause chain, with
+            // the request context attached.
+            String ctx = "internLifecycleId=" + (req != null ? req.internLifecycleId() : null)
+                    + " monthYear=" + (req != null ? req.monthYear() : null)
+                    + " slot=" + (req != null ? req.projectNumber() : null)
+                    + " caller=" + (caller != null ? caller.getId() : null);
+            log.error("[TrainerProject] assignProject FAILED ({}): {} — root cause: {}",
+                    ctx, unexpected.toString(), rootCauseMessage(unexpected), unexpected);
+            throw unexpected;
+        }
+    }
+
+    private static String rootCauseMessage(Throwable t) {
+        Throwable cur = t;
+        while (cur.getCause() != null && cur.getCause() != cur) cur = cur.getCause();
+        return cur.getClass().getName() + ": " + cur.getMessage();
+    }
+
+    private ProjectDetail assignProjectInternal(AssignProjectRequest req, User caller) {
         requireTrainer(caller);
         if (req == null) throw new BadRequestException("body required");
 
@@ -312,10 +340,23 @@ public class TrainerProjectAssignmentService {
                         "monthYear", project.getMonthYear(),
                         "projectNumber", project.getProjectNumber()));
 
-        // 10) Notification fan-out (after_commit; emails + in-app)
-        notifier.dispatchProjectAssigned(project, lc, caller,
-                Boolean.TRUE.equals(project.getNotifyStakeholdersInternal()),
-                backdated, backdateAuthorizer);
+        // 10) Notification fan-out — best-effort. Notify failures must
+        // NEVER roll back the assignment transaction. Inside the
+        // dispatcher each per-recipient block already has try/catch,
+        // but the outer body has unprotected lookups (findById,
+        // findByRole) that could throw — wrap the entire call so the
+        // assignment survives.
+        try {
+            notifier.dispatchProjectAssigned(project, lc, caller,
+                    Boolean.TRUE.equals(project.getNotifyStakeholdersInternal()),
+                    backdated, backdateAuthorizer);
+        } catch (Exception notifyErr) {
+            log.error("[TrainerProject] notify fan-out failed "
+                            + "(non-fatal; assignment kept) for project={} "
+                            + "intern_lifecycle={} month={} slot={}: {}",
+                    project.getId(), lc.getId(), req.monthYear(),
+                    req.projectNumber(), notifyErr.toString(), notifyErr);
+        }
 
         return toDetail(project);
     }

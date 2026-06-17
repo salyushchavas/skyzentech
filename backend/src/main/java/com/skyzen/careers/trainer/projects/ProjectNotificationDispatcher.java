@@ -51,6 +51,24 @@ public class ProjectNotificationDispatcher {
                                          User trainer, boolean notifyStakeholders,
                                          boolean backdated,
                                          String backdateAuthorizerName) {
+        // Belt-and-suspenders — the assign service ALSO wraps this call
+        // in try/catch, but defending here too means direct callers
+        // (tests, future surfaces) can't accidentally take down a
+        // domain transaction with a notify failure.
+        try {
+            dispatchProjectAssignedInternal(project, lc, trainer,
+                    notifyStakeholders, backdated, backdateAuthorizerName);
+        } catch (Exception outerErr) {
+            log.error("[ProjectNotify] dispatchProjectAssigned outer body "
+                            + "failed (non-fatal): {}",
+                    outerErr.toString(), outerErr);
+        }
+    }
+
+    private void dispatchProjectAssignedInternal(Project project, InternLifecycle lc,
+                                                  User trainer, boolean notifyStakeholders,
+                                                  boolean backdated,
+                                                  String backdateAuthorizerName) {
         if (project == null || lc == null || trainer == null) return;
 
         User intern = lc.getUserId() != null
@@ -86,6 +104,8 @@ public class ProjectNotificationDispatcher {
         }
 
         // ── 2) Evaluator / Manager / ERM (opt-out via checkbox) ──────────
+        // Each null FK is handled inside sendStakeholder (early return on
+        // null userId), so passing nulls is explicitly safe.
         if (notifyStakeholders) {
             sendStakeholder(lc.getEvaluatorId(), project, lc, trainer, intern,
                     dueDateLocal, deepLinkStaff);
@@ -99,15 +119,17 @@ public class ProjectNotificationDispatcher {
         //    nudge so they can flag if they didn't actually authorise.
         if (backdated) {
             String summary = "Trainer " + nz(trainer.getFullName()) + " backdated a "
-                    + "project for " + intern.getFullName() + " ("
-                    + project.getMonthYear() + ") — authorizer named: "
+                    + "project for " + nz(intern.getFullName()) + " ("
+                    + nz(project.getMonthYear()) + ") — authorizer named: "
                     + (backdateAuthorizerName != null ? backdateAuthorizerName : "n/a");
             for (User m : safeList(userRepository.findByRole(UserRole.MANAGER))) {
+                if (m == null || m.getId() == null) continue;
                 tryInApp(m.getId(), "PROJECT_BACKDATED",
                         intern.getId(), "Backdated project assignment",
                         summary, deepLinkStaff);
             }
             for (User m : safeList(userRepository.findByRole(UserRole.ERM))) {
+                if (m == null || m.getId() == null) continue;
                 tryInApp(m.getId(), "PROJECT_BACKDATED",
                         intern.getId(), "Backdated project assignment",
                         summary, deepLinkStaff);
