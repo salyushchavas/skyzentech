@@ -2,6 +2,7 @@ package com.skyzen.careers.bootstrap;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.skyzen.careers.erm.documents.SkyzenDocument;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.CommandLineRunner;
@@ -1265,6 +1266,17 @@ public class SchemaFixupRunner implements CommandLineRunner {
         // detection only fires once per database.
         alignEnumCheckConstraintsV1();
 
+        // Phase E — re-sync the document_tasks.document_key CHECK on
+        // every boot. Hibernate auto-generates the constraint from the
+        // {@link SkyzenDocument} enum when the column is created, but
+        // ddl-auto=update never refreshes it when the enum grows —
+        // adding PASSPORT_FRONT etc. broke onboarding-packet assign
+        // with a 23514 check_violation. This sync method is NOT
+        // migration_log-gated because the enum is still growing; it
+        // is idempotent (no-op when the constraint already covers
+        // every current SkyzenDocument value).
+        syncDocumentKeyCheckConstraint();
+
         // Trainer/Evaluator auto-link backfill — one-shot, idempotent.
         // Catches active interns whose intern_lifecycles.trainer_id /
         // evaluator_id are NULL because DEFAULT_TRAINER_EMAIL /
@@ -1710,6 +1722,115 @@ public class SchemaFixupRunner implements CommandLineRunner {
         } catch (Exception e) {
             log.warn("[SchemaFixup] insert migration_log({}) skipped (non-fatal): {}",
                     migKey, e.getMessage());
+        }
+    }
+
+    /**
+     * Re-sync the {@code document_tasks.document_key} CHECK constraint
+     * with the current {@link SkyzenDocument} enum value list. Runs on
+     * every boot — NOT migration_log-gated — because the enum is still
+     * growing (Phase E added 10 upload-only docs; future phases will
+     * likely add more). Idempotent: if the existing constraint already
+     * contains every current enum value, no-op.
+     *
+     * <p>Background: Hibernate auto-generates a CHECK constraint with
+     * the enum values that exist when the column is first created.
+     * {@code spring.jpa.hibernate.ddl-auto=update} does NOT refresh
+     * existing CHECK constraints when the Java enum grows — so
+     * inserting a PASSPORT_FRONT row hits a 23514
+     * {@code check_violation}, which the assignPacket flow surfaces as
+     * "Data integrity violation". This sync drops the stale constraint
+     * and recreates it with the full current value list so every
+     * SkyzenDocument value is accepted.</p>
+     *
+     * <p>Longer-term: the right call is probably to drop the CHECK
+     * entirely and rely on application-layer enforcement
+     * (Hibernate's @Enumerated(STRING) only ever writes a valid value;
+     * out-of-band raw SQL is the only path to a bad row). Tracked as
+     * a follow-up — for now we keep the safety net.</p>
+     */
+    private void syncDocumentKeyCheckConstraint() {
+        final String table = "document_tasks";
+        final String column = "document_key";
+        try {
+            Boolean exists = jdbcTemplate.queryForObject(
+                    "SELECT EXISTS(SELECT 1 FROM information_schema.columns "
+                            + "WHERE table_name = ? AND column_name = ?)",
+                    Boolean.class, table, column);
+            if (exists == null || !exists) {
+                log.info("[SchemaFixup] skip {}.{} — column not present yet",
+                        table, column);
+                return;
+            }
+
+            List<String> currentValues = java.util.Arrays
+                    .stream(SkyzenDocument.values())
+                    .map(Enum::name)
+                    .toList();
+
+            List<Map<String, Object>> constraints = jdbcTemplate.queryForList(
+                    "SELECT con.conname AS name, "
+                            + "pg_get_constraintdef(con.oid) AS def "
+                            + "FROM pg_constraint con "
+                            + "JOIN pg_class cl ON cl.oid = con.conrelid "
+                            + "JOIN pg_attribute att "
+                            + "  ON att.attrelid = cl.oid "
+                            + "  AND att.attnum = ANY(con.conkey) "
+                            + "WHERE cl.relname = ? AND att.attname = ? "
+                            + "  AND con.contype = 'c'",
+                    table, column);
+
+            boolean aligned = constraints.stream().anyMatch(c -> {
+                String def = String.valueOf(c.get("def"));
+                return currentValues.stream().allMatch(
+                        v -> def.contains("'" + v + "'"));
+            });
+            if (aligned) {
+                log.debug("[SchemaFixup] {}.{} CHECK already covers every "
+                                + "SkyzenDocument value — skip", table, column);
+                return;
+            }
+
+            String before = constraints.stream()
+                    .map(c -> c.get("name") + " => " + c.get("def"))
+                    .reduce((a, b) -> a + " | " + b)
+                    .orElse("(none)");
+
+            for (Map<String, Object> c : constraints) {
+                String name = String.valueOf(c.get("name"));
+                String def = String.valueOf(c.get("def"));
+                // Same heuristic as V1 — only drop value-whitelist
+                // constraints (definition contains a single-quoted
+                // token). NOT NULL / length / FK constraints are
+                // left intact.
+                if (!def.contains("'")) continue;
+                try {
+                    jdbcTemplate.execute(
+                            "ALTER TABLE " + table
+                                    + " DROP CONSTRAINT IF EXISTS " + name);
+                } catch (Exception e) {
+                    log.warn("[SchemaFixup] drop {}.{} ({}) failed: {}",
+                            table, column, name, e.getMessage());
+                }
+            }
+
+            String inList = currentValues.stream()
+                    .map(v -> "'" + v + "'")
+                    .reduce((a, b) -> a + "," + b)
+                    .orElse("''");
+            String newName = table + "_" + column + "_check";
+            jdbcTemplate.execute(
+                    "ALTER TABLE " + table
+                            + " ADD CONSTRAINT " + newName
+                            + " CHECK (" + column
+                            + " IN (" + inList + "))");
+
+            log.info("[SchemaFixup] Re-synced {}.{} CHECK constraint to "
+                            + "{} SkyzenDocument values. Previous: [{}]",
+                    table, column, currentValues.size(), before);
+        } catch (Exception e) {
+            log.warn("[SchemaFixup] sync {}.{} CHECK failed (non-fatal): {}",
+                    table, column, e.getMessage());
         }
     }
 
