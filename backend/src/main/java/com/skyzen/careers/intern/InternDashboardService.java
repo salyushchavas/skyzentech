@@ -47,6 +47,7 @@ public class InternDashboardService {
     private final OfferRepository offerRepository;
     private final ApplicationRepository applicationRepository;
     private final SelectionAckPolicy selectionAckPolicy;
+    private final OrgTeamResolver orgTeamResolver;
 
     /**
      * Read-only transaction so lazy associations the dashboard touches
@@ -569,17 +570,20 @@ public class InternDashboardService {
     // ── Contacts ────────────────────────────────────────────────────────────
 
     private Contacts buildContacts(User caller) {
-        // Phase 5: populate from InternLifecycle.{trainerId, evaluatorId,
-        // managerId, ermId} once the ERM has wired them via the assignment
-        // endpoints. Pre-active interns get all-null contacts.
+        // Trainer + Evaluator route through OrgTeamResolver so the
+        // single org-wide trainer / evaluator (from DEFAULT_TRAINER_EMAIL
+        // / DEFAULT_EVALUATOR_EMAIL) populates the slot even when the
+        // per-intern FK was never stamped — fixes the "Your team shows
+        // only ERM + Manager" gap on activations that ran before the
+        // env vars resolved. Manager + ERM stay direct (per-intern).
         try {
             InternLifecycle lc = internLifecycleRepository.findByUserId(caller.getId())
                     .orElse(null);
             if (lc == null) return new Contacts(null, null, null, null);
             return new Contacts(
                     lookupContact(lc.getErmId()),
-                    lookupContact(lc.getTrainerId()),
-                    lookupContact(lc.getEvaluatorId()),
+                    lookupContact(orgTeamResolver.resolveTrainerId(lc)),
+                    lookupContact(orgTeamResolver.resolveEvaluatorId(lc)),
                     lookupContact(lc.getManagerId()));
         } catch (Exception e) {
             log.warn("Contacts lookup failed (non-fatal) for {}: {}",

@@ -5,6 +5,7 @@ import com.skyzen.careers.entity.Project;
 import com.skyzen.careers.entity.User;
 import com.skyzen.careers.enums.UserRole;
 import com.skyzen.careers.erm.CommunicationTemplateService;
+import com.skyzen.careers.intern.OrgTeamResolver;
 import com.skyzen.careers.notification.EmailProvider;
 import com.skyzen.careers.notification.UserNotificationDispatcher;
 import com.skyzen.careers.repository.UserRepository;
@@ -46,6 +47,7 @@ public class ProjectNotificationDispatcher {
     private final CommunicationTemplateService templateService;
     private final EmailProvider emailProvider;
     private final UserNotificationDispatcher inApp;
+    private final OrgTeamResolver orgTeamResolver;
 
     public void dispatchProjectAssigned(Project project, InternLifecycle lc,
                                          User trainer, boolean notifyStakeholders,
@@ -104,11 +106,15 @@ public class ProjectNotificationDispatcher {
         }
 
         // ── 2) Evaluator / Manager / ERM (opt-out via checkbox) ──────────
-        // Each null FK is handled inside sendStakeholder (early return on
-        // null userId), so passing nulls is explicitly safe.
+        // Evaluator resolves through OrgTeamResolver so the org-wide
+        // singleton (DEFAULT_EVALUATOR_EMAIL) gets the notify even when
+        // the per-intern evaluator_id was never stamped. Manager + ERM
+        // stay direct (genuinely per-intern). Each null userId is also
+        // handled inside sendStakeholder (early return) — belt and
+        // suspenders.
         if (notifyStakeholders) {
-            sendStakeholder(lc.getEvaluatorId(), project, lc, trainer, intern,
-                    dueDateLocal, deepLinkStaff);
+            sendStakeholder(orgTeamResolver.resolveEvaluatorId(lc),
+                    project, lc, trainer, intern, dueDateLocal, deepLinkStaff);
             sendStakeholder(lc.getManagerId(), project, lc, trainer, intern,
                     dueDateLocal, deepLinkStaff);
             sendStakeholder(lc.getErmId(), project, lc, trainer, intern,

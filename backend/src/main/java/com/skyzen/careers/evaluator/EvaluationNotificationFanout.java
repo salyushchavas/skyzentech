@@ -5,6 +5,7 @@ import com.skyzen.careers.entity.InternEvaluation;
 import com.skyzen.careers.entity.InternLifecycle;
 import com.skyzen.careers.entity.User;
 import com.skyzen.careers.erm.CommunicationTemplateService;
+import com.skyzen.careers.intern.OrgTeamResolver;
 import com.skyzen.careers.notification.EmailProvider;
 import com.skyzen.careers.notification.UserNotificationDispatcher;
 import com.skyzen.careers.repository.UserRepository;
@@ -34,6 +35,7 @@ public class EvaluationNotificationFanout {
     private final UserNotificationDispatcher inApp;
     private final EmailProvider emailProvider;
     private final CommunicationTemplateService templateService;
+    private final OrgTeamResolver orgTeamResolver;
 
     @Value("${app.frontend.base-url:https://www.skyzentech.com}")
     private String frontendBaseUrl;
@@ -161,9 +163,14 @@ public class EvaluationNotificationFanout {
 
     private void fanoutInApp(InternLifecycle lc, String eventType,
                               String title, String body, String url) {
-        // CC: ERM + Manager + Trainer. Skip evaluator (they're the actor on
-        // outbound events) — caller dispatches to them separately on ack.
-        for (UUID id : new UUID[]{lc.getErmId(), lc.getManagerId(), lc.getTrainerId()}) {
+        // CC: ERM + Manager + Trainer. Skip evaluator (they're the actor
+        // on outbound events) — caller dispatches to them separately on
+        // ack. Trainer routes through OrgTeamResolver so the org-wide
+        // singleton (DEFAULT_TRAINER_EMAIL) gets CC'd even when the
+        // per-intern trainer_id wasn't stamped — otherwise the trainer
+        // never sees evaluation events for that intern.
+        UUID trainerId = orgTeamResolver.resolveTrainerId(lc);
+        for (UUID id : new UUID[]{lc.getErmId(), lc.getManagerId(), trainerId}) {
             if (id != null) tryInApp(id, eventType, lc.getUserId(), title, body, url);
         }
     }
