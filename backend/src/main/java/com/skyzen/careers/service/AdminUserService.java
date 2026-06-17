@@ -350,16 +350,15 @@ public class AdminUserService {
                 "DELETE FROM exit_records "
                         + "WHERE intern_lifecycle_id IN " + lifecycleIds, userId);
 
-        // Phase 8 — offer + interview + screening (children of applications).
-        // Order: offer leaves first, then offers themselves (freeing
-        // applications.offer FK chain), then interview/screening
-        // chains, then application_decision_logs.
+        // Phase 8 — offer + interview + screening LEAVES (children of
+        // offers / interviews / screenings, NOT the parents
+        // themselves). Parents come after engagements has died, since
+        // engagement.offer_id and engagement.application_id block
+        // offers and applications respectively.
         del(deleted, "offer_event_logs",
                 "DELETE FROM offer_event_logs WHERE offer_id IN " + offerIds, userId);
         del(deleted, "offer_envelopes",
                 "DELETE FROM offer_envelopes WHERE offer_id IN " + offerIds, userId);
-        del(deleted, "offers",
-                "DELETE FROM offers WHERE application_id IN " + applicationIds, userId);
         del(deleted, "interview_event_logs",
                 "DELETE FROM interview_event_logs WHERE interview_id IN " + interviewIds, userId);
         del(deleted, "interview_scorecards",
@@ -374,11 +373,9 @@ public class AdminUserService {
                 "DELETE FROM application_decision_logs WHERE application_id IN "
                         + applicationIds, userId);
 
-        // Phase 9 — compliance. Order matters: everify_cases (via
-        // i9_form_id) → i9_forms (frees both candidates AND engagements
-        // because i9_forms.engagement_id → engagements is a constraint
-        // that blocks engagements DELETE if i9_forms still references
-        // them). Then i983_plans / training_plans / work_authorization.
+        // Phase 9 — compliance. Order: everify_cases (via i9_form_id)
+        // → i9_forms (which has engagement_id + candidate_id FKs to
+        // free) → i983_plans / training_plans / work_authorization.
         del(deleted, "everify_cases",
                 "DELETE FROM everify_cases WHERE i9_form_id IN "
                         + "(SELECT id FROM i9_forms WHERE candidate_id IN "
@@ -392,21 +389,32 @@ public class AdminUserService {
         del(deleted, "work_authorization_records",
                 "DELETE FROM work_authorization_records WHERE user_id = ?", userId);
 
-        // Phase 10 — engagements (after i9_forms is gone). Split the
-        // application_id / candidate_id sweep so a missing applications
-        // table doesn't poison the candidate_id branch.
+        // Phase 10 — engagements. Engagement has 3 outgoing FKs that
+        // ALL must clear before its parents can be deleted:
+        //   engagement.offer_id → offers      (blocks offers DELETE)
+        //   engagement.application_id → applications (blocks applications)
+        //   engagement.candidate_id → candidates     (blocks candidates)
+        // So engagements MUST die before offers / applications.
+        // Split application_id / candidate_id sweep so a missing
+        // applications table doesn't poison the candidate_id branch.
         del(deleted, "engagements (via application)",
                 "DELETE FROM engagements WHERE application_id IN " + applicationIds, userId);
         del(deleted, "engagements (via candidate)",
                 "DELETE FROM engagements WHERE candidate_id IN " + candidateIds, userId);
 
-        // Phase 11 — applications (after offers + engagements gone).
+        // Phase 11 — offers (after engagements + onboarding_tasks have
+        // released their offer_id FKs).
+        del(deleted, "offers",
+                "DELETE FROM offers WHERE application_id IN " + applicationIds, userId);
+
+        // Phase 12 — applications (after offers + engagements + every
+        // application-keyed child has died).
         del(deleted, "applications",
                 "DELETE FROM applications WHERE candidate_id IN " + candidateIds, userId);
 
-        // Phase 12 — resumes. MUST come after applications because
-        // applications.resume_id → resumes is a FK that blocks resumes
-        // DELETE if any application still references the row.
+        // Phase 13 — resumes. MUST come after applications because
+        // applications.resume_id → resumes blocks resumes DELETE if
+        // any application still references the row.
         del(deleted, "resumes",
                 "DELETE FROM resumes WHERE candidate_id IN " + candidateIds, userId);
 
