@@ -16,6 +16,7 @@ import com.skyzen.careers.repository.AuditLogRepository;
 import com.skyzen.careers.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -59,6 +60,7 @@ public class AdminUserService {
     private final AuditLogRepository auditLogRepository;
     private final PasswordEncoder passwordEncoder;
     private final ObjectMapper objectMapper;
+    private final JdbcTemplate jdbcTemplate;
 
     @Transactional(readOnly = true)
     public List<AdminUserResponse> list(UserRole roleFilter, String search) {
@@ -170,6 +172,290 @@ public class AdminUserService {
             writeAudit("USER_ACTIVATION_CHANGE", target, caller, snap);
         }
         return toResponse(target);
+    }
+
+    /**
+     * Hard-delete a candidate-side user (intern/applicant) AND every row
+     * scoped to them. Surgical alternative to the boot-only
+     * {@code CleanSlateRunner} full-wipe — lets the SUPER_ADMIN drop a
+     * single test candidate from the admin panel between runs without
+     * resetting every other candidate.
+     *
+     * <p>Refuses on:</p>
+     * <ul>
+     *   <li>self-delete (the caller cannot delete themselves)</li>
+     *   <li>any user with a non-INTERN role (staff are protected)</li>
+     *   <li>the last active SUPER_ADMIN (defence in depth — staff are
+     *       already refused above, but the check is cheap)</li>
+     * </ul>
+     *
+     * <p>The phased delete mirrors {@code CleanSlateRunner}'s table list
+     * but scopes every DELETE to this user's {@code candidate_id} /
+     * {@code intern_lifecycle_id} / {@code application_id} chain.
+     * {@code audit_logs} rows referencing the deleted user are PRESERVED
+     * so the forensic trail survives — consistent with the boot-time
+     * runner's behaviour. Each per-table DELETE is wrapped so a missing
+     * table on a partial deployment doesn't halt the operation.</p>
+     */
+    @Transactional
+    public Map<String, Long> deleteUser(UUID id, User caller) {
+        User target = userRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found: " + id));
+
+        if (caller != null && caller.getId().equals(target.getId())) {
+            throw new ConflictException("You cannot delete your own account");
+        }
+        Set<UserRole> roles = target.getRoles();
+        if (roles == null || roles.isEmpty()
+                || roles.stream().anyMatch(r -> r != UserRole.INTERN)) {
+            throw new ConflictException(
+                    "Hard-delete is restricted to candidate/intern users (roles == {INTERN}). "
+                            + "Use Deactivate for staff accounts.");
+        }
+        if (roles.contains(UserRole.SUPER_ADMIN)
+                && countActiveSuperAdminsExcluding(target.getId()) == 0) {
+            throw new ConflictException(LAST_SUPER_ADMIN_MSG);
+        }
+
+        UUID userId = target.getId();
+        UUID candidateId = queryForUuid(
+                "SELECT id FROM candidates WHERE user_id = ?", userId);
+        UUID lifecycleId = queryForUuid(
+                "SELECT id FROM intern_lifecycles WHERE user_id = ?", userId);
+
+        Map<String, Long> deleted = new LinkedHashMap<>();
+
+        // Phase 1 — notification leaves
+        del(deleted, "user_notifications",
+                "DELETE FROM user_notifications WHERE recipient_user_id = ?", userId);
+        del(deleted, "sent_notifications",
+                "DELETE FROM sent_notifications WHERE recipient_user_id = ?", userId);
+
+        if (lifecycleId != null) {
+            // Phase 2 — evaluation children + I-983
+            del(deleted, "evaluation_rubric_scores",
+                    "DELETE FROM evaluation_rubric_scores WHERE evaluation_id IN "
+                            + "(SELECT id FROM intern_evaluations WHERE intern_lifecycle_id = ?)",
+                    lifecycleId);
+            del(deleted, "evaluation_self_reviews",
+                    "DELETE FROM evaluation_self_reviews WHERE evaluation_id IN "
+                            + "(SELECT id FROM intern_evaluations WHERE intern_lifecycle_id = ?)",
+                    lifecycleId);
+            del(deleted, "evaluation_amendments",
+                    "DELETE FROM evaluation_amendments WHERE evaluation_id IN "
+                            + "(SELECT id FROM intern_evaluations WHERE intern_lifecycle_id = ?)",
+                    lifecycleId);
+            del(deleted, "intern_evaluations",
+                    "DELETE FROM intern_evaluations WHERE intern_lifecycle_id = ?", lifecycleId);
+            del(deleted, "i983_evaluations",
+                    "DELETE FROM i983_evaluations WHERE intern_lifecycle_id = ?", lifecycleId);
+
+            // Phase 3 — project graph
+            del(deleted, "project_assignment_event_logs",
+                    "DELETE FROM project_assignment_event_logs WHERE project_id IN "
+                            + "(SELECT id FROM projects WHERE intern_lifecycle_id = ?)",
+                    lifecycleId);
+            del(deleted, "project_submissions",
+                    "DELETE FROM project_submissions WHERE project_id IN "
+                            + "(SELECT id FROM projects WHERE intern_lifecycle_id = ?)",
+                    lifecycleId);
+            del(deleted, "project_workspace_files",
+                    "DELETE FROM project_workspace_files WHERE project_id IN "
+                            + "(SELECT id FROM projects WHERE intern_lifecycle_id = ?)",
+                    lifecycleId);
+            del(deleted, "project_tasks",
+                    "DELETE FROM project_tasks WHERE project_id IN "
+                            + "(SELECT id FROM projects WHERE intern_lifecycle_id = ?)",
+                    lifecycleId);
+            del(deleted, "project_repositories",
+                    "DELETE FROM project_repositories WHERE project_id IN "
+                            + "(SELECT id FROM projects WHERE intern_lifecycle_id = ?)",
+                    lifecycleId);
+            del(deleted, "project_assignments",
+                    "DELETE FROM project_assignments WHERE intern_id = ?", lifecycleId);
+            del(deleted, "qa_sessions",
+                    "DELETE FROM qa_sessions WHERE project_id IN "
+                            + "(SELECT id FROM projects WHERE intern_lifecycle_id = ?)",
+                    lifecycleId);
+            del(deleted, "projects",
+                    "DELETE FROM projects WHERE intern_lifecycle_id = ?", lifecycleId);
+
+            // Phase 4 — timesheets + weekly meetings
+            del(deleted, "timesheet_days",
+                    "DELETE FROM timesheet_days WHERE timesheet_id IN "
+                            + "(SELECT id FROM timesheets WHERE intern_lifecycle_id = ?)",
+                    lifecycleId);
+            del(deleted, "timesheets",
+                    "DELETE FROM timesheets WHERE intern_lifecycle_id = ?", lifecycleId);
+            del(deleted, "weekly_meetings",
+                    "DELETE FROM weekly_meetings WHERE intern_lifecycle_id = ?", lifecycleId);
+
+            // Phase 5 — document packets (Phase 8.2)
+            del(deleted, "document_task_review_logs",
+                    "DELETE FROM document_task_review_logs WHERE task_id IN "
+                            + "(SELECT t.id FROM document_tasks t "
+                            + "  JOIN document_packets p ON p.id = t.packet_id "
+                            + " WHERE p.intern_lifecycle_id = ?)",
+                    lifecycleId);
+            del(deleted, "document_tasks",
+                    "DELETE FROM document_tasks WHERE packet_id IN "
+                            + "(SELECT id FROM document_packets WHERE intern_lifecycle_id = ?)",
+                    lifecycleId);
+            del(deleted, "document_packets",
+                    "DELETE FROM document_packets WHERE intern_lifecycle_id = ?", lifecycleId);
+
+            // Phase 6 — legacy onboarding packets
+            del(deleted, "onboarding_tasks",
+                    "DELETE FROM onboarding_tasks WHERE packet_id IN "
+                            + "(SELECT id FROM onboarding_packets WHERE intern_lifecycle_id = ?)",
+                    lifecycleId);
+            del(deleted, "onboarding_packets",
+                    "DELETE FROM onboarding_packets WHERE intern_lifecycle_id = ?", lifecycleId);
+
+            // Phase 7 — exit
+            del(deleted, "exit_checklist_items",
+                    "DELETE FROM exit_checklist_items WHERE exit_record_id IN "
+                            + "(SELECT id FROM exit_records WHERE intern_lifecycle_id = ?)",
+                    lifecycleId);
+            del(deleted, "exit_feedback",
+                    "DELETE FROM exit_feedback WHERE exit_record_id IN "
+                            + "(SELECT id FROM exit_records WHERE intern_lifecycle_id = ?)",
+                    lifecycleId);
+            del(deleted, "exit_records",
+                    "DELETE FROM exit_records WHERE intern_lifecycle_id = ?", lifecycleId);
+        }
+
+        if (candidateId != null) {
+            // Phase 8 — application chain (offers / interviews / screenings)
+            del(deleted, "offer_event_logs",
+                    "DELETE FROM offer_event_logs WHERE offer_id IN "
+                            + "(SELECT o.id FROM offers o JOIN applications a ON a.id = o.application_id "
+                            + "  WHERE a.candidate_id = ?)",
+                    candidateId);
+            del(deleted, "offer_envelopes",
+                    "DELETE FROM offer_envelopes WHERE offer_id IN "
+                            + "(SELECT o.id FROM offers o JOIN applications a ON a.id = o.application_id "
+                            + "  WHERE a.candidate_id = ?)",
+                    candidateId);
+            del(deleted, "offers",
+                    "DELETE FROM offers WHERE application_id IN "
+                            + "(SELECT id FROM applications WHERE candidate_id = ?)",
+                    candidateId);
+            del(deleted, "interview_event_logs",
+                    "DELETE FROM interview_event_logs WHERE interview_id IN "
+                            + "(SELECT i.id FROM interviews i JOIN applications a ON a.id = i.application_id "
+                            + "  WHERE a.candidate_id = ?)",
+                    candidateId);
+            del(deleted, "interview_scorecards",
+                    "DELETE FROM interview_scorecards WHERE interview_id IN "
+                            + "(SELECT i.id FROM interviews i JOIN applications a ON a.id = i.application_id "
+                            + "  WHERE a.candidate_id = ?)",
+                    candidateId);
+            del(deleted, "interviews",
+                    "DELETE FROM interviews WHERE application_id IN "
+                            + "(SELECT id FROM applications WHERE candidate_id = ?)",
+                    candidateId);
+            del(deleted, "screening_answers",
+                    "DELETE FROM screening_answers WHERE screening_id IN "
+                            + "(SELECT s.id FROM screenings s JOIN applications a ON a.id = s.application_id "
+                            + "  WHERE a.candidate_id = ?)",
+                    candidateId);
+            del(deleted, "screenings",
+                    "DELETE FROM screenings WHERE application_id IN "
+                            + "(SELECT id FROM applications WHERE candidate_id = ?)",
+                    candidateId);
+            del(deleted, "application_decision_logs",
+                    "DELETE FROM application_decision_logs WHERE application_id IN "
+                            + "(SELECT id FROM applications WHERE candidate_id = ?)",
+                    candidateId);
+            del(deleted, "engagements",
+                    "DELETE FROM engagements WHERE application_id IN "
+                            + "(SELECT id FROM applications WHERE candidate_id = ?)",
+                    candidateId);
+            del(deleted, "applications",
+                    "DELETE FROM applications WHERE candidate_id = ?", candidateId);
+
+            // Phase 9 — compliance
+            del(deleted, "everify_cases",
+                    "DELETE FROM everify_cases WHERE candidate_id = ?", candidateId);
+            del(deleted, "i9_forms",
+                    "DELETE FROM i9_forms WHERE candidate_id = ?", candidateId);
+            del(deleted, "i983_plans",
+                    "DELETE FROM i983_plans WHERE candidate_id = ?", candidateId);
+            del(deleted, "training_plans",
+                    "DELETE FROM training_plans WHERE candidate_id = ?", candidateId);
+            del(deleted, "work_authorization_records",
+                    "DELETE FROM work_authorization_records WHERE user_id = ?", userId);
+
+            // Phase 10 — resumes
+            del(deleted, "resumes",
+                    "DELETE FROM resumes WHERE candidate_id = ?", candidateId);
+        }
+
+        // Phase 11 — identity rows pointing at the user
+        if (lifecycleId != null) {
+            del(deleted, "intern_lifecycles",
+                    "DELETE FROM intern_lifecycles WHERE id = ?", lifecycleId);
+        }
+        if (candidateId != null) {
+            del(deleted, "candidates", "DELETE FROM candidates WHERE id = ?", candidateId);
+        }
+
+        // Phase 12 — auxiliary user-keyed rows
+        del(deleted, "password_reset_tokens",
+                "DELETE FROM password_reset_tokens WHERE user_id = ?", userId);
+        del(deleted, "user_sessions",
+                "DELETE FROM user_sessions WHERE user_id = ?", userId);
+        del(deleted, "support_tickets",
+                "DELETE FROM support_tickets WHERE created_by_id = ?", userId);
+
+        // Audit the delete BEFORE we drop the user row — caller is the
+        // actor; target is the subject. Both audit columns are plain
+        // UUIDs (no FK), so the row survives the user delete and stays
+        // as the forensic record. Total deleted-row count is the headline
+        // value; per-table breakdown lives in afterJson for debugging.
+        long totalRows = deleted.values().stream().mapToLong(Long::longValue).sum();
+        Map<String, Object> snap = new LinkedHashMap<>();
+        snap.put("targetEmail", target.getEmail());
+        snap.put("targetUserId", userId.toString());
+        snap.put("totalRowsDeleted", totalRows);
+        snap.put("perTable", deleted);
+        writeAudit("USER_HARD_DELETE", target, caller, snap);
+
+        // Phase 13 — terminal user delete (user_roles cascades via
+        // @ElementCollection on User.roles).
+        del(deleted, "users", "DELETE FROM users WHERE id = ?", userId);
+
+        log.warn("[AdminUserService] hard-deleted user {} ({}) — totalRows={}, perTable={}",
+                userId, target.getEmail(), totalRows, deleted);
+        return deleted;
+    }
+
+    /**
+     * Per-table DELETE wrapper. Records the row count under {@code tableName}
+     * and swallows missing-table exceptions so a partial deployment doesn't
+     * halt the wipe. Matches the {@code CleanSlateRunner} try/catch shape.
+     */
+    private void del(Map<String, Long> deleted, String tableName, String sql, Object... args) {
+        try {
+            long n = jdbcTemplate.update(sql, args);
+            deleted.put(tableName, n);
+        } catch (Exception e) {
+            log.debug("[AdminUserService] delete {} skipped (table missing or in-use): {}",
+                    tableName, e.getMessage());
+            deleted.put(tableName, -1L);
+        }
+    }
+
+    private UUID queryForUuid(String sql, Object... args) {
+        try {
+            return jdbcTemplate.queryForObject(sql, (rs, n) -> {
+                String s = rs.getString(1);
+                return s != null ? UUID.fromString(s) : null;
+            }, args);
+        } catch (Exception e) {
+            return null;
+        }
     }
 
     // ── Helpers ─────────────────────────────────────────────────────────────

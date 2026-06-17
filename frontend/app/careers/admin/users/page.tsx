@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { AlertCircle, MoreHorizontal, Plus, Search, ShieldAlert } from 'lucide-react';
+import { AlertCircle, MoreHorizontal, Plus, Search, ShieldAlert, Trash2 } from 'lucide-react';
 import api from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
 import ProtectedRoute from '@/components/ProtectedRoute';
@@ -103,6 +103,11 @@ function UsersTable() {
   const [changingRoleFor, setChangingRoleFor] = useState<AdminUserResponse | null>(null);
   const [confirmingDeactivateFor, setConfirmingDeactivateFor] =
     useState<AdminUserResponse | null>(null);
+  // Hard-delete is restricted to candidate users (roles == {INTERN}) and
+  // gated behind a typed-confirm modal — much higher stakes than the
+  // reversible Deactivate flow.
+  const [confirmingDeleteFor, setConfirmingDeleteFor] =
+    useState<AdminUserResponse | null>(null);
   // Surfaces the last-active-SUPER_ADMIN refusal as a persistent banner the
   // operator has to dismiss — not a passing toast.
   const [blockedMessage, setBlockedMessage] = useState<string | null>(null);
@@ -177,6 +182,27 @@ function UsersTable() {
     setMenuFor(null);
     setConfirmingDeactivateFor(u);
   };
+  const askDelete = (u: AdminUserResponse) => {
+    setMenuFor(null);
+    setConfirmingDeleteFor(u);
+  };
+  const deleteUser = useCallback(async (u: AdminUserResponse) => {
+    try {
+      await api.delete(`/api/v1/admin/users/${u.id}`);
+      // Drop the row optimistically; the typed-confirm modal already
+      // walled this off so a stale list is fine.
+      setUsers((curr) => (curr ? curr.filter((x) => x.id !== u.id) : curr));
+      setToast(`Deleted ${u.email}.`);
+    } catch (err: any) {
+      const status = err?.response?.status;
+      const msg = err?.response?.data?.error ?? 'Could not delete user.';
+      if (status === 409 && msg.includes(LAST_SUPER_ADMIN_FRAGMENT)) {
+        setBlockedMessage(msg);
+      } else {
+        setToast(msg);
+      }
+    }
+  }, []);
 
   return (
     <section>
@@ -341,6 +367,16 @@ function UsersTable() {
                           >
                             {u.active ? 'Deactivate' : 'Activate'}
                           </button>
+                          {role === 'INTERN' && !isSelf && (
+                            <button
+                              type="button"
+                              onClick={() => askDelete(u)}
+                              className="flex w-full items-center gap-2 border-t border-gray-100 px-3 py-2 text-sm font-medium text-red-700 hover:bg-red-50"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" strokeWidth={2} />
+                              Delete permanently
+                            </button>
+                          )}
                         </div>
                       )}
                     </td>
@@ -387,6 +423,18 @@ function UsersTable() {
             const u = confirmingDeactivateFor;
             setConfirmingDeactivateFor(null);
             await setStatus(u, false);
+          }}
+        />
+      )}
+
+      {confirmingDeleteFor && (
+        <ConfirmDeleteModal
+          target={confirmingDeleteFor}
+          onCancel={() => setConfirmingDeleteFor(null)}
+          onConfirm={async () => {
+            const u = confirmingDeleteFor;
+            setConfirmingDeleteFor(null);
+            await deleteUser(u);
           }}
         />
       )}
@@ -669,6 +717,83 @@ function ConfirmDeactivateModal({
             className="rounded-md bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-60"
           >
             {submitting ? 'Deactivating…' : 'Deactivate'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ConfirmDeleteModal({
+  target,
+  onCancel,
+  onConfirm,
+}: {
+  target: AdminUserResponse;
+  onCancel: () => void;
+  onConfirm: () => Promise<void>;
+}) {
+  const [typed, setTyped] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const canDelete = typed === 'DELETE';
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+      <div className="w-full max-w-md rounded-lg bg-white p-6 shadow-xl">
+        <div className="mb-3 flex items-start gap-3">
+          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-red-100 text-red-700">
+            <Trash2 className="h-5 w-5" strokeWidth={2} />
+          </span>
+          <div className="flex-1">
+            <h3 className="text-lg font-semibold text-gray-900">Delete user permanently</h3>
+            <p className="mt-1 text-sm text-gray-600">
+              {target.name} <span className="text-gray-400">·</span> {target.email}
+            </p>
+          </div>
+        </div>
+        <div className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-900">
+          <p className="font-semibold">This cannot be undone.</p>
+          <p className="mt-1">
+            The user account + every record scoped to them (applications, interviews,
+            offers, document packets, projects, evaluations, timesheets, exit
+            records) will be permanently deleted. Audit log entries are preserved
+            for the forensic trail.
+          </p>
+        </div>
+        <label className="mt-4 block text-sm">
+          <span className="font-medium text-gray-800">
+            Type <span className="font-mono text-red-700">DELETE</span> to confirm
+          </span>
+          <input
+            type="text"
+            value={typed}
+            onChange={(e) => setTyped(e.target.value)}
+            autoFocus
+            autoComplete="off"
+            spellCheck={false}
+            className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 font-mono text-sm focus:border-red-500 focus:outline-none focus:ring-1 focus:ring-red-500"
+          />
+        </label>
+        <div className="mt-5 flex justify-end gap-2">
+          <button
+            type="button"
+            onClick={onCancel}
+            disabled={submitting}
+            className="rounded-md border border-gray-300 bg-white px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-60"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={async () => {
+              if (!canDelete) return;
+              setSubmitting(true);
+              await onConfirm();
+            }}
+            disabled={!canDelete || submitting}
+            className="rounded-md bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-40 disabled:cursor-not-allowed"
+          >
+            {submitting ? 'Deleting…' : 'Delete permanently'}
           </button>
         </div>
       </div>
