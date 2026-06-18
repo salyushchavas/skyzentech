@@ -111,6 +111,23 @@ export type DocumentTaskListPage = {
   totalPages: number;
 };
 
+export type InternReviewQueueRow = {
+  internLifecycleId: string;
+  internUserId: string | null;
+  internName: string | null;
+  pendingCount: number;
+  oldestSubmittedAt: string | null;
+  oldestHoursWaiting: number;
+};
+
+export type InternReviewQueuePage = {
+  items: InternReviewQueueRow[];
+  page: number;
+  pageSize: number;
+  totalElements: number;
+  totalPages: number;
+};
+
 export type ReviewEventEntry = {
   id: string;
   actorUserId: string | null;

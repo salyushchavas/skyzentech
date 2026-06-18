@@ -113,6 +113,26 @@ public final class DocumentDtos {
             int page, int pageSize, long totalElements, int totalPages
     ) {}
 
+    /**
+     * One row in the by-intern grouped review queue — backs the
+     * "list of people who have things waiting" view that replaced
+     * the flat per-document table. {@code oldestSubmittedAt} powers
+     * the "X hours waiting" badge and the queue ordering.
+     */
+    public record InternReviewQueueRow(
+            UUID internLifecycleId,
+            UUID internUserId,
+            String internName,
+            long pendingCount,
+            Instant oldestSubmittedAt,
+            long oldestHoursWaiting
+    ) {}
+
+    public record InternReviewQueuePage(
+            List<InternReviewQueueRow> items,
+            int page, int pageSize, long totalElements, int totalPages
+    ) {}
+
     public record ReviewEventEntry(
             UUID id,
             UUID actorUserId,

@@ -91,9 +91,25 @@ public class DocumentPacketController {
     public DocumentDtos.DocumentTaskListPage queue(
             @RequestParam(required = false) String category,
             @RequestParam(required = false) String search,
+            @RequestParam(required = false) UUID internLifecycleId,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "25") int pageSize) {
-        return service.listReviewQueue(category, search, page, pageSize);
+        return service.listReviewQueue(
+                category, search, internLifecycleId, page, pageSize);
+    }
+
+    /**
+     * Person-first queue — one row per intern with documents awaiting
+     * review. The per-document detail lives at
+     * {@code /document-review/queue?internLifecycleId=…}.
+     */
+    @GetMapping("/document-review/queue/by-intern")
+    @PreAuthorize("hasAnyRole('ERM', 'SUPER_ADMIN')")
+    public DocumentDtos.InternReviewQueuePage queueByIntern(
+            @RequestParam(required = false) String search,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "25") int pageSize) {
+        return service.listReviewQueueByIntern(search, page, pageSize);
     }
 
     @GetMapping("/document-review/tasks/{id}")

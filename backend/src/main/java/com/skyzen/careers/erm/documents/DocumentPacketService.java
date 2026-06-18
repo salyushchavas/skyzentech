@@ -309,6 +309,18 @@ public class DocumentPacketService {
     @Transactional(readOnly = true)
     public DocumentTaskListPage listReviewQueue(
             String category, String search, int page, int pageSize) {
+        return listReviewQueue(category, search, null, page, pageSize);
+    }
+
+    /**
+     * {@code internLifecycleId}, when non-null, scopes the queue to
+     * one intern. Used by the per-intern detail page that opens when
+     * an ERM clicks a name on the by-intern queue.
+     */
+    @Transactional(readOnly = true)
+    public DocumentTaskListPage listReviewQueue(
+            String category, String search,
+            UUID internLifecycleId, int page, int pageSize) {
         int p = Math.max(0, page);
         int ps = Math.min(100, Math.max(1, pageSize));
         // ERM Phase 8.2 — document_templates is gone; category lives in
@@ -317,6 +329,10 @@ public class DocumentPacketService {
         StringBuilder where = new StringBuilder(
                 " WHERE t.status = 'SUBMITTED' ");
         List<Object> params = new ArrayList<>();
+        if (internLifecycleId != null) {
+            where.append(" AND pk.intern_lifecycle_id = ? ");
+            params.add(internLifecycleId);
+        }
         if (category != null && !category.isBlank()) {
             String cat = category.trim().toUpperCase();
             List<String> keys = new ArrayList<>();
@@ -376,6 +392,70 @@ public class DocumentPacketService {
         }
         int totalPages = ps == 0 ? 0 : (int) Math.ceil((double) total / ps);
         return new DocumentTaskListPage(rows, p, ps, total, totalPages);
+    }
+
+    /**
+     * Person-first variant of the review queue: one row per intern
+     * with at least one SUBMITTED task, ordered by who's been waiting
+     * longest. Backs the {@code /erm/document-review} top-level list;
+     * the per-document detail page calls {@link #listReviewQueue} with
+     * an {@code internLifecycleId} filter.
+     */
+    @Transactional(readOnly = true)
+    public InternReviewQueuePage listReviewQueueByIntern(
+            String search, int page, int pageSize) {
+        int p = Math.max(0, page);
+        int ps = Math.min(100, Math.max(1, pageSize));
+        StringBuilder where = new StringBuilder(
+                " WHERE t.status = 'SUBMITTED' ");
+        List<Object> params = new ArrayList<>();
+        if (search != null && !search.isBlank()) {
+            where.append(" AND LOWER(u.full_name) LIKE ? ");
+            params.add("%" + search.trim().toLowerCase() + "%");
+        }
+        // Count distinct interns (= group cardinality) for pagination.
+        long total = countOrZero(
+                "SELECT COUNT(DISTINCT pk.intern_lifecycle_id) "
+                        + "  FROM document_tasks t "
+                        + "  JOIN document_packets pk ON pk.id = t.packet_id "
+                        + "  JOIN intern_lifecycles il ON il.id = pk.intern_lifecycle_id "
+                        + "  JOIN users u ON u.id = il.user_id " + where,
+                params.toArray());
+        List<Object> pageParams = new ArrayList<>(params);
+        pageParams.add(ps);
+        pageParams.add(p * ps);
+        List<InternReviewQueueRow> rows = new ArrayList<>();
+        try {
+            for (Map<String, Object> r : jdbc.queryForList(
+                    "SELECT pk.intern_lifecycle_id, il.user_id, u.full_name, "
+                            + "       COUNT(t.id) AS pending_count, "
+                            + "       MIN(t.submitted_at) AS oldest_submitted_at "
+                            + "  FROM document_tasks t "
+                            + "  JOIN document_packets pk ON pk.id = t.packet_id "
+                            + "  JOIN intern_lifecycles il ON il.id = pk.intern_lifecycle_id "
+                            + "  JOIN users u ON u.id = il.user_id "
+                            + where
+                            + " GROUP BY pk.intern_lifecycle_id, il.user_id, u.full_name "
+                            + " ORDER BY MIN(t.submitted_at) ASC NULLS LAST "
+                            + " LIMIT ? OFFSET ?",
+                    pageParams.toArray())) {
+                Instant oldest = instantOf((java.sql.Timestamp) r.get("oldest_submitted_at"));
+                long hoursWaiting = oldest == null ? 0
+                        : Duration.between(oldest, Instant.now()).toHours();
+                rows.add(new InternReviewQueueRow(
+                        uuid(r.get("intern_lifecycle_id")),
+                        uuid(r.get("user_id")),
+                        (String) r.get("full_name"),
+                        ((Number) r.get("pending_count")).longValue(),
+                        oldest,
+                        hoursWaiting));
+            }
+        } catch (Exception e) {
+            log.warn("[DocumentPacket] by-intern review queue query failed: {}",
+                    e.getMessage());
+        }
+        int totalPages = ps == 0 ? 0 : (int) Math.ceil((double) total / ps);
+        return new InternReviewQueuePage(rows, p, ps, total, totalPages);
     }
 
     @Transactional

@@ -160,7 +160,7 @@ export default function DocumentPacketDetailPage() {
             </thead>
             <tbody className="divide-y divide-slate-100">
               {p.tasks.map((t) => (
-                <TaskRow key={t.taskId} t={t} onOpen={() => router.push(`/careers/erm/document-review?focus=${t.taskId}`)} />
+                <TaskRow key={t.taskId} t={t} onOpen={() => router.push(`/careers/erm/document-review/${p.internLifecycleId}?focus=${t.taskId}`)} />
               ))}
             </tbody>
           </table>
