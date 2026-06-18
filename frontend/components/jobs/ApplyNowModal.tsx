@@ -6,10 +6,8 @@ import type { JobPostingResponse, ResumeResponse } from '@/types';
 import {
   Button,
   FileUpload,
-  Input,
   Label,
   Modal,
-  StatusPill,
   StepperHorizontal,
   Textarea,
   toast,
@@ -26,7 +24,6 @@ interface Props {
 const REASON_MAX = 500;
 
 const WIZARD_STEPS = [
-  { key: 'profile', label: 'Profile' },
   { key: 'resume', label: 'Resume' },
   { key: 'review', label: 'Review' },
 ];
@@ -39,7 +36,6 @@ export default function ApplyNowModal({
   onApplied,
 }: Props) {
   const [stepIdx, setStepIdx] = useState(0);
-  const [phone, setPhone] = useState('');
   const [reason, setReason] = useState('');
   const [resumes, setResumes] = useState<ResumeResponse[]>([]);
   const [selectedResumeId, setSelectedResumeId] = useState<string>('');
@@ -82,7 +78,7 @@ export default function ApplyNowModal({
   async function handleSubmit() {
     if (!selectedResumeId) {
       setError('Resume is required to submit.');
-      setStepIdx(1);
+      setStepIdx(0);
       return;
     }
     setSubmitting(true);
@@ -106,8 +102,7 @@ export default function ApplyNowModal({
   }
 
   const isLast = stepIdx === WIZARD_STEPS.length - 1;
-  const canAdvance =
-    (stepIdx === 0) || (stepIdx === 1 && !!selectedResumeId);
+  const canAdvance = stepIdx === 0 && !!selectedResumeId;
 
   return (
     <Modal
@@ -146,28 +141,6 @@ export default function ApplyNowModal({
       )}
 
       {stepIdx === 0 && (
-        <div className="space-y-4">
-          <div>
-            <Label>Full name</Label>
-            <Input value={defaultName ?? ''} readOnly disabled />
-          </div>
-          <div>
-            <Label>Email</Label>
-            <Input value={defaultEmail ?? ''} readOnly disabled />
-          </div>
-          <div>
-            <Label htmlFor="apply-phone">Phone (optional)</Label>
-            <Input
-              id="apply-phone"
-              value={phone}
-              onChange={(e) => setPhone(e.target.value)}
-              placeholder="+1 555 555 0100"
-            />
-          </div>
-        </div>
-      )}
-
-      {stepIdx === 1 && (
         <div className="space-y-4">
           <div>
             <Label>Resume</Label>
@@ -222,7 +195,7 @@ export default function ApplyNowModal({
         </div>
       )}
 
-      {stepIdx === 2 && (
+      {stepIdx === 1 && (
         <div className="space-y-4 text-sm text-slate-700">
           <SummaryRow label="Position" value={posting.title} />
           <SummaryRow
@@ -231,7 +204,6 @@ export default function ApplyNowModal({
           />
           <SummaryRow label="Applicant" value={defaultName ?? '—'} />
           <SummaryRow label="Email" value={defaultEmail ?? '—'} />
-          <SummaryRow label="Phone" value={phone || 'Not provided'} />
           <SummaryRow label="Resume" value={selectedResume?.fileName ?? 'None'} />
           {reason && <SummaryRow label="Why interested" value={reason} multi />}
           <div className="rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-xs text-blue-900">
