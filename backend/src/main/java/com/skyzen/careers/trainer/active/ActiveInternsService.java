@@ -660,12 +660,8 @@ public class ActiveInternsService {
                             + "  LEFT JOIN users eu ON eu.id = il.evaluator_id "
                             + "  LEFT JOIN users mu ON mu.id = il.manager_id "
                             + "  LEFT JOIN users ru ON ru.id = il.erm_id "
-                            + " WHERE il.id = ? "
-                            + (caller.getRoles().contains(UserRole.SUPER_ADMIN)
-                                    ? "" : " AND il.trainer_id = ? "),
-                    caller.getRoles().contains(UserRole.SUPER_ADMIN)
-                            ? new Object[]{lifecycleId}
-                            : new Object[]{lifecycleId, caller.getId()},
+                            + " WHERE il.id = ? ",
+                    new Object[]{lifecycleId},
                     this::mapBasicRow);
         } catch (Exception e) {
             throw new ResourceNotFoundException("Active intern not found or not in scope: "

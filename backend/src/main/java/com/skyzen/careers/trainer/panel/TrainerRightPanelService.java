@@ -41,9 +41,13 @@ public class TrainerRightPanelService {
             throw new ForbiddenException("TRAINER or SUPER_ADMIN required");
         }
         UUID callerId = caller.getId();
-        boolean isSuper = caller.getRoles().contains(UserRole.SUPER_ADMIN);
-        String scope = isSuper ? "" : " AND il.trainer_id = ? ";
-        Object[] scopeArg = isSuper ? new Object[]{} : new Object[]{callerId};
+        // Org-wide trainer model: every TRAINER (there is one) + SUPER_ADMIN
+        // sees ALL active interns on the KPI counters. The previous
+        // per-intern `il.trainer_id = caller.id` fence read 0 for any intern
+        // whose trainer_id hadn't been stamped — which is the default state
+        // for ACTIVE interns under the single-trainer-org config.
+        String scope = "";
+        Object[] scopeArg = new Object[]{};
         String currentMonth = YearMonth.now(ZONE).toString();
 
         long withoutProject = safeCount(

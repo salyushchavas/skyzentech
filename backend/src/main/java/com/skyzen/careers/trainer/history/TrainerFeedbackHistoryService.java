@@ -75,16 +75,12 @@ public class TrainerFeedbackHistoryService {
             where.append(" AND p.intern_lifecycle_id = ? ");
             params.add(internLifecycleId);
         }
-        if (!caller.getRoles().contains(UserRole.SUPER_ADMIN)) {
-            // Single-trainer fallback — include null-trainer interns so the
-            // history list matches what the per-intern guard now accepts.
-            // Without this, null-trainer interns whose projects were
-            // accepted/returned by the org TRAINER would be invisible
-            // here even though the row-level guard would allow opening
-            // their detail page.
-            where.append(" AND (il.trainer_id = ? OR il.trainer_id IS NULL) ");
-            params.add(caller.getId());
-        }
+        // Org-wide trainer model: TRAINER + SUPER_ADMIN both see the
+        // shared feedback history across all interns. The previous
+        // `il.trainer_id = caller.id OR IS NULL` was a half-step toward
+        // the same outcome (it included null-trainer rows); we now make
+        // it explicit — no per-intern fence. requireTrainer(caller)
+        // above already gates the role.
         if (decision != null && !decision.isBlank()
                 && !"ALL".equalsIgnoreCase(decision.trim())) {
             where.append(" AND s.trainer_decision = ? ");

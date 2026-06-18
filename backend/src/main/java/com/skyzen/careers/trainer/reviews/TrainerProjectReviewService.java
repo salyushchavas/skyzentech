@@ -109,10 +109,12 @@ public class TrainerProjectReviewService {
             where.append(" AND p.intern_lifecycle_id = ? ");
             params.add(internLifecycleId);
         }
-        if (!caller.getRoles().contains(UserRole.SUPER_ADMIN)) {
-            where.append(" AND il.trainer_id = ? ");
-            params.add(caller.getId());
-        }
+        // Org-wide trainer model: TRAINER + SUPER_ADMIN both see the
+        // shared review queue. Previous `il.trainer_id = caller.id`
+        // fence excluded interns whose trainer_id was never stamped
+        // (the default under the single-trainer-org config), making the
+        // queue invisibly empty. requireTrainer(caller) above already
+        // gates the role.
         if (search != null && !search.isBlank()) {
             where.append(" AND (LOWER(u.full_name) LIKE ? OR LOWER(p.title) LIKE ?) ");
             String s = "%" + search.trim().toLowerCase() + "%";
