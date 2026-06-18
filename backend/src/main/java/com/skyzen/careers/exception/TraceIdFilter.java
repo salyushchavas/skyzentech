@@ -33,6 +33,12 @@ public class TraceIdFilter extends OncePerRequestFilter {
 
     public static final String MDC_KEY = "traceId";
     public static final String HEADER = "X-Trace-Id";
+    /** Request attribute key — survives the {@code /error} forward dispatch
+     *  (MDC does not, because {@code OncePerRequestFilter} skips error
+     *  dispatches by default). {@link com.skyzen.careers.exception.ApiErrorController}
+     *  reads it so the forwarded JSON 500 carries the SAME trace id the
+     *  caller already received in the response header. */
+    public static final String REQUEST_ATTR = "skyzen.traceId";
 
     @Override
     protected void doFilterInternal(HttpServletRequest request,
@@ -44,6 +50,7 @@ public class TraceIdFilter extends OncePerRequestFilter {
                 ? inbound.trim()
                 : UUID.randomUUID().toString().substring(0, 8);
         MDC.put(MDC_KEY, traceId);
+        request.setAttribute(REQUEST_ATTR, traceId);
         try {
             response.setHeader(HEADER, traceId);
             chain.doFilter(request, response);

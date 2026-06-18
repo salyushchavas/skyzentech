@@ -229,15 +229,28 @@ public class GlobalExceptionHandler {
      * ERROR with full context (endpoint, method, user, the entire
      * cause chain) so the user-reported traceId is one grep away from
      * the root cause.
+     *
+     * <p>The {@link Throwable} variant below covers
+     * {@link Error} (OOM, StackOverflow, NoClassDefFoundError, …) +
+     * any non-{@link Exception} {@link Throwable} that Spring's
+     * exception-resolution chain wouldn't otherwise route here. If
+     * BOTH the MVC layer and {@link ApiErrorController} forwarded
+     * dispatch miss it, the response degrades to tomcat's HTML — so
+     * we want all three layers covered.</p>
      */
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ErrorResponse> handleGeneric(Exception ex, HttpServletRequest req) {
+        return handleAnyThrowable(ex, req);
+    }
+
+    @ExceptionHandler(Throwable.class)
+    public ResponseEntity<ErrorResponse> handleAnyThrowable(Throwable ex, HttpServletRequest req) {
         String traceId = MDC.get(TraceIdFilter.MDC_KEY);
         String endpoint = req != null
                 ? req.getMethod() + " " + req.getRequestURI()
                 : "(unknown endpoint)";
         String user = currentUserDescription();
-        log.error("[F4] Unhandled exception at {} (user={}) — {}: {} | root cause: {}",
+        log.error("[F4] Unhandled throwable at {} (user={}) — {}: {} | root cause: {}",
                 endpoint, user, ex.getClass().getName(), ex.getMessage(),
                 rootCauseMessage(ex), ex);
         String friendly = "Something went wrong on our end — we've logged it. "
