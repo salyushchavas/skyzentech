@@ -103,10 +103,21 @@ public class ActiveInternsService {
         java.sql.Timestamp tsEndExclusive = java.sql.Timestamp.from(
                 periodEndExclusive.atStartOfDay(ZONE).toInstant());
 
+        // "Active during month" = started on/before period end AND (still active
+        // OR ended on/after period start). A freshly-activated intern whose
+        // started_at + hired_at were never stamped is still considered active
+        // now — fall through to the active_status='ACTIVE' branch so they
+        // appear in the roster instead of silently disappearing. The boot-time
+        // self-heal in SchemaFixupRunner stamps started_at = NOW() on those
+        // rows so the regular predicate covers them on the next deploy.
         StringBuilder where = new StringBuilder(
-                " WHERE COALESCE(il.started_at, il.hired_at) IS NOT NULL "
-                        + "   AND COALESCE(il.started_at, il.hired_at) < ? "
-                        + "   AND (il.ended_at IS NULL OR il.ended_at >= ?) ");
+                " WHERE ( "
+                        + "      (COALESCE(il.started_at, il.hired_at) < ? "
+                        + "       AND (il.ended_at IS NULL OR il.ended_at >= ?)) "
+                        + "   OR (COALESCE(il.started_at, il.hired_at) IS NULL "
+                        + "       AND il.active_status = 'ACTIVE' "
+                        + "       AND il.ended_at IS NULL) "
+                        + " ) ");
         List<Object> params = new ArrayList<>();
         params.add(tsEndExclusive);
         params.add(tsStart);
@@ -912,12 +923,6 @@ public class ActiveInternsService {
         if (!ok) {
             throw new ForbiddenException("TRAINER, MANAGER, ERM or SUPER_ADMIN required");
         }
-    }
-
-    private void appendTrainerScope(StringBuilder where, List<Object> params, User caller) {
-        if (caller.getRoles().contains(UserRole.SUPER_ADMIN)) return;
-        where.append(" AND il.trainer_id = ? ");
-        params.add(caller.getId());
     }
 
     private long countOrZero(String sql, Object... params) {

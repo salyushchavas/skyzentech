@@ -1309,6 +1309,15 @@ public class SchemaFixupRunner implements CommandLineRunner {
         // (WHERE trainer_id IS NULL guarantees this).
         selfHealActiveInternAutoLinks();
 
+        // Self-healing start-date pass. Some activation paths (admin
+        // status flips, legacy data, importers) reach ACTIVE without
+        // stamping started_at or hired_at, which makes the intern
+        // invisible to any "active during month" roster query (those
+        // predicates COALESCE the two columns and require non-null).
+        // Idempotent: only touches ACTIVE rows where both columns are
+        // null. Future activations are covered by InternActivationJob.
+        selfHealActiveInternStartDates();
+
         // Job ID backfill — one-shot, idempotent. Stamps the new
         // SKZ-JOB-YYYY-NNNNNN job_id on any existing job_postings row
         // missing one. Future postings are stamped at creation via
@@ -1433,6 +1442,36 @@ public class SchemaFixupRunner implements CommandLineRunner {
             }
         } catch (Exception e) {
             log.warn("[SchemaFixup] self-heal structure-complete flip failed: {}",
+                    e.getMessage());
+        }
+    }
+
+    /**
+     * Stamps {@code started_at = NOW()} on ACTIVE intern_lifecycles
+     * where both {@code started_at} and {@code hired_at} are null.
+     * Without this, the Trainer / Manager / ERM "Active Interns"
+     * roster — which scopes by
+     * {@code COALESCE(started_at, hired_at)} — silently hides the row
+     * for the current month. Idempotent: no-op once nothing matches.
+     */
+    private void selfHealActiveInternStartDates() {
+        try {
+            int filled = jdbcTemplate.update(
+                    "UPDATE intern_lifecycles "
+                            + "   SET started_at = NOW() "
+                            + " WHERE active_status = 'ACTIVE' "
+                            + "   AND started_at IS NULL "
+                            + "   AND hired_at IS NULL");
+            if (filled > 0) {
+                log.info("[SchemaFixup] self-heal start-date: stamped "
+                        + "started_at on {} ACTIVE lifecycle(s) with "
+                        + "null start + hire dates.", filled);
+            } else {
+                log.debug("[SchemaFixup] self-heal start-date: all ACTIVE "
+                        + "lifecycles have a start date (no-op).");
+            }
+        } catch (Exception e) {
+            log.warn("[SchemaFixup] self-heal start-date failed (non-fatal): {}",
                     e.getMessage());
         }
     }
