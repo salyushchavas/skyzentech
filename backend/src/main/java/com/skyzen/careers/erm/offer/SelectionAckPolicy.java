@@ -46,13 +46,18 @@ public class SelectionAckPolicy {
     }
 
     /**
-     * Whether the latest completed interview's decision is {@code SELECTED}
-     * (case-insensitive). Matches the exact comparison the Send-Offer
-     * gate uses.
+     * Whether the latest completed interview has been APPROVED by a
+     * Manager (the new hire-approval gate). Previously this read
+     * {@code Interview.decision == "SELECTED"} as set by the ERM; the
+     * gate now lives on {@code Interview.managerHireDecision}, which a
+     * Manager flips to {@code APPROVED} from the Hire Approvals queue.
+     * Historical rows where the ERM had already recorded SELECTED were
+     * back-filled to APPROVED by {@code SchemaFixupRunner} so in-flight
+     * offers don't freeze.
      */
     public boolean isSelected(Application app) {
         return latestCompletedInterview(app)
-                .map(iv -> "SELECTED".equalsIgnoreCase(iv.getDecision()))
+                .map(iv -> "APPROVED".equalsIgnoreCase(iv.getManagerHireDecision()))
                 .orElse(false);
     }
 

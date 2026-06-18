@@ -6,6 +6,7 @@ import {
   BadgeCheck,
   ClipboardList,
   FileBarChart2,
+  Gavel,
   GraduationCap,
   Hourglass,
   ShieldAlert,
@@ -145,6 +146,13 @@ export default function ManagerHomePage() {
           <section>
             <h2 className="mb-3 text-sm font-semibold text-slate-900">Sections</h2>
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              <SectionCard
+                href="/careers/manager/hire-approvals"
+                icon={<Gavel className="h-4 w-4" />}
+                title="Hire Approvals"
+                body="Interviewed candidates awaiting your hire / no-hire decision. ERM submits the scorecard; you decide."
+                phase={1}
+              />
               <SectionCard
                 href="/careers/manager/applicant-pipeline"
                 icon={<Users className="h-4 w-4" />}

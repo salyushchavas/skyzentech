@@ -2,18 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import api from '@/lib/api';
-import type {
-  Decision,
-  InterviewDetail,
-  ReasonGroup,
-  ReasonOption,
-} from './types';
-
-const DECISION_TO_PREFIX: Record<Decision, string> = {
-  SELECTED: 'INTERVIEW_SELECT_',
-  HOLD: 'INTERVIEW_HOLD_',
-  REJECTED: 'INTERVIEW_REJECT_',
-};
+import type { InterviewDetail } from './types';
 
 interface Props {
   interview: InterviewDetail;
@@ -22,16 +11,19 @@ interface Props {
   onApplied: () => void;
 }
 
+/**
+ * ERM Phase: Manager hire-approval gate. The ERM no longer sets the
+ * hire decision (SELECTED/HOLD/REJECTED) here — that moved to the
+ * Manager's Hire Approvals queue. This modal now submits the
+ * scorecard + an optional recommendation only; the candidate then
+ * shows "pending manager hire approval" until a manager decides.
+ */
 export default function CompleteInterviewModal({
   interview,
   open,
   onClose,
   onApplied,
 }: Props) {
-  const [groups, setGroups] = useState<ReasonGroup[]>([]);
-  const [decision, setDecision] = useState<Decision>('SELECTED');
-  const [reasonCode, setReasonCode] = useState('');
-  const [reasonText, setReasonText] = useState('');
   const [technicalScore, setTechnicalScore] = useState<number | ''>('');
   const [communicationScore, setCommunicationScore] = useState<number | ''>('');
   const [culturalFitScore, setCulturalFitScore] = useState<number | ''>('');
@@ -43,9 +35,6 @@ export default function CompleteInterviewModal({
 
   useEffect(() => {
     if (!open) return;
-    setDecision('SELECTED');
-    setReasonCode('');
-    setReasonText('');
     setTechnicalScore('');
     setCommunicationScore('');
     setCulturalFitScore('');
@@ -53,63 +42,21 @@ export default function CompleteInterviewModal({
     setApplicantVisibleNotes('');
     setInternalNotes('');
     setErr(null);
-    void (async () => {
-      try {
-        const res = await api.get<ReasonGroup[]>(
-          '/api/v1/erm/interviews/reason-codes?family=DECISION',
-        );
-        setGroups(res.data ?? []);
-      } catch {
-        setGroups([]);
-      }
-    })();
   }, [open]);
 
-  const filteredGroups = useMemo(() => {
-    const prefix = DECISION_TO_PREFIX[decision];
-    return groups
-      .map((g) => ({
-        ...g,
-        options: g.options.filter((o) => o.code.startsWith(prefix)),
-      }))
-      .filter((g) => g.options.length > 0);
-  }, [groups, decision]);
-
-  const selectedOpt: ReasonOption | null = useMemo(() => {
-    for (const g of filteredGroups) {
-      const o = g.options.find((x) => x.code === reasonCode);
-      if (o) return o;
-    }
-    return null;
-  }, [filteredGroups, reasonCode]);
-
-  // Phase 8.5 — surface missing-required-field state on the submit button
-  // itself so the user never has to hunt for what's blocking the form.
   const missingFields = useMemo(() => {
     const missing: string[] = [];
-    if (!reasonCode) missing.push('Decision reason');
-    if (selectedOpt?.requiresFreeText && reasonText.trim().length < 10) {
-      missing.push('Free-text reason (≥ 10 chars)');
-    }
     if (applicantVisibleNotes.trim().length < 20) {
       missing.push('Applicant-visible notes (≥ 20 chars)');
     }
     return missing;
-  }, [reasonCode, selectedOpt, reasonText, applicantVisibleNotes]);
+  }, [applicantVisibleNotes]);
   const canSubmit = missingFields.length === 0 && !submitting;
 
   if (!open) return null;
 
   async function submit() {
     setErr(null);
-    if (!reasonCode) {
-      setErr('Select a decision reason.');
-      return;
-    }
-    if (selectedOpt?.requiresFreeText && reasonText.trim().length < 10) {
-      setErr('Free-text reason required (min 10 chars).');
-      return;
-    }
     if (applicantVisibleNotes.trim().length < 20) {
       setErr('Applicant-visible notes must be at least 20 characters.');
       return;
@@ -117,9 +64,6 @@ export default function CompleteInterviewModal({
     setSubmitting(true);
     try {
       await api.post(`/api/v1/erm/interviews/${interview.id}/complete`, {
-        decision,
-        decisionReasonCode: reasonCode,
-        decisionReasonText: reasonText.trim() || null,
         technicalScore: technicalScore === '' ? null : technicalScore,
         communicationScore: communicationScore === '' ? null : communicationScore,
         culturalFitScore: culturalFitScore === '' ? null : culturalFitScore,
@@ -133,7 +77,7 @@ export default function CompleteInterviewModal({
       const ax = e as { response?: { data?: { error?: string } } };
       setErr(
         ax.response?.data?.error ??
-          (e instanceof Error ? e.message : 'Decision failed'),
+          (e instanceof Error ? e.message : 'Submission failed'),
       );
     } finally {
       setSubmitting(false);
@@ -142,78 +86,18 @@ export default function CompleteInterviewModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4">
-      <div className="flex max-h-[90vh] w-full max-w-3xl flex-col overflow-hidden rounded-lg bg-white shadow-xl">
-        <div className="grid min-h-0 flex-1 overflow-hidden lg:grid-cols-2">
-        <div className="overflow-y-auto p-6">
+      <div className="flex max-h-[90vh] w-full max-w-2xl flex-col overflow-hidden rounded-lg bg-white shadow-xl">
+        <div className="min-h-0 flex-1 overflow-y-auto p-6">
           <h2 className="text-lg font-semibold text-slate-900">
-            Complete interview · Decision center
+            Submit interview scorecard
           </h2>
+          <p className="mt-1 text-xs text-slate-600">
+            Submit your scores, recommendation, and applicant-visible notes.
+            A Manager will review and decide Hire / No-Hire from the Hire
+            Approvals queue.
+          </p>
 
           <div className="mt-4 space-y-4">
-            <div>
-              <p className="text-sm font-medium text-slate-800">Decision</p>
-              <div className="mt-2 flex gap-2">
-                {(['SELECTED', 'HOLD', 'REJECTED'] as Decision[]).map((d) => (
-                  <button
-                    key={d}
-                    type="button"
-                    onClick={() => {
-                      setDecision(d);
-                      setReasonCode('');
-                    }}
-                    className={
-                      'rounded-md border px-3 py-1.5 text-sm font-medium transition-colors ' +
-                      (decision === d
-                        ? 'border-teal-700 bg-teal-700 text-white'
-                        : 'border-slate-200 text-slate-700 hover:bg-slate-50')
-                    }
-                  >
-                    {d === 'SELECTED'
-                      ? 'Selected for offer'
-                      : d === 'HOLD'
-                        ? 'Hold'
-                        : 'Rejected'}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div>
-              <label className="text-sm font-medium text-slate-800">
-                Decision reason <span className="text-rose-600">*</span>
-              </label>
-              <select
-                value={reasonCode}
-                onChange={(e) => setReasonCode(e.target.value)}
-                className="mt-1 w-full rounded-md border border-slate-200 px-3 py-2 text-sm"
-              >
-                <option value="">Select a reason…</option>
-                {filteredGroups.map((g) => (
-                  <optgroup key={g.category} label={g.category.replace(/_/g, ' ')}>
-                    {g.options.map((o) => (
-                      <option key={o.code} value={o.code}>
-                        {o.label}
-                      </option>
-                    ))}
-                  </optgroup>
-                ))}
-              </select>
-            </div>
-
-            {selectedOpt?.requiresFreeText && (
-              <div>
-                <label className="text-sm font-medium text-slate-800">
-                  Free-text reason (ERM-only) <span className="text-rose-600">*</span>
-                </label>
-                <textarea
-                  value={reasonText}
-                  onChange={(e) => setReasonText(e.target.value)}
-                  rows={3}
-                  className="mt-1 w-full resize-y rounded-md border border-slate-200 px-3 py-2 text-sm"
-                />
-              </div>
-            )}
-
             <div className="grid grid-cols-3 gap-2">
               <ScoreInput label="Technical" value={technicalScore} onChange={setTechnicalScore} />
               <ScoreInput label="Communication" value={communicationScore} onChange={setCommunicationScore} />
@@ -222,7 +106,7 @@ export default function CompleteInterviewModal({
 
             <div>
               <label className="text-sm font-medium text-slate-800">
-                Overall recommendation
+                Overall recommendation (advisory)
               </label>
               <select
                 value={recommendation}
@@ -235,6 +119,9 @@ export default function CompleteInterviewModal({
                 <option value="NO_HIRE">No Hire</option>
                 <option value="STRONG_NO_HIRE">Strong No-Hire</option>
               </select>
+              <p className="mt-1 text-[11px] text-slate-500">
+                Shown to the Manager when they decide. Does not set the hire decision itself.
+              </p>
             </div>
 
             <div>
@@ -251,11 +138,14 @@ export default function CompleteInterviewModal({
               <div className="mt-1 text-right text-[11px] text-slate-500">
                 {applicantVisibleNotes.trim().length} characters
               </div>
+              <p className="mt-1 text-[11px] text-slate-500">
+                Sent to the applicant when the Manager finalizes the hire decision.
+              </p>
             </div>
 
             <div>
               <label className="text-sm font-medium text-slate-800">
-                Internal notes <span className="text-xs text-slate-500">(ERM-only)</span>
+                Internal notes <span className="text-xs text-slate-500">(ERM + Manager only)</span>
               </label>
               <textarea
                 value={internalNotes}
@@ -274,36 +164,11 @@ export default function CompleteInterviewModal({
           </div>
         </div>
 
-        <aside className="hidden overflow-y-auto border-l border-slate-200 bg-slate-50 p-6 lg:block">
-          <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
-            Email preview to applicant
-          </p>
-          <div className="mt-3 rounded-md border border-slate-200 bg-white p-4">
-            <p className="text-sm font-semibold text-slate-900">
-              {decision === 'SELECTED'
-                ? 'Great news from your Skyzen interview'
-                : decision === 'HOLD'
-                  ? 'Skyzen interview — under consideration'
-                  : 'Skyzen interview decision'}
-            </p>
-            <p className="mt-3 whitespace-pre-wrap text-sm text-slate-700">
-              {applicantVisibleNotes.trim() || '(applicant-visible notes appear here)'}
-            </p>
-            <p className="mt-4 text-[11px] text-slate-400">
-              Template: INTERVIEW_{decision}
-            </p>
-          </div>
-        </aside>
-        </div>
-
-        {/* Phase 8.5 — sticky footer keeps Submit visible regardless of
-            how long the form scrolls. Disabled state surfaces what's
-            missing via the title tooltip. */}
         <div className="flex flex-shrink-0 items-center justify-between gap-3 border-t border-slate-200 bg-white px-6 py-3">
           <p className="text-[11px] text-slate-500">
             {missingFields.length > 0
               ? `Required: ${missingFields.join(' · ')}`
-              : 'Ready to submit.'}
+              : 'Ready to submit. Manager will action the hire decision.'}
           </p>
           <div className="flex gap-2">
             <button
@@ -324,7 +189,7 @@ export default function CompleteInterviewModal({
               }
               className="rounded-md bg-teal-700 px-4 py-2 text-sm font-semibold text-white hover:bg-teal-800 disabled:cursor-not-allowed disabled:opacity-60"
             >
-              {submitting ? 'Saving…' : 'Submit Decision'}
+              {submitting ? 'Saving…' : 'Submit scorecard'}
             </button>
           </div>
         </div>

@@ -1323,6 +1323,13 @@ public class SchemaFixupRunner implements CommandLineRunner {
         // missing one. Future postings are stamped at creation via
         // JobIdGenerator.
         backfillJobIdV1();
+
+        // Manager hire-approval gate columns + one-shot backfill.
+        // The new model lets the Manager (not the ERM) approve a hire;
+        // ERM submits the scorecard, Manager flips
+        // managerHireDecision PENDING → APPROVED/REJECTED to gate the
+        // existing SELECTED → ack → offer chain.
+        ensureManagerHireDecisionColumns();
     }
 
     /**
@@ -1473,6 +1480,72 @@ public class SchemaFixupRunner implements CommandLineRunner {
         } catch (Exception e) {
             log.warn("[SchemaFixup] self-heal start-date failed (non-fatal): {}",
                     e.getMessage());
+        }
+    }
+
+    /**
+     * Manager hire-approval gate (Phase: ERM-decision → Manager-decision).
+     * Adds the 4 columns the Interview entity now requires + a one-shot
+     * backfill that maps existing decisions onto the new field so
+     * in-flight applications don't freeze:
+     * <ul>
+     *   <li>decision = SELECTED → managerHireDecision = APPROVED
+     *       (treated as auto-approved by the historical ERM authority);
+     *       the in-flight SELECTED → ack → offer flow continues
+     *       uninterrupted.</li>
+     *   <li>decision = REJECTED → managerHireDecision = REJECTED
+     *       (mirrors the recorded outcome).</li>
+     *   <li>decision = HOLD or NULL → managerHireDecision = NULL,
+     *       which the new gate treats as PENDING; a Manager must now
+     *       triage these explicitly.</li>
+     * </ul>
+     * Idempotent: ADD COLUMN IF NOT EXISTS + the UPDATE only touches
+     * rows where managerHireDecision is still null.
+     */
+    private void ensureManagerHireDecisionColumns() {
+        try {
+            jdbcTemplate.execute(
+                    "ALTER TABLE interviews ADD COLUMN IF NOT EXISTS "
+                            + "manager_hire_decision VARCHAR(20)");
+            jdbcTemplate.execute(
+                    "ALTER TABLE interviews ADD COLUMN IF NOT EXISTS "
+                            + "manager_hire_decision_at TIMESTAMPTZ");
+            jdbcTemplate.execute(
+                    "ALTER TABLE interviews ADD COLUMN IF NOT EXISTS "
+                            + "manager_hire_decision_by_id UUID");
+            jdbcTemplate.execute(
+                    "ALTER TABLE interviews ADD COLUMN IF NOT EXISTS "
+                            + "manager_hire_decision_note TEXT");
+        } catch (Exception e) {
+            log.warn("[SchemaFixup] manager_hire_decision columns add failed "
+                    + "(non-fatal): {}", e.getMessage());
+            return;
+        }
+        try {
+            int approved = jdbcTemplate.update(
+                    "UPDATE interviews SET manager_hire_decision = 'APPROVED', "
+                            + "                  manager_hire_decision_at = COALESCE("
+                            + "                      feedback_submitted_at, updated_at, NOW()) "
+                            + " WHERE manager_hire_decision IS NULL "
+                            + "   AND UPPER(decision) = 'SELECTED'");
+            int rejected = jdbcTemplate.update(
+                    "UPDATE interviews SET manager_hire_decision = 'REJECTED', "
+                            + "                  manager_hire_decision_at = COALESCE("
+                            + "                      feedback_submitted_at, updated_at, NOW()) "
+                            + " WHERE manager_hire_decision IS NULL "
+                            + "   AND UPPER(decision) = 'REJECTED'");
+            if (approved > 0 || rejected > 0) {
+                log.info("[SchemaFixup] manager_hire_decision backfill: "
+                        + "approved={} rejected={} (HOLD/null rows left "
+                        + "pending for explicit manager triage)",
+                        approved, rejected);
+            } else {
+                log.debug("[SchemaFixup] manager_hire_decision backfill: "
+                        + "no rows needed mapping (no-op).");
+            }
+        } catch (Exception e) {
+            log.warn("[SchemaFixup] manager_hire_decision backfill failed "
+                    + "(non-fatal): {}", e.getMessage());
         }
     }
 

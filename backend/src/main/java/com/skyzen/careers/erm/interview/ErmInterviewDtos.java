@@ -105,6 +105,12 @@ public final class ErmInterviewDtos {
             String internalNotes,            // ERM/MANAGER only — but actually ERM-only per spec
             String decisionReasonCode,
             String decisionReasonText,       // ERM-only
+            /** PENDING | APPROVED | REJECTED — manager hire-approval gate.
+             *  Null on COMPLETED rows that pre-date the gate (the
+             *  SchemaFixupRunner backfill is best-effort). */
+            String managerHireDecision,
+            Instant managerHireDecisionAt,
+            String managerHireDecisionNote,
             int rescheduleCount,
             String lastRescheduleReasonCode,
             String lastRescheduleReasonText, // ERM-only
@@ -199,10 +205,14 @@ public final class ErmInterviewDtos {
 
     public record ChangeInterviewerRequest(UUID interviewerId) {}
 
+    /**
+     * Manager hire-approval gate: the ERM no longer decides
+     * SELECTED/HOLD/REJECTED — it submits the scorecard + an optional
+     * recommendation, then the candidate enters
+     * {@code managerHireDecision = PENDING} and a Manager actions the
+     * hire from the Hire Approvals queue.
+     */
     public record ErmCompleteRequest(
-            String decision,                       // SELECTED | HOLD | REJECTED
-            String decisionReasonCode,
-            String decisionReasonText,
             Integer technicalScore,
             Integer communicationScore,
             Integer culturalFitScore,

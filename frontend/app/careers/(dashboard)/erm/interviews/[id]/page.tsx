@@ -357,10 +357,45 @@ export default function InterviewDetailPage() {
           </main>
 
           <aside className="space-y-4">
-            {/* Phase 8.6 — Offer action surfaces only when interview is
-                COMPLETED+SELECTED. Replaced with "Offer Sent" badge once
-                an active offer exists for the application. */}
-            {data.status === 'COMPLETED' && data.decision === 'SELECTED' && (
+            {/* Manager hire-approval gate. The ERM submits the scorecard
+                from this page; the Manager then approves / rejects from
+                the Hire Approvals queue. The "Send Offer" CTA only
+                appears once the manager has APPROVED — until then this
+                slot shows the pending-approval state. */}
+            {data.status === 'COMPLETED'
+              && (data.managerHireDecision == null
+                  || data.managerHireDecision === 'PENDING') && (
+              <section className="rounded-lg border border-amber-200 bg-amber-50 p-4 shadow-sm">
+                <h3 className="text-xs font-semibold uppercase tracking-wide text-amber-800">
+                  Pending manager hire approval
+                </h3>
+                <p className="mt-2 text-xs text-amber-900">
+                  Scorecard submitted. A Manager will review and decide
+                  Hire / No-Hire from the Hire Approvals queue. The offer
+                  cannot be sent until the manager approves.
+                </p>
+              </section>
+            )}
+
+            {data.status === 'COMPLETED'
+              && data.managerHireDecision === 'REJECTED' && (
+              <section className="rounded-lg border border-rose-200 bg-rose-50 p-4 shadow-sm">
+                <h3 className="text-xs font-semibold uppercase tracking-wide text-rose-800">
+                  Manager declined hire
+                </h3>
+                <p className="mt-2 text-xs text-rose-900">
+                  A Manager declined this hire. The application has been
+                  moved to REJECTED.
+                </p>
+                {data.managerHireDecisionNote && (
+                  <p className="mt-2 whitespace-pre-line text-xs text-rose-900">
+                    {data.managerHireDecisionNote}
+                  </p>
+                )}
+              </section>
+            )}
+
+            {data.status === 'COMPLETED' && data.managerHireDecision === 'APPROVED' && (
               <section className="rounded-lg border border-emerald-200 bg-emerald-50 p-4 shadow-sm">
                 {activeOffer ? (
                   <div>

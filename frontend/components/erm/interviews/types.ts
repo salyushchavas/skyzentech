@@ -122,6 +122,9 @@ export interface InterviewDetail {
   internalNotes: string | null;
   decisionReasonCode: string | null;
   decisionReasonText: string | null;
+  managerHireDecision: string | null;
+  managerHireDecisionAt: string | null;
+  managerHireDecisionNote: string | null;
   rescheduleCount: number;
   lastRescheduleReasonCode: string | null;
   lastRescheduleReasonText: string | null;

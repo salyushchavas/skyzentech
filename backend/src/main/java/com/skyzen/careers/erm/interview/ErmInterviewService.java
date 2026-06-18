@@ -73,7 +73,6 @@ import java.util.UUID;
 @Slf4j
 public class ErmInterviewService {
 
-    private static final Set<String> VALID_DECISIONS = Set.of("SELECTED", "HOLD", "REJECTED");
     private static final Set<String> VALID_RECOMMENDATIONS = Set.of(
             "STRONG_HIRE", "HIRE", "NO_HIRE", "STRONG_NO_HIRE");
 
@@ -533,23 +532,6 @@ public class ErmInterviewService {
     public ErmInterviewDtos.ErmInterviewDetail complete(
             UUID interviewId, ErmInterviewDtos.ErmCompleteRequest req, User caller) {
         if (req == null) throw new BadRequestException("body required");
-        if (req.decision() == null || !VALID_DECISIONS.contains(req.decision().toUpperCase())) {
-            throw new BadRequestException("decision must be " + VALID_DECISIONS);
-        }
-        String decision = req.decision().toUpperCase();
-        ReasonCode rc = requireReason(req.decisionReasonCode(), req.decisionReasonText(),
-                ReasonCode.Category.INTERVIEW_DECISION);
-        // Cross-check decision matches reason code subset.
-        boolean ok = switch (decision) {
-            case "SELECTED" -> rc.name().startsWith("INTERVIEW_SELECT_");
-            case "HOLD" -> rc.name().startsWith("INTERVIEW_HOLD_");
-            case "REJECTED" -> rc.name().startsWith("INTERVIEW_REJECT_");
-            default -> false;
-        };
-        if (!ok) {
-            throw new BadRequestException(
-                    "decisionReasonCode " + rc.name() + " does not match decision " + decision);
-        }
         if (req.applicantVisibleNotes() == null
                 || req.applicantVisibleNotes().trim().length() < APPLICANT_NOTES_MIN) {
             throw new BadRequestException(
@@ -576,10 +558,12 @@ public class ErmInterviewService {
             throw new ConflictException(
                     "Complete only allowed from SCHEDULED (current: " + iv.getStatus() + ")");
         }
+        // Phase: Manager hire-approval gate. The ERM submits the scorecard;
+        // it does NOT set decision/SELECTED/REJECTED. Interview.decision
+        // stays null until a Manager actions the hire from the Hire
+        // Approvals queue, which flips managerHireDecision and decision
+        // atomically. Candidate waits at INTERVIEW_COMPLETED / INTERVIEWED.
         iv.setStatus(InterviewStatus.COMPLETED);
-        iv.setDecision(decision);
-        iv.setDecisionReasonCode(rc.name());
-        iv.setDecisionReasonText(trimOrNull(req.decisionReasonText()));
         iv.setTechnicalScore(req.technicalScore());
         iv.setCommunicationScore(req.communicationScore());
         iv.setCulturalFitScore(req.culturalFitScore());
@@ -590,6 +574,7 @@ public class ErmInterviewService {
         iv.setInternalNotes(trimOrNull(req.internalNotes()));
         iv.setFeedbackSubmittedAt(Instant.now());
         iv.setFeedbackSubmittedBy(caller.getId());
+        iv.setManagerHireDecision("PENDING");
         interviewRepository.save(iv);
 
         Application app = iv.getApplication();
@@ -605,15 +590,15 @@ public class ErmInterviewService {
         }
 
         Map<String, Object> payload = new LinkedHashMap<>();
-        payload.put("decision", decision);
         payload.put("technicalScore", req.technicalScore());
         payload.put("communicationScore", req.communicationScore());
         payload.put("culturalFitScore", req.culturalFitScore());
         payload.put("overallRecommendation", iv.getOverallRecommendation());
-        writeEventLog(iv.getId(), caller.getId(), "COMPLETED",
-                rc.name(), trimOrNull(req.decisionReasonText()), payload);
+        payload.put("managerHireDecision", "PENDING");
+        writeEventLog(iv.getId(), caller.getId(), "SCORECARD_SUBMITTED",
+                null, null, payload);
         writeAudit(caller.getId(), applicantUserId(app),
-                "INTERVIEW_DECISION_RECORDED", "Interview", iv.getId(),
+                "INTERVIEW_SCORECARD_SUBMITTED", "Interview", iv.getId(),
                 null, payload);
 
         try {
@@ -957,6 +942,9 @@ public class ErmInterviewService {
                 internalNotes,
                 iv.getDecisionReasonCode(),
                 decisionReasonText,
+                iv.getManagerHireDecision(),
+                iv.getManagerHireDecisionAt(),
+                iv.getManagerHireDecisionNote(),
                 iv.getRescheduleCount() != null ? iv.getRescheduleCount() : 0,
                 iv.getLastRescheduleReasonCode(),
                 lastResheduleReasonText,

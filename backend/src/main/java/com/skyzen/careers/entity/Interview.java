@@ -199,6 +199,27 @@ public class Interview {
     @Column(name = "decision_reason_text", columnDefinition = "TEXT")
     private String decisionReasonText;
 
+    /**
+     * Manager hire-approval gate. The ERM submits the scorecard but no
+     * longer sets {@link #decision}; instead the row enters
+     * {@code PENDING} on /complete, and a Manager flips it to
+     * {@code APPROVED} (which also sets {@code decision = SELECTED} so
+     * the existing selection-ack + offer chain proceeds) or
+     * {@code REJECTED}. Null on historical rows that pre-date the gate.
+     */
+    @Column(name = "manager_hire_decision", length = 20)
+    private String managerHireDecision;
+
+    @Column(name = "manager_hire_decision_at")
+    private Instant managerHireDecisionAt;
+
+    @Column(name = "manager_hire_decision_by_id")
+    private UUID managerHireDecisionById;
+
+    /** Optional rationale recorded by the manager on approve/reject. */
+    @Column(name = "manager_hire_decision_note", columnDefinition = "TEXT")
+    private String managerHireDecisionNote;
+
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;

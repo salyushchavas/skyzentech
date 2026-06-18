@@ -11,6 +11,7 @@ import com.skyzen.careers.event.InterviewCancelledEvent;
 import com.skyzen.careers.event.InterviewCompletedEvent;
 import com.skyzen.careers.event.InterviewRescheduledEvent;
 import com.skyzen.careers.event.InterviewScheduledEvent;
+import com.skyzen.careers.event.ManagerHireDecisionEvent;
 import com.skyzen.careers.notification.EmailProvider;
 import com.skyzen.careers.notification.UserNotificationDispatcher;
 import com.skyzen.careers.repository.ApplicationRepository;
@@ -195,10 +196,67 @@ public class InterviewEmailListener {
         try {
             Interview iv = interviewRepository.findById(e.getInterviewId()).orElse(null);
             if (iv == null) return;
-            sendDecision(iv);
+            // Phase: Manager hire-approval gate. ERM-complete no longer
+            // carries a SELECTED/REJECTED decision; the applicant email
+            // is now triggered by ManagerHireDecisionEvent. We still
+            // fan-out to Managers so they see a new entry to triage.
             dispatchManagersOnComplete(iv);
         } catch (Exception ex) {
             log.warn("[InterviewEmail] completed handler failed: {}", ex.getMessage());
+        }
+    }
+
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+    public void onManagerHireDecision(ManagerHireDecisionEvent e) {
+        if (e == null || e.getInterviewId() == null) return;
+        try {
+            Interview iv = interviewRepository.findById(e.getInterviewId()).orElse(null);
+            if (iv == null) return;
+            sendDecision(iv);          // applicant outcome email
+            notifyErmOfHireDecision(iv, e);   // ERM in-app + email
+        } catch (Exception ex) {
+            log.warn("[InterviewEmail] manager-hire-decision handler failed: {}",
+                    ex.getMessage());
+        }
+    }
+
+    private void notifyErmOfHireDecision(Interview iv, ManagerHireDecisionEvent e) {
+        if (e.getErmUserId() == null) return;
+        User erm = userRepository.findById(e.getErmUserId()).orElse(null);
+        if (erm == null) return;
+        Application app = iv.getApplication();
+        User applicant = applicantUser(app);
+        String name = applicant != null && applicant.getFullName() != null
+                ? applicant.getFullName() : "the candidate";
+        String title;
+        String body;
+        String actionUrl;
+        if ("APPROVED".equalsIgnoreCase(e.getDecision())) {
+            title = "Hire approved: " + name;
+            body = "A Manager approved the hire for " + name
+                    + ". The candidate is now SELECTED; once they "
+                    + "acknowledge the selection, you can send the offer.";
+            actionUrl = "/careers/erm/decision-center";
+        } else {
+            title = "Hire not approved: " + name;
+            body = "A Manager declined the hire for " + name
+                    + ". The application has been moved to REJECTED.";
+            actionUrl = "/careers/erm/interviews/" + iv.getId();
+        }
+        try {
+            dispatcher.dispatch(erm.getId(), "MANAGER_HIRE_" + e.getDecision(),
+                    applicant != null ? applicant.getId() : null,
+                    cap(title, 200), cap(body, 400), actionUrl, false);
+        } catch (Exception ex) {
+            log.debug("[InterviewEmail] ERM in-app dispatch failed: {}", ex.getMessage());
+        }
+        if (erm.getEmail() != null) {
+            try {
+                emailProvider.sendRendered(erm.getEmail(), title, body);
+            } catch (Exception ex) {
+                log.warn("[InterviewEmail] ERM email send failed (non-fatal) for {}: {}",
+                        erm.getEmail(), ex.getMessage());
+            }
         }
     }
 
@@ -323,15 +381,18 @@ public class InterviewEmailListener {
         if (applicant == null) return;
         try {
             List<User> managers = userRepository.findByRole(UserRole.MANAGER);
-            String title = "Interview completed: " + applicant.getFullName();
-            String body = "Decision: " + iv.getDecision();
+            String title = "Hire approval needed: " + applicant.getFullName();
+            String body = "ERM submitted the scorecard for "
+                    + applicant.getFullName()
+                    + ". Review in the Hire Approvals queue and decide "
+                    + "Hire or No-Hire.";
             for (User m : managers) {
                 if (m == null || m.getId() == null) continue;
                 try {
-                    dispatcher.dispatch(m.getId(), "INTERVIEW_COMPLETED",
+                    dispatcher.dispatch(m.getId(), "HIRE_APPROVAL_PENDING",
                             applicant.getId(),
                             cap(title, 200), cap(body, 400),
-                            "/careers/manager", false);
+                            "/careers/manager/hire-approvals", false);
                 } catch (Exception ignored) {}
             }
         } catch (Exception e) {
