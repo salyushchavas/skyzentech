@@ -39,6 +39,19 @@ public class SecurityConfig {
                         .requestMatchers(
                                 "/auth/register",
                                 "/auth/login",
+                                // /auth/refresh MUST be reachable without
+                                // a valid access token — the whole point
+                                // is to redeem a refresh token AFTER the
+                                // access token expired. JwtAuthenticationFilter
+                                // already SKIP_PATHS this URL, so without
+                                // permitAll the request falls through to
+                                // .anyRequest().authenticated() and 401s
+                                // before AuthService.refresh runs. The
+                                // refresh-token credential itself is
+                                // validated (existence + ownership + not
+                                // revoked + not expired) inside
+                                // SessionTokenService.rotate.
+                                "/auth/refresh",
                                 "/auth/forgot-password",
                                 "/auth/reset-password",
                                 "/auth/verify-email",
