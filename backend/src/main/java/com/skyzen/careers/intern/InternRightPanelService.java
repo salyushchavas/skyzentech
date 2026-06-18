@@ -35,6 +35,7 @@ public class InternRightPanelService {
     private final UserRepository userRepository;
     private final UserNotificationRepository userNotificationRepository;
     private final InternEvaluationService internEvaluationService;
+    private final OrgTeamResolver orgTeamResolver;
 
     public Map<String, Object> build(User caller) {
         Map<String, Object> resp = new LinkedHashMap<>();
@@ -61,9 +62,15 @@ public class InternRightPanelService {
         Optional<InternLifecycle> lcOpt = lifecycleRepository.findByUserId(caller.getId());
         if (lcOpt.isEmpty()) return contacts;
         InternLifecycle lc = lcOpt.get();
+        // Trainer + Evaluator route through OrgTeamResolver so the
+        // org-wide singleton (DEFAULT_TRAINER_EMAIL /
+        // DEFAULT_EVALUATOR_EMAIL) surfaces in the team box even when
+        // the per-intern FK is null — empty slots were the visible
+        // symptom of the same null-link gap that bit the assignProject
+        // notify path.
         contacts.put("erm", resolveContact(lc.getErmId(), "ERM"));
-        contacts.put("trainer", resolveContact(lc.getTrainerId(), "Trainer"));
-        contacts.put("evaluator", resolveContact(lc.getEvaluatorId(), "Evaluator"));
+        contacts.put("trainer", resolveContact(orgTeamResolver.resolveTrainerId(lc), "Trainer"));
+        contacts.put("evaluator", resolveContact(orgTeamResolver.resolveEvaluatorId(lc), "Evaluator"));
         contacts.put("manager", resolveContact(lc.getManagerId(), "Manager"));
         return contacts;
     }

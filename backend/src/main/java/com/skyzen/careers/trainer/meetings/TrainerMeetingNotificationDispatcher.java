@@ -4,6 +4,7 @@ import com.skyzen.careers.entity.InternLifecycle;
 import com.skyzen.careers.entity.User;
 import com.skyzen.careers.entity.WeeklyMeeting;
 import com.skyzen.careers.erm.CommunicationTemplateService;
+import com.skyzen.careers.intern.OrgTeamResolver;
 import com.skyzen.careers.notification.EmailProvider;
 import com.skyzen.careers.notification.UserNotificationDispatcher;
 import com.skyzen.careers.repository.InternLifecycleRepository;
@@ -39,6 +40,7 @@ public class TrainerMeetingNotificationDispatcher {
     private final CommunicationTemplateService templateService;
     private final EmailProvider emailProvider;
     private final UserNotificationDispatcher inApp;
+    private final OrgTeamResolver orgTeamResolver;
 
     public void dispatchScheduled(WeeklyMeeting m, User trainer, String rescheduleNote) {
         fanOut(m, trainer, "WEEKLY_MEETING_SCHEDULED",
@@ -103,8 +105,11 @@ public class TrainerMeetingNotificationDispatcher {
             log.warn("[TrainerMeetingNotify] intern dispatch failed: {}", e.getMessage());
         }
 
-        // Evaluator / Manager — in-app only
-        for (UUID staff : new UUID[]{lc.getEvaluatorId(), lc.getManagerId()}) {
+        // Evaluator / Manager — in-app only. Evaluator resolves
+        // through OrgTeamResolver so the org-wide singleton gets the
+        // cue even when the per-intern evaluator_id is null; Manager
+        // stays direct (per-intern).
+        for (UUID staff : new UUID[]{orgTeamResolver.resolveEvaluatorId(lc), lc.getManagerId()}) {
             if (staff == null) continue;
             tryInApp(staff, eventType, intern.getId(),
                     inAppTitle + " — " + nz(intern.getFullName()),

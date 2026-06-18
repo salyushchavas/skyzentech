@@ -9,6 +9,7 @@ import com.skyzen.careers.event.DocumentPacketAssignedEvent;
 import com.skyzen.careers.event.DocumentPacketCompletedEvent;
 import com.skyzen.careers.event.DocumentTaskReviewedEvent;
 import com.skyzen.careers.event.DocumentTaskSubmittedEvent;
+import com.skyzen.careers.intern.OrgTeamResolver;
 import com.skyzen.careers.notification.EmailProvider;
 import com.skyzen.careers.notification.UserNotificationDispatcher;
 import com.skyzen.careers.repository.DocumentPacketRepository;
@@ -45,6 +46,7 @@ public class DocumentEmailListener {
     private final CommunicationTemplateService templateService;
     private final EmailProvider emailProvider;
     private final UserNotificationDispatcher dispatcher;
+    private final OrgTeamResolver orgTeamResolver;
 
     // ── Packet assigned ──────────────────────────────────────────────────
 
@@ -155,8 +157,11 @@ public class DocumentEmailListener {
                     lc != null && lc.getTentativeStartDate() != null
                             ? lc.getTentativeStartDate().toString()
                             : "your scheduled start date");
-            vars.put("trainerName", nameFor(lc != null ? lc.getTrainerId() : null));
-            vars.put("evaluatorName", nameFor(lc != null ? lc.getEvaluatorId() : null));
+            // Trainer + Evaluator route through OrgTeamResolver so the
+            // welcome email shows the org-wide singleton's name when
+            // the per-intern FK is null; Manager stays direct.
+            vars.put("trainerName", nameFor(lc != null ? orgTeamResolver.resolveTrainerId(lc) : null));
+            vars.put("evaluatorName", nameFor(lc != null ? orgTeamResolver.resolveEvaluatorId(lc) : null));
             vars.put("managerName", nameFor(lc != null ? lc.getManagerId() : null));
             renderAndSend("DOCUMENT_PACKET_COMPLETED", vars, intern);
             dispatcher.dispatch(intern.getId(), "DOCUMENT_PACKET_COMPLETED",

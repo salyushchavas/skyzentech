@@ -5,6 +5,7 @@ import com.skyzen.careers.entity.User;
 import com.skyzen.careers.event.ExitFeedbackSubmittedEvent;
 import com.skyzen.careers.event.ExitInitiatedEvent;
 import com.skyzen.careers.event.GithubAccessRevokedEvent;
+import com.skyzen.careers.intern.OrgTeamResolver;
 import com.skyzen.careers.notification.UserNotificationDispatcher;
 import com.skyzen.careers.repository.InternLifecycleRepository;
 import com.skyzen.careers.repository.UserRepository;
@@ -40,6 +41,7 @@ public class ExitNotificationListener {
     private final UserNotificationDispatcher dispatcher;
     private final InternLifecycleRepository lifecycleRepository;
     private final UserRepository userRepository;
+    private final OrgTeamResolver orgTeamResolver;
 
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     public void onExitInitiated(ExitInitiatedEvent event) {
@@ -62,11 +64,14 @@ public class ExitNotificationListener {
                 "Exit initiated for " + safe(internName) + " (" + typeHuman + ")",
                 "Open the exit page to complete the checklist.",
                 detailUrl);
-        dispatch(lc.getTrainerId(), "EXIT_INITIATED", event.getInternUserId(),
+        // Trainer + Evaluator route through OrgTeamResolver so the
+        // org-wide singletons get the exit notification even when the
+        // per-intern FK was never stamped at activation time.
+        dispatch(orgTeamResolver.resolveTrainerId(lc), "EXIT_INITIATED", event.getInternUserId(),
                 "Your intern " + safe(internName) + " was moved to inactive",
                 typeHuman + " on " + event.getExitDate() + ".",
                 TRAINER_DASH);
-        dispatch(lc.getEvaluatorId(), "EXIT_INITIATED", event.getInternUserId(),
+        dispatch(orgTeamResolver.resolveEvaluatorId(lc), "EXIT_INITIATED", event.getInternUserId(),
                 "Intern " + safe(internName) + " moved to inactive",
                 typeHuman + " on " + event.getExitDate() + ".",
                 EVALUATOR_DASH);

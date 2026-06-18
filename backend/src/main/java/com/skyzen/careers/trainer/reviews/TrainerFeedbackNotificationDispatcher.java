@@ -5,6 +5,7 @@ import com.skyzen.careers.entity.Project;
 import com.skyzen.careers.entity.ProjectSubmission;
 import com.skyzen.careers.entity.User;
 import com.skyzen.careers.erm.CommunicationTemplateService;
+import com.skyzen.careers.intern.OrgTeamResolver;
 import com.skyzen.careers.notification.EmailProvider;
 import com.skyzen.careers.notification.UserNotificationDispatcher;
 import com.skyzen.careers.repository.InternLifecycleRepository;
@@ -44,6 +45,7 @@ public class TrainerFeedbackNotificationDispatcher {
     private final CommunicationTemplateService templateService;
     private final EmailProvider emailProvider;
     private final UserNotificationDispatcher inApp;
+    private final OrgTeamResolver orgTeamResolver;
 
     public void dispatchFeedbackPublished(Project project,
                                            ProjectSubmission submission,
@@ -89,7 +91,11 @@ public class TrainerFeedbackNotificationDispatcher {
         }
 
         // ── Evaluator + Manager (in-app cue) ─────────────────────────────
-        for (UUID staff : new UUID[]{lc.getEvaluatorId(), lc.getManagerId()}) {
+        // Evaluator resolves through OrgTeamResolver so the org-wide
+        // singleton (DEFAULT_EVALUATOR_EMAIL) gets the cue when the
+        // per-intern evaluator_id was never stamped. Manager stays
+        // direct — genuinely per-intern.
+        for (UUID staff : new UUID[]{orgTeamResolver.resolveEvaluatorId(lc), lc.getManagerId()}) {
             if (staff == null) continue;
             tryInApp(staff, "FEEDBACK_PUBLISHED", intern.getId(),
                     label + " — " + intern.getFullName(),

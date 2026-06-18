@@ -4,6 +4,7 @@ import com.skyzen.careers.entity.InternLifecycle;
 import com.skyzen.careers.entity.Project;
 import com.skyzen.careers.event.project.ProjectCompletedEvent;
 import com.skyzen.careers.intern.InternEvaluationService;
+import com.skyzen.careers.intern.OrgTeamResolver;
 import com.skyzen.careers.repository.InternLifecycleRepository;
 import com.skyzen.careers.repository.ProjectRepository;
 import lombok.RequiredArgsConstructor;
@@ -29,6 +30,7 @@ public class PostProjectEvaluationListener {
     private final ProjectRepository projectRepository;
     private final InternLifecycleRepository lifecycleRepository;
     private final InternEvaluationService evaluationService;
+    private final OrgTeamResolver orgTeamResolver;
 
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     public void onProjectCompleted(ProjectCompletedEvent event) {
@@ -54,9 +56,14 @@ public class PostProjectEvaluationListener {
                         internUserId);
                 return;
             }
-            if (lc.getEvaluatorId() == null) {
-                log.warn("[PostProjectEval] lifecycle {} has no evaluator assigned — "
-                        + "ERM must assign before post-project draft can mint", lc.getId());
+            // Evaluator resolves through OrgTeamResolver: the org-wide
+            // singleton (DEFAULT_EVALUATOR_EMAIL) is used when the
+            // per-intern evaluator_id was never stamped. Only warn +
+            // skip when even the resolver returns null (env var unset).
+            if (orgTeamResolver.resolveEvaluatorId(lc) == null) {
+                log.warn("[PostProjectEval] no evaluator resolvable for lifecycle {} "
+                                + "(per-intern FK null and DEFAULT_EVALUATOR_EMAIL "
+                                + "unset / unresolvable) — skipping auto-draft", lc.getId());
                 return;
             }
             evaluationService.autoDraftPostProject(lc, project.getId(),
