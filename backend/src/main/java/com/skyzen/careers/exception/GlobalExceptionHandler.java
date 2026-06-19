@@ -90,6 +90,13 @@ public class GlobalExceptionHandler {
         return body(HttpStatus.FORBIDDEN, "EMAIL_UNVERIFIED", ex.getMessage(), null);
     }
 
+    @ExceptionHandler(ProfileIncompleteException.class)
+    public ResponseEntity<ErrorResponse> handleProfileIncomplete(ProfileIncompleteException ex) {
+        Map<String, Object> details = new LinkedHashMap<>();
+        details.put("missing", ex.getMissing());
+        return body(HttpStatus.CONFLICT, "PROFILE_INCOMPLETE", ex.getMessage(), details);
+    }
+
     @ExceptionHandler(OfferRequiredException.class)
     public ResponseEntity<ErrorResponse> handleOfferRequired(OfferRequiredException ex) {
         return body(HttpStatus.FORBIDDEN, "OFFER_REQUIRED", ex.getMessage(), null);

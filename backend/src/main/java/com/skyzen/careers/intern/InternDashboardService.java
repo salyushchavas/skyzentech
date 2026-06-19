@@ -13,6 +13,7 @@ import com.skyzen.careers.repository.InternLifecycleRepository;
 import com.skyzen.careers.repository.OfferRepository;
 import com.skyzen.careers.repository.UserRepository;
 import com.skyzen.careers.service.ExitService;
+import com.skyzen.careers.service.ProfileCompletionService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -48,6 +49,7 @@ public class InternDashboardService {
     private final ApplicationRepository applicationRepository;
     private final SelectionAckPolicy selectionAckPolicy;
     private final OrgTeamResolver orgTeamResolver;
+    private final ProfileCompletionService profileCompletionService;
 
     /**
      * Read-only transaction so lazy associations the dashboard touches
@@ -87,6 +89,12 @@ public class InternDashboardService {
         // must mirror the Send-Offer 409 condition exactly.
         SelectionContext selection = computeSelectionContext(caller);
 
+        // Approach 1 — always-on derived snapshot of "can this intern
+        // apply?". The frontend uses it for the completion card +
+        // disabled-Apply tooltip; the apply endpoint independently
+        // re-derives it for authority.
+        ApplyReadiness applyReadiness = profileCompletionService.applyReadiness(caller);
+
         return new InternDashboardResponse(
                 userSummary(caller),
                 status,
@@ -99,6 +107,7 @@ public class InternDashboardService {
                 buildContacts(caller),
                 exitSummary,
                 selection != null && selection.pendingAck() ? selection.toAck() : null,
+                applyReadiness,
                 Instant.now()
         );
     }

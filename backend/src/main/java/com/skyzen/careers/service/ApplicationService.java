@@ -23,6 +23,7 @@ import com.skyzen.careers.exception.ConflictException;
 import com.skyzen.careers.exception.EmailUnverifiedException;
 import com.skyzen.careers.exception.ForbiddenException;
 import com.skyzen.careers.exception.InterviewRequiredException;
+import com.skyzen.careers.exception.ProfileIncompleteException;
 import com.skyzen.careers.exception.ResourceNotFoundException;
 import com.skyzen.careers.notification.NotificationService;
 import com.skyzen.careers.notification.NotificationStub;
@@ -68,6 +69,7 @@ public class ApplicationService {
     private final NotificationStub notificationStub;
     private final NotificationService notificationService;
     private final com.skyzen.careers.intern.InternLifecycleService internLifecycleService;
+    private final ProfileCompletionService profileCompletionService;
     private final org.springframework.context.ApplicationEventPublisher eventPublisher;
 
     @Transactional
@@ -78,6 +80,21 @@ public class ApplicationService {
         if (!Boolean.TRUE.equals(user.getEmailVerified())) {
             throw new EmailUnverifiedException(
                     "Verify your email to apply for internships");
+        }
+
+        // Approach 1 gate: signup collects only the 4 legal-essentials
+        // (name/email/password/ToS); the remaining required-to-apply fields
+        // (phone, school, degree, graduationYear, skillset, resume) live on
+        // the profile editor. Derived check via ProfileCompletionService so
+        // a single source of truth gates both the apply endpoint and drives
+        // the dashboard completion card / "Apply locked" UX. 409
+        // PROFILE_INCOMPLETE carries missing[] in the envelope so the
+        // frontend can deep-link to the editor with the right step focused.
+        com.skyzen.careers.intern.ApplyReadiness readiness =
+                profileCompletionService.applyReadiness(user);
+        if (!readiness.complete()) {
+            throw new ProfileIncompleteException(
+                    "Complete your profile to apply", readiness.missing());
         }
 
         Candidate candidate = candidateRepository.findByUserId(user.getId())

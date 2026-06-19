@@ -29,6 +29,11 @@ public record InternDashboardResponse(
          *  has not yet clicked "Receive my offer letter". Null otherwise.
          *  Drives the dedicated selection-ack card on the intern home. */
         SelectionAck selectionAck,
+        /** Approach 1 — derived view of "can this intern apply?". Drives the
+         *  dashboard completion card AND the client-side "Apply locked"
+         *  hint; the server stays authoritative via the apply endpoint
+         *  guard. Always non-null. */
+        ApplyReadiness applyReadiness,
         Instant lastUpdatedAt
 ) {
     public record UserSummary(
