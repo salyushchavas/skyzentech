@@ -35,7 +35,7 @@ export default function HireApprovalsPage() {
   return (
     <div className="mx-auto max-w-6xl space-y-5 p-6">
       <header className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
-        <p className="text-[10px] font-semibold uppercase tracking-wide text-teal-700">
+        <p className="text-[10px] font-semibold uppercase tracking-wide text-brand-700">
           Manager
         </p>
         <h1 className="mt-1 text-2xl font-semibold text-slate-900">
@@ -123,7 +123,7 @@ function Row({ r }: { r: HireApprovalRow }) {
   return (
     <tr className="hover:bg-slate-50">
       <td className="px-3 py-2">
-        <Link href={href} className="text-sm font-medium text-teal-800 hover:underline">
+        <Link href={href} className="text-sm font-medium text-brand-800 hover:underline">
           {r.candidateName ?? '—'}
         </Link>
         {r.candidateEmail && (
@@ -152,7 +152,7 @@ function Row({ r }: { r: HireApprovalRow }) {
       <td className="px-3 py-2">
         <Link
           href={href}
-          className="rounded-md bg-teal-700 px-3 py-1 text-[11px] font-semibold text-white hover:bg-teal-800"
+          className="rounded-md bg-brand-700 px-3 py-1 text-[11px] font-semibold text-white hover:bg-brand-800"
         >
           Review
         </Link>

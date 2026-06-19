@@ -309,13 +309,13 @@ function Body({ id }: { id: string }) {
             <div className="mt-3 space-y-1 text-[11px]">
               <Link
                 href={`/careers/erm/active-interns/${d.internLifecycleId}`}
-                className="block text-teal-700 hover:underline"
+                className="block text-brand-700 hover:underline"
               >
                 Active intern monitor →
               </Link>
               <Link
                 href={`/careers/erm/compliance/${d.internUserId}`}
-                className="block text-teal-700 hover:underline"
+                className="block text-brand-700 hover:underline"
               >
                 Compliance tracker →
               </Link>
@@ -561,7 +561,7 @@ function LinkEvaluationModal({
             type="button"
             disabled={submitting || !evaluationId.trim()}
             onClick={() => void submit()}
-            className="rounded-md bg-teal-700 px-3 py-1.5 text-sm font-semibold text-white disabled:opacity-50"
+            className="rounded-md bg-brand-700 px-3 py-1.5 text-sm font-semibold text-white disabled:opacity-50"
           >
             {submitting ? 'Linking…' : 'Link'}
           </button>

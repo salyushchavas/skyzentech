@@ -188,7 +188,7 @@ function FeedbackHistoryInner() {
             return (
               <button key={d} type="button" onClick={() => toggleDecision(d)}
                 className={'rounded-full border px-2.5 py-0.5 text-[11px] ' +
-                  (on ? 'border-teal-600 bg-teal-600 text-white'
+                  (on ? 'border-brand-600 bg-brand-600 text-white'
                       : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50')}>
                 {labelDecision(d)}
               </button>
@@ -527,7 +527,7 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 function Stat({ label, value, sub, tone = 'slate' }: {
   label: string; value: number | string; sub?: string; tone?: 'slate' | 'rose' | 'teal';
 }) {
-  const cls = tone === 'rose' ? 'text-rose-700' : tone === 'teal' ? 'text-teal-700' : 'text-slate-900';
+  const cls = tone === 'rose' ? 'text-rose-700' : tone === 'teal' ? 'text-brand-700' : 'text-slate-900';
   return (
     <div className="rounded-md border border-slate-200 bg-white p-2">
       <p className="text-[10px] uppercase tracking-wide text-slate-500">{label}</p>

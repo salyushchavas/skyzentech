@@ -187,7 +187,7 @@ export default function CompleteInterviewModal({
                   ? `Fill required fields: ${missingFields.join(', ')}`
                   : undefined
               }
-              className="rounded-md bg-teal-700 px-4 py-2 text-sm font-semibold text-white hover:bg-teal-800 disabled:cursor-not-allowed disabled:opacity-60"
+              className="rounded-md bg-brand-700 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-800 disabled:cursor-not-allowed disabled:opacity-60"
             >
               {submitting ? 'Saving…' : 'Submit scorecard'}
             </button>

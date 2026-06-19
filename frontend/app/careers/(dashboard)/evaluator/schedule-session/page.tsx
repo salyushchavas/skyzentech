@@ -178,7 +178,7 @@ function ScheduleSessionInner() {
               type="button"
               onClick={submit}
               disabled={submitting}
-              className="inline-flex items-center gap-1.5 rounded-md bg-teal-700 px-4 py-2 text-sm font-semibold text-white hover:bg-teal-800 disabled:bg-slate-300"
+              className="inline-flex items-center gap-1.5 rounded-md bg-brand-700 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-800 disabled:bg-slate-300"
             >
               <CalendarPlus className="h-4 w-4" />
               {submitting ? 'Scheduling…' : 'Schedule Session'}
@@ -210,7 +210,7 @@ function ScheduleSessionInner() {
               )}
               <Link
                 href={`/careers/evaluator/evaluees/${selected.lifecycleId}`}
-                className="mt-3 inline-block text-[11px] font-medium text-teal-700 hover:underline"
+                className="mt-3 inline-block text-[11px] font-medium text-brand-700 hover:underline"
               >
                 Open evaluee detail →
               </Link>

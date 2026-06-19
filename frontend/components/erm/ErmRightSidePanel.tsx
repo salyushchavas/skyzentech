@@ -33,7 +33,7 @@ export default function ErmRightSidePanel() {
       >
         <Video className="h-4 w-4 text-slate-500" />
         <span className="flex-1">Interviews today</span>
-        <span className="rounded-full bg-teal-100 px-2 py-0.5 text-[11px] font-semibold text-teal-800 tabular-nums">
+        <span className="rounded-full bg-brand-100 px-2 py-0.5 text-[11px] font-semibold text-brand-800 tabular-nums">
           {rightPanel?.todayInterviewsCount ?? 0}
         </span>
       </Link>

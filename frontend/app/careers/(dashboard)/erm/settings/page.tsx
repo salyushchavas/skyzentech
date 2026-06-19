@@ -65,7 +65,7 @@ export default function SettingsPage() {
               className={
                 'rounded-full border px-3 py-1 text-xs font-medium ' +
                 (tab === t.key
-                  ? 'border-teal-700 bg-teal-700 text-white'
+                  ? 'border-brand-700 bg-brand-700 text-white'
                   : 'border-slate-200 text-slate-700 hover:bg-slate-50')
               }
             >
@@ -131,7 +131,7 @@ function TemplatesTab() {
                   onClick={() => setSelected(t)}
                   className={
                     'cursor-pointer px-3 py-2 text-sm hover:bg-slate-50 ' +
-                    (selected?.key === t.key ? 'bg-teal-50' : '')
+                    (selected?.key === t.key ? 'bg-brand-50' : '')
                   }
                 >
                   <div className="flex items-baseline justify-between">
@@ -302,7 +302,7 @@ function TemplateEditor({
           type="button"
           onClick={() => void save()}
           disabled={saving}
-          className="rounded-md bg-teal-700 px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-50"
+          className="rounded-md bg-brand-700 px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-50"
         >
           {saving ? 'Saving…' : 'Save'}
         </button>
@@ -465,7 +465,7 @@ function WorkloadTab() {
                   <span className="tabular-nums">{r.activeInterns}</span>
                   <span className="h-1.5 w-24 rounded-full bg-slate-100">
                     <span
-                      className="block h-1.5 rounded-full bg-teal-600"
+                      className="block h-1.5 rounded-full bg-brand-600"
                       style={{
                         width:
                           (r.activeInterns / maxInterns) * 100 + '%',

@@ -162,7 +162,7 @@ export default function AssignPacketModal({
                             href={d.publicUrl}
                             target="_blank"
                             rel="noreferrer"
-                            className="inline-flex items-center gap-0.5 text-[11px] font-medium text-teal-700 hover:underline"
+                            className="inline-flex items-center gap-0.5 text-[11px] font-medium text-brand-700 hover:underline"
                             title="Open the blank PDF in a new tab"
                           >
                             Preview <ExternalLink className="h-3 w-3" />
@@ -212,7 +212,7 @@ export default function AssignPacketModal({
               type="button"
               onClick={submit}
               disabled={submitting || selected.size === 0}
-              className="rounded-md bg-teal-700 px-4 py-1.5 text-sm font-semibold text-white hover:bg-teal-800 disabled:bg-slate-300"
+              className="rounded-md bg-brand-700 px-4 py-1.5 text-sm font-semibold text-white hover:bg-brand-800 disabled:bg-slate-300"
             >
               {submitting ? 'Sending…' : `Send to intern`}
             </button>

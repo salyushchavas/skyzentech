@@ -166,7 +166,7 @@ export default function TrainerReportsPage() {
               Refresh
             </button>
             <button type="button" onClick={() => void downloadCsv()} disabled={exporting || !report}
-              className="inline-flex items-center gap-1 rounded-md bg-teal-700 px-3 py-1.5 text-xs font-semibold text-white hover:bg-teal-800 disabled:bg-slate-300">
+              className="inline-flex items-center gap-1 rounded-md bg-brand-700 px-3 py-1.5 text-xs font-semibold text-white hover:bg-brand-800 disabled:bg-slate-300">
               <Download className="h-3.5 w-3.5" />
               {exporting ? 'Exporting…' : 'Export CSV'}
             </button>

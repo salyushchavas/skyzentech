@@ -144,7 +144,7 @@ export default function ResolveExceptionModal({
             type="button"
             disabled={!canSubmit}
             onClick={() => void submit()}
-            className="rounded-md bg-teal-700 px-3 py-1.5 text-sm font-semibold text-white disabled:opacity-50"
+            className="rounded-md bg-brand-700 px-3 py-1.5 text-sm font-semibold text-white disabled:opacity-50"
           >
             {submitting ? 'Saving…' : cta}
           </button>

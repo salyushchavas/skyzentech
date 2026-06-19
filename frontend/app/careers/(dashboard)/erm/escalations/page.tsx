@@ -97,7 +97,7 @@ export default function EscalationsPage() {
               className={
                 'rounded-full border px-2.5 py-0.5 text-xs font-medium ' +
                 (status === c.key
-                  ? 'border-teal-700 bg-teal-700 text-white'
+                  ? 'border-brand-700 bg-brand-700 text-white'
                   : 'border-slate-200 text-slate-700 hover:bg-slate-50')
               }
             >

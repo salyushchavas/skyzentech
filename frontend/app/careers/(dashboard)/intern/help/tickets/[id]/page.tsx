@@ -125,7 +125,7 @@ export default function TicketThreadPage() {
           {ticket.replies.map((r) => {
             const isMe = user && r.authorUserId === user.userId;
             return (
-              <li key={r.id} className={'rounded-lg border p-4 ' + (isMe ? 'border-teal-200 bg-teal-50' : 'border-slate-200 bg-white')}>
+              <li key={r.id} className={'rounded-lg border p-4 ' + (isMe ? 'border-brand-200 bg-brand-50' : 'border-slate-200 bg-white')}>
                 <div className="text-[11px] text-slate-500">
                   {isMe ? 'You' : 'Support'} · {new Date(r.createdAt).toLocaleString()}
                 </div>
@@ -145,11 +145,11 @@ export default function TicketThreadPage() {
             rows={4}
             maxLength={5000}
             placeholder="Add to the conversation…"
-            className="mt-2 w-full resize-y rounded-md border border-slate-200 bg-white px-3 py-2 text-sm focus:border-teal-500 focus:outline-none focus:ring-1 focus:ring-teal-500"
+            className="mt-2 w-full resize-y rounded-md border border-slate-200 bg-white px-3 py-2 text-sm focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
           />
           <div className="mt-3 flex justify-end">
             <button type="button" onClick={sendReply} disabled={submitting}
-              className="rounded-md bg-teal-700 px-4 py-2 text-sm font-semibold text-white hover:bg-teal-800 disabled:opacity-60">
+              className="rounded-md bg-brand-700 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-800 disabled:opacity-60">
               {submitting ? 'Sending…' : 'Send reply'}
             </button>
           </div>

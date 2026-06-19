@@ -179,7 +179,7 @@ export default function UpdateWorkAuthModal({
             type="button"
             disabled={saving}
             onClick={() => void submit()}
-            className="rounded-md bg-teal-700 px-3 py-1.5 text-sm font-semibold text-white disabled:opacity-50"
+            className="rounded-md bg-brand-700 px-3 py-1.5 text-sm font-semibold text-white disabled:opacity-50"
           >
             {saving ? 'Saving…' : 'Save'}
           </button>

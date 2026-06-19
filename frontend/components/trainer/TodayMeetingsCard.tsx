@@ -56,7 +56,7 @@ export default function TodayMeetingsCard({
                     href={joinUrl}
                     target="_blank"
                     rel="noreferrer"
-                    className="inline-flex items-center gap-1 rounded-md border border-teal-200 bg-teal-50 px-2.5 py-1 text-[11px] font-semibold text-teal-700 hover:bg-teal-100"
+                    className="inline-flex items-center gap-1 rounded-md border border-brand-200 bg-brand-50 px-2.5 py-1 text-[11px] font-semibold text-brand-700 hover:bg-brand-100"
                   >
                     <Video className="h-3 w-3" strokeWidth={2} />
                     {m.zoomStartUrl ? 'Join (host)' : 'Join'}

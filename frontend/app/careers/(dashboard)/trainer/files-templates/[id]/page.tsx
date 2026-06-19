@@ -263,7 +263,7 @@ export default function TemplateDetailPage(props: { params: Promise<RouteParams>
         </Field>
         <div className="flex justify-end">
           <button type="button" onClick={save} disabled={!dirty || busy}
-            className="inline-flex items-center gap-1 rounded-md bg-teal-700 px-4 py-1.5 text-sm font-semibold text-white hover:bg-teal-800 disabled:bg-slate-300">
+            className="inline-flex items-center gap-1 rounded-md bg-brand-700 px-4 py-1.5 text-sm font-semibold text-white hover:bg-brand-800 disabled:bg-slate-300">
             <Save className="h-3.5 w-3.5" /> {busy ? 'Saving…' : 'Save changes'}
           </button>
         </div>

@@ -141,9 +141,9 @@ export default function InternEvaluationDetailPage() {
       <Section title="Improvement plan" body={eval_.improvementPlan} />
 
       {needsAck ? (
-        <section className="mt-6 rounded-lg border border-teal-200 bg-teal-50 p-5">
-          <h3 className="text-sm font-semibold text-teal-900">Acknowledge this evaluation</h3>
-          <p className="mt-1 text-xs text-teal-800">
+        <section className="mt-6 rounded-lg border border-brand-200 bg-brand-50 p-5">
+          <h3 className="text-sm font-semibold text-brand-900">Acknowledge this evaluation</h3>
+          <p className="mt-1 text-xs text-brand-800">
             Add an optional response, then acknowledge to confirm you've read the feedback.
           </p>
           <div className="mt-3">
@@ -153,7 +153,7 @@ export default function InternEvaluationDetailPage() {
               maxLength={MAX_RESPONSE}
               rows={4}
               placeholder="Optional response to your evaluator…"
-              className="w-full resize-y rounded-md border border-slate-200 bg-white px-3 py-2 text-sm focus:border-teal-500 focus:outline-none focus:ring-1 focus:ring-teal-500"
+              className="w-full resize-y rounded-md border border-slate-200 bg-white px-3 py-2 text-sm focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
             />
             <div className="mt-1 text-right text-[11px] text-slate-400">
               {response.length}/{MAX_RESPONSE}
@@ -163,7 +163,7 @@ export default function InternEvaluationDetailPage() {
             type="button"
             onClick={acknowledge}
             disabled={submitting}
-            className="mt-3 rounded-md bg-teal-700 px-4 py-2 text-sm font-semibold text-white hover:bg-teal-800 disabled:opacity-60"
+            className="mt-3 rounded-md bg-brand-700 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-800 disabled:opacity-60"
           >
             {submitting ? 'Submitting…' : 'Acknowledge'}
           </button>
@@ -206,7 +206,7 @@ function ScoreBar({ label, value }: { label: string; value?: number | null }) {
       <div className="h-1.5 w-full overflow-hidden rounded-full bg-slate-100">
         {v !== null && (
           <div
-            className="h-full rounded-full bg-teal-600 transition-all"
+            className="h-full rounded-full bg-brand-600 transition-all"
             style={{ width: `${(v / 10) * 100}%` }}
             aria-hidden
           />

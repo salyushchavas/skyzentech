@@ -84,7 +84,7 @@ export default function UpdateStartDateModal({
             type="button"
             onClick={submit}
             disabled={submitting}
-            className="rounded-md bg-teal-700 px-4 py-2 text-sm font-semibold text-white hover:bg-teal-800 disabled:opacity-60"
+            className="rounded-md bg-brand-700 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-800 disabled:opacity-60"
           >
             {submitting ? 'Updating…' : 'Update'}
           </button>

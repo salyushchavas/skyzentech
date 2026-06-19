@@ -157,7 +157,7 @@ export default function InterviewDetailPage() {
                   className={
                     'border-b-2 px-3 py-2 font-medium capitalize ' +
                     (tab === t
-                      ? 'border-teal-700 text-teal-700'
+                      ? 'border-brand-700 text-brand-700'
                       : 'border-transparent text-slate-500 hover:text-slate-800')
                   }
                 >
@@ -179,7 +179,7 @@ export default function InterviewDetailPage() {
                   {ap?.applicationId && (
                     <Link
                       href={`/careers/erm/applications/${ap.applicationId}`}
-                      className="mt-3 inline-flex items-center gap-1 text-xs font-medium text-teal-700 hover:underline"
+                      className="mt-3 inline-flex items-center gap-1 text-xs font-medium text-brand-700 hover:underline"
                     >
                       Open application <ExternalLink className="h-3 w-3" />
                     </Link>
@@ -193,7 +193,7 @@ export default function InterviewDetailPage() {
                   {data.zoomJoinUrl && (
                     <p className="mt-1 text-xs text-slate-600 break-all">
                       Join link:{' '}
-                      <a className="text-teal-700 underline" href={data.zoomJoinUrl} target="_blank" rel="noreferrer">
+                      <a className="text-brand-700 underline" href={data.zoomJoinUrl} target="_blank" rel="noreferrer">
                         {data.zoomJoinUrl}
                       </a>
                     </p>
@@ -206,7 +206,7 @@ export default function InterviewDetailPage() {
                   {data.zoomStartUrl && (
                     <p className="mt-1 text-xs text-slate-600 break-all">
                       Host link (ERM-only):{' '}
-                      <a className="text-teal-700 underline" href={data.zoomStartUrl} target="_blank" rel="noreferrer">
+                      <a className="text-brand-700 underline" href={data.zoomStartUrl} target="_blank" rel="noreferrer">
                         {data.zoomStartUrl}
                       </a>
                     </p>
@@ -301,7 +301,7 @@ export default function InterviewDetailPage() {
                       type="button"
                       onClick={saveNotes}
                       disabled={savingNotes}
-                      className="rounded-md bg-teal-700 px-3 py-1.5 text-xs font-semibold text-white hover:bg-teal-800 disabled:opacity-60"
+                      className="rounded-md bg-brand-700 px-3 py-1.5 text-xs font-semibold text-white hover:bg-brand-800 disabled:opacity-60"
                     >
                       {savingNotes ? 'Saving…' : 'Save notes'}
                     </button>
@@ -340,7 +340,7 @@ export default function InterviewDetailPage() {
                         )}
                         {h.payloadJson && (
                           <details className="mt-2">
-                            <summary className="cursor-pointer text-[11px] text-teal-700">
+                            <summary className="cursor-pointer text-[11px] text-brand-700">
                               payload
                             </summary>
                             <pre className="mt-1 whitespace-pre-wrap rounded-md border border-slate-200 bg-white p-2 text-[11px] text-slate-700">
@@ -432,7 +432,7 @@ export default function InterviewDetailPage() {
                         `/careers/erm/offers/new?applicationId=${data.applicant?.applicationId ?? ''}`,
                       )}
                       disabled={!data.applicant?.applicationId}
-                      className="mt-3 inline-flex w-full items-center justify-center gap-1 rounded-md bg-teal-700 px-3 py-2 text-sm font-semibold text-white hover:bg-teal-800 disabled:bg-slate-300"
+                      className="mt-3 inline-flex w-full items-center justify-center gap-1 rounded-md bg-brand-700 px-3 py-2 text-sm font-semibold text-white hover:bg-brand-800 disabled:bg-slate-300"
                     >
                       <Send className="h-3.5 w-3.5" />
                       Send Offer
@@ -515,7 +515,7 @@ function Btn({
       className={
         'w-full rounded-md px-3 py-2 text-sm font-semibold transition-colors ' +
         (primary
-          ? 'bg-teal-700 text-white hover:bg-teal-800 disabled:bg-slate-300'
+          ? 'bg-brand-700 text-white hover:bg-brand-800 disabled:bg-slate-300'
           : danger
             ? 'border border-rose-200 text-rose-700 hover:bg-rose-50 disabled:opacity-50'
             : 'border border-slate-200 text-slate-700 hover:bg-slate-50 disabled:opacity-50')

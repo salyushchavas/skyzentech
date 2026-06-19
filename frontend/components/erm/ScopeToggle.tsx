@@ -17,7 +17,7 @@ export default function ScopeToggle({ scope, onChange }: Props) {
         className={
           'px-3 py-1.5 text-xs font-medium transition-colors ' +
           (active
-            ? 'bg-teal-700 text-white'
+            ? 'bg-brand-700 text-white'
             : 'bg-white text-slate-700 hover:bg-slate-50')
         }
       >

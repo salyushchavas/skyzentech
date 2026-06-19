@@ -157,7 +157,7 @@ function HeroCard({ meeting }: { meeting: WeeklyMeeting }) {
             className={
               'inline-flex items-center gap-2 rounded-md px-5 py-2.5 text-sm font-semibold transition-colors '
               + (canJoin
-                ? 'bg-teal-700 text-white hover:bg-teal-800'
+                ? 'bg-brand-700 text-white hover:bg-brand-800'
                 : 'cursor-not-allowed bg-slate-100 text-slate-400 pointer-events-none')
             }
           >

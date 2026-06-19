@@ -123,7 +123,7 @@ export default function MonthlyRosterTable({
               className={
                 'rounded-full border px-2.5 py-0.5 text-[11px] font-medium '
                 + (filter === f.key
-                    ? 'border-teal-700 bg-teal-700 text-white'
+                    ? 'border-brand-700 bg-brand-700 text-white'
                     : 'border-slate-200 text-slate-700 hover:bg-slate-50')
               }
             >
@@ -285,7 +285,7 @@ function Row({
           {rowExtra}
           <Link
             href={detailHref}
-            className="inline-flex items-center gap-1 text-xs font-medium text-teal-700 hover:underline"
+            className="inline-flex items-center gap-1 text-xs font-medium text-brand-700 hover:underline"
           >
             Know more <ChevronRight className="h-3 w-3" />
           </Link>

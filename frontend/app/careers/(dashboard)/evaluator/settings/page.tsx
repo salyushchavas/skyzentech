@@ -207,7 +207,7 @@ function TabBtn({
       className={
         'inline-flex items-center gap-1 border-b-2 px-3 py-2 text-xs font-medium ' +
         (active
-          ? 'border-teal-700 text-teal-800'
+          ? 'border-brand-700 text-brand-800'
           : 'border-transparent text-slate-600 hover:text-slate-800')
       }
     >

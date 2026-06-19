@@ -182,7 +182,7 @@ function NextActionCard({ action }: { action: InternNextAction }) {
     <section className="rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
       <div className="flex items-start justify-between gap-4">
         <div className="flex-1">
-          <div className="mb-1 inline-flex items-center gap-1.5 rounded-full bg-teal-50 px-2.5 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-teal-700">
+          <div className="mb-1 inline-flex items-center gap-1.5 rounded-full bg-brand-50 px-2.5 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-brand-700">
             <Sparkles className="h-3 w-3" strokeWidth={2.5} />
             Next action
           </div>
@@ -207,7 +207,7 @@ function NextActionCard({ action }: { action: InternNextAction }) {
           ) : (
             <Link
               href={action.ctaHref}
-              className="inline-flex items-center rounded-md bg-teal-700 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-teal-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500 focus-visible:ring-offset-2"
+              className="inline-flex items-center rounded-md bg-brand-700 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-brand-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2"
             >
               {action.ctaLabel}
             </Link>
@@ -246,7 +246,7 @@ function AcknowledgeSelectionButton({ label, href }: { label: string; href: stri
         type="button"
         onClick={onClick}
         disabled={busy}
-        className="inline-flex items-center rounded-md bg-teal-700 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-teal-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500 focus-visible:ring-offset-2 disabled:opacity-60"
+        className="inline-flex items-center rounded-md bg-brand-700 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-brand-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2 disabled:opacity-60"
       >
         {busy ? 'Sending…' : label}
       </button>
@@ -290,7 +290,7 @@ function ResendVerificationButton({ label }: { label: string }) {
         type="button"
         onClick={onClick}
         disabled={sending}
-        className="inline-flex items-center rounded-md bg-teal-700 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-teal-800 disabled:opacity-60"
+        className="inline-flex items-center rounded-md bg-brand-700 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-brand-800 disabled:opacity-60"
       >
         {sending ? 'Sending…' : label}
       </button>
@@ -325,7 +325,7 @@ function ContactsCard({
         <ul className="mt-3 space-y-3">
           {entries.map(({ role, contact }) => (
             <li key={role} className="flex items-center gap-3">
-              <span className="flex h-9 w-9 items-center justify-center rounded-full bg-teal-100 text-sm font-semibold text-teal-800">
+              <span className="flex h-9 w-9 items-center justify-center rounded-full bg-brand-100 text-sm font-semibold text-brand-800">
                 {initialsOf(contact.name)}
               </span>
               <div className="min-w-0 flex-1">
@@ -337,7 +337,7 @@ function ContactsCard({
                 </div>
                 <a
                   href={`mailto:${contact.email}`}
-                  className="inline-flex items-center gap-1 text-xs text-teal-700 hover:underline"
+                  className="inline-flex items-center gap-1 text-xs text-brand-700 hover:underline"
                 >
                   <Mail className="h-3 w-3" strokeWidth={2} />
                   {contact.email}

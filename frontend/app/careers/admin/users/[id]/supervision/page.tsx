@@ -145,7 +145,7 @@ const ROLE_LABEL: Record<UserRole, string> = {
 const ROLE_COLOR: Record<UserRole, string> = {
   INTERN: 'bg-sky-100 text-sky-800',
   TRAINER: 'bg-amber-100 text-amber-800',
-  EVALUATOR: 'bg-teal-100 text-teal-800',
+  EVALUATOR: 'bg-brand-100 text-brand-800',
   REPORTING_MANAGER: 'bg-violet-100 text-violet-800',
   MANAGER: 'bg-violet-100 text-violet-800',
   ERM: 'bg-emerald-100 text-emerald-800',

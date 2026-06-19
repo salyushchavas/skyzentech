@@ -103,7 +103,7 @@ function AssignmentRow({ a }: { a: AssignmentSummary }) {
   return (
     <Link
       href={`/careers/intern/projects/${a.id}`}
-      className="block rounded-lg border border-slate-200 bg-white p-4 shadow-sm transition-colors hover:border-teal-300 hover:bg-teal-50/30"
+      className="block rounded-lg border border-slate-200 bg-white p-4 shadow-sm transition-colors hover:border-brand-300 hover:bg-brand-50/30"
     >
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0 flex-1">

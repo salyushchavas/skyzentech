@@ -197,14 +197,14 @@ function QuickCard({
   return (
     <Link
       href={href}
-      className="block rounded-lg border border-slate-200 bg-white p-4 shadow-sm hover:border-teal-300 hover:shadow"
+      className="block rounded-lg border border-slate-200 bg-white p-4 shadow-sm hover:border-brand-300 hover:shadow"
     >
-      <p className="inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-teal-700">
+      <p className="inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-brand-700">
         {icon}
         {title}
       </p>
       <p className="mt-2 text-xs text-slate-700">{body}</p>
-      <p className="mt-3 inline-flex items-center gap-0.5 text-[11px] font-medium text-teal-700">
+      <p className="mt-3 inline-flex items-center gap-0.5 text-[11px] font-medium text-brand-700">
         Open <ChevronRight className="h-3 w-3" />
       </p>
     </Link>

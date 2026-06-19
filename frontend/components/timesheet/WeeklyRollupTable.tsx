@@ -144,7 +144,7 @@ export default function WeeklyRollupTable({
             type="button"
             onClick={runBatch}
             disabled={batchBusy || batchIds.length === 0}
-            className="inline-flex items-center gap-1 rounded-md border border-teal-700 bg-teal-700 px-3 py-1.5 text-xs font-semibold text-white hover:bg-teal-800 disabled:opacity-40"
+            className="inline-flex items-center gap-1 rounded-md border border-brand-700 bg-brand-700 px-3 py-1.5 text-xs font-semibold text-white hover:bg-brand-800 disabled:opacity-40"
             title={batchIds.length === 0
               ? `No ${actionFor.toLowerCase()} weeks to ${actionLabel.toLowerCase()}`
               : undefined}
@@ -505,7 +505,7 @@ function CellExpanded({
               type="button"
               onClick={doAction}
               disabled={busy != null}
-              className="inline-flex items-center gap-1 rounded-md bg-teal-700 px-3 py-1 text-xs font-semibold text-white hover:bg-teal-800 disabled:opacity-50"
+              className="inline-flex items-center gap-1 rounded-md bg-brand-700 px-3 py-1 text-xs font-semibold text-white hover:bg-brand-800 disabled:opacity-50"
             >
               {busy === 'verify' ? '…' : (
                 <>

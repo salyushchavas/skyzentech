@@ -47,7 +47,7 @@ export default function TrainerSidebar() {
                   className={
                     'flex items-center justify-between rounded-md px-3 py-2 text-sm ' +
                     (active
-                      ? 'bg-teal-50 font-semibold text-teal-800'
+                      ? 'bg-brand-50 font-semibold text-brand-800'
                       : 'text-slate-700 hover:bg-slate-50')
                   }
                 >

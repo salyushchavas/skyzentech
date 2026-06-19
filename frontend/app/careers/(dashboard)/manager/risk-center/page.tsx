@@ -181,7 +181,7 @@ function RiskCenterInner() {
           <label className={
             'inline-flex cursor-pointer items-center gap-2 rounded-full px-3 py-1 text-sm ' +
             (myInternsOnly
-              ? 'bg-teal-100 font-semibold text-teal-800 ring-1 ring-teal-300'
+              ? 'bg-brand-100 font-semibold text-brand-800 ring-1 ring-brand-300'
               : 'text-slate-700 hover:bg-slate-100')
           }>
             <input type="checkbox" checked={myInternsOnly}
@@ -618,7 +618,7 @@ function ActionModal({
             className={
               'rounded-md px-4 py-1.5 text-xs font-semibold text-white disabled:opacity-50 ' +
               (kind === 'resolve' ? 'bg-emerald-600 hover:bg-emerald-700'
-                : 'bg-teal-700 hover:bg-teal-800')
+                : 'bg-brand-700 hover:bg-brand-800')
             }>
             {pending ? 'Working…' : kind === 'resolve' ? 'Resolve' : 'Submit'}
           </button>

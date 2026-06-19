@@ -207,7 +207,7 @@ export default function ComposePage() {
                             className={
                               'inline-flex h-7 w-7 items-center justify-center rounded-md border text-xs font-semibold ' +
                               (val === n
-                                ? 'border-teal-700 bg-teal-700 text-white'
+                                ? 'border-brand-700 bg-brand-700 text-white'
                                 : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-100')
                             }
                           >
@@ -278,7 +278,7 @@ export default function ComposePage() {
                   className={
                     'flex cursor-pointer items-center gap-2 rounded-md border p-2 text-sm ' +
                     (recommendation === r
-                      ? 'border-teal-700 bg-teal-50'
+                      ? 'border-brand-700 bg-brand-50'
                       : 'border-slate-200 bg-white hover:bg-slate-50')
                   }
                 >
@@ -362,7 +362,7 @@ export default function ComposePage() {
                   onClick={publish}
                   disabled={!canPublish || publishing}
                   title={canPublish ? 'Publish to intern + CC ERM/Manager/Trainer' : 'Need all 4 scores + recommendation + ≥50 chars feedback'}
-                  className="inline-flex items-center gap-1.5 rounded-md bg-teal-700 px-4 py-1.5 text-xs font-semibold text-white hover:bg-teal-800 disabled:bg-slate-300"
+                  className="inline-flex items-center gap-1.5 rounded-md bg-brand-700 px-4 py-1.5 text-xs font-semibold text-white hover:bg-brand-800 disabled:bg-slate-300"
                 >
                   <Send className="h-3.5 w-3.5" />
                   {publishing ? 'Publishing…' : 'Publish'}

@@ -146,14 +146,14 @@ function TabButton({ active, onClick, label, badge }: {
       className={
         '-mb-px inline-flex items-center gap-2 border-b-2 px-3 py-2 text-sm ' +
         (active
-          ? 'border-teal-700 font-semibold text-teal-700'
+          ? 'border-brand-700 font-semibold text-brand-700'
           : 'border-transparent text-slate-600 hover:text-slate-900')
       }
     >
       {label}
       <span className={
         'rounded-full px-1.5 py-0.5 text-[10px] font-semibold ' +
-        (active ? 'bg-teal-100 text-teal-800' : 'bg-slate-100 text-slate-700')
+        (active ? 'bg-brand-100 text-brand-800' : 'bg-slate-100 text-slate-700')
       }>{badge}</span>
     </button>
   );
@@ -180,7 +180,7 @@ function ScheduledRowEl({ row, onStart }: { row: ScheduledRow; onStart: () => vo
             href={row.zoomJoinUrl}
             target="_blank"
             rel="noreferrer"
-            className="ml-2 inline-flex items-center gap-0.5 text-[11px] font-medium text-teal-700 hover:underline"
+            className="ml-2 inline-flex items-center gap-0.5 text-[11px] font-medium text-brand-700 hover:underline"
           >
             <Video className="h-3 w-3" /> Join
           </a>
@@ -196,7 +196,7 @@ function ScheduledRowEl({ row, onStart }: { row: ScheduledRow; onStart: () => vo
         {inProgress ? (
           <Link
             href={`/careers/evaluator/evaluations/${row.evaluationId}/compose`}
-            className="inline-flex items-center gap-1 rounded-md bg-teal-700 px-3 py-1 text-[11px] font-semibold text-white hover:bg-teal-800"
+            className="inline-flex items-center gap-1 rounded-md bg-brand-700 px-3 py-1 text-[11px] font-semibold text-white hover:bg-brand-800"
           >
             Continue
           </Link>
@@ -206,7 +206,7 @@ function ScheduledRowEl({ row, onStart }: { row: ScheduledRow; onStart: () => vo
             onClick={onStart}
             disabled={!startable && !inProgress}
             title={!startable ? 'Available within 2 hours of scheduled time' : ''}
-            className="inline-flex items-center gap-1 rounded-md bg-teal-700 px-3 py-1 text-[11px] font-semibold text-white hover:bg-teal-800 disabled:bg-slate-300"
+            className="inline-flex items-center gap-1 rounded-md bg-brand-700 px-3 py-1 text-[11px] font-semibold text-white hover:bg-brand-800 disabled:bg-slate-300"
           >
             <Play className="h-3 w-3" />
             Start

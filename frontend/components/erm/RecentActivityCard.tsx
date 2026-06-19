@@ -15,7 +15,7 @@ export default function RecentActivityCard({ entries }: Props) {
         <h3 className="text-sm font-semibold text-slate-900">Recent activity</h3>
         <Link
           href="/careers/erm/reports"
-          className="text-xs font-medium text-teal-700 hover:underline"
+          className="text-xs font-medium text-brand-700 hover:underline"
         >
           View all →
         </Link>

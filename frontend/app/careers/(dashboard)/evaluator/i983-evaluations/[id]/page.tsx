@@ -96,7 +96,7 @@ export default function I983DetailPage() {
                   'inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-semibold ' +
                   (dsoUrgent
                     ? 'bg-rose-700 text-white hover:bg-rose-800'
-                    : 'bg-teal-700 text-white hover:bg-teal-800')
+                    : 'bg-brand-700 text-white hover:bg-brand-800')
                 }
               >
                 <Send className="h-3.5 w-3.5" />
@@ -336,7 +336,7 @@ function AmendI983Modal({
           <button type="button" onClick={onClose}
             className="rounded-md border border-slate-200 px-3 py-1.5 text-sm text-slate-700">Cancel</button>
           <button type="button" onClick={submit} disabled={!canSubmit || submitting}
-            className="inline-flex items-center gap-1.5 rounded-md bg-teal-700 px-4 py-1.5 text-sm font-semibold text-white hover:bg-teal-800 disabled:bg-slate-300">
+            className="inline-flex items-center gap-1.5 rounded-md bg-brand-700 px-4 py-1.5 text-sm font-semibold text-white hover:bg-brand-800 disabled:bg-slate-300">
             <Save className="h-3.5 w-3.5" />
             {submitting ? 'Saving…' : 'Submit amendment'}
           </button>
@@ -422,7 +422,7 @@ function MarkDsoSubmittedModal({
           <button type="button" onClick={onClose}
             className="rounded-md border border-slate-200 px-3 py-1.5 text-sm text-slate-700">Cancel</button>
           <button type="button" onClick={submit} disabled={submitting}
-            className="inline-flex items-center gap-1.5 rounded-md bg-teal-700 px-4 py-1.5 text-sm font-semibold text-white hover:bg-teal-800 disabled:bg-slate-300">
+            className="inline-flex items-center gap-1.5 rounded-md bg-brand-700 px-4 py-1.5 text-sm font-semibold text-white hover:bg-brand-800 disabled:bg-slate-300">
             <CheckCircle2 className="h-3.5 w-3.5" />
             {submitting ? 'Saving…' : 'Mark submitted'}
           </button>

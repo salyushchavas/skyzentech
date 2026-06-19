@@ -28,7 +28,7 @@ export function HorizontalBars({
         ? 'bg-amber-500'
         : tone === 'slate'
           ? 'bg-slate-500'
-          : 'bg-teal-600';
+          : 'bg-brand-600';
   if (rows.length === 0) {
     return (
       <p className="text-xs text-slate-500">No data in this range.</p>
@@ -78,7 +78,7 @@ export function VerticalBars({
   );
   const barTone =
     tone === 'rose' ? 'bg-rose-500'
-      : tone === 'amber' ? 'bg-amber-500' : 'bg-teal-600';
+      : tone === 'amber' ? 'bg-amber-500' : 'bg-brand-600';
   if (rows.length === 0) {
     return <p className="text-xs text-slate-500">No data.</p>;
   }

@@ -151,7 +151,7 @@ function ScheduleI983Inner() {
                   className={
                     'rounded-md border px-3 py-1.5 text-xs font-medium ' +
                     (evaluationType === t
-                      ? 'border-teal-700 bg-teal-700 text-white'
+                      ? 'border-brand-700 bg-brand-700 text-white'
                       : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50')
                   }
                 >
@@ -213,7 +213,7 @@ function ScheduleI983Inner() {
               type="button"
               onClick={submit}
               disabled={submitting}
-              className="inline-flex items-center gap-1.5 rounded-md bg-teal-700 px-4 py-2 text-sm font-semibold text-white hover:bg-teal-800 disabled:bg-slate-300"
+              className="inline-flex items-center gap-1.5 rounded-md bg-brand-700 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-800 disabled:bg-slate-300"
             >
               <CalendarPlus className="h-4 w-4" />
               {submitting ? 'Scheduling…' : 'Schedule I-983'}

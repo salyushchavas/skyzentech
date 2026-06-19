@@ -81,7 +81,7 @@ export default function HireApprovalDetailPage() {
   return (
     <div className="mx-auto max-w-5xl space-y-4 p-6">
       <p className="text-xs">
-        <Link href="/careers/manager/hire-approvals" className="text-teal-700 hover:underline">
+        <Link href="/careers/manager/hire-approvals" className="text-brand-700 hover:underline">
           ← Back to Hire Approvals
         </Link>
       </p>

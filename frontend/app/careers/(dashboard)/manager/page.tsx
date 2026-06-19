@@ -39,7 +39,7 @@ export default function ManagerHomePage() {
   return (
     <div className="mx-auto max-w-6xl space-y-5 p-6">
       <header className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
-        <p className="text-[10px] font-semibold uppercase tracking-wide text-teal-700">
+        <p className="text-[10px] font-semibold uppercase tracking-wide text-brand-700">
           Executive Overview
         </p>
         <h1 className="mt-1 text-2xl font-semibold text-slate-900">
@@ -230,7 +230,7 @@ function CountCard({
   return (
     <Link
       href={href}
-      className="block rounded-lg border border-slate-200 bg-white p-3 shadow-sm hover:border-teal-300 hover:shadow"
+      className="block rounded-lg border border-slate-200 bg-white p-3 shadow-sm hover:border-brand-300 hover:shadow"
     >
       <p className="inline-flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wide text-slate-500">
         {icon}
@@ -261,7 +261,7 @@ function KpiCard({
       {pct != null && (
         <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-slate-100">
           <div
-            className="h-full bg-teal-600"
+            className="h-full bg-brand-600"
             style={{ width: `${Math.min(100, pct)}%` }}
           />
         </div>
@@ -282,10 +282,10 @@ function SectionCard({
   return (
     <Link
       href={href}
-      className="block rounded-lg border border-slate-200 bg-white p-4 shadow-sm hover:border-teal-300 hover:shadow"
+      className="block rounded-lg border border-slate-200 bg-white p-4 shadow-sm hover:border-brand-300 hover:shadow"
     >
       <div className="flex items-center justify-between">
-        <p className="inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-teal-700">
+        <p className="inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-brand-700">
           {icon}
           {title}
         </p>

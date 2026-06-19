@@ -109,7 +109,7 @@ function ActiveEvalueesInner() {
           <button
             type="button"
             onClick={clearFilters}
-            className="text-xs font-medium text-teal-700 hover:underline"
+            className="text-xs font-medium text-brand-700 hover:underline"
           >
             Clear filters
           </button>
@@ -129,7 +129,7 @@ function ActiveEvalueesInner() {
                 className={
                   'rounded-full border px-2.5 py-0.5 text-[11px] ' +
                   (on
-                    ? 'border-teal-700 bg-teal-700 text-white'
+                    ? 'border-brand-700 bg-brand-700 text-white'
                     : `${opt.tone} bg-white text-slate-700 hover:bg-slate-50`)
                 }
               >

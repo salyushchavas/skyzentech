@@ -236,7 +236,7 @@ function EvaluationHistoryInner() {
                   <td className="px-3 py-2 text-right">
                     <Link
                       href={href}
-                      className="text-[11px] font-medium text-teal-700 hover:underline"
+                      className="text-[11px] font-medium text-brand-700 hover:underline"
                     >
                       Open →
                     </Link>

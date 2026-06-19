@@ -290,7 +290,7 @@ function CardWithCta({
           <Link
             href={ctaHref}
             title={ctaTip}
-            className="rounded-md border border-teal-300 bg-teal-50 px-2 py-0.5 text-[11px] font-semibold text-teal-800 hover:bg-teal-100"
+            className="rounded-md border border-brand-300 bg-brand-50 px-2 py-0.5 text-[11px] font-semibold text-brand-800 hover:bg-brand-100"
           >
             {cta}
           </Link>
@@ -359,7 +359,7 @@ function RecentProjectItem({
             href={p.ktMeetingLink}
             target="_blank"
             rel="noreferrer"
-            className="text-[10px] text-teal-700 hover:underline"
+            className="text-[10px] text-brand-700 hover:underline"
           >
             meeting link
           </a>
@@ -479,7 +479,7 @@ function KtMarkModal({
             type="button"
             onClick={submit}
             disabled={busy || Boolean(linkError)}
-            className="rounded-md bg-teal-700 px-3 py-1.5 text-xs font-semibold text-white hover:bg-teal-800 disabled:opacity-60"
+            className="rounded-md bg-brand-700 px-3 py-1.5 text-xs font-semibold text-white hover:bg-brand-800 disabled:opacity-60"
           >
             {busy ? 'Saving…' : (alreadyDone ? 'Save' : 'Mark KT done')}
           </button>

@@ -400,7 +400,7 @@ function ComplianceCardView({
       )}
       <Link
         href={`/careers/erm/compliance/${userId}`}
-        className="mt-3 inline-block text-[11px] text-teal-700 hover:underline"
+        className="mt-3 inline-block text-[11px] text-brand-700 hover:underline"
       >
         Open compliance tracker →
       </Link>
@@ -448,7 +448,7 @@ function EscalationsCardView({
       )}
       <Link
         href={`/careers/erm/escalations?internLifecycleId=${lifecycleId}`}
-        className="mt-3 inline-block text-[11px] text-teal-700 hover:underline"
+        className="mt-3 inline-block text-[11px] text-brand-700 hover:underline"
       >
         All escalations for this intern →
       </Link>

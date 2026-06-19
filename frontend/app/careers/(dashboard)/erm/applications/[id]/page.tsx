@@ -149,7 +149,7 @@ export default function ApplicationDetailPage() {
                     className={
                       'border-b-2 px-3 py-2 font-medium ' +
                       (tab === t
-                        ? 'border-teal-700 text-teal-700'
+                        ? 'border-brand-700 text-brand-700'
                         : 'border-transparent text-slate-500 hover:text-slate-800')
                     }
                   >
@@ -206,7 +206,7 @@ export default function ApplicationDetailPage() {
                       href={detail.resume.downloadUrl}
                       target="_blank"
                       rel="noreferrer"
-                      className="mt-3 inline-block rounded-md bg-teal-700 px-3 py-1.5 text-xs font-semibold text-white hover:bg-teal-800"
+                      className="mt-3 inline-block rounded-md bg-brand-700 px-3 py-1.5 text-xs font-semibold text-white hover:bg-brand-800"
                     >
                       Download resume
                     </a>
@@ -265,7 +265,7 @@ export default function ApplicationDetailPage() {
                         )}
                         {d.applicantVisibleMessage && (
                           <details className="mt-2">
-                            <summary className="cursor-pointer text-[12px] text-teal-700">
+                            <summary className="cursor-pointer text-[12px] text-brand-700">
                               View message sent to applicant
                             </summary>
                             <pre className="mt-2 whitespace-pre-wrap rounded-md border border-slate-200 bg-white p-3 text-[12px] text-slate-700">
@@ -303,7 +303,7 @@ export default function ApplicationDetailPage() {
                       type="button"
                       onClick={addNote}
                       disabled={savingNote}
-                      className="rounded-md bg-teal-700 px-3 py-1.5 text-xs font-semibold text-white hover:bg-teal-800 disabled:opacity-60"
+                      className="rounded-md bg-brand-700 px-3 py-1.5 text-xs font-semibold text-white hover:bg-brand-800 disabled:opacity-60"
                     >
                       {savingNote ? 'Saving…' : 'Add note'}
                     </button>
@@ -364,7 +364,7 @@ export default function ApplicationDetailPage() {
                 {a.stage === 'INTERVIEWED' && (
                   <Link
                     href={`/careers/erm/offers/new?applicationId=${a.id}`}
-                    className="block w-full rounded-md bg-teal-700 px-3 py-2 text-center text-sm font-semibold text-white hover:bg-teal-800"
+                    className="block w-full rounded-md bg-brand-700 px-3 py-2 text-center text-sm font-semibold text-white hover:bg-brand-800"
                   >
                     Send offer
                   </Link>
@@ -468,7 +468,7 @@ function ActionBtn({
       className={
         'w-full rounded-md px-3 py-2 text-sm font-semibold transition-colors ' +
         (primary
-          ? 'bg-teal-700 text-white hover:bg-teal-800 disabled:bg-slate-300'
+          ? 'bg-brand-700 text-white hover:bg-brand-800 disabled:bg-slate-300'
           : 'border border-slate-200 text-slate-700 hover:bg-slate-50 disabled:opacity-50')
       }
     >

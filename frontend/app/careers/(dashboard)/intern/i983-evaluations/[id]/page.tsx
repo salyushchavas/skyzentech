@@ -147,7 +147,7 @@ export default function InternI983DetailPage() {
               value={typedName}
               onChange={(e) => setTypedName(e.target.value)}
               maxLength={200}
-              className="mt-1 w-full rounded-md border border-slate-200 px-3 py-2 text-sm focus:border-teal-500 focus:outline-none focus:ring-1 focus:ring-teal-500"
+              className="mt-1 w-full rounded-md border border-slate-200 px-3 py-2 text-sm focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
             />
           </label>
           <div className="mt-3 rounded-md border border-slate-200 bg-slate-50 p-4">
@@ -180,7 +180,7 @@ export default function InternI983DetailPage() {
               type="checkbox"
               checked={agreed}
               onChange={(e) => setAgreed(e.target.checked)}
-              className="mt-0.5 h-4 w-4 cursor-pointer rounded border-slate-300 text-teal-600 focus:ring-teal-500"
+              className="mt-0.5 h-4 w-4 cursor-pointer rounded border-slate-300 text-brand-600 focus:ring-brand-500"
             />
             <span>I have read and reviewed the I-983 evaluation above.</span>
           </label>
@@ -201,7 +201,7 @@ export default function InternI983DetailPage() {
               type="button"
               onClick={submit}
               disabled={!canSubmit}
-              className="inline-flex items-center gap-1.5 rounded-md bg-teal-700 px-4 py-2 text-sm font-semibold text-white hover:bg-teal-800 disabled:cursor-not-allowed disabled:opacity-50"
+              className="inline-flex items-center gap-1.5 rounded-md bg-brand-700 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-800 disabled:cursor-not-allowed disabled:opacity-50"
             >
               {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
               {submitting ? 'Signing…' : 'Sign and Acknowledge'}

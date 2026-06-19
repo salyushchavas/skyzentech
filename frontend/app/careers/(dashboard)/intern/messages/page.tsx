@@ -108,12 +108,12 @@ export default function InternMessagesPage() {
                         'flex w-full items-center gap-3 rounded-md border p-3 text-left transition-colors '
                         + (n.readAt
                           ? 'border-slate-200 bg-white hover:bg-slate-50'
-                          : 'border-teal-200 bg-teal-50 hover:bg-teal-100')
+                          : 'border-brand-200 bg-brand-50 hover:bg-brand-100')
                       }
                     >
                       <span className={
                         'mt-1 h-2 w-2 shrink-0 rounded-full '
-                        + (n.readAt ? 'bg-slate-300' : 'bg-teal-600')
+                        + (n.readAt ? 'bg-slate-300' : 'bg-brand-600')
                       } />
                       <div className="min-w-0 flex-1">
                         <div className="text-sm font-medium text-slate-900">{n.title}</div>
@@ -144,7 +144,7 @@ function TabButton({ active, onClick, children }: { active: boolean; onClick: ()
       onClick={onClick}
       className={
         'rounded-md px-4 py-1.5 text-sm font-medium transition-colors '
-        + (active ? 'bg-teal-700 text-white shadow-sm' : 'text-slate-600 hover:bg-slate-100')
+        + (active ? 'bg-brand-700 text-white shadow-sm' : 'text-slate-600 hover:bg-slate-100')
       }
     >
       {children}

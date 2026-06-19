@@ -221,7 +221,7 @@ function AssignManagerModal({
             type="button"
             onClick={submit}
             disabled={busy || !selected}
-            className="rounded-md bg-teal-700 px-3 py-1.5 text-xs font-semibold text-white hover:bg-teal-800 disabled:opacity-50"
+            className="rounded-md bg-brand-700 px-3 py-1.5 text-xs font-semibold text-white hover:bg-brand-800 disabled:opacity-50"
           >
             {busy ? 'Assigning…' : 'Assign'}
           </button>

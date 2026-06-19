@@ -153,7 +153,7 @@ export default function OfferDetailPage() {
                   className={
                     'border-b-2 px-3 py-2 font-medium capitalize ' +
                     (tab === t
-                      ? 'border-teal-700 text-teal-700'
+                      ? 'border-brand-700 text-brand-700'
                       : 'border-transparent text-slate-500 hover:text-slate-800')
                   }
                 >
@@ -221,7 +221,7 @@ export default function OfferDetailPage() {
                         )}
                         {h.payloadJson && (
                           <details className="mt-2">
-                            <summary className="cursor-pointer text-[11px] text-teal-700">payload</summary>
+                            <summary className="cursor-pointer text-[11px] text-brand-700">payload</summary>
                             <pre className="mt-1 whitespace-pre-wrap rounded-md border border-slate-200 bg-white p-2 text-[11px] text-slate-700">
                               {h.payloadJson}
                             </pre>
@@ -253,7 +253,7 @@ export default function OfferDetailPage() {
                       type="button"
                       onClick={addNote}
                       disabled={savingNote}
-                      className="rounded-md bg-teal-700 px-3 py-1.5 text-xs font-semibold text-white hover:bg-teal-800 disabled:opacity-60"
+                      className="rounded-md bg-brand-700 px-3 py-1.5 text-xs font-semibold text-white hover:bg-brand-800 disabled:opacity-60"
                     >
                       {savingNote ? 'Saving…' : 'Add note'}
                     </button>

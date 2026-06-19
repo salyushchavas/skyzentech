@@ -72,7 +72,7 @@ export default function InterviewSchedulerPage() {
                 className={
                   'px-3 py-1.5 text-xs font-medium ' +
                   (view === v
-                    ? 'bg-teal-700 text-white'
+                    ? 'bg-brand-700 text-white'
                     : 'bg-white text-slate-700 hover:bg-slate-50')
                 }
               >
@@ -91,7 +91,7 @@ export default function InterviewSchedulerPage() {
               className={
                 'rounded-full border px-3 py-1 text-xs font-medium ' +
                 (status === c.key
-                  ? 'border-teal-700 bg-teal-700 text-white'
+                  ? 'border-brand-700 bg-brand-700 text-white'
                   : 'border-slate-200 text-slate-700 hover:bg-slate-50')
               }
             >
@@ -115,7 +115,7 @@ export default function InterviewSchedulerPage() {
                   className={
                     'px-3 py-1.5 font-medium ' +
                     (scope === s
-                      ? 'bg-teal-700 text-white'
+                      ? 'bg-brand-700 text-white'
                       : 'bg-white text-slate-700 hover:bg-slate-50')
                   }
                 >

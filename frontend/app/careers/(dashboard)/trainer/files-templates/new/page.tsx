@@ -93,7 +93,7 @@ export default function NewTemplatePage() {
           <Link href="/careers/trainer/files-templates"
             className="rounded-md border border-slate-200 px-3 py-1.5 text-sm text-slate-700">Cancel</Link>
           <button type="button" onClick={submit} disabled={submitting}
-            className="inline-flex items-center gap-1 rounded-md bg-teal-700 px-4 py-1.5 text-sm font-semibold text-white hover:bg-teal-800 disabled:bg-slate-300">
+            className="inline-flex items-center gap-1 rounded-md bg-brand-700 px-4 py-1.5 text-sm font-semibold text-white hover:bg-brand-800 disabled:bg-slate-300">
             <Plus className="h-4 w-4" /> {submitting ? 'Creating…' : 'Create template'}
           </button>
         </div>

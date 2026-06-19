@@ -118,7 +118,7 @@ export default function ExceptionSummary({ counts, topUrgent }: Props) {
                 key={(r.subjectResourceId ?? r.internId ?? '') + i}
                 className="flex items-center gap-3 rounded-md border border-slate-100 bg-slate-50/60 p-3"
               >
-                <span className="flex h-8 w-8 items-center justify-center rounded-full bg-teal-100 text-xs font-semibold text-teal-800">
+                <span className="flex h-8 w-8 items-center justify-center rounded-full bg-brand-100 text-xs font-semibold text-brand-800">
                   {initials(r.internName)}
                 </span>
                 <div className="min-w-0 flex-1">

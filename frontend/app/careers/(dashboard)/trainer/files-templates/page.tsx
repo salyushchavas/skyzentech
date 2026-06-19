@@ -84,7 +84,7 @@ export default function FilesTemplatesPage() {
         </div>
         <Link
           href="/careers/trainer/files-templates/new"
-          className="inline-flex items-center gap-1 rounded-md bg-teal-700 px-3 py-2 text-sm font-semibold text-white hover:bg-teal-800"
+          className="inline-flex items-center gap-1 rounded-md bg-brand-700 px-3 py-2 text-sm font-semibold text-white hover:bg-brand-800"
         >
           <Plus className="h-4 w-4" /> New template
         </Link>
@@ -99,7 +99,7 @@ export default function FilesTemplatesPage() {
             className={
               '-mb-px border-b-2 px-3 py-2 text-sm font-medium ' +
               (tab === t.key
-                ? 'border-teal-700 text-teal-800'
+                ? 'border-brand-700 text-brand-800'
                 : 'border-transparent text-slate-600 hover:text-slate-900')
             }
           >

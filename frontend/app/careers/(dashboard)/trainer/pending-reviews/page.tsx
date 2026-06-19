@@ -224,7 +224,7 @@ function Row({ r, onOpen }: { r: PendingRow; onOpen: () => void }) {
       </td>
       <td className="px-3 py-2 text-right">
         <button type="button" onClick={onOpen}
-          className="inline-flex items-center gap-1 rounded-md bg-teal-700 px-3 py-1 text-[11px] font-semibold text-white hover:bg-teal-800">
+          className="inline-flex items-center gap-1 rounded-md bg-brand-700 px-3 py-1 text-[11px] font-semibold text-white hover:bg-brand-800">
           Review
         </button>
       </td>
@@ -461,7 +461,7 @@ function ReviewModal({ submissionId, onClose, onSubmitted }: {
                 ].map(({ v, label, icon: Icon, tone }) => (
                   <label key={v}
                     className={'flex cursor-pointer items-center gap-2 rounded-md border px-2 py-1.5 ' +
-                      (decision === v ? 'border-teal-700 bg-teal-50' : 'border-slate-200')}>
+                      (decision === v ? 'border-brand-700 bg-brand-50' : 'border-slate-200')}>
                     <input type="radio" name="decision" checked={decision === v}
                       onChange={() => setDecision(v as typeof decision)} />
                     <Icon className={`h-4 w-4 ${tone}`} />
@@ -483,7 +483,7 @@ function ReviewModal({ submissionId, onClose, onSubmitted }: {
             <div className="flex justify-end gap-2 border-t border-slate-100 pt-3">
               <button type="button" onClick={onClose} className="rounded-md border border-slate-200 px-3 py-1.5 text-sm">Cancel</button>
               <button type="button" onClick={submit} disabled={submitting}
-                className="rounded-md bg-teal-700 px-4 py-1.5 text-sm font-semibold text-white hover:bg-teal-800 disabled:bg-slate-300">
+                className="rounded-md bg-brand-700 px-4 py-1.5 text-sm font-semibold text-white hover:bg-brand-800 disabled:bg-slate-300">
                 <FileText className="mr-1 inline h-3.5 w-3.5" />
                 {submitting ? 'Submitting…' : 'Publish feedback'}
               </button>

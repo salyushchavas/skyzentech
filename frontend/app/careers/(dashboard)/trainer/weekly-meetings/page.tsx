@@ -97,7 +97,7 @@ function WeeklyMeetingsInner() {
           </p>
         </div>
         <button type="button" onClick={() => setScheduleOpen(true)}
-          className="inline-flex items-center gap-1 rounded-md bg-teal-700 px-3 py-2 text-sm font-semibold text-white hover:bg-teal-800">
+          className="inline-flex items-center gap-1 rounded-md bg-brand-700 px-3 py-2 text-sm font-semibold text-white hover:bg-brand-800">
           <Plus className="h-4 w-4" /> Schedule meeting
         </button>
       </div>
@@ -294,7 +294,7 @@ function ScheduleModal({ prefillIntern, interns, onClose, onCreated }: {
       <div className="flex justify-end gap-2">
         <button type="button" onClick={onClose} className="rounded-md border border-slate-200 px-3 py-1.5 text-sm">Cancel</button>
         <button type="button" onClick={submit} disabled={submitting}
-          className="rounded-md bg-teal-700 px-4 py-1.5 text-sm font-semibold text-white hover:bg-teal-800 disabled:bg-slate-300">
+          className="rounded-md bg-brand-700 px-4 py-1.5 text-sm font-semibold text-white hover:bg-brand-800 disabled:bg-slate-300">
           {submitting ? 'Scheduling…' : 'Schedule'}
         </button>
       </div>
@@ -318,7 +318,7 @@ function MeetingActionModal({ meeting, interns, onClose, onChanged }: {
         <Row k="Status" v={meeting.status} />
         {meeting.zoomJoinUrl && (
           <p className="text-xs">
-            Zoom: <a href={meeting.zoomJoinUrl} target="_blank" rel="noreferrer" className="text-teal-700 underline">{meeting.zoomJoinUrl}</a>
+            Zoom: <a href={meeting.zoomJoinUrl} target="_blank" rel="noreferrer" className="text-brand-700 underline">{meeting.zoomJoinUrl}</a>
           </p>
         )}
         {meeting.trainerNotes && (
@@ -528,7 +528,7 @@ function FormButtons({ busy, onCancel, onSubmit, label, tone }: {
   tone: 'teal' | 'emerald' | 'rose' | 'amber';
 }) {
   const cls: Record<string, string> = {
-    teal: 'bg-teal-700 hover:bg-teal-800',
+    teal: 'bg-brand-700 hover:bg-brand-800',
     emerald: 'bg-emerald-700 hover:bg-emerald-800',
     rose: 'bg-rose-700 hover:bg-rose-800',
     amber: 'bg-amber-600 hover:bg-amber-700',

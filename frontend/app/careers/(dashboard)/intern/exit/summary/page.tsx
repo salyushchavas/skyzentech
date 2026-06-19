@@ -70,27 +70,27 @@ export default function ExitSummaryPage() {
         <h3 className="text-sm font-semibold text-slate-900">Your records</h3>
         <ul className="mt-3 grid gap-2 text-sm sm:grid-cols-2">
           <li>
-            <Link href="/careers/intern/documents" className="text-teal-700 hover:underline">
+            <Link href="/careers/intern/documents" className="text-brand-700 hover:underline">
               Signed forms &amp; documents
             </Link>
           </li>
           <li>
-            <Link href="/careers/intern/onboarding" className="text-teal-700 hover:underline">
+            <Link href="/careers/intern/onboarding" className="text-brand-700 hover:underline">
               Onboarding history
             </Link>
           </li>
           <li>
-            <Link href="/careers/intern/evaluations" className="text-teal-700 hover:underline">
+            <Link href="/careers/intern/evaluations" className="text-brand-700 hover:underline">
               Evaluation history
             </Link>
           </li>
           <li>
-            <Link href="/careers/intern/projects" className="text-teal-700 hover:underline">
+            <Link href="/careers/intern/projects" className="text-brand-700 hover:underline">
               Project list
             </Link>
           </li>
           <li>
-            <Link href="/careers/intern/timesheets" className="text-teal-700 hover:underline">
+            <Link href="/careers/intern/timesheets" className="text-brand-700 hover:underline">
               Timesheets
             </Link>
           </li>
@@ -98,7 +98,7 @@ export default function ExitSummaryPage() {
             <li>
               <Link
                 href={`/careers/intern/evaluations/${summary.finalEvaluationId}`}
-                className="text-teal-700 hover:underline"
+                className="text-brand-700 hover:underline"
               >
                 Final evaluation
               </Link>
@@ -108,7 +108,7 @@ export default function ExitSummaryPage() {
             <li className="text-slate-500">Exit feedback submitted</li>
           ) : (
             <li>
-              <Link href="/careers/intern/exit/feedback" className="text-teal-700 hover:underline">
+              <Link href="/careers/intern/exit/feedback" className="text-brand-700 hover:underline">
                 Share exit feedback
               </Link>
             </li>

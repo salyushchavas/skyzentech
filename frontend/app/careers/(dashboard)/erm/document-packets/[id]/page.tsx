@@ -214,7 +214,7 @@ function TaskRow({ t, onOpen }: { t: TaskSummary; onOpen: () => void }) {
           <button
             type="button"
             onClick={onOpen}
-            className="inline-flex items-center gap-1 rounded-md bg-teal-700 px-2 py-1 text-[11px] font-semibold text-white hover:bg-teal-800"
+            className="inline-flex items-center gap-1 rounded-md bg-brand-700 px-2 py-1 text-[11px] font-semibold text-white hover:bg-brand-800"
           >
             Review <ExternalLink className="h-3 w-3" />
           </button>

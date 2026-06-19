@@ -135,7 +135,7 @@ export default function EvaluatorRightSidePanel() {
                 {enabled ? (
                   <Link
                     href={a.href!}
-                    className="flex w-full items-center justify-between gap-2 rounded-md border border-slate-200 bg-white px-3 py-2 text-left text-xs font-medium text-slate-700 hover:border-teal-300 hover:bg-teal-50"
+                    className="flex w-full items-center justify-between gap-2 rounded-md border border-slate-200 bg-white px-3 py-2 text-left text-xs font-medium text-slate-700 hover:border-brand-300 hover:bg-brand-50"
                   >
                     {content}
                   </Link>
@@ -163,7 +163,7 @@ export default function EvaluatorRightSidePanel() {
               Open an{' '}
               <Link
                 href="/careers/evaluator/active-evaluees"
-                className="font-medium text-teal-700 hover:underline"
+                className="font-medium text-brand-700 hover:underline"
               >
                 Active Evaluee
               </Link>{' '}

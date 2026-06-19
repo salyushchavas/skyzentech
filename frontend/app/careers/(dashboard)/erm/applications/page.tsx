@@ -119,7 +119,7 @@ function ApplicationInboxPageInner() {
                 className={
                   'rounded-full border px-3 py-1 text-xs font-medium transition-colors ' +
                   (active
-                    ? 'border-teal-700 bg-teal-700 text-white'
+                    ? 'border-brand-700 bg-brand-700 text-white'
                     : 'border-slate-200 text-slate-700 hover:bg-slate-50')
                 }
               >
@@ -152,7 +152,7 @@ function ApplicationInboxPageInner() {
                   className={
                     'px-3 py-1.5 font-medium transition-colors ' +
                     (scope === s
-                      ? 'bg-teal-700 text-white'
+                      ? 'bg-brand-700 text-white'
                       : 'bg-white text-slate-700 hover:bg-slate-50')
                   }
                 >
@@ -301,7 +301,7 @@ function Row({
   onToggle: () => void;
 }) {
   return (
-    <tr className={selected ? 'bg-teal-50/40' : ''}>
+    <tr className={selected ? 'bg-brand-50/40' : ''}>
       <td className="px-3 py-2">
         <input type="checkbox" checked={selected} onChange={onToggle} />
       </td>
@@ -310,7 +310,7 @@ function Row({
           href={`/careers/erm/applications/${row.applicationId}`}
           className="flex items-center gap-3 hover:underline"
         >
-          <span className="flex h-7 w-7 items-center justify-center rounded-full bg-teal-100 text-[10px] font-semibold text-teal-800">
+          <span className="flex h-7 w-7 items-center justify-center rounded-full bg-brand-100 text-[10px] font-semibold text-brand-800">
             {initials(row.applicantName)}
           </span>
           <span className="min-w-0">

@@ -263,7 +263,7 @@ function CreateOfferPageInner() {
                   title={needsSelectionAck
                     ? 'Waiting on the applicant\'s selection acknowledgment.'
                     : undefined}
-                  className="rounded-md bg-teal-700 px-4 py-2 text-sm font-semibold text-white hover:bg-teal-800 disabled:opacity-60 disabled:cursor-not-allowed"
+                  className="rounded-md bg-brand-700 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-800 disabled:opacity-60 disabled:cursor-not-allowed"
                 >
                   {submitting ? 'Sending…' : 'Submit & send via IDMS'}
                 </button>
@@ -341,7 +341,7 @@ function renderAutoFilledHelper(
       <button
         type="button"
         onClick={() => setValue(source)}
-        className="font-medium text-teal-700 hover:underline"
+        className="font-medium text-brand-700 hover:underline"
       >
         Reset to job posting value
       </button>

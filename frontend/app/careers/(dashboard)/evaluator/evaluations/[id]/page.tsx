@@ -81,7 +81,7 @@ export default function EvaluationDetailPage() {
             <button
               type="button"
               onClick={() => setAmendOpen(true)}
-              className="inline-flex items-center gap-1.5 rounded-md bg-teal-700 px-3 py-1.5 text-xs font-semibold text-white hover:bg-teal-800"
+              className="inline-flex items-center gap-1.5 rounded-md bg-brand-700 px-3 py-1.5 text-xs font-semibold text-white hover:bg-brand-800"
             >
               <Pencil className="h-3.5 w-3.5" />
               Amend evaluation
@@ -334,7 +334,7 @@ function AmendModal({
                   className={
                     'rounded-full border px-2.5 py-0.5 text-[11px] font-medium ' +
                     (recommendation === r
-                      ? 'border-teal-700 bg-teal-700 text-white'
+                      ? 'border-brand-700 bg-brand-700 text-white'
                       : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50')
                   }
                 >
@@ -357,7 +357,7 @@ function AmendModal({
             Cancel
           </button>
           <button type="button" onClick={submit} disabled={!canSubmit || submitting}
-            className="inline-flex items-center gap-1.5 rounded-md bg-teal-700 px-4 py-1.5 text-sm font-semibold text-white hover:bg-teal-800 disabled:bg-slate-300">
+            className="inline-flex items-center gap-1.5 rounded-md bg-brand-700 px-4 py-1.5 text-sm font-semibold text-white hover:bg-brand-800 disabled:bg-slate-300">
             <Save className="h-3.5 w-3.5" />
             {submitting ? 'Saving…' : 'Submit amendment'}
           </button>
@@ -386,7 +386,7 @@ function ScoreField({
             className={
               'inline-flex h-7 w-7 items-center justify-center rounded-md border text-xs font-semibold ' +
               (value === n
-                ? 'border-teal-700 bg-teal-700 text-white'
+                ? 'border-brand-700 bg-brand-700 text-white'
                 : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-100')
             }
           >

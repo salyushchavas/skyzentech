@@ -99,7 +99,7 @@ function CircleBadge({
   if (step.status === 'ACTIVE') {
     return (
       <span
-        className={cn(base, size, 'bg-teal-700 text-white shadow-sm ring-2 ring-teal-200 ring-offset-2')}
+        className={cn(base, size, 'bg-brand-700 text-white shadow-sm ring-2 ring-brand-200 ring-offset-2')}
         aria-current="step"
       >
         {index + 1}

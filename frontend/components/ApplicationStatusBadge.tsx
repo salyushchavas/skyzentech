@@ -13,8 +13,8 @@ const COLOR_MAP: Record<string, string> = {
   INTERVIEW_SCHEDULED: 'bg-purple-100 text-purple-800',
   INTERVIEWED: 'bg-violet-100 text-violet-800',
   // Phase 2.3 — slot in the Offer band visually so the stepper colors stay coherent.
-  SELECTED_CONDITIONAL: 'bg-teal-50 text-teal-700 ring-1 ring-teal-200',
-  OFFERED: 'bg-teal-100 text-teal-800',
+  SELECTED_CONDITIONAL: 'bg-brand-50 text-brand-700 ring-1 ring-brand-200',
+  OFFERED: 'bg-brand-100 text-brand-800',
   ACCEPTED: 'bg-green-100 text-green-800',
   ONBOARDING: 'bg-cyan-100 text-cyan-800',
   ACTIVE: 'bg-emerald-100 text-emerald-800',
@@ -24,7 +24,7 @@ const COLOR_MAP: Record<string, string> = {
   LAPSED: 'bg-gray-100 text-gray-700',
   NO_SHOW: 'bg-orange-100 text-orange-800',
   // Spec-mentioned aliases the backend may add later; safe to keep in the map.
-  OFFER_EXTENDED: 'bg-teal-100 text-teal-800',
+  OFFER_EXTENDED: 'bg-brand-100 text-brand-800',
   OFFER_ACCEPTED: 'bg-green-100 text-green-800',
   OFFER_DECLINED: 'bg-orange-100 text-orange-800',
   HIRED: 'bg-emerald-100 text-emerald-800',

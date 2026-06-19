@@ -8,7 +8,7 @@ const STYLES: Record<ExceptionStatus, string> = {
   IN_PROGRESS: 'bg-indigo-50 text-indigo-700 ring-indigo-200',
   RESOLVED: 'bg-emerald-50 text-emerald-700 ring-emerald-200',
   DISMISSED: 'bg-slate-100 text-slate-600 ring-slate-200',
-  AUTO_RESOLVED: 'bg-teal-50 text-teal-700 ring-teal-200',
+  AUTO_RESOLVED: 'bg-brand-50 text-brand-700 ring-brand-200',
 };
 
 const LABEL: Record<ExceptionStatus, string> = {

@@ -101,7 +101,7 @@ export default function RecordI9Section2Modal({
                 className={
                   'rounded-md border px-3 py-1.5 text-xs font-medium ' +
                   (docPath === 'A'
-                    ? 'border-teal-700 bg-teal-700 text-white'
+                    ? 'border-brand-700 bg-brand-700 text-white'
                     : 'border-slate-200 text-slate-700')
                 }
               >
@@ -113,7 +113,7 @@ export default function RecordI9Section2Modal({
                 className={
                   'rounded-md border px-3 py-1.5 text-xs font-medium ' +
                   (docPath === 'BC'
-                    ? 'border-teal-700 bg-teal-700 text-white'
+                    ? 'border-brand-700 bg-brand-700 text-white'
                     : 'border-slate-200 text-slate-700')
                 }
               >
@@ -258,7 +258,7 @@ export default function RecordI9Section2Modal({
             type="button"
             disabled={saving}
             onClick={() => void submit()}
-            className="rounded-md bg-teal-700 px-3 py-1.5 text-sm font-semibold text-white disabled:opacity-50"
+            className="rounded-md bg-brand-700 px-3 py-1.5 text-sm font-semibold text-white disabled:opacity-50"
           >
             {saving ? 'Saving…' : 'Sign Section 2'}
           </button>

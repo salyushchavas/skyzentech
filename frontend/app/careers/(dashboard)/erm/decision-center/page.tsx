@@ -180,7 +180,7 @@ function Row({ row, onSend }: { row: AwaitingOfferRow; onSend: () => void }) {
         {row.interviewId && (
           <Link
             href={`/careers/erm/interviews/${row.interviewId}`}
-            className="ml-2 inline-flex items-center gap-0.5 text-[11px] text-teal-700 hover:underline"
+            className="ml-2 inline-flex items-center gap-0.5 text-[11px] text-brand-700 hover:underline"
           >
             view
             <ArrowRight className="h-3 w-3" />
@@ -203,7 +203,7 @@ function Row({ row, onSend }: { row: AwaitingOfferRow; onSend: () => void }) {
         <button
           type="button"
           onClick={onSend}
-          className="inline-flex items-center gap-1 rounded-md bg-teal-700 px-3 py-1.5 text-xs font-semibold text-white hover:bg-teal-800"
+          className="inline-flex items-center gap-1 rounded-md bg-brand-700 px-3 py-1.5 text-xs font-semibold text-white hover:bg-brand-800"
         >
           <Send className="h-3 w-3" />
           Send Offer
@@ -224,7 +224,7 @@ function EmptyState() {
       </p>
       <Link
         href="/careers/erm/interviews"
-        className="mt-1 inline-flex items-center gap-1 text-xs font-medium text-teal-700 hover:underline"
+        className="mt-1 inline-flex items-center gap-1 text-xs font-medium text-brand-700 hover:underline"
       >
         Open Interviews
         <ArrowRight className="h-3 w-3" />

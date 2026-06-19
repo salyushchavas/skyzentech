@@ -76,7 +76,7 @@ function ShortlistRow({ row }: { row: ApplicationRow }) {
           href={`/careers/erm/applications/${row.applicationId}`}
           className="flex items-center gap-3 hover:underline"
         >
-          <span className="flex h-8 w-8 items-center justify-center rounded-full bg-teal-100 text-[11px] font-semibold text-teal-800">
+          <span className="flex h-8 w-8 items-center justify-center rounded-full bg-brand-100 text-[11px] font-semibold text-brand-800">
             {initials(row.applicantName)}
           </span>
           <span>
@@ -92,7 +92,7 @@ function ShortlistRow({ row }: { row: ApplicationRow }) {
       <StagePill stage={row.stage} />
       <Link
         href={`/careers/erm/interviews/new?applicationId=${row.applicationId}`}
-        className="rounded-md bg-teal-700 px-3 py-1.5 text-xs font-semibold text-white hover:bg-teal-800"
+        className="rounded-md bg-brand-700 px-3 py-1.5 text-xs font-semibold text-white hover:bg-brand-800"
       >
         Schedule interview
       </Link>

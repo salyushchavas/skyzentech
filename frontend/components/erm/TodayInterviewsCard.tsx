@@ -21,13 +21,13 @@ export default function TodayInterviewsCard() {
         </h3>
         <Link
           href="/careers/erm/interviews"
-          className="text-xs font-medium text-teal-700 hover:underline"
+          className="text-xs font-medium text-brand-700 hover:underline"
         >
           Open queue →
         </Link>
       </div>
       <div className="mt-4 flex items-center gap-3">
-        <Video className="h-6 w-6 text-teal-700" strokeWidth={2} />
+        <Video className="h-6 w-6 text-brand-700" strokeWidth={2} />
         <div>
           <p className="text-3xl font-semibold tabular-nums text-slate-900">
             {count}

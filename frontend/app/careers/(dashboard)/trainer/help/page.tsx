@@ -71,7 +71,7 @@ const FAQS: Faq[] = [
     q: 'How do I escalate a stuck intern?',
     a: (
       <p>
-        Open <Link href="/careers/trainer/pending-reviews" className="text-teal-700 underline">Pending Reviews</Link>,
+        Open <Link href="/careers/trainer/pending-reviews" className="text-brand-700 underline">Pending Reviews</Link>,
         choose <strong>Escalate</strong>, and write a ≥50 character reason. ERM + Manager are notified
         automatically and the intern sees a banner.
       </p>
@@ -109,7 +109,7 @@ const FAQS: Faq[] = [
     q: 'How do I turn off Saturday reminder emails?',
     a: (
       <p>
-        Go to <Link href="/careers/trainer/settings" className="text-teal-700 underline">Settings → Notifications</Link>
+        Go to <Link href="/careers/trainer/settings" className="text-brand-700 underline">Settings → Notifications</Link>
         {' '}and set Email Frequency to <strong>Weekly</strong> or <strong>Never</strong>.
         Transactional notices (assignments, escalations) still send regardless.
       </p>
@@ -138,13 +138,13 @@ export default function TrainerHelpPage() {
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           {QUICK_STARTS.map((qs) => (
             <Link key={qs.href} href={qs.href}
-              className="group rounded-lg border border-slate-200 bg-white p-4 hover:border-teal-300 hover:shadow-sm">
-              <div className="flex items-center gap-2 text-teal-700">
+              className="group rounded-lg border border-slate-200 bg-white p-4 hover:border-brand-300 hover:shadow-sm">
+              <div className="flex items-center gap-2 text-brand-700">
                 {qs.icon}
                 <p className="text-sm font-semibold text-slate-900">{qs.title}</p>
               </div>
               <p className="mt-2 text-xs text-slate-600">{qs.body}</p>
-              <p className="mt-3 text-[11px] font-semibold text-teal-700 group-hover:underline">
+              <p className="mt-3 text-[11px] font-semibold text-brand-700 group-hover:underline">
                 {qs.cta} →
               </p>
             </Link>
@@ -230,7 +230,7 @@ function ContactCard({ role, email, blurb }: { role: string; email: string; blur
   return (
     <div className="rounded-lg border border-slate-200 bg-white p-4">
       <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">{role}</p>
-      <a href={`mailto:${email}`} className="mt-1 block text-sm font-medium text-teal-700 hover:underline">
+      <a href={`mailto:${email}`} className="mt-1 block text-sm font-medium text-brand-700 hover:underline">
         {email}
       </a>
       <p className="mt-2 text-xs text-slate-600">{blurb}</p>

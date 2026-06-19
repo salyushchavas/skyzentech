@@ -116,7 +116,7 @@ export default function OfferControlPage() {
           />
           <Link
             href="/careers/erm/decision-center"
-            className="inline-flex items-center gap-1 self-center rounded-md bg-teal-700 px-4 py-2 text-sm font-semibold text-white hover:bg-teal-800"
+            className="inline-flex items-center gap-1 self-center rounded-md bg-brand-700 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-800"
           >
             <Plus className="h-4 w-4" />
             New Offer
@@ -132,7 +132,7 @@ export default function OfferControlPage() {
               className={
                 'rounded-full border px-3 py-1 text-xs font-medium ' +
                 (tab === c.key
-                  ? 'border-teal-700 bg-teal-700 text-white'
+                  ? 'border-brand-700 bg-brand-700 text-white'
                   : 'border-slate-200 text-slate-700 hover:bg-slate-50')
               }
             >
@@ -254,7 +254,7 @@ function AwaitingRow({ row, onSend }: { row: AwaitingOfferRow; onSend: () => voi
         {row.interviewId && (
           <Link
             href={`/careers/erm/interviews/${row.interviewId}`}
-            className="ml-2 text-[11px] text-teal-700 hover:underline"
+            className="ml-2 text-[11px] text-brand-700 hover:underline"
           >
             view
           </Link>
@@ -276,7 +276,7 @@ function AwaitingRow({ row, onSend }: { row: AwaitingOfferRow; onSend: () => voi
         <button
           type="button"
           onClick={onSend}
-          className="inline-flex items-center gap-1 rounded-md bg-teal-700 px-3 py-1.5 text-xs font-semibold text-white hover:bg-teal-800"
+          className="inline-flex items-center gap-1 rounded-md bg-brand-700 px-3 py-1.5 text-xs font-semibold text-white hover:bg-brand-800"
         >
           <Send className="h-3 w-3" />
           Send Offer

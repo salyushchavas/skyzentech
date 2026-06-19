@@ -93,7 +93,7 @@ export default function InternJobsPage() {
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search title, location, Job ID…"
-            className="w-full rounded-md border border-slate-200 bg-white py-2 pl-8 pr-3 text-sm placeholder:text-slate-400 focus:border-teal-500 focus:outline-none focus:ring-1 focus:ring-teal-500 sm:w-64"
+            className="w-full rounded-md border border-slate-200 bg-white py-2 pl-8 pr-3 text-sm placeholder:text-slate-400 focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500 sm:w-64"
           />
         </label>
       </div>
@@ -138,7 +138,7 @@ function TabButton({ active, onClick, children }: { active: boolean; onClick: ()
       className={
         'rounded-md px-4 py-1.5 text-sm font-medium transition-colors '
         + (active
-          ? 'bg-teal-700 text-white shadow-sm'
+          ? 'bg-brand-700 text-white shadow-sm'
           : 'text-slate-600 hover:bg-slate-100')
       }
     >

@@ -189,7 +189,7 @@ function ManagerReportsInner() {
                 className={
                   'flex w-full items-start gap-3 rounded-md border p-3 text-left transition-colors '
                   + (selectedType === r.type
-                      ? 'border-teal-600 bg-teal-50'
+                      ? 'border-brand-600 bg-brand-50'
                       : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50')
                 }
                 aria-pressed={selectedType === r.type}
@@ -197,7 +197,7 @@ function ManagerReportsInner() {
                 <span className={
                   'mt-0.5 rounded-md p-1.5 '
                   + (selectedType === r.type
-                      ? 'bg-teal-600 text-white'
+                      ? 'bg-brand-600 text-white'
                       : 'bg-slate-100 text-slate-600')
                 }>
                   {r.icon}
@@ -282,7 +282,7 @@ function ManagerReportsInner() {
             type="button"
             onClick={handleGenerate}
             disabled={busy || (spec.periodRequired && !sendPeriod)}
-            className="inline-flex items-center gap-2 rounded-md bg-teal-700 px-4 py-2 text-sm font-semibold text-white hover:bg-teal-800 disabled:opacity-60"
+            className="inline-flex items-center gap-2 rounded-md bg-brand-700 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-800 disabled:opacity-60"
           >
             {busy
               ? <><Loader2 className="h-4 w-4 animate-spin" /> Generating…</>

@@ -145,7 +145,7 @@ export default function ApplyModal({ posting, onClose, onApplied }: Props) {
               <select
                 value={resumeId}
                 onChange={(e) => setResumeId(e.target.value)}
-                className="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm focus:border-teal-500 focus:outline-none focus:ring-1 focus:ring-teal-500"
+                className="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
               >
                 {resumes.map((r) => (
                   <option key={r.id} value={r.id}>
@@ -157,7 +157,7 @@ export default function ApplyModal({ posting, onClose, onApplied }: Props) {
               <p className="text-sm text-slate-500">No resumes uploaded yet.</p>
             )}
             <div className="mt-2">
-              <label className="inline-flex cursor-pointer items-center gap-2 text-sm font-medium text-teal-700 hover:text-teal-800">
+              <label className="inline-flex cursor-pointer items-center gap-2 text-sm font-medium text-brand-700 hover:text-brand-800">
                 <Upload className="h-4 w-4" strokeWidth={2} />
                 Upload new
                 <input
@@ -188,7 +188,7 @@ export default function ApplyModal({ posting, onClose, onApplied }: Props) {
               maxLength={MAX_SOI_CHARS}
               rows={4}
               placeholder="Tell us why you're a good fit for this role…"
-              className="w-full resize-y rounded-md border border-slate-200 bg-white px-3 py-2 text-sm placeholder:text-slate-400 focus:border-teal-500 focus:outline-none focus:ring-1 focus:ring-teal-500"
+              className="w-full resize-y rounded-md border border-slate-200 bg-white px-3 py-2 text-sm placeholder:text-slate-400 focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
             />
           </section>
 
@@ -211,7 +211,7 @@ export default function ApplyModal({ posting, onClose, onApplied }: Props) {
             type="button"
             onClick={submit}
             disabled={submitting || !resumeId}
-            className="rounded-md bg-teal-700 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-teal-800 disabled:opacity-60"
+            className="rounded-md bg-brand-700 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-brand-800 disabled:opacity-60"
           >
             {submitting ? 'Submitting…' : 'Submit application'}
           </button>

@@ -413,7 +413,7 @@ function SubmitButton({
         type="button"
         onClick={submit}
         disabled={busy || !canSubmit}
-        className="inline-flex items-center gap-1.5 rounded-md bg-teal-700 px-3 py-1.5 text-xs font-semibold text-white hover:bg-teal-800 disabled:opacity-50"
+        className="inline-flex items-center gap-1.5 rounded-md bg-brand-700 px-3 py-1.5 text-xs font-semibold text-white hover:bg-brand-800 disabled:opacity-50"
         title={!canSubmit ? 'Enter hours before submitting' : undefined}
       >
         <Send className="h-3 w-3" />

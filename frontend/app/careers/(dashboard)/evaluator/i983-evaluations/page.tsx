@@ -132,14 +132,14 @@ function TabBtn({ label, badge, active, onClick }: {
       onClick={onClick}
       className={
         '-mb-px inline-flex items-center gap-2 border-b-2 px-3 py-2 text-sm ' +
-        (active ? 'border-teal-700 font-semibold text-teal-700'
+        (active ? 'border-brand-700 font-semibold text-brand-700'
           : 'border-transparent text-slate-600 hover:text-slate-900')
       }
     >
       {label}
       <span className={
         'rounded-full px-1.5 py-0.5 text-[10px] font-semibold ' +
-        (active ? 'bg-teal-100 text-teal-800' : 'bg-slate-100 text-slate-700')
+        (active ? 'bg-brand-100 text-brand-800' : 'bg-slate-100 text-slate-700')
       }>{badge}</span>
     </button>
   );
@@ -209,7 +209,7 @@ function DueSoonRow({ row }: { row: I983ListRow }) {
         {row.planExists ? (
           <Link
             href={`/careers/evaluator/i983-evaluations/schedule?internId=${row.internLifecycleId}`}
-            className="inline-flex items-center gap-1 rounded-md bg-teal-700 px-3 py-1 text-[11px] font-semibold text-white hover:bg-teal-800"
+            className="inline-flex items-center gap-1 rounded-md bg-brand-700 px-3 py-1 text-[11px] font-semibold text-white hover:bg-brand-800"
           >
             <CalendarPlus className="h-3 w-3" />
             Schedule
@@ -263,7 +263,7 @@ function InProgressTable({ rows, onStart }: {
                 <button
                   type="button"
                   onClick={() => r.evaluationId && onStart(r.evaluationId)}
-                  className="inline-flex items-center gap-1 rounded-md bg-teal-700 px-3 py-1 text-[11px] font-semibold text-white hover:bg-teal-800"
+                  className="inline-flex items-center gap-1 rounded-md bg-brand-700 px-3 py-1 text-[11px] font-semibold text-white hover:bg-brand-800"
                 >
                   <Play className="h-3 w-3" />
                   Start
@@ -271,7 +271,7 @@ function InProgressTable({ rows, onStart }: {
               ) : r.status === 'IN_PROGRESS' ? (
                 <Link
                   href={`/careers/evaluator/i983-evaluations/${r.evaluationId}/compose`}
-                  className="inline-flex items-center gap-1 rounded-md bg-teal-700 px-3 py-1 text-[11px] font-semibold text-white hover:bg-teal-800"
+                  className="inline-flex items-center gap-1 rounded-md bg-brand-700 px-3 py-1 text-[11px] font-semibold text-white hover:bg-brand-800"
                 >
                   Continue
                 </Link>

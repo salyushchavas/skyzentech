@@ -93,7 +93,7 @@ function InternQueue() {
         subtitle="Accept / reject / request resend per document. Bulk-accept is scoped to this intern."
       />
       <p className="mb-3 text-xs">
-        <Link href="/careers/erm/document-review" className="text-teal-700 hover:underline">
+        <Link href="/careers/erm/document-review" className="text-brand-700 hover:underline">
           ← Back to all interns
         </Link>
       </p>
@@ -193,7 +193,7 @@ function TaskRow({
         <button
           type="button"
           onClick={onOpen}
-          className="rounded-md bg-teal-700 px-3 py-1 text-[11px] font-semibold text-white hover:bg-teal-800"
+          className="rounded-md bg-brand-700 px-3 py-1 text-[11px] font-semibold text-white hover:bg-brand-800"
         >
           Review
         </button>

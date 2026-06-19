@@ -99,7 +99,7 @@ export default function InternHelpPage() {
           <button
             type="button"
             onClick={() => setShowModal(true)}
-            className="inline-flex items-center gap-1 rounded-md bg-teal-700 px-3 py-1.5 text-xs font-semibold text-white hover:bg-teal-800"
+            className="inline-flex items-center gap-1 rounded-md bg-brand-700 px-3 py-1.5 text-xs font-semibold text-white hover:bg-brand-800"
           >
             <Plus className="h-3 w-3" /> Open ticket
           </button>
@@ -198,14 +198,14 @@ function NewTicketModal({ onClose, onCreated }: { onClose: () => void; onCreated
               value={subject}
               onChange={(e) => setSubject(e.target.value)}
               maxLength={200}
-              className="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm focus:border-teal-500 focus:outline-none focus:ring-1 focus:ring-teal-500"
+              className="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
             />
           </label>
           <div className="grid grid-cols-2 gap-3">
             <label className="block">
               <span className="mb-1 block text-xs font-medium text-slate-700">Category</span>
               <select value={category} onChange={(e) => setCategory(e.target.value)}
-                className="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm focus:border-teal-500 focus:outline-none focus:ring-1 focus:ring-teal-500"
+                className="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
               >
                 <option value="TECHNICAL">Technical</option>
                 <option value="ACCOUNT">Account</option>
@@ -217,7 +217,7 @@ function NewTicketModal({ onClose, onCreated }: { onClose: () => void; onCreated
             <label className="block">
               <span className="mb-1 block text-xs font-medium text-slate-700">Priority</span>
               <select value={priority} onChange={(e) => setPriority(e.target.value)}
-                className="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm focus:border-teal-500 focus:outline-none focus:ring-1 focus:ring-teal-500"
+                className="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
               >
                 <option value="LOW">Low</option>
                 <option value="NORMAL">Normal</option>
@@ -233,7 +233,7 @@ function NewTicketModal({ onClose, onCreated }: { onClose: () => void; onCreated
               onChange={(e) => setBody(e.target.value)}
               rows={5}
               maxLength={5000}
-              className="w-full resize-y rounded-md border border-slate-200 bg-white px-3 py-2 text-sm focus:border-teal-500 focus:outline-none focus:ring-1 focus:ring-teal-500"
+              className="w-full resize-y rounded-md border border-slate-200 bg-white px-3 py-2 text-sm focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
             />
           </label>
         </div>
@@ -244,7 +244,7 @@ function NewTicketModal({ onClose, onCreated }: { onClose: () => void; onCreated
             Cancel
           </button>
           <button type="button" onClick={submit} disabled={submitting}
-            className="rounded-md bg-teal-700 px-4 py-2 text-sm font-semibold text-white hover:bg-teal-800 disabled:opacity-60">
+            className="rounded-md bg-brand-700 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-800 disabled:opacity-60">
             {submitting ? 'Opening…' : 'Open ticket'}
           </button>
         </div>

@@ -90,7 +90,7 @@ export default function InitiateExitModal({ internLifecycleId, internName, open,
                   className={
                     'rounded-md border px-3 py-2 text-sm font-medium transition-colors ' +
                     (exitType === t
-                      ? 'border-teal-600 bg-teal-600 text-white'
+                      ? 'border-brand-600 bg-brand-600 text-white'
                       : 'border-slate-200 text-slate-700 hover:bg-slate-50')
                   }
                 >
@@ -174,7 +174,7 @@ export default function InitiateExitModal({ internLifecycleId, internName, open,
             type="button"
             onClick={submit}
             disabled={submitting}
-            className="rounded-md bg-teal-700 px-4 py-2 text-sm font-semibold text-white hover:bg-teal-800 disabled:opacity-60"
+            className="rounded-md bg-brand-700 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-800 disabled:opacity-60"
           >
             {submitting ? 'Initiating…' : 'Initiate exit'}
           </button>

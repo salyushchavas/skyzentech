@@ -301,7 +301,7 @@ function ReadOnlySubmission({ sub }: { sub: NonNullable<AssignmentSummary['lates
                 href={l}
                 target="_blank"
                 rel="noreferrer"
-                className="inline-flex items-center gap-1 break-all text-sm text-teal-700 hover:underline"
+                className="inline-flex items-center gap-1 break-all text-sm text-brand-700 hover:underline"
               >
                 <GitBranch className="h-3 w-3" /> {l}
               </a>
@@ -435,7 +435,7 @@ function SubmissionForm({
           <button
             type="button"
             onClick={addLink}
-            className="inline-flex items-center gap-1 text-xs font-medium text-teal-700 hover:underline"
+            className="inline-flex items-center gap-1 text-xs font-medium text-brand-700 hover:underline"
           >
             <Plus className="h-3 w-3" /> Add another link
           </button>
@@ -467,7 +467,7 @@ function SubmissionForm({
           type="button"
           onClick={submit}
           disabled={busy || !hasContent || hasInvalidUrl}
-          className="inline-flex items-center gap-2 rounded-md bg-teal-700 px-4 py-2 text-sm font-semibold text-white hover:bg-teal-800 disabled:opacity-60"
+          className="inline-flex items-center gap-2 rounded-md bg-brand-700 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-800 disabled:opacity-60"
         >
           <Send className="h-4 w-4" />
           {busy
@@ -518,7 +518,7 @@ function RepositoryCard({ a }: { a: AssignmentSummary }) {
         href={repo.repositoryUrl}
         target="_blank"
         rel="noreferrer"
-        className="mt-2 inline-flex items-center gap-1 break-all text-sm text-teal-700 hover:underline"
+        className="mt-2 inline-flex items-center gap-1 break-all text-sm text-brand-700 hover:underline"
       >
         <Github className="h-4 w-4" />
         {repo.repositoryName ?? repo.repositoryUrl}
@@ -567,7 +567,7 @@ function KtCard({ a }: { a: AssignmentSummary }) {
               href={kt.meetingLink}
               target="_blank"
               rel="noreferrer"
-              className="mt-2 inline-flex items-center gap-1 break-all text-xs text-teal-700 hover:underline"
+              className="mt-2 inline-flex items-center gap-1 break-all text-xs text-brand-700 hover:underline"
             >
               <Video className="h-3 w-3" /> {kt.meetingLink}
             </a>

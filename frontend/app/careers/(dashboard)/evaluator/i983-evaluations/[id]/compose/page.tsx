@@ -256,7 +256,7 @@ export default function ComposeI983Page() {
               type="button"
               onClick={() => setConfirmOpen(true)}
               disabled={!canPublish || publishing}
-              className="inline-flex items-center gap-1.5 rounded-md bg-teal-700 px-4 py-1.5 text-xs font-semibold text-white hover:bg-teal-800 disabled:bg-slate-300"
+              className="inline-flex items-center gap-1.5 rounded-md bg-brand-700 px-4 py-1.5 text-xs font-semibold text-white hover:bg-brand-800 disabled:bg-slate-300"
             >
               <Send className="h-3.5 w-3.5" />
               {publishing ? 'Publishing…' : 'Publish'}
@@ -286,7 +286,7 @@ export default function ComposeI983Page() {
                 type="button"
                 onClick={publish}
                 disabled={publishing}
-                className="rounded-md bg-teal-700 px-4 py-1.5 text-sm font-semibold text-white hover:bg-teal-800 disabled:bg-slate-300"
+                className="rounded-md bg-brand-700 px-4 py-1.5 text-sm font-semibold text-white hover:bg-brand-800 disabled:bg-slate-300"
               >
                 {publishing ? 'Publishing…' : 'Publish I-983'}
               </button>

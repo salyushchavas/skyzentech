@@ -80,7 +80,7 @@ export default function DocumentPacketsPage() {
               className={
                 'rounded-full border px-2.5 py-0.5 text-[11px] font-medium ' +
                 (statuses.includes(s)
-                  ? 'border-teal-700 bg-teal-700 text-white'
+                  ? 'border-brand-700 bg-brand-700 text-white'
                   : 'border-slate-200 text-slate-700')
               }
             >

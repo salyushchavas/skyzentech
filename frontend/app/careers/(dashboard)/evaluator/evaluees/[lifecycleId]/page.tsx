@@ -129,7 +129,7 @@ export default function EvalueeDetailPage() {
           <div className="flex flex-wrap items-center gap-2">
             <Link
               href={`/careers/evaluator/schedule-session?internId=${data.profile.lifecycleId}`}
-              className="inline-flex items-center gap-1.5 rounded-md bg-teal-700 px-4 py-2 text-sm font-semibold text-white hover:bg-teal-800"
+              className="inline-flex items-center gap-1.5 rounded-md bg-brand-700 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-800"
             >
               <CalendarPlus className="h-4 w-4" />
               Schedule next evaluation
@@ -258,7 +258,7 @@ function MonitorCurrentMonth({ detail }: { detail: EvalueeDetail }) {
       {status === 'NOT_YET_SCHEDULED' ? (
         <Link
           href={`/careers/evaluator/schedule-session?internId=${detail.profile.lifecycleId}`}
-          className="mt-3 inline-flex items-center gap-1 rounded-md bg-teal-700 px-3 py-1.5 text-xs font-medium text-white hover:bg-teal-800"
+          className="mt-3 inline-flex items-center gap-1 rounded-md bg-brand-700 px-3 py-1.5 text-xs font-medium text-white hover:bg-brand-800"
         >
           <ClipboardEdit className="h-3 w-3" />
           Schedule
@@ -266,7 +266,7 @@ function MonitorCurrentMonth({ detail }: { detail: EvalueeDetail }) {
       ) : status === 'SCHEDULED' || status === 'IN_PROGRESS' ? (
         <Link
           href={`/careers/evaluator/evaluations/${cm.currentEvaluationId}/compose`}
-          className="mt-3 inline-flex items-center gap-1 rounded-md bg-teal-700 px-3 py-1.5 text-xs font-medium text-white hover:bg-teal-800"
+          className="mt-3 inline-flex items-center gap-1 rounded-md bg-brand-700 px-3 py-1.5 text-xs font-medium text-white hover:bg-brand-800"
         >
           <ClipboardEdit className="h-3 w-3" />
           {status === 'SCHEDULED' ? 'Start session' : 'Continue compose'}
@@ -319,7 +319,7 @@ function MonitorHistorySummary({ detail }: { detail: EvalueeDetail }) {
       )}
       <Link
         href={`/careers/evaluator/evaluation-history?intern=${detail.profile.lifecycleId}`}
-        className="mt-3 inline-flex items-center gap-0.5 text-xs font-medium text-teal-700 hover:underline"
+        className="mt-3 inline-flex items-center gap-0.5 text-xs font-medium text-brand-700 hover:underline"
       >
         Open full history →
       </Link>
@@ -609,7 +609,7 @@ function TimelineEntry({ entry }: { entry: EvaluationTimelineEntry }) {
     <li>
       <Link
         href={href}
-        className="block rounded-md border border-slate-200 bg-white p-3 hover:border-teal-300 hover:shadow-sm"
+        className="block rounded-md border border-slate-200 bg-white p-3 hover:border-brand-300 hover:shadow-sm"
       >
       <div className="flex flex-wrap items-center gap-2">
         <span

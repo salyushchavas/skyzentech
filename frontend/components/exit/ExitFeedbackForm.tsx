@@ -101,7 +101,7 @@ export default function ExitFeedbackForm({ onSubmitted }: Props) {
                 className={
                   'h-9 w-9 rounded-md border text-sm font-semibold transition-colors ' +
                   (ratings[f.key] >= n
-                    ? 'border-teal-600 bg-teal-600 text-white'
+                    ? 'border-brand-600 bg-brand-600 text-white'
                     : 'border-slate-200 text-slate-700 hover:bg-slate-50')
                 }
               >
@@ -122,7 +122,7 @@ export default function ExitFeedbackForm({ onSubmitted }: Props) {
           onChange={(e) => setWhatWentWell(e.target.value)}
           rows={4}
           maxLength={5000}
-          className="mt-2 w-full resize-y rounded-md border border-slate-200 px-3 py-2 text-sm focus:border-teal-500 focus:outline-none focus:ring-1 focus:ring-teal-500"
+          className="mt-2 w-full resize-y rounded-md border border-slate-200 px-3 py-2 text-sm focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
         />
         <div className="mt-1 text-right text-[11px] text-slate-500">
           {whatWentWell.trim().length} characters
@@ -139,7 +139,7 @@ export default function ExitFeedbackForm({ onSubmitted }: Props) {
           onChange={(e) => setWhatCouldImprove(e.target.value)}
           rows={4}
           maxLength={5000}
-          className="mt-2 w-full resize-y rounded-md border border-slate-200 px-3 py-2 text-sm focus:border-teal-500 focus:outline-none focus:ring-1 focus:ring-teal-500"
+          className="mt-2 w-full resize-y rounded-md border border-slate-200 px-3 py-2 text-sm focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
         />
         <div className="mt-1 text-right text-[11px] text-slate-500">
           {whatCouldImprove.trim().length} characters
@@ -162,7 +162,7 @@ export default function ExitFeedbackForm({ onSubmitted }: Props) {
               className={
                 'rounded-md border px-4 py-1.5 text-sm font-medium transition-colors ' +
                 (wouldRecommend === o.value
-                  ? 'border-teal-600 bg-teal-600 text-white'
+                  ? 'border-brand-600 bg-brand-600 text-white'
                   : 'border-slate-200 text-slate-700 hover:bg-slate-50')
               }
             >
@@ -182,7 +182,7 @@ export default function ExitFeedbackForm({ onSubmitted }: Props) {
           onChange={(e) => setAdditionalComments(e.target.value)}
           rows={3}
           maxLength={2000}
-          className="mt-2 w-full resize-y rounded-md border border-slate-200 px-3 py-2 text-sm focus:border-teal-500 focus:outline-none focus:ring-1 focus:ring-teal-500"
+          className="mt-2 w-full resize-y rounded-md border border-slate-200 px-3 py-2 text-sm focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
         />
       </div>
 
@@ -197,7 +197,7 @@ export default function ExitFeedbackForm({ onSubmitted }: Props) {
           type="button"
           onClick={submit}
           disabled={submitting}
-          className="rounded-md bg-teal-700 px-5 py-2 text-sm font-semibold text-white hover:bg-teal-800 disabled:opacity-60"
+          className="rounded-md bg-brand-700 px-5 py-2 text-sm font-semibold text-white hover:bg-brand-800 disabled:opacity-60"
         >
           {submitting ? 'Submitting…' : 'Submit feedback'}
         </button>

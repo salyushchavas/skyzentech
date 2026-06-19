@@ -216,7 +216,7 @@ export default function IdleTimeoutProvider({ children }: { children: ReactNode 
             <button
               type="button"
               onClick={() => resetAll({ broadcast: true })}
-              className="rounded-md bg-teal-700 px-4 py-1.5 text-sm font-semibold text-white hover:bg-teal-800"
+              className="rounded-md bg-brand-700 px-4 py-1.5 text-sm font-semibold text-white hover:bg-brand-800"
             >
               Stay signed in
             </button>

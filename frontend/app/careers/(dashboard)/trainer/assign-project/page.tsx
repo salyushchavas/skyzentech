@@ -343,7 +343,7 @@ function AssignProjectPageInner() {
             disabled={(step === 1 && !canStep2)
               || (step === 2 && !canStep3)
               || (step === 3 && !canStep4)}
-            className="inline-flex items-center gap-1 rounded-md bg-teal-700 px-4 py-1.5 text-sm font-semibold text-white hover:bg-teal-800 disabled:bg-slate-300"
+            className="inline-flex items-center gap-1 rounded-md bg-brand-700 px-4 py-1.5 text-sm font-semibold text-white hover:bg-brand-800 disabled:bg-slate-300"
           >
             Next <ChevronRight className="h-4 w-4" />
           </button>
@@ -382,7 +382,7 @@ function StepIndicator({ step }: { step: number }) {
             <span className={
               'inline-flex h-5 w-5 items-center justify-center rounded-full text-[10px] font-semibold ' +
               (done ? 'bg-emerald-600 text-white'
-                : active ? 'bg-teal-700 text-white' : 'bg-slate-200 text-slate-600')
+                : active ? 'bg-brand-700 text-white' : 'bg-slate-200 text-slate-600')
             }>{done ? '✓' : n}</span>
             <span className={active ? 'font-medium text-slate-900' : ''}>{l}</span>
             {n < labels.length && <span className="text-slate-300">·</span>}
@@ -482,7 +482,7 @@ function SlotRadio({ n, taken, title, checked, onChange }: {
     <label className={
       'flex cursor-pointer items-center justify-between rounded-md border px-3 py-2 ' +
       (taken ? 'cursor-not-allowed border-slate-200 bg-slate-50 opacity-60'
-        : checked ? 'border-teal-700 bg-teal-50' : 'border-slate-200')
+        : checked ? 'border-brand-700 bg-brand-50' : 'border-slate-200')
     }>
       <span className="flex items-center gap-2">
         <input
@@ -745,7 +745,7 @@ function TemplatePicker({ onClose, onPick }: {
                     type="button"
                     onClick={() => pick(t.id)}
                     disabled={picking === t.id}
-                    className="rounded-md bg-teal-700 px-3 py-1 text-xs font-semibold text-white"
+                    className="rounded-md bg-brand-700 px-3 py-1 text-xs font-semibold text-white"
                   >
                     {picking === t.id ? 'Loading…' : 'Use'}
                   </button>

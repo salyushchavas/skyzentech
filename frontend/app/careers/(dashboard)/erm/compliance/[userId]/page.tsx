@@ -324,7 +324,7 @@ function EverifySection({
             <button
               type="button"
               onClick={onReveal}
-              className="text-[11px] text-teal-700 hover:underline"
+              className="text-[11px] text-brand-700 hover:underline"
             >
               Reveal full # (audit-logged)
             </button>

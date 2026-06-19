@@ -172,7 +172,7 @@ function SentVariant({
         <button
           type="button"
           onClick={onSign}
-          className="inline-flex items-center gap-2 rounded-md bg-teal-700 px-5 py-2.5 text-sm font-semibold text-white hover:bg-teal-800"
+          className="inline-flex items-center gap-2 rounded-md bg-brand-700 px-5 py-2.5 text-sm font-semibold text-white hover:bg-brand-800"
         >
           <FileSignature className="h-4 w-4" />
           Review and sign
@@ -307,7 +307,7 @@ function ErmContactCard({ name, email }: { name?: string; email?: string }) {
       </h3>
       <div className="mt-2 text-sm text-slate-800">{name}</div>
       {email && (
-        <a href={`mailto:${email}`} className="mt-0.5 inline-flex items-center gap-1 text-xs text-teal-700 hover:underline">
+        <a href={`mailto:${email}`} className="mt-0.5 inline-flex items-center gap-1 text-xs text-brand-700 hover:underline">
           <Mail className="h-3 w-3" />
           {email}
         </a>

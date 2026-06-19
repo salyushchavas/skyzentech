@@ -635,10 +635,10 @@ function ActionPanel({
           type="button"
           onClick={onSendConditional}
           disabled={busy !== null}
-          className="inline-flex w-full items-center justify-center gap-2 rounded-md border border-teal-300 bg-teal-50 px-4 py-2 text-sm font-semibold text-teal-800 transition-colors hover:bg-teal-100 disabled:opacity-50"
+          className="inline-flex w-full items-center justify-center gap-2 rounded-md border border-brand-300 bg-brand-50 px-4 py-2 text-sm font-semibold text-brand-800 transition-colors hover:bg-brand-100 disabled:opacity-50"
         >
           {busy === 'conditional_select' ? (
-            <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-teal-700 border-t-transparent" />
+            <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-brand-700 border-t-transparent" />
           ) : (
             <Send className="h-4 w-4" strokeWidth={2} />
           )}
@@ -646,7 +646,7 @@ function ActionPanel({
         </button>
       )}
       {app.status === 'SELECTED_CONDITIONAL' && (
-        <p className="rounded-md border border-teal-200 bg-teal-50 px-3 py-2 text-xs text-teal-800">
+        <p className="rounded-md border border-brand-200 bg-brand-50 px-3 py-2 text-xs text-brand-800">
           Conditional confirmation sent. HR will issue the formal offer next.
         </p>
       )}
@@ -731,7 +731,7 @@ const RECOMMENDATION_LABEL: Record<InterviewRecommendation, string> = {
 
 const RECOMMENDATION_COLOR: Record<InterviewRecommendation, string> = {
   STRONG_HIRE: 'bg-emerald-100 text-emerald-800',
-  HIRE: 'bg-teal-100 text-teal-800',
+  HIRE: 'bg-brand-100 text-brand-800',
   NO_HIRE: 'bg-amber-100 text-amber-800',
   STRONG_NO_HIRE: 'bg-red-100 text-red-700',
 };

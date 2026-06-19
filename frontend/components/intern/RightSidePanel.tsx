@@ -103,7 +103,7 @@ export default function RightSidePanel() {
               <ul className="mt-2 space-y-2">
                 {contacts.map(({ role, contact }) => (
                   <li key={role} className="flex items-center gap-2">
-                    <span className="flex h-7 w-7 items-center justify-center rounded-full bg-teal-100 text-[10px] font-semibold text-teal-800">
+                    <span className="flex h-7 w-7 items-center justify-center rounded-full bg-brand-100 text-[10px] font-semibold text-brand-800">
                       {initials(contact.name)}
                     </span>
                     <div className="min-w-0 flex-1">
@@ -114,7 +114,7 @@ export default function RightSidePanel() {
                         </span>
                       </div>
                       <a href={`mailto:${contact.email}`}
-                        className="inline-flex items-center gap-0.5 text-[11px] text-teal-700 hover:underline">
+                        className="inline-flex items-center gap-0.5 text-[11px] text-brand-700 hover:underline">
                         <Mail className="h-2.5 w-2.5" />
                         {contact.email}
                       </a>
@@ -158,7 +158,7 @@ export default function RightSidePanel() {
             <MessageSquare className="h-4 w-4 text-slate-500" />
             <span className="flex-1">Messages</span>
             {data && data.unreadCount > 0 && (
-              <span className="rounded-full bg-teal-700 px-2 py-0.5 text-[10px] font-semibold text-white">
+              <span className="rounded-full bg-brand-700 px-2 py-0.5 text-[10px] font-semibold text-white">
                 {data.unreadCount}
               </span>
             )}

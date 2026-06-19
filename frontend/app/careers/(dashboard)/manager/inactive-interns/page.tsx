@@ -338,7 +338,7 @@ function RowCard({
           <div className="mt-3">
             <Link
               href={`/careers/trainer/active-interns/${row.internLifecycleId}`}
-              className="inline-flex items-center gap-1 text-xs font-medium text-teal-700 hover:underline"
+              className="inline-flex items-center gap-1 text-xs font-medium text-brand-700 hover:underline"
             >
               Open full intern detail <ChevronRight className="h-3 w-3" />
             </Link>

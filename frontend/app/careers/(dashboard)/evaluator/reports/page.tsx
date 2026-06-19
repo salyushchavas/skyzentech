@@ -124,7 +124,7 @@ export default function EvaluatorReportsPage() {
           </select>
           <a
             href={csvHref}
-            className="inline-flex items-center gap-1 rounded-md bg-teal-700 px-3 py-1.5 text-xs font-semibold text-white hover:bg-teal-800"
+            className="inline-flex items-center gap-1 rounded-md bg-brand-700 px-3 py-1.5 text-xs font-semibold text-white hover:bg-brand-800"
           >
             <Download className="h-3.5 w-3.5" />
             Download CSV
@@ -188,7 +188,7 @@ export default function EvaluatorReportsPage() {
                       </div>
                       <div className="mt-1 h-2 w-full overflow-hidden rounded-full bg-slate-100">
                         <div
-                          className="h-full bg-teal-600"
+                          className="h-full bg-brand-600"
                           style={{ width: `${Math.min(100, b.pct)}%` }}
                         />
                       </div>
@@ -254,7 +254,7 @@ export default function EvaluatorReportsPage() {
                     <td className="px-3 py-2 text-right">
                       <Link
                         href={`/careers/evaluator/evaluees/${r.internLifecycleId}`}
-                        className="text-[11px] font-medium text-teal-700 hover:underline"
+                        className="text-[11px] font-medium text-brand-700 hover:underline"
                       >
                         Open →
                       </Link>

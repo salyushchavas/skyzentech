@@ -72,7 +72,7 @@ function KpiCard({ snapshot }: { snapshot: KpiSnapshot }) {
   return (
     <Link
       href={snapshot.actionUrl}
-      className="group rounded-lg border border-slate-200 bg-white p-4 hover:border-teal-300 hover:shadow-sm"
+      className="group rounded-lg border border-slate-200 bg-white p-4 hover:border-brand-300 hover:shadow-sm"
     >
       <div className="flex items-center justify-between">
         <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">
@@ -91,7 +91,7 @@ function KpiCard({ snapshot }: { snapshot: KpiSnapshot }) {
       <p className="mt-1 min-h-[1rem] text-[11px] text-slate-500">
         {snapshot.helperText ?? ' '}
       </p>
-      <p className="mt-2 inline-flex items-center gap-0.5 text-[11px] font-medium text-teal-700 opacity-0 transition group-hover:opacity-100">
+      <p className="mt-2 inline-flex items-center gap-0.5 text-[11px] font-medium text-brand-700 opacity-0 transition group-hover:opacity-100">
         Open
         <ArrowRight className="h-3 w-3" />
       </p>

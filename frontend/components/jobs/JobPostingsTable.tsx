@@ -142,7 +142,7 @@ function Row({
         <button
           type="button"
           onClick={onKnowMore}
-          className="text-[11px] font-medium text-teal-700 hover:underline"
+          className="text-[11px] font-medium text-brand-700 hover:underline"
         >
           Know more →
         </button>
@@ -227,7 +227,7 @@ function ApplyCell({
     <button
       type="button"
       onClick={go}
-      className="inline-flex items-center gap-1 rounded-md bg-teal-700 px-3 py-1 text-xs font-semibold text-white hover:bg-teal-800"
+      className="inline-flex items-center gap-1 rounded-md bg-brand-700 px-3 py-1 text-xs font-semibold text-white hover:bg-brand-800"
     >
       Apply
     </button>
@@ -292,7 +292,7 @@ function KnowMoreDrawer({
           <button
             type="button"
             onClick={handleApplyClick}
-            className="rounded-md bg-teal-700 px-4 py-1.5 text-xs font-semibold text-white hover:bg-teal-800"
+            className="rounded-md bg-brand-700 px-4 py-1.5 text-xs font-semibold text-white hover:bg-brand-800"
           >
             Apply now
           </button>

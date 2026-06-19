@@ -185,7 +185,7 @@ export default function InternOfferSignPage() {
             {/* Offer letter body */}
             <article className="rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
               <header className="mb-4 flex items-center gap-2 border-b border-slate-100 pb-3">
-                <FileText className="h-5 w-5 text-teal-700" />
+                <FileText className="h-5 w-5 text-brand-700" />
                 <h2 className="text-base font-semibold text-slate-900">
                   Skyzen Tech — Offer Letter
                 </h2>
@@ -204,7 +204,7 @@ export default function InternOfferSignPage() {
             {offer.status === 'SENT' && !expired && (
               <section className="rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
                 <div className="flex items-center gap-2">
-                  <PenLine className="h-5 w-5 text-teal-700" />
+                  <PenLine className="h-5 w-5 text-brand-700" />
                   <h3 className="text-sm font-semibold text-slate-900">Sign this offer</h3>
                 </div>
                 <p className="mt-1 text-xs text-slate-500">
@@ -244,7 +244,7 @@ export default function InternOfferSignPage() {
                     type="checkbox"
                     checked={agreed}
                     onChange={(e) => setAgreed(e.target.checked)}
-                    className="mt-0.5 h-4 w-4 cursor-pointer rounded border-slate-300 text-teal-600 focus:ring-teal-500"
+                    className="mt-0.5 h-4 w-4 cursor-pointer rounded border-slate-300 text-brand-600 focus:ring-brand-500"
                   />
                   <span>I have read and agree to the terms of this offer.</span>
                 </label>
@@ -267,7 +267,7 @@ export default function InternOfferSignPage() {
                     type="button"
                     onClick={submit}
                     disabled={!canSubmit}
-                    className="inline-flex items-center gap-1.5 rounded-md bg-teal-700 px-4 py-2 text-sm font-semibold text-white hover:bg-teal-800 disabled:cursor-not-allowed disabled:opacity-50"
+                    className="inline-flex items-center gap-1.5 rounded-md bg-brand-700 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-800 disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
                     {submitting ? 'Signing…' : 'Sign Offer'}
@@ -278,11 +278,11 @@ export default function InternOfferSignPage() {
 
             <footer className="text-center text-xs text-slate-500">
               Need help? Contact your ERM at{' '}
-              <a className="text-teal-700 hover:underline" href="mailto:erm@skyzentech.com">
+              <a className="text-brand-700 hover:underline" href="mailto:erm@skyzentech.com">
                 erm@skyzentech.com
               </a>
               .{' '}
-              <Link href="/careers/intern" className="text-teal-700 hover:underline">
+              <Link href="/careers/intern" className="text-brand-700 hover:underline">
                 Back to dashboard
               </Link>
             </footer>

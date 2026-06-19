@@ -138,7 +138,7 @@ export default function NewHireDetailPage() {
                 <button
                   type="button"
                   onClick={() => setModal('reporting')}
-                  className="text-xs font-medium text-teal-700 hover:underline"
+                  className="text-xs font-medium text-brand-700 hover:underline"
                 >
                   Edit Trainer/Evaluator (legacy)
                 </button>
@@ -153,7 +153,7 @@ export default function NewHireDetailPage() {
                   onClick={() => setModal('packet')}
                   disabled={data.onboardingAssigned}
                   title={data.onboardingAssigned ? 'Already assigned' : ''}
-                  className="rounded-md bg-teal-700 px-4 py-2 text-sm font-semibold text-white hover:bg-teal-800 disabled:bg-slate-300"
+                  className="rounded-md bg-brand-700 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-800 disabled:bg-slate-300"
                 >
                   {data.onboardingAssigned
                     ? 'Document packet assigned ✓'
@@ -191,7 +191,7 @@ export default function NewHireDetailPage() {
                 <button
                   type="button"
                   onClick={() => setModal('startdate')}
-                  className="text-xs font-medium text-teal-700 hover:underline"
+                  className="text-xs font-medium text-brand-700 hover:underline"
                 >
                   Update
                 </button>
@@ -317,7 +317,7 @@ function RoleCardWithAssign({
         <button
           type="button"
           onClick={onAssign}
-          className="inline-flex items-center gap-0.5 text-[11px] font-medium text-teal-700 hover:underline"
+          className="inline-flex items-center gap-0.5 text-[11px] font-medium text-brand-700 hover:underline"
           title={stub ? 'Change manager' : 'Assign manager'}
         >
           <PencilLine className="h-3 w-3" />
@@ -439,7 +439,7 @@ function AssignManagerModal({
             Cancel
           </button>
           <button type="button" onClick={submit} disabled={submitting}
-            className="rounded-md bg-teal-700 px-4 py-1.5 text-sm font-semibold text-white hover:bg-teal-800 disabled:bg-slate-300">
+            className="rounded-md bg-brand-700 px-4 py-1.5 text-sm font-semibold text-white hover:bg-brand-800 disabled:bg-slate-300">
             {submitting ? 'Saving…' : 'Save'}
           </button>
         </div>
