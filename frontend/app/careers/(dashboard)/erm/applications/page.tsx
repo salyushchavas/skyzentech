@@ -195,7 +195,7 @@ function ApplicationInboxPageInner() {
         )}
 
         {err && (
-          <p className="mb-3 rounded-md border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800">
+          <p className="mb-3 rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-800">
             {err}
           </p>
         )}
@@ -334,7 +334,7 @@ function Row({
         <span
           className={
             row.urgentFlag
-              ? 'rounded-full bg-rose-100 px-2 py-0.5 text-[11px] font-semibold text-rose-700'
+              ? 'rounded-full bg-red-100 px-2 py-0.5 text-[11px] font-semibold text-red-700'
               : 'text-xs text-slate-600'
           }
         >

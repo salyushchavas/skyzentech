@@ -117,11 +117,11 @@ export default function RegisterDebugPanel({ info }: Props) {
       ? 'text-slate-500'
       : typeof info.lastAttempt.status === 'number'
         ? info.lastAttempt.status >= 200 && info.lastAttempt.status < 300
-          ? 'text-emerald-700'
+          ? 'text-green-700'
           : info.lastAttempt.status >= 400 && info.lastAttempt.status < 500
             ? 'text-amber-700'
-            : 'text-rose-700'
-        : 'text-rose-700';
+            : 'text-red-700'
+        : 'text-red-700';
 
   return (
     <section className="mt-8 rounded-lg border border-slate-300 bg-slate-50 font-mono text-[11px] text-slate-800">
@@ -221,7 +221,7 @@ export default function RegisterDebugPanel({ info }: Props) {
                   ['Endpoint', healthResult.endpoint],
                   [
                     'OK',
-                    <span key="ok" className={healthResult.ok ? 'text-emerald-700' : 'text-rose-700'}>
+                    <span key="ok" className={healthResult.ok ? 'text-green-700' : 'text-red-700'}>
                       {String(healthResult.ok)}
                     </span>,
                   ],
@@ -269,7 +269,7 @@ function Block({
 }) {
   const cls =
     tone === 'rose'
-      ? 'border-rose-300 bg-rose-50 text-rose-900'
+      ? 'border-red-300 bg-red-50 text-red-900'
       : 'border-slate-200 bg-white text-slate-900';
   return (
     <div>

@@ -45,7 +45,7 @@ export default function ErmRightSidePanel() {
         <Bell className="h-4 w-4 text-slate-500" />
         <span className="flex-1">Notifications</span>
         {rightPanel && rightPanel.unreadNotifications > 0 && (
-          <span className="rounded-full bg-rose-600 px-2 py-0.5 text-[11px] font-semibold text-white tabular-nums">
+          <span className="rounded-full bg-red-600 px-2 py-0.5 text-[11px] font-semibold text-white tabular-nums">
             {rightPanel.unreadNotifications}
           </span>
         )}

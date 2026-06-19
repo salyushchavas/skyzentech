@@ -60,7 +60,7 @@ function Body({ id }: { id: string }) {
 
   if (err) {
     return (
-      <p className="rounded-md border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800">
+      <p className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-800">
         {err}
       </p>
     );
@@ -125,7 +125,7 @@ function Body({ id }: { id: string }) {
             Would recommend Skyzen:{' '}
             <strong
               className={
-                fb.wouldRecommend ? 'text-emerald-700' : 'text-rose-700'
+                fb.wouldRecommend ? 'text-green-700' : 'text-red-700'
               }
             >
               {fb.wouldRecommend ? 'Yes' : 'No'}

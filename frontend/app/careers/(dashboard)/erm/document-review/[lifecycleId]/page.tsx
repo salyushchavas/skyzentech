@@ -99,7 +99,7 @@ function InternQueue() {
       </p>
 
       {err && (
-        <p className="mb-3 rounded-md border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800">
+        <p className="mb-3 rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-800">
           {err}
         </p>
       )}
@@ -112,7 +112,7 @@ function InternQueue() {
           type="button"
           onClick={bulkAccept}
           disabled={selected.size === 0 || bulking}
-          className="rounded-md bg-emerald-700 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-800 disabled:bg-slate-300"
+          className="rounded-md bg-green-700 px-3 py-1.5 text-xs font-semibold text-white hover:bg-green-800 disabled:bg-slate-300"
         >
           Bulk-accept {selected.size} selected
         </button>

@@ -3,7 +3,7 @@
 const STYLES: Record<string, string> = {
   APPLIED: 'bg-slate-100 text-slate-700',
   HOLD: 'bg-slate-200 text-slate-700',
-  INFO_REQUESTED: 'bg-purple-100 text-purple-800',
+  INFO_REQUESTED: 'bg-slate-100 text-slate-700',
   SCREENING_SENT: 'bg-slate-100 text-slate-700',
   SCREENING_COMPLETED: 'bg-slate-100 text-slate-700',
   SHORTLISTED: 'bg-amber-100 text-amber-800',
@@ -11,12 +11,12 @@ const STYLES: Record<string, string> = {
   INTERVIEWED: 'bg-amber-100 text-amber-800',
   SELECTED_CONDITIONAL: 'bg-brand-100 text-brand-800',
   OFFERED: 'bg-brand-100 text-brand-800',
-  ACCEPTED: 'bg-emerald-100 text-emerald-800',
-  HIRED: 'bg-emerald-100 text-emerald-800',
-  REJECTED: 'bg-rose-100 text-rose-800',
+  ACCEPTED: 'bg-green-100 text-green-800',
+  HIRED: 'bg-green-100 text-green-800',
+  REJECTED: 'bg-red-100 text-red-800',
   WITHDRAWN: 'bg-slate-100 text-slate-600',
   LAPSED: 'bg-slate-100 text-slate-600',
-  NO_SHOW: 'bg-rose-100 text-rose-800',
+  NO_SHOW: 'bg-red-100 text-red-800',
 };
 
 const LABEL: Record<string, string> = {

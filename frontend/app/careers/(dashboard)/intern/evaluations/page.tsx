@@ -116,7 +116,7 @@ export default function InternEvaluationsPage() {
   if (err) {
     return (
       <InternPageShell title="Evaluations">
-        <p className="rounded-md border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800">{err}</p>
+        <p className="rounded-md border border-red-200 bg-red-50 p-4 text-sm text-red-800">{err}</p>
       </InternPageShell>
     );
   }
@@ -241,7 +241,7 @@ function Row({ ev }: { ev: InternEvaluation }) {
             <span className={
               'rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide '
               + (ev.status === 'PUBLISHED' ? 'bg-slate-100 text-slate-700'
-                  : ev.status === 'ACKNOWLEDGED' ? 'bg-emerald-100 text-emerald-800'
+                  : ev.status === 'ACKNOWLEDGED' ? 'bg-green-100 text-green-800'
                   : 'bg-amber-100 text-amber-800')
             }>
               {ev.status}
@@ -265,7 +265,7 @@ function Row({ ev }: { ev: InternEvaluation }) {
             Acknowledge <ChevronRight className="h-3 w-3" />
           </span>
         ) : (
-          <CheckCircle2 className="h-4 w-4 text-emerald-500" />
+          <CheckCircle2 className="h-4 w-4 text-green-500" />
         )}
       </Link>
     </li>

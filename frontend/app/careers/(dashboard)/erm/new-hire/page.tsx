@@ -97,7 +97,7 @@ function NewHireListPageInner() {
       </div>
 
       {err && (
-        <p className="mb-3 rounded-md border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800">
+        <p className="mb-3 rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-800">
           {err}
         </p>
       )}
@@ -200,7 +200,7 @@ function PendingTable({
                   </td>
                   <td className="px-3 py-2 text-xs">
                     {r.signedAt && (
-                      <span className={urgent ? 'font-semibold text-rose-700' : 'text-slate-700'}>
+                      <span className={urgent ? 'font-semibold text-red-700' : 'text-slate-700'}>
                         {days}d ago {urgent && '· urgent'}
                       </span>
                     )}
@@ -327,7 +327,7 @@ function AllHiresTable({
                 </td>
                 <td className="px-3 py-2 text-xs">
                   {r.onboardingAssigned ? (
-                    <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-semibold text-emerald-800">
+                    <span className="rounded-full bg-green-100 px-2 py-0.5 text-[10px] font-semibold text-green-800">
                       Assigned
                     </span>
                   ) : (
@@ -357,7 +357,7 @@ function StructurePills({ row }: { row: NewHireRow }) {
       className={
         'inline-flex h-5 w-5 items-center justify-center rounded-full border text-[10px] font-semibold ' +
         (filled
-          ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
+          ? 'border-green-200 bg-green-50 text-green-700'
           : 'border-slate-200 bg-slate-50 text-slate-400')
       }
       title={label + (filled ? ' assigned' : ' empty')}
@@ -371,7 +371,7 @@ function StructurePills({ row }: { row: NewHireRow }) {
       {dot(!!row.evaluatorName, 'E')}
       {dot(!!row.managerName, 'M')}
       {row.reportingStructureComplete && (
-        <span className="ml-2 rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-semibold text-emerald-800">
+        <span className="ml-2 rounded-full bg-green-100 px-2 py-0.5 text-[10px] font-semibold text-green-800">
           Complete
         </span>
       )}

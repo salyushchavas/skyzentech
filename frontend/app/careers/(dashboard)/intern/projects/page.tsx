@@ -11,10 +11,10 @@ const STATUS_TONE: Record<ProjectAssignmentStatus, string> = {
   ASSIGNED:       'bg-slate-100 text-slate-700',
   IN_PROGRESS:    'bg-amber-100 text-amber-800',
   SUBMITTED:      'bg-slate-100 text-slate-700',
-  RETURNED:       'bg-rose-100 text-rose-800',
-  TECH_APPROVED:  'bg-emerald-100 text-emerald-800',
+  RETURNED:       'bg-red-100 text-red-800',
+  TECH_APPROVED:  'bg-green-100 text-green-800',
   PENDING_VIVA:   'bg-slate-100 text-slate-700',
-  COMPLETED:      'bg-emerald-100 text-emerald-800',
+  COMPLETED:      'bg-green-100 text-green-800',
 };
 
 const STATUS_LABEL: Record<ProjectAssignmentStatus, string> = {
@@ -45,7 +45,7 @@ export default function InternProjectsPage() {
   if (err) {
     return (
       <InternPageShell title="My Projects">
-        <p className="rounded-md border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800">
+        <p className="rounded-md border border-red-200 bg-red-50 p-4 text-sm text-red-800">
           {err}
         </p>
       </InternPageShell>
@@ -120,7 +120,7 @@ function AssignmentRow({ a }: { a: AssignmentSummary }) {
               {STATUS_LABEL[a.status]}
             </span>
             {revisionRequested && a.status !== 'RETURNED' && (
-              <span className="rounded-full bg-rose-100 px-2 py-0.5 font-medium text-rose-800">
+              <span className="rounded-full bg-red-100 px-2 py-0.5 font-medium text-red-800">
                 Trainer requested changes
               </span>
             )}

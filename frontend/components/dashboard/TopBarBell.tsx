@@ -37,7 +37,7 @@ export default function TopBarBell() {
     >
       <Bell className="h-4 w-4" strokeWidth={2} />
       {unread > 0 && (
-        <span className="absolute -right-0.5 -top-0.5 inline-flex h-4 min-w-[16px] items-center justify-center rounded-full bg-rose-600 px-1 text-[10px] font-semibold leading-none text-white">
+        <span className="absolute -right-0.5 -top-0.5 inline-flex h-4 min-w-[16px] items-center justify-center rounded-full bg-red-600 px-1 text-[10px] font-semibold leading-none text-white">
           {unread > 99 ? '99+' : unread}
         </span>
       )}

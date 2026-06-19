@@ -52,7 +52,7 @@ export default function ExitSummaryPage() {
   if (err || !summary) {
     return (
       <InternPageShell title="Internship Summary">
-        <p className="rounded-md border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800">
+        <p className="rounded-md border border-red-200 bg-red-50 p-4 text-sm text-red-800">
           {err ?? 'No exit summary available.'}
         </p>
       </InternPageShell>

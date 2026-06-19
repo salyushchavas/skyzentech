@@ -142,14 +142,17 @@ const ROLE_LABEL: Record<UserRole, string> = {
   SUPER_ADMIN: 'Super admin',
 };
 
+// role-badge palette deferred to M2 role-consolidation
+// (TRAINER/RM/MANAGER all share amber today — fold or split lands with M2).
+// INTERN uses light slate, SUPER_ADMIN uses dark slate, to differentiate.
 const ROLE_COLOR: Record<UserRole, string> = {
-  INTERN: 'bg-sky-100 text-sky-800',
+  INTERN: 'bg-slate-100 text-slate-700',
   TRAINER: 'bg-amber-100 text-amber-800',
   EVALUATOR: 'bg-brand-100 text-brand-800',
   REPORTING_MANAGER: 'bg-amber-100 text-amber-800',
   MANAGER: 'bg-amber-100 text-amber-800',
-  ERM: 'bg-emerald-100 text-emerald-800',
-  SUPER_ADMIN: 'bg-slate-100 text-slate-700',
+  ERM: 'bg-green-100 text-green-800',
+  SUPER_ADMIN: 'bg-slate-200 text-slate-900',
 };
 
 export default function SupervisionPage({
@@ -221,7 +224,7 @@ function Body({ userId }: { userId: string }) {
 
       {/* Supervision model has shifted to pure role-based access. Assignment
           via this page is now optional — kept for special-case overrides. */}
-      <div className="rounded-md border border-sky-200 bg-sky-50 p-3 text-xs text-sky-900">
+      <div className="rounded-md border border-slate-300 bg-slate-100 p-3 text-xs text-slate-700">
         <p className="font-medium">Assignment is optional.</p>
         <p className="mt-0.5">
           By default, any Technical Evaluator sees every hired intern and any
@@ -543,14 +546,14 @@ function ProfileCard({ profile }: { profile: ProfileBlock }) {
               className={
                 'inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 font-medium ' +
                 (profile.active
-                  ? 'bg-emerald-100 text-emerald-800'
+                  ? 'bg-green-100 text-green-800'
                   : 'bg-gray-200 text-gray-600')
               }
             >
               <span
                 className={
                   'h-1.5 w-1.5 rounded-full ' +
-                  (profile.active ? 'bg-emerald-600' : 'bg-gray-500')
+                  (profile.active ? 'bg-green-600' : 'bg-gray-500')
                 }
               />
               {profile.active ? 'Active' : 'Inactive'}
@@ -576,15 +579,15 @@ function ProfileCard({ profile }: { profile: ProfileBlock }) {
 
 const REPORT_PILL: Record<string, string> = {
   DRAFT: 'bg-gray-100 text-gray-700',
-  SUBMITTED: 'bg-sky-100 text-sky-800',
+  SUBMITTED: 'bg-slate-100 text-slate-700',
   RETURNED: 'bg-amber-100 text-amber-800',
-  APPROVED: 'bg-emerald-100 text-emerald-800',
+  APPROVED: 'bg-green-100 text-green-800',
 };
 
 const TIMESHEET_PILL: Record<string, string> = {
   DRAFT: 'bg-gray-100 text-gray-700',
-  SUBMITTED: 'bg-sky-100 text-sky-800',
-  APPROVED: 'bg-emerald-100 text-emerald-800',
+  SUBMITTED: 'bg-slate-100 text-slate-700',
+  APPROVED: 'bg-green-100 text-green-800',
   REJECTED: 'bg-amber-100 text-amber-800',
 };
 
@@ -599,7 +602,7 @@ function CandidateContextCard({ ctx }: { ctx: CandidateContext }) {
         <div className="mb-4 rounded-md border border-gray-100 bg-gray-50 p-3 text-sm">
           <div className="flex flex-wrap items-center gap-2">
             <span className="font-semibold text-gray-900">Engagement</span>
-            <span className="rounded-full bg-sky-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-sky-800">
+            <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-slate-700">
               {ctx.engagement.status ?? '—'}
             </span>
           </div>
@@ -800,7 +803,7 @@ function ComplianceTile({
     status === 'COMPLETED' ||
     status === 'DSO_APPROVED' ||
     status === 'EMPLOYMENT_AUTHORIZED'
-      ? 'border-emerald-200 bg-emerald-50'
+      ? 'border-green-200 bg-green-50'
       : status == null
         ? 'border-gray-200 bg-white'
         : 'border-amber-200 bg-amber-50';
@@ -863,7 +866,7 @@ function SupervisorContextCard({ ctx }: { ctx: SupervisorContext }) {
                 </div>
               </div>
               {i.engagementStatus && (
-                <span className="rounded-full bg-sky-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-sky-800">
+                <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-slate-700">
                   {i.engagementStatus}
                 </span>
               )}

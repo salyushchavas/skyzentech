@@ -55,7 +55,7 @@ export default function SignOutButton({
     <button
       type="button"
       onClick={handle}
-      className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm font-medium text-slate-600 transition-colors hover:bg-rose-50 hover:text-rose-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
+      className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm font-medium text-slate-600 transition-colors hover:bg-red-50 hover:text-red-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
     >
       <LogOut className="h-[18px] w-[18px]" strokeWidth={2} />
       Sign out

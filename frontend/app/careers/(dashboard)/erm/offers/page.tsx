@@ -149,7 +149,7 @@ export default function OfferControlPage() {
         </div>
 
         {err && (
-          <p className="mb-3 rounded-md border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800">
+          <p className="mb-3 rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-800">
             {err}
           </p>
         )}
@@ -265,7 +265,7 @@ function AwaitingRow({ row, onSend }: { row: AwaitingOfferRow; onSend: () => voi
       </td>
       <td className="px-3 py-2 text-xs">
         {row.overallRecommendation ? (
-          <span className="rounded-full bg-emerald-50 px-2 py-0.5 font-semibold text-emerald-700">
+          <span className="rounded-full bg-green-50 px-2 py-0.5 font-semibold text-green-700">
             {row.overallRecommendation.replaceAll('_', ' ')}
           </span>
         ) : (
@@ -313,7 +313,7 @@ function SentRow({ row }: { row: OfferRow }) {
       </td>
       <td className="px-3 py-2 text-xs">
         {row.expiresAt ? (
-          <span className={expiresSoon ? 'rounded-full bg-rose-100 px-2 py-0.5 text-[10px] font-semibold text-rose-700' : 'text-slate-700'}>
+          <span className={expiresSoon ? 'rounded-full bg-red-100 px-2 py-0.5 text-[10px] font-semibold text-red-700' : 'text-slate-700'}>
             {new Date(row.expiresAt).toLocaleDateString()}
           </span>
         ) : '—'}

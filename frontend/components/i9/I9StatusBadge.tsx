@@ -12,7 +12,7 @@ const COLOR: Record<string, string> = {
   SECTION_2_PENDING: 'bg-amber-100 text-amber-800',
   SECTION_1_COMPLETE: 'bg-amber-100 text-amber-800',
   COMPLETED: 'bg-green-100 text-green-800',
-  REOPENED: 'bg-orange-100 text-orange-800',
+  REOPENED: 'bg-amber-100 text-amber-800',
 };
 
 const LABEL: Record<string, string> = {

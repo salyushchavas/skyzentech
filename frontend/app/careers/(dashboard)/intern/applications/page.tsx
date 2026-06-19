@@ -10,19 +10,19 @@ import type { ApplicationResponse, ApplicationStatus } from '@/types';
 
 const STAGE_STYLE: Record<string, string> = {
   APPLIED:              'bg-slate-100 text-slate-700',
-  SCREENING_SENT:       'bg-sky-100 text-sky-800',
-  SCREENING_COMPLETED:  'bg-sky-100 text-sky-800',
+  SCREENING_SENT:       'bg-slate-100 text-slate-700',
+  SCREENING_COMPLETED:  'bg-slate-100 text-slate-700',
   SHORTLISTED:          'bg-amber-100 text-amber-800',
   INTERVIEW_SCHEDULED:  'bg-amber-100 text-amber-800',
   INTERVIEWED:          'bg-slate-100 text-slate-700',
-  SELECTED_CONDITIONAL: 'bg-emerald-100 text-emerald-800',
-  OFFERED:              'bg-emerald-100 text-emerald-800',
-  ACCEPTED:             'bg-emerald-100 text-emerald-800',
+  SELECTED_CONDITIONAL: 'bg-green-100 text-green-800',
+  OFFERED:              'bg-green-100 text-green-800',
+  ACCEPTED:             'bg-green-100 text-green-800',
   ONBOARDING:           'bg-brand-100 text-brand-800',
   ACTIVE:               'bg-brand-100 text-brand-800',
-  HIRED:                'bg-emerald-100 text-emerald-800',
+  HIRED:                'bg-green-100 text-green-800',
   COMPLETED:            'bg-slate-100 text-slate-700',
-  REJECTED:             'bg-rose-100 text-rose-800',
+  REJECTED:             'bg-red-100 text-red-800',
   WITHDRAWN:            'bg-slate-100 text-slate-600',
   LAPSED:               'bg-slate-100 text-slate-600',
   NO_SHOW:              'bg-slate-100 text-slate-600',
@@ -88,7 +88,7 @@ export default function InternApplicationsPage() {
         </ul>
       )}
       {err && (
-        <p className="rounded-md border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800">{err}</p>
+        <p className="rounded-md border border-red-200 bg-red-50 p-4 text-sm text-red-800">{err}</p>
       )}
       {!loading && !err && items.length === 0 && (
         <p className="rounded-md border border-dashed border-slate-300 bg-white p-10 text-center text-sm text-slate-500">

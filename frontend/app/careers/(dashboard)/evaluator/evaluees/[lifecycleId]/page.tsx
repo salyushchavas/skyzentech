@@ -66,7 +66,7 @@ export default function EvalueeDetailPage() {
   if (err || !data) {
     return (
       <div className="mx-auto max-w-6xl p-6">
-        <p className="rounded-md border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800">
+        <p className="rounded-md border border-red-200 bg-red-50 p-4 text-sm text-red-800">
           {err ?? 'Evaluee not found'}
         </p>
       </div>
@@ -118,7 +118,7 @@ export default function EvalueeDetailPage() {
                     'rounded-full px-2 py-0.5 font-semibold ' +
                     (stemOpt
                       ? 'bg-amber-100 text-amber-800'
-                      : 'bg-emerald-100 text-emerald-700')
+                      : 'bg-green-100 text-green-700')
                   }
                 >
                   {data.profile.workAuthType.replaceAll('_', ' ')}
@@ -214,9 +214,9 @@ function Stat({
   value: number | string;
   tone?: 'slate' | 'emerald' | 'amber' | 'rose';
 }) {
-  const cls = tone === 'emerald' ? 'text-emerald-700'
+  const cls = tone === 'emerald' ? 'text-green-700'
     : tone === 'amber' ? 'text-amber-700'
-    : tone === 'rose' ? 'text-rose-700'
+    : tone === 'rose' ? 'text-red-700'
     : 'text-slate-900';
   return (
     <div className="rounded-md border border-slate-200 bg-slate-50 p-2">
@@ -287,9 +287,9 @@ function MonitorCurrentMonth({ detail }: { detail: EvalueeDetail }) {
 function MonitorHistorySummary({ detail }: { detail: EvalueeDetail }) {
   const h = detail.historySummary;
   const trendIcon = h.trend === 'IMPROVING'
-    ? <TrendingUp className="h-3.5 w-3.5 text-emerald-700" />
+    ? <TrendingUp className="h-3.5 w-3.5 text-green-700" />
     : h.trend === 'DECLINING'
-      ? <TrendingDown className="h-3.5 w-3.5 text-rose-700" />
+      ? <TrendingDown className="h-3.5 w-3.5 text-red-700" />
       : null;
   return (
     <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
@@ -412,7 +412,7 @@ function MonitorTrainerContext({ detail }: { detail: EvalueeDetail }) {
               <dd
                 className={
                   t.daysSinceLastMeeting != null && t.daysSinceLastMeeting > 14
-                    ? 'text-rose-700'
+                    ? 'text-red-700'
                     : ''
                 }
               >
@@ -571,7 +571,7 @@ function ScheduleFinalModal({
         </div>
 
         {modalErr && (
-          <p className="mt-3 rounded-md border border-rose-200 bg-rose-50 p-2 text-xs text-rose-800">
+          <p className="mt-3 rounded-md border border-red-200 bg-red-50 p-2 text-xs text-red-800">
             {modalErr}
           </p>
         )}
@@ -626,7 +626,7 @@ function TimelineEntry({ entry }: { entry: EvaluationTimelineEntry }) {
           {entry.publishedAt ? new Date(entry.publishedAt).toLocaleDateString() : '—'}
         </span>
         {entry.status && (
-          <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold text-emerald-700">
+          <span className="rounded-full bg-green-50 px-2 py-0.5 text-[10px] font-semibold text-green-700">
             {entry.status}
           </span>
         )}

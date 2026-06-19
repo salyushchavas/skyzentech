@@ -28,14 +28,14 @@ interface Props {
 
 const STATUS_PILL: Record<string, string> = {
   ASSIGNED: 'bg-slate-100 text-slate-700',
-  ACCESS_GRANTED: 'bg-sky-100 text-sky-800',
+  ACCESS_GRANTED: 'bg-slate-100 text-slate-700',
   ACCESS_ACCEPTED: 'bg-slate-100 text-slate-700',
-  IN_PROGRESS: 'bg-sky-100 text-sky-800',
+  IN_PROGRESS: 'bg-slate-100 text-slate-700',
   SUBMITTED: 'bg-amber-100 text-amber-800',
-  RETURNED: 'bg-orange-100 text-orange-800',
+  RETURNED: 'bg-amber-100 text-amber-800',
   TECH_APPROVED: 'bg-slate-100 text-slate-700',
   PENDING_VIVA: 'bg-amber-100 text-amber-800',
-  COMPLETED: 'bg-emerald-100 text-emerald-800',
+  COMPLETED: 'bg-green-100 text-green-800',
 };
 
 function initials(name?: string | null): string {

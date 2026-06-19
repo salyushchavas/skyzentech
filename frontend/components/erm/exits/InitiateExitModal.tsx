@@ -215,7 +215,7 @@ export default function InitiateExitModal({
             </Field>
           </div>
           {err && (
-            <p className="sm:col-span-2 rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-700">
+            <p className="sm:col-span-2 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
               {err}
             </p>
           )}
@@ -232,7 +232,7 @@ export default function InitiateExitModal({
             type="button"
             disabled={!canSubmit}
             onClick={() => void submit()}
-            className="rounded-md bg-rose-600 px-3 py-1.5 text-sm font-semibold text-white disabled:opacity-50"
+            className="rounded-md bg-red-600 px-3 py-1.5 text-sm font-semibold text-white disabled:opacity-50"
           >
             {submitting ? 'Initiating…' : 'Initiate exit'}
           </button>

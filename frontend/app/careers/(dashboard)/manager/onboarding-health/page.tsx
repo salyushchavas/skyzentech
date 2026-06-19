@@ -216,7 +216,7 @@ function OnboardingInner() {
       </section>
 
       {err && (
-        <p className="rounded-md border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800">
+        <p className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-800">
           {err}
         </p>
       )}
@@ -316,7 +316,7 @@ function Row({ row }: { row: OnboardingRow }) {
         {row.compliance?.workAuthValidUntil && (
           <p className={
             'text-[10px] ' +
-            (row.compliance.workAuthExpiringSoon ? 'text-rose-700' : 'text-slate-500')
+            (row.compliance.workAuthExpiringSoon ? 'text-red-700' : 'text-slate-500')
           }>
             valid until {row.compliance.workAuthValidUntil}
           </p>
@@ -354,7 +354,7 @@ function DocumentCell({ docs }: { docs: OnboardingRow['documents'] }) {
         <span className="tabular-nums">{docs.acceptedTasks}</span>
         <span className="text-slate-500"> / {docs.totalTasks} accepted</span>
         {docs.hasRejected && (
-          <span className="ml-2 inline-flex items-center gap-0.5 rounded-full bg-rose-100 px-1.5 py-0.5 text-[10px] font-semibold text-rose-700">
+          <span className="ml-2 inline-flex items-center gap-0.5 rounded-full bg-red-100 px-1.5 py-0.5 text-[10px] font-semibold text-red-700">
             <AlertTriangle className="h-3 w-3" />
             {docs.rejectedTasks} rejected
           </span>
@@ -390,7 +390,7 @@ function ComplianceCell({
       <Pill tone={tone}>{status.replaceAll('_', ' ')}</Pill>
       {dueDate && !ok && (
         <p className={
-          'mt-1 text-[10px] ' + (overdue ? 'text-rose-700 font-semibold' : 'text-slate-500')
+          'mt-1 text-[10px] ' + (overdue ? 'text-red-700 font-semibold' : 'text-slate-500')
         }>
           due {dueDate}{overdue && ' · overdue'}
         </p>
@@ -406,10 +406,10 @@ function Pill({
   children: React.ReactNode;
 }) {
   const map = {
-    emerald: 'bg-emerald-100 text-emerald-700',
+    emerald: 'bg-green-100 text-green-700',
     violet: 'bg-amber-100 text-amber-800',
     slate: 'bg-slate-100 text-slate-700',
-    rose: 'bg-rose-100 text-rose-700',
+    rose: 'bg-red-100 text-red-700',
     amber: 'bg-amber-100 text-amber-800',
   };
   return (
@@ -429,9 +429,9 @@ function SummaryCard({
   value: number;
   tone?: 'slate' | 'emerald' | 'amber' | 'rose';
 }) {
-  const cls = tone === 'emerald' ? 'text-emerald-700'
+  const cls = tone === 'emerald' ? 'text-green-700'
     : tone === 'amber' ? 'text-amber-700'
-    : tone === 'rose' ? 'text-rose-700'
+    : tone === 'rose' ? 'text-red-700'
     : 'text-slate-900';
   return (
     <div className="rounded-lg border border-slate-200 bg-white p-3 shadow-sm">

@@ -195,13 +195,13 @@ function NextStepHero({ step, tone }: { step: NextStepData; tone: Semantic }) {
     accent === 'warning'
       ? 'bg-amber-50 border-amber-200'
       : accent === 'success'
-        ? 'bg-emerald-50 border-emerald-200'
+        ? 'bg-green-50 border-green-200'
         : 'bg-brand-50 border-brand-200';
   const titleColor =
     accent === 'warning'
       ? 'text-amber-900'
       : accent === 'success'
-        ? 'text-emerald-900'
+        ? 'text-green-900'
         : 'text-brand-900';
   return (
     <div

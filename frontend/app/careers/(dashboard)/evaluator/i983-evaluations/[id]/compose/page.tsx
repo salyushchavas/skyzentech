@@ -94,7 +94,7 @@ export default function ComposeI983Page() {
   }
 
   if (loading && !data) return <div className="mx-auto max-w-5xl p-6"><div className="h-48 animate-pulse rounded-lg bg-slate-100" /></div>;
-  if (err && !data) return <div className="mx-auto max-w-5xl p-6"><p className="rounded-md border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800">{err}</p></div>;
+  if (err && !data) return <div className="mx-auto max-w-5xl p-6"><p className="rounded-md border border-red-200 bg-red-50 p-4 text-sm text-red-800">{err}</p></div>;
   if (!data) return null;
 
   const readOnly = ['PUBLISHED', 'ACKNOWLEDGED', 'AMENDED'].includes(data.status);
@@ -230,7 +230,7 @@ export default function ComposeI983Page() {
       </section>
 
       {err && (
-        <p className="rounded-md border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800">
+        <p className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-800">
           {err}
         </p>
       )}
@@ -239,7 +239,7 @@ export default function ComposeI983Page() {
         <div className="sticky bottom-4 flex items-center justify-between rounded-lg border border-slate-200 bg-white px-4 py-3 shadow-sm">
           <p className="text-[11px] text-slate-500">
             {savedAt
-              ? <span className="text-emerald-700">Saved at {savedAt.toLocaleTimeString()}</span>
+              ? <span className="text-green-700">Saved at {savedAt.toLocaleTimeString()}</span>
               : <span>Required: 3 sections × 100+ chars before Publish</span>}
           </p>
           <div className="flex gap-2">
@@ -309,7 +309,7 @@ function Section({ title, hint, ok, children }: {
       <div className="flex items-baseline justify-between gap-2">
         <h2 className="text-sm font-semibold text-slate-900">{title}</h2>
         <span className={
-          'text-[11px] ' + (ok ? 'text-emerald-700' : 'text-rose-700')
+          'text-[11px] ' + (ok ? 'text-green-700' : 'text-red-700')
         }>{hint}</span>
       </div>
       <div className="mt-2">{children}</div>

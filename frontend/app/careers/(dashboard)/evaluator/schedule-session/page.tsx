@@ -161,7 +161,7 @@ function ScheduleSessionInner() {
           </Field>
 
           {err && (
-            <p className="rounded-md border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800">
+            <p className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-800">
               {err}
             </p>
           )}
@@ -204,7 +204,7 @@ function ScheduleSessionInner() {
                 {selected.lastEvaluationStatus && ` (${selected.lastEvaluationStatus})`}
               </p>
               {selected.pendingAckCount > 0 && (
-                <p className="mt-2 text-xs text-rose-700">
+                <p className="mt-2 text-xs text-red-700">
                   {selected.pendingAckCount} pending acknowledgment{selected.pendingAckCount === 1 ? '' : 's'}
                 </p>
               )}
@@ -231,7 +231,7 @@ function Field({ label, required, children }: { label: string; required?: boolea
   return (
     <label className="block">
       <span className="text-xs font-semibold text-slate-700">
-        {label}{required && <span className="ml-0.5 text-rose-600">*</span>}
+        {label}{required && <span className="ml-0.5 text-red-600">*</span>}
       </span>
       <div className="mt-1">{children}</div>
     </label>

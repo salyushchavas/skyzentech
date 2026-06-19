@@ -56,11 +56,11 @@ export default function ExitFeedbackPage() {
       )}
 
       {!loading && existing && (
-        <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-5 text-sm text-emerald-900">
+        <div className="rounded-lg border border-green-200 bg-green-50 p-5 text-sm text-green-900">
           <p className="font-semibold">
             Feedback submitted on {new Date(existing.submittedAt).toLocaleDateString()}
           </p>
-          <p className="mt-2 text-emerald-800">
+          <p className="mt-2 text-green-800">
             Thank you. Feedback is one-time; contact Help if you need to amend.
           </p>
           <dl className="mt-4 grid grid-cols-2 gap-3">

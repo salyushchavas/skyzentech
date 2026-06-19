@@ -116,7 +116,7 @@ export default function EscalationsPage() {
               className={
                 'rounded-full border px-2.5 py-0.5 text-xs font-medium ' +
                 (severity === c.key
-                  ? 'border-rose-600 bg-rose-600 text-white'
+                  ? 'border-red-600 bg-red-600 text-white'
                   : 'border-slate-200 text-slate-700 hover:bg-slate-50')
               }
             >
@@ -138,7 +138,7 @@ export default function EscalationsPage() {
         </div>
 
         {err && (
-          <p className="mb-3 rounded-md border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800">
+          <p className="mb-3 rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-800">
             {err}
           </p>
         )}
@@ -231,7 +231,7 @@ function ScopeToggle({
 function Row({ row }: { row: ExceptionRow }) {
   const ageClass =
     row.ageDays >= 7
-      ? 'text-rose-700 font-semibold'
+      ? 'text-red-700 font-semibold'
       : row.ageDays >= 3
         ? 'text-amber-700'
         : 'text-slate-600';

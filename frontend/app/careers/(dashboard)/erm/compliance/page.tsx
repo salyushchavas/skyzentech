@@ -120,7 +120,7 @@ export default function CompliancePipelinePage() {
         </div>
 
         {err && (
-          <p className="mb-3 rounded-md border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800">
+          <p className="mb-3 rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-800">
             {err}
           </p>
         )}
@@ -194,7 +194,7 @@ function Kpi({
 }) {
   const toneClass =
     tone === 'rose'
-      ? 'border-rose-200 bg-rose-50'
+      ? 'border-red-200 bg-red-50'
       : tone === 'amber'
         ? 'border-amber-200 bg-amber-50'
         : 'border-slate-200 bg-white';

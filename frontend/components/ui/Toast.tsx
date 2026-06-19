@@ -14,8 +14,8 @@ export const toast = {
   success(message: ReactNode) {
     return hot.custom(
       () => (
-        <div className="pointer-events-auto flex items-start gap-2.5 rounded-md border border-emerald-200 bg-white px-3.5 py-2.5 shadow-ds-md">
-          <CheckCircle2 className="mt-0.5 h-4 w-4 text-emerald-600" strokeWidth={2.5} />
+        <div className="pointer-events-auto flex items-start gap-2.5 rounded-md border border-green-200 bg-white px-3.5 py-2.5 shadow-ds-md">
+          <CheckCircle2 className="mt-0.5 h-4 w-4 text-green-600" strokeWidth={2.5} />
           <p className="text-sm text-slate-800">{message}</p>
         </div>
       ),

@@ -290,7 +290,7 @@ function ManagerReportsInner() {
           </button>
         </div>
         {err && (
-          <p className="mt-3 inline-flex items-start gap-1.5 rounded-md border border-rose-200 bg-rose-50 p-3 text-xs text-rose-800">
+          <p className="mt-3 inline-flex items-start gap-1.5 rounded-md border border-red-200 bg-red-50 p-3 text-xs text-red-800">
             <AlertTriangle className="mt-0.5 h-4 w-4" />
             <span>{err}</span>
           </p>

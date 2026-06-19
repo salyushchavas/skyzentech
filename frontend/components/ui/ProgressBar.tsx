@@ -22,7 +22,7 @@ export default function ProgressBar({
   className,
 }: ProgressBarProps) {
   const pct = Math.max(0, Math.min(100, (value / max) * 100));
-  // Use the tone's icon class as the fill family (e.g. text-emerald-600 → bg-emerald-500).
+  // Use the tone's icon class as the fill family (e.g. text-green-600 → bg-green-500).
   const fillBg = TONE_CLASSES[accent].icon.replace('text-', 'bg-').replace('-600', '-500').replace('-500', '-500');
   return (
     <div className={cn('w-full', className)}>

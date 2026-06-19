@@ -21,7 +21,7 @@ export default function NextStepCard({ step }: { step: NextStepData | null }) {
       className={
         'rounded-lg border p-4 ' +
         (waiting
-          ? 'border-sky-200 bg-sky-50'
+          ? 'border-slate-300 bg-slate-100'
           : 'border-accent/30 bg-accent/5')
       }
     >
@@ -30,7 +30,7 @@ export default function NextStepCard({ step }: { step: NextStepData | null }) {
           <div className="flex items-center gap-2">
             <p className="text-sm font-semibold text-slate-900">{step.title}</p>
             {waiting && (
-              <span className="inline-flex items-center gap-1 rounded-full bg-sky-200 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-sky-800">
+              <span className="inline-flex items-center gap-1 rounded-full bg-slate-200 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-slate-700">
                 <PauseCircle className="h-3 w-3" strokeWidth={2.5} />
                 Waiting
               </span>
@@ -40,7 +40,7 @@ export default function NextStepCard({ step }: { step: NextStepData | null }) {
             <p className="mt-0.5 text-xs text-slate-600">{step.subtitle}</p>
           )}
           {waiting && step.waitingFor && (
-            <p className="mt-0.5 text-xs text-sky-800">On {step.waitingFor}</p>
+            <p className="mt-0.5 text-xs text-slate-700">On {step.waitingFor}</p>
           )}
         </div>
         {!waiting && step.ctaHref && step.ctaLabel && (

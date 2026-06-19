@@ -43,7 +43,7 @@ export default function EvaluatorHomePage() {
       </header>
 
       {dashboardError && (
-        <p className="rounded-md border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800">
+        <p className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-800">
           {dashboardError}
         </p>
       )}
@@ -79,7 +79,7 @@ function KpiCard({ snapshot }: { snapshot: KpiSnapshot }) {
           {snapshot.label}
         </p>
         {urgent && (
-          <span className="inline-flex items-center gap-0.5 rounded-full bg-rose-100 px-2 py-0.5 text-[10px] font-semibold text-rose-700">
+          <span className="inline-flex items-center gap-0.5 rounded-full bg-red-100 px-2 py-0.5 text-[10px] font-semibold text-red-700">
             <AlertCircle className="h-3 w-3" />
             {snapshot.urgentCount}
           </span>

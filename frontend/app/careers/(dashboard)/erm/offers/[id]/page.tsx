@@ -94,7 +94,7 @@ export default function OfferDetailPage() {
       <ProtectedRoute requiredRoles={['ERM', 'SUPER_ADMIN']}>
         <DashboardLayout>
           <PageHeader title="Offer" />
-          <p className="rounded-md border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800">
+          <p className="rounded-md border border-red-200 bg-red-50 p-4 text-sm text-red-800">
             {err ?? 'Offer not found'}
           </p>
         </DashboardLayout>
@@ -125,7 +125,7 @@ export default function OfferDetailPage() {
           <OfferStatusPill status={data.status} />
           {data.expiresAt && (
             <span className={expiringSoon
-              ? 'rounded-full bg-rose-100 px-2 py-0.5 text-[11px] font-semibold text-rose-700'
+              ? 'rounded-full bg-red-100 px-2 py-0.5 text-[11px] font-semibold text-red-700'
               : 'text-xs text-slate-500'}>
               Expires {new Date(data.expiresAt).toLocaleString()}
             </span>
@@ -293,7 +293,7 @@ export default function OfferDetailPage() {
                     <button
                       type="button"
                       onClick={() => setModal('void')}
-                      className="w-full rounded-md border border-rose-200 px-3 py-2 text-sm font-semibold text-rose-700 hover:bg-rose-50"
+                      className="w-full rounded-md border border-red-200 px-3 py-2 text-sm font-semibold text-red-700 hover:bg-red-50"
                     >
                       Void offer
                     </button>

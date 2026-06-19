@@ -267,7 +267,7 @@ function AssignProjectPageInner() {
       <StepIndicator step={step} />
 
       {err && (
-        <p className="rounded-md border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800">
+        <p className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-800">
           {err}
         </p>
       )}
@@ -352,7 +352,7 @@ function AssignProjectPageInner() {
             type="button"
             onClick={publish}
             disabled={submitting || !canStep4}
-            className="rounded-md bg-emerald-700 px-4 py-1.5 text-sm font-semibold text-white hover:bg-emerald-800 disabled:bg-slate-300"
+            className="rounded-md bg-green-700 px-4 py-1.5 text-sm font-semibold text-white hover:bg-green-800 disabled:bg-slate-300"
           >
             {submitting ? 'Publishing…' : 'Publish + Notify'}
           </button>
@@ -381,7 +381,7 @@ function StepIndicator({ step }: { step: number }) {
           <li key={l} className="flex items-center gap-1">
             <span className={
               'inline-flex h-5 w-5 items-center justify-center rounded-full text-[10px] font-semibold ' +
-              (done ? 'bg-emerald-600 text-white'
+              (done ? 'bg-green-600 text-white'
                 : active ? 'bg-brand-700 text-white' : 'bg-slate-200 text-slate-600')
             }>{done ? '✓' : n}</span>
             <span className={active ? 'font-medium text-slate-900' : ''}>{l}</span>
@@ -454,7 +454,7 @@ function Step1({
               onChange={() => setProjectNumber(2)}
             />
             {slot.bothTaken && (
-              <p className="rounded-md border border-rose-200 bg-rose-50 p-2 text-xs text-rose-800">
+              <p className="rounded-md border border-red-200 bg-red-50 p-2 text-xs text-red-800">
                 Both slots assigned for {slot.monthYear}. Cancel an existing project first or pick a different month.
               </p>
             )}
@@ -580,7 +580,7 @@ function Step3(p: {
         {p.projectFile ? (
           <div className="flex items-center justify-between rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm">
             <span>{p.projectFile.name} ({Math.round(p.projectFile.size / 1024)} KB)</span>
-            <button type="button" onClick={() => p.setProjectFile(null)} className="text-xs text-rose-700">Remove</button>
+            <button type="button" onClick={() => p.setProjectFile(null)} className="text-xs text-red-700">Remove</button>
           </div>
         ) : (
           <button type="button" onClick={() => fileRef.current?.click()}

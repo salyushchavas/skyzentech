@@ -119,7 +119,7 @@ export default function AssignPacketModal({
 
         <div className="flex-1 overflow-y-auto px-5 py-4">
           {err && (
-            <p className="mb-3 rounded-md border border-rose-200 bg-rose-50 p-2 text-xs text-rose-800">
+            <p className="mb-3 rounded-md border border-red-200 bg-red-50 p-2 text-xs text-red-800">
               {err}
             </p>
           )}

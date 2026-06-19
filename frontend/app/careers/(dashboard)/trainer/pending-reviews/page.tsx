@@ -158,7 +158,7 @@ function PendingReviewsInner() {
         </span>
       </div>
 
-      {err && <p className="rounded-md border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800">{err}</p>}
+      {err && <p className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-800">{err}</p>}
 
       <div className="overflow-hidden rounded-lg border border-slate-200 bg-white">
         {loading && !data ? (
@@ -214,7 +214,7 @@ function Row({ r, onOpen }: { r: PendingRow; onOpen: () => void }) {
       </td>
       <td className="px-3 py-2 text-xs">
         <span className={urgent
-          ? 'rounded bg-rose-100 px-2 py-0.5 font-semibold text-rose-800'
+          ? 'rounded bg-red-100 px-2 py-0.5 font-semibold text-red-800'
           : 'text-slate-700'}>
           {Math.round(r.hoursWaiting)}h
         </span>
@@ -344,7 +344,7 @@ function ReviewModal({ submissionId, onClose, onSubmitted }: {
           {/* LEFT: submission viewer */}
           <section className="space-y-3">
             <h4 className="text-xs font-semibold uppercase text-slate-500">Submission</h4>
-            {loadErr && <p className="rounded-md border border-rose-200 bg-rose-50 p-2 text-xs text-rose-800">{loadErr}</p>}
+            {loadErr && <p className="rounded-md border border-red-200 bg-red-50 p-2 text-xs text-red-800">{loadErr}</p>}
             {detail ? (
               <>
                 {detail.description && (
@@ -375,7 +375,7 @@ function ReviewModal({ submissionId, onClose, onSubmitted }: {
                           </p>
                           {p.description && <p className="mt-1 whitespace-pre-wrap text-slate-700">{p.description}</p>}
                           {p.trainerFeedback && (
-                            <p className="mt-1 whitespace-pre-wrap text-rose-700">
+                            <p className="mt-1 whitespace-pre-wrap text-red-700">
                               <strong>Trainer feedback:</strong> {p.trainerFeedback}
                             </p>
                           )}
@@ -454,9 +454,9 @@ function ReviewModal({ submissionId, onClose, onSubmitted }: {
             <Field label="Decision*">
               <div className="space-y-1 text-sm">
                 {[
-                  { v: 'ACCEPT', label: 'Accept — project Completed', icon: CheckCircle2, tone: 'text-emerald-700' },
+                  { v: 'ACCEPT', label: 'Accept — project Completed', icon: CheckCircle2, tone: 'text-green-700' },
                   { v: 'REQUEST_REVISION', label: 'Request revision', icon: RotateCcw, tone: 'text-amber-700' },
-                  { v: 'ESCALATE', label: 'Escalate to ERM + Manager', icon: AlertOctagon, tone: 'text-rose-700' },
+                  { v: 'ESCALATE', label: 'Escalate to ERM + Manager', icon: AlertOctagon, tone: 'text-red-700' },
                   { v: 'NO_ACTION_YET', label: 'No action yet (silent state)', icon: Clock, tone: 'text-slate-700' },
                 ].map(({ v, label, icon: Icon, tone }) => (
                   <label key={v}
@@ -474,11 +474,11 @@ function ReviewModal({ submissionId, onClose, onSubmitted }: {
             {decision === 'ESCALATE' && (
               <Field label={`Escalation reason (≥ 50 chars — ${escalationReason.length})*`}>
                 <textarea value={escalationReason} onChange={(e) => setEscalationReason(e.target.value)} rows={3} maxLength={5000}
-                  className="w-full rounded-md border border-rose-300 px-2 py-1.5 text-sm" />
+                  className="w-full rounded-md border border-red-300 px-2 py-1.5 text-sm" />
               </Field>
             )}
 
-            {err && <p className="rounded-md border border-rose-200 bg-rose-50 p-2 text-xs text-rose-800">{err}</p>}
+            {err && <p className="rounded-md border border-red-200 bg-red-50 p-2 text-xs text-red-800">{err}</p>}
 
             <div className="flex justify-end gap-2 border-t border-slate-100 pt-3">
               <button type="button" onClick={onClose} className="rounded-md border border-slate-200 px-3 py-1.5 text-sm">Cancel</button>

@@ -8,7 +8,7 @@ interface Props {
 const COLOR: Record<string, string> = {
   DRAFT: 'bg-gray-200 text-gray-700',
   COMPLETE: 'bg-slate-100 text-slate-700',
-  SUBMITTED_TO_DSO: 'bg-purple-100 text-purple-800',
+  SUBMITTED_TO_DSO: 'bg-slate-100 text-slate-700',
   DSO_APPROVED: 'bg-green-100 text-green-800',
   DSO_REJECTED: 'bg-red-100 text-red-800',
   AMENDMENT_REQUESTED: 'bg-amber-100 text-amber-800',

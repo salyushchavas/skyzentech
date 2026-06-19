@@ -201,7 +201,7 @@ function ReportPanel({
 
   if (err) {
     return (
-      <p className="rounded-md border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800">
+      <p className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-800">
         {err}
       </p>
     );
@@ -366,9 +366,9 @@ function CompletionTable({
             <tr key={i} className="border-t border-slate-100">
               <td className="px-2 py-1 text-slate-900">{b.mentorName ?? '—'}</td>
               <td className="px-2 py-1">{b.activated}</td>
-              <td className="px-2 py-1 text-emerald-700">{b.completed}</td>
+              <td className="px-2 py-1 text-green-700">{b.completed}</td>
               <td className="px-2 py-1 text-amber-700">{b.resigned}</td>
-              <td className="px-2 py-1 text-rose-700">{b.terminated}</td>
+              <td className="px-2 py-1 text-red-700">{b.terminated}</td>
               <td className="px-2 py-1 text-slate-600">{b.inProgress}</td>
             </tr>
           ))}
@@ -469,10 +469,10 @@ function TimesheetView({ data }: { data: TimesheetComplianceData }) {
                   <td className="px-2 py-1 text-slate-900">{b.internName ?? '—'}</td>
                   <td className="px-2 py-1">{b.weeksTracked}</td>
                   <td className="px-2 py-1">{b.onTimeSubmitted}</td>
-                  <td className="px-2 py-1 text-emerald-700">
+                  <td className="px-2 py-1 text-green-700">
                     {b.approvedFirstTry}
                   </td>
-                  <td className="px-2 py-1 text-rose-700">{b.everRejected}</td>
+                  <td className="px-2 py-1 text-red-700">{b.everRejected}</td>
                   <td className="px-2 py-1">{fmt1(b.onTimePct)}</td>
                   <td className="px-2 py-1">{fmt1(b.firstTryPct)}</td>
                 </tr>

@@ -74,7 +74,7 @@ export default function NewHireDetailPage() {
       <ProtectedRoute requiredRoles={['ERM', 'SUPER_ADMIN']}>
         <DashboardLayout>
           <PageHeader title="New Hire" />
-          <p className="rounded-md border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800">
+          <p className="rounded-md border border-red-200 bg-red-50 p-4 text-sm text-red-800">
             {err ?? 'New hire not found'}
           </p>
         </DashboardLayout>
@@ -179,7 +179,7 @@ export default function NewHireDetailPage() {
                 </p>
               )}
               {activateErr && (
-                <p className="mt-2 rounded-md border border-rose-200 bg-rose-50 p-2 text-xs text-rose-800">
+                <p className="mt-2 rounded-md border border-red-200 bg-red-50 p-2 text-xs text-red-800">
                   {activateErr}
                 </p>
               )}
@@ -283,7 +283,7 @@ function RoleCard({
   return (
     <div className={
       'rounded-md border p-3 ' +
-      (stub ? 'border-emerald-200 bg-emerald-50/30' : 'border-dashed border-slate-300 bg-slate-50')
+      (stub ? 'border-green-200 bg-green-50/30' : 'border-dashed border-slate-300 bg-slate-50')
     }>
       <p className="text-[11px] font-semibold uppercase text-slate-500">{role}</p>
       {stub ? (
@@ -310,7 +310,7 @@ function RoleCardWithAssign({
   return (
     <div className={
       'rounded-md border p-3 ' +
-      (stub ? 'border-emerald-200 bg-emerald-50/30' : 'border-dashed border-slate-300 bg-slate-50')
+      (stub ? 'border-green-200 bg-green-50/30' : 'border-dashed border-slate-300 bg-slate-50')
     }>
       <div className="flex items-center justify-between">
         <p className="text-[11px] font-semibold uppercase text-slate-500">{role}</p>
@@ -427,7 +427,7 @@ function AssignManagerModal({
             </label>
           )}
           {err && (
-            <p className="rounded-md border border-rose-200 bg-rose-50 p-2 text-xs text-rose-800">
+            <p className="rounded-md border border-red-200 bg-red-50 p-2 text-xs text-red-800">
               {err}
             </p>
           )}

@@ -29,10 +29,10 @@ const STATUS_TONE: Record<ProjectAssignmentStatus, string> = {
   ASSIGNED:       'bg-slate-100 text-slate-700',
   IN_PROGRESS:    'bg-amber-100 text-amber-800',
   SUBMITTED:      'bg-slate-100 text-slate-700',
-  RETURNED:       'bg-rose-100 text-rose-800',
-  TECH_APPROVED:  'bg-emerald-100 text-emerald-800',
+  RETURNED:       'bg-red-100 text-red-800',
+  TECH_APPROVED:  'bg-green-100 text-green-800',
   PENDING_VIVA:   'bg-slate-100 text-slate-700',
-  COMPLETED:      'bg-emerald-100 text-emerald-800',
+  COMPLETED:      'bg-green-100 text-green-800',
 };
 
 const STATUS_LABEL: Record<ProjectAssignmentStatus, string> = {
@@ -92,7 +92,7 @@ export default function InternProjectDetailPage() {
     return (
       <InternPageShell title="Project">
         <BackLink />
-        <p className="mt-4 rounded-md border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800">
+        <p className="mt-4 rounded-md border border-red-200 bg-red-50 p-4 text-sm text-red-800">
           {err ?? 'Project not found'}
         </p>
       </InternPageShell>
@@ -144,12 +144,12 @@ function StatusBar({ a }: { a: AssignmentSummary }) {
         {STATUS_LABEL[a.status]}
       </span>
       {revisionRequested && a.status !== 'RETURNED' && (
-        <span className="rounded-full bg-rose-100 px-2.5 py-0.5 text-xs font-semibold text-rose-800">
+        <span className="rounded-full bg-red-100 px-2.5 py-0.5 text-xs font-semibold text-red-800">
           Trainer requested changes
         </span>
       )}
       {accepted && (
-        <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2.5 py-0.5 text-xs font-semibold text-emerald-800">
+        <span className="inline-flex items-center gap-1 rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-semibold text-green-800">
           <CheckCircle2 className="h-3 w-3" /> Trainer accepted
         </span>
       )}
@@ -165,7 +165,7 @@ function DueChip({ iso, submittedAt }: { iso: string; submittedAt: string | null
   return (
     <span className={
       'inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-medium '
-      + (overdue ? 'bg-rose-100 text-rose-800' : 'bg-slate-100 text-slate-700')
+      + (overdue ? 'bg-red-100 text-red-800' : 'bg-slate-100 text-slate-700')
     }>
       <Clock className="h-3 w-3" />
       {overdue
@@ -215,8 +215,8 @@ function TrainerFeedbackCard({ a }: { a: AssignmentSummary }) {
   }
   const decision = sub.trainerDecision;
   const tone =
-    decision === 'ACCEPT' ? 'border-emerald-200 bg-emerald-50 text-emerald-900'
-    : decision === 'REQUEST_REVISION' ? 'border-rose-200 bg-rose-50 text-rose-900'
+    decision === 'ACCEPT' ? 'border-green-200 bg-green-50 text-green-900'
+    : decision === 'REQUEST_REVISION' ? 'border-red-200 bg-red-50 text-red-900'
     : 'border-amber-200 bg-amber-50 text-amber-900';
   return (
     <section className={'rounded-lg border p-5 shadow-sm ' + tone}>
@@ -383,7 +383,7 @@ function SubmissionForm({
   return (
     <div className="mt-3 space-y-4">
       {isResubmit && (
-        <p className="rounded-md border border-rose-200 bg-rose-50 p-3 text-xs text-rose-800">
+        <p className="rounded-md border border-red-200 bg-red-50 p-3 text-xs text-red-800">
           The trainer requested changes on your previous submission. Update
           your links / notes and re-submit.
         </p>
@@ -410,11 +410,11 @@ function SubmissionForm({
                     placeholder="https://github.com/you/your-repo"
                     className={
                       'w-full rounded-md border px-3 py-2 text-sm '
-                      + (invalid ? 'border-rose-400' : 'border-slate-200')
+                      + (invalid ? 'border-red-400' : 'border-slate-200')
                     }
                   />
                   {invalid && (
-                    <p className="mt-1 text-xs text-rose-700">
+                    <p className="mt-1 text-xs text-red-700">
                       {validateUrl(trimmed)}
                     </p>
                   )}
@@ -457,7 +457,7 @@ function SubmissionForm({
       </div>
 
       {err && (
-        <p className="rounded-md border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800">
+        <p className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-800">
           {err}
         </p>
       )}
@@ -541,16 +541,16 @@ function KtCard({ a }: { a: AssignmentSummary }) {
     <section className={
       'rounded-lg border p-5 shadow-sm text-sm '
       + (done
-          ? 'border-emerald-200 bg-emerald-50'
+          ? 'border-green-200 bg-green-50'
           : 'border-slate-200 bg-white')
     }>
       <div className="flex items-center gap-2">
-        <GraduationCap className={'h-4 w-4 ' + (done ? 'text-emerald-700' : 'text-slate-500')} />
+        <GraduationCap className={'h-4 w-4 ' + (done ? 'text-green-700' : 'text-slate-500')} />
         <h3 className="text-sm font-semibold text-slate-900">KT session</h3>
         <span className={
           'ml-auto rounded-full px-2 py-0.5 text-[11px] font-medium '
           + (done
-              ? 'bg-emerald-100 text-emerald-800'
+              ? 'bg-green-100 text-green-800'
               : 'bg-slate-100 text-slate-700')
         }>
           {done ? 'Done' : 'Not done'}
@@ -573,8 +573,8 @@ function KtCard({ a }: { a: AssignmentSummary }) {
             </a>
           )}
           {kt.notes && (
-            <div className="mt-2 rounded-md border border-emerald-200 bg-white p-2">
-              <p className="text-[11px] font-semibold uppercase tracking-wide text-emerald-700">
+            <div className="mt-2 rounded-md border border-green-200 bg-white p-2">
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-green-700">
                 Notes
               </p>
               <p className="mt-1 whitespace-pre-wrap text-xs text-slate-700">

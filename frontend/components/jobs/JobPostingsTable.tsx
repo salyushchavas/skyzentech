@@ -198,7 +198,7 @@ function ApplyCell({
 
   if (applied) {
     return (
-      <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-semibold text-emerald-700">
+      <span className="inline-flex items-center gap-1 rounded-full bg-green-100 px-2 py-0.5 text-[10px] font-semibold text-green-700">
         <CheckCircle2 className="h-3 w-3" />
         Applied
       </span>
@@ -279,7 +279,7 @@ function KnowMoreDrawer({
           Close
         </button>
         {applied ? (
-          <span className="inline-flex items-center gap-1 rounded-md bg-emerald-100 px-3 py-1.5 text-xs font-semibold text-emerald-700">
+          <span className="inline-flex items-center gap-1 rounded-md bg-green-100 px-3 py-1.5 text-xs font-semibold text-green-700">
             <CheckCircle2 className="h-3 w-3" />
             Already applied
           </span>

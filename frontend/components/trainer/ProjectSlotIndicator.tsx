@@ -4,10 +4,10 @@ import type { ProjectSlot, ProjectSlotState } from './types';
 
 const SLOT_TONE: Record<ProjectSlotState, string> = {
   NOT_ASSIGNED: 'bg-slate-200',
-  ASSIGNED: 'bg-sky-500',
+  ASSIGNED: 'bg-slate-500',
   IN_PROGRESS: 'bg-amber-500',
-  COMPLETED: 'bg-emerald-500',
-  OVERDUE: 'bg-rose-500',
+  COMPLETED: 'bg-green-500',
+  OVERDUE: 'bg-red-500',
 };
 
 const SLOT_LABEL: Record<ProjectSlotState, string> = {

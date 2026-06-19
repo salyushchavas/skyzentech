@@ -37,8 +37,8 @@ interface RightPanelResponse {
 
 const REMINDER_STYLES: Record<Reminder['severity'], { box: string; icon: React.ReactNode }> = {
   URGENT: {
-    box: 'border-rose-200 bg-rose-50 text-rose-900',
-    icon: <AlertCircle className="h-4 w-4 text-rose-600" strokeWidth={2.5} />,
+    box: 'border-red-200 bg-red-50 text-red-900',
+    icon: <AlertCircle className="h-4 w-4 text-red-600" strokeWidth={2.5} />,
   },
   WARN: {
     box: 'border-amber-200 bg-amber-50 text-amber-900',

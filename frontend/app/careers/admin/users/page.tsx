@@ -51,14 +51,17 @@ const ROLE_LABEL: Record<UserRole, string> = {
   SUPER_ADMIN: 'Super admin',
 };
 
+// role-badge palette deferred to M2 role-consolidation
+// (TRAINER/RM/MANAGER all share amber today — fold or split lands with M2).
+// INTERN uses light slate, SUPER_ADMIN uses dark slate, to differentiate.
 const ROLE_COLOR: Record<UserRole, string> = {
-  INTERN: 'bg-sky-100 text-sky-800',
+  INTERN: 'bg-slate-100 text-slate-700',
   TRAINER: 'bg-amber-100 text-amber-800',
   EVALUATOR: 'bg-brand-100 text-brand-800',
   REPORTING_MANAGER: 'bg-amber-100 text-amber-800',
   MANAGER: 'bg-amber-100 text-amber-800',
-  ERM: 'bg-emerald-100 text-emerald-800',
-  SUPER_ADMIN: 'bg-slate-100 text-slate-700',
+  ERM: 'bg-green-100 text-green-800',
+  SUPER_ADMIN: 'bg-slate-200 text-slate-900',
 };
 
 // Show SUPER_ADMIN first if present (god-mode); then MANAGER (oversight);
@@ -230,7 +233,7 @@ function UsersTable() {
       )}
 
       {toast && (
-        <div className="mb-4 rounded border border-emerald-200 bg-emerald-50 px-4 py-2 text-sm text-emerald-800">
+        <div className="mb-4 rounded border border-green-200 bg-green-50 px-4 py-2 text-sm text-green-800">
           {toast}
         </div>
       )}
@@ -325,13 +328,13 @@ function UsersTable() {
                       <span
                         className={
                           'inline-flex items-center gap-1.5 text-sm ' +
-                          (u.active ? 'text-emerald-700' : 'text-gray-500')
+                          (u.active ? 'text-green-700' : 'text-gray-500')
                         }
                       >
                         <span
                           className={
                             'h-2 w-2 rounded-full ' +
-                            (u.active ? 'bg-emerald-500' : 'bg-gray-400')
+                            (u.active ? 'bg-green-500' : 'bg-gray-400')
                           }
                         />
                         {u.active ? 'Active' : 'Inactive'}

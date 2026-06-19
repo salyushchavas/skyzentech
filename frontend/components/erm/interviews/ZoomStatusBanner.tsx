@@ -22,7 +22,7 @@ const TONE_BY_STATUS: Record<
   { tone: string; icon: React.ReactNode; title: string; body: string }
 > = {
   OK: {
-    tone: 'border-emerald-200 bg-emerald-50 text-emerald-900',
+    tone: 'border-green-200 bg-green-50 text-green-900',
     icon: <CheckCircle2 className="h-4 w-4" />,
     title: 'Zoom meeting created',
     body: 'The join link below is auto-generated. Reschedule will update the same meeting.',
@@ -48,13 +48,13 @@ const TONE_BY_STATUS: Record<
     body: 'ZOOM_ENABLED=false on the server. Unset the kill-switch to use the configured credentials.',
   },
   CREATE_FAILED: {
-    tone: 'border-rose-200 bg-rose-50 text-rose-900',
+    tone: 'border-red-200 bg-red-50 text-red-900',
     icon: <AlertTriangle className="h-4 w-4" />,
     title: "Zoom link couldn't be created",
     body: 'The interview is saved. Use Regenerate to retry once the underlying issue is fixed.',
   },
   UPDATE_FAILED: {
-    tone: 'border-rose-200 bg-rose-50 text-rose-900',
+    tone: 'border-red-200 bg-red-50 text-red-900',
     icon: <AlertTriangle className="h-4 w-4" />,
     title: 'Zoom meeting update failed on reschedule',
     body:

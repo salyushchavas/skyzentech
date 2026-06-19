@@ -12,12 +12,12 @@ import type {
 
 const WORK_AUTH_OPTIONS: { value: string; label: string; tone: string }[] = [
   { value: '',                label: 'All',          tone: 'border-slate-200' },
-  { value: 'US_CITIZEN',      label: 'US Citizen',   tone: 'border-emerald-200' },
-  { value: 'PERMANENT_RESIDENT', label: 'Permanent Resident', tone: 'border-emerald-200' },
+  { value: 'US_CITIZEN',      label: 'US Citizen',   tone: 'border-green-200' },
+  { value: 'PERMANENT_RESIDENT', label: 'Permanent Resident', tone: 'border-green-200' },
   { value: 'F1_CPT',          label: 'F-1 CPT',      tone: 'border-amber-200' },
   { value: 'F1_OPT',          label: 'F-1 OPT',      tone: 'border-amber-200' },
   { value: 'F1_STEM_OPT',     label: 'F-1 STEM OPT', tone: 'border-amber-200' },
-  { value: 'H1B',             label: 'H-1B',         tone: 'border-sky-200' },
+  { value: 'H1B',             label: 'H-1B',         tone: 'border-slate-300' },
 ];
 
 export default function ActiveEvalueesPage() {
@@ -141,7 +141,7 @@ function ActiveEvalueesInner() {
       </div>
 
       {err && (
-        <p className="rounded-md border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800">
+        <p className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-800">
           {err}
         </p>
       )}
@@ -244,7 +244,7 @@ function Row({ row, onClick }: { row: ActiveEvalueeRow; onClick: () => void }) {
       <td className="px-3 py-2 text-xs">
         {row.lastEvaluationAt ? (
           <div>
-            <p className={lastEvalLate ? 'text-rose-700 font-semibold' : 'text-slate-700'}>
+            <p className={lastEvalLate ? 'text-red-700 font-semibold' : 'text-slate-700'}>
               {new Date(row.lastEvaluationAt).toLocaleDateString()}
             </p>
             <p className="text-[10px] text-slate-500">{row.lastEvaluationStatus}</p>
@@ -258,7 +258,7 @@ function Row({ row, onClick }: { row: ActiveEvalueeRow; onClick: () => void }) {
       </td>
       <td className="px-3 py-2">
         {needsAck ? (
-          <span className="inline-flex rounded-full bg-rose-100 px-2 py-0.5 text-[10px] font-semibold text-rose-700">
+          <span className="inline-flex rounded-full bg-red-100 px-2 py-0.5 text-[10px] font-semibold text-red-700">
             {row.pendingAckCount}
           </span>
         ) : (

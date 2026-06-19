@@ -89,7 +89,7 @@ function CircleBadge({
   if (step.status === 'DONE') {
     return (
       <span
-        className={cn(base, size, 'bg-emerald-600 text-white shadow-sm')}
+        className={cn(base, size, 'bg-green-600 text-white shadow-sm')}
         aria-label={`${step.label} (done)`}
       >
         <Check className="h-4 w-4" strokeWidth={3} />
@@ -124,7 +124,7 @@ function Connector({ prevDone }: { prevDone: boolean }) {
     <div
       className={cn(
         'mt-4 h-0.5 flex-1 transition-colors',
-        prevDone ? 'bg-emerald-600' : 'bg-slate-200',
+        prevDone ? 'bg-green-600' : 'bg-slate-200',
       )}
       aria-hidden
     />

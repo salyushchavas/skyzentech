@@ -205,7 +205,7 @@ function RiskCenterInner() {
       </section>
 
       {err && (
-        <p className="rounded-md border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800">
+        <p className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-800">
           {err}
         </p>
       )}
@@ -367,7 +367,7 @@ function Row({
               Note
             </button>
             <button type="button" onClick={onResolve}
-              className="inline-flex items-center gap-1 rounded-md bg-emerald-600 px-2 py-1 text-[11px] font-semibold text-white hover:bg-emerald-700"
+              className="inline-flex items-center gap-1 rounded-md bg-green-600 px-2 py-1 text-[11px] font-semibold text-white hover:bg-green-700"
               title="Resolve">
               <Check className="h-3 w-3" />
               Resolve
@@ -383,7 +383,7 @@ function Row({
 
 function SeverityBadge({ sev }: { sev: RiskRow['severity'] }) {
   const map = {
-    URGENT: 'bg-rose-600 text-white',
+    URGENT: 'bg-red-600 text-white',
     WARN: 'bg-amber-500 text-white',
     INFO: 'bg-slate-500 text-white',
   };
@@ -402,9 +402,9 @@ function StatusPill({ status }: { status: RiskRow['status'] }) {
     OPEN: 'bg-slate-100 text-slate-700',
     ASSIGNED: 'bg-amber-100 text-amber-800',
     IN_PROGRESS: 'bg-amber-100 text-amber-800',
-    RESOLVED: 'bg-emerald-100 text-emerald-700',
+    RESOLVED: 'bg-green-100 text-green-700',
     DISMISSED: 'bg-slate-100 text-slate-500',
-    AUTO_RESOLVED: 'bg-emerald-100 text-emerald-700',
+    AUTO_RESOLVED: 'bg-green-100 text-green-700',
   };
   return (
     <span className={
@@ -447,7 +447,7 @@ function PillButton({
   children: React.ReactNode;
 }) {
   const activeMap = {
-    rose: 'bg-rose-600 text-white',
+    rose: 'bg-red-600 text-white',
     amber: 'bg-amber-500 text-white',
     slate: 'bg-slate-600 text-white',
   };
@@ -470,9 +470,9 @@ function SummaryCard({
   value: number;
   tone?: 'slate' | 'emerald' | 'amber' | 'rose';
 }) {
-  const cls = tone === 'emerald' ? 'text-emerald-700'
+  const cls = tone === 'emerald' ? 'text-green-700'
     : tone === 'amber' ? 'text-amber-700'
-    : tone === 'rose' ? 'text-rose-700'
+    : tone === 'rose' ? 'text-red-700'
     : 'text-slate-900';
   return (
     <div className="rounded-lg border border-slate-200 bg-white p-3 shadow-sm">
@@ -617,7 +617,7 @@ function ActionModal({
             disabled={pending || !canSubmit}
             className={
               'rounded-md px-4 py-1.5 text-xs font-semibold text-white disabled:opacity-50 ' +
-              (kind === 'resolve' ? 'bg-emerald-600 hover:bg-emerald-700'
+              (kind === 'resolve' ? 'bg-green-600 hover:bg-green-700'
                 : 'bg-brand-700 hover:bg-brand-800')
             }>
             {pending ? 'Working…' : kind === 'resolve' ? 'Resolve' : 'Submit'}

@@ -85,7 +85,7 @@ export default function InternMessagesPage() {
       </div>
 
       {loading && <div className="h-32 animate-pulse rounded-lg bg-slate-50" aria-hidden />}
-      {err && <p className="rounded-md border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800">{err}</p>}
+      {err && <p className="rounded-md border border-red-200 bg-red-50 p-4 text-sm text-red-800">{err}</p>}
       {!loading && !err && items.length === 0 && (
         <p className="rounded-md border border-dashed border-slate-300 bg-white p-10 text-center text-sm text-slate-500">
           <Bell className="mx-auto mb-2 h-6 w-6 text-slate-300" />

@@ -71,7 +71,7 @@ export default function ManagerOverrideModal({
         </div>
         <div className="space-y-3 px-5 py-4">
           <label className="block text-xs font-medium text-slate-700">
-            Reason code <span className="text-rose-500">*</span>
+            Reason code <span className="text-red-500">*</span>
             <select
               value={reasonCode}
               onChange={(e) => setReasonCode(e.target.value)}
@@ -86,7 +86,7 @@ export default function ManagerOverrideModal({
             </select>
           </label>
           <label className="block text-xs font-medium text-slate-700">
-            Reason detail (≥30 chars) <span className="text-rose-500">*</span>
+            Reason detail (≥30 chars) <span className="text-red-500">*</span>
             <textarea
               rows={3}
               value={reasonText}
@@ -98,7 +98,7 @@ export default function ManagerOverrideModal({
             </span>
           </label>
           {err && (
-            <p className="rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-700">
+            <p className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
               {err}
             </p>
           )}
@@ -115,7 +115,7 @@ export default function ManagerOverrideModal({
             type="button"
             disabled={!canSubmit}
             onClick={() => void submit()}
-            className="rounded-md bg-rose-600 px-3 py-1.5 text-sm font-semibold text-white disabled:opacity-50"
+            className="rounded-md bg-red-600 px-3 py-1.5 text-sm font-semibold text-white disabled:opacity-50"
           >
             {submitting ? 'Saving…' : 'Confirm override'}
           </button>

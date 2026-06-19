@@ -192,12 +192,12 @@ export default function TrainerHelpPage() {
         </ul>
       </section>
 
-      <section className="rounded-lg border border-rose-200 bg-rose-50 p-4">
-        <h2 className="inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-rose-900">
+      <section className="rounded-lg border border-red-200 bg-red-50 p-4">
+        <h2 className="inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-red-900">
           <AlertOctagon className="h-3.5 w-3.5" />
           When to escalate
         </h2>
-        <ul className="mt-2 list-inside list-disc space-y-1 text-xs text-rose-900">
+        <ul className="mt-2 list-inside list-disc space-y-1 text-xs text-red-900">
           <li>Intern misses 2 consecutive weekly meetings without notice.</li>
           <li>Same project rejected 3 times in a row with no improvement trajectory.</li>
           <li>Intern reports a blocker outside your control (access, equipment, account).</li>

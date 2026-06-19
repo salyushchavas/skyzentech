@@ -214,8 +214,8 @@ function SummaryStrip({ summary }: { summary: RollupSummary }) {
     slate: 'bg-slate-50 text-slate-900',
     blue: 'bg-slate-100 text-slate-700',
     indigo: 'bg-slate-100 text-slate-700',
-    emerald: 'bg-emerald-50 text-emerald-900',
-    rose: 'bg-rose-50 text-rose-900',
+    emerald: 'bg-green-50 text-green-900',
+    rose: 'bg-red-50 text-red-900',
     amber: 'bg-amber-50 text-amber-900',
   };
   return (
@@ -328,8 +328,8 @@ function StatusChip({ status }: { status: TimesheetStatus | null }) {
     DRAFT:     { tone: 'bg-slate-100 text-slate-700 ring-slate-200',          label: 'Draft',     icon: null },
     SUBMITTED: { tone: 'bg-slate-100 text-slate-700 ring-slate-200',              label: 'Submitted', icon: <Lock className="h-2.5 w-2.5" /> },
     VERIFIED:  { tone: 'bg-slate-100 text-slate-700 ring-slate-200',        label: 'Verified',  icon: <ShieldCheck className="h-2.5 w-2.5" /> },
-    APPROVED:  { tone: 'bg-emerald-50 text-emerald-800 ring-emerald-200',     label: 'Approved',  icon: <CheckCircle2 className="h-2.5 w-2.5" /> },
-    REJECTED:  { tone: 'bg-rose-50 text-rose-800 ring-rose-200',              label: 'Rejected',  icon: <AlertTriangle className="h-2.5 w-2.5" /> },
+    APPROVED:  { tone: 'bg-green-50 text-green-800 ring-green-200',     label: 'Approved',  icon: <CheckCircle2 className="h-2.5 w-2.5" /> },
+    REJECTED:  { tone: 'bg-red-50 text-red-800 ring-red-200',              label: 'Rejected',  icon: <AlertTriangle className="h-2.5 w-2.5" /> },
   };
   const c = cfg[status];
   return (
@@ -425,7 +425,7 @@ function CellExpanded({
       </div>
 
       {cell.reviewNote && (
-        <div className="rounded-md border border-rose-200 bg-rose-50 p-2 text-xs text-rose-900">
+        <div className="rounded-md border border-red-200 bg-red-50 p-2 text-xs text-red-900">
           <p className="font-semibold">Last reviewer note</p>
           <p className="mt-0.5 whitespace-pre-wrap">{cell.reviewNote}</p>
         </div>
@@ -457,19 +457,19 @@ function CellExpanded({
       )}
 
       {err && (
-        <p className="rounded-md border border-rose-200 bg-rose-50 p-2 text-xs text-rose-800">{err}</p>
+        <p className="rounded-md border border-red-200 bg-red-50 p-2 text-xs text-red-800">{err}</p>
       )}
 
       {rejecting ? (
-        <div className="space-y-2 rounded-md border border-rose-200 bg-rose-50 p-2">
-          <label className="text-xs font-medium text-rose-900">Reason for sending back</label>
+        <div className="space-y-2 rounded-md border border-red-200 bg-red-50 p-2">
+          <label className="text-xs font-medium text-red-900">Reason for sending back</label>
           <textarea
             value={reason}
             onChange={(e) => setReason(e.target.value)}
             rows={3}
             maxLength={500}
             placeholder="What needs to change before the intern resubmits?"
-            className="w-full rounded-md border border-rose-300 bg-white px-2 py-1 text-xs"
+            className="w-full rounded-md border border-red-300 bg-white px-2 py-1 text-xs"
           />
           <div className="flex justify-end gap-2">
             <button
@@ -483,7 +483,7 @@ function CellExpanded({
               type="button"
               onClick={doReject}
               disabled={busy != null}
-              className="rounded-md border border-rose-700 bg-rose-700 px-2 py-1 text-xs font-semibold text-white hover:bg-rose-800 disabled:opacity-50"
+              className="rounded-md border border-red-700 bg-red-700 px-2 py-1 text-xs font-semibold text-white hover:bg-red-800 disabled:opacity-50"
             >
               {busy === 'reject' ? 'Sending…' : 'Send back'}
             </button>
@@ -495,7 +495,7 @@ function CellExpanded({
             <button
               type="button"
               onClick={() => setRejecting(true)}
-              className="inline-flex items-center gap-1 rounded-md border border-rose-300 bg-white px-2.5 py-1 text-xs font-medium text-rose-700 hover:bg-rose-50"
+              className="inline-flex items-center gap-1 rounded-md border border-red-300 bg-white px-2.5 py-1 text-xs font-medium text-red-700 hover:bg-red-50"
             >
               <XCircle className="h-3 w-3" /> Reject
             </button>

@@ -122,7 +122,7 @@ export default function ComposePage() {
     return <div className="mx-auto max-w-6xl p-6"><div className="h-48 animate-pulse rounded-lg bg-slate-100" /></div>;
   }
   if (err && !data) {
-    return <div className="mx-auto max-w-6xl p-6"><p className="rounded-md border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800">{err}</p></div>;
+    return <div className="mx-auto max-w-6xl p-6"><p className="rounded-md border border-red-200 bg-red-50 p-4 text-sm text-red-800">{err}</p></div>;
   }
   if (!data) return null;
 
@@ -228,7 +228,7 @@ export default function ComposePage() {
             <h2 className="text-sm font-semibold text-slate-900">Feedback</h2>
             <p className="text-xs text-slate-500">
               Total chars across all 3 fields: <span className={
-                feedbackChars >= 50 ? 'text-emerald-700' : 'text-rose-700'
+                feedbackChars >= 50 ? 'text-green-700' : 'text-red-700'
               }>{feedbackChars}</span> / 50 minimum
             </p>
             <div className="mt-3 space-y-3">
@@ -267,7 +267,7 @@ export default function ComposePage() {
             {isFinal && (
               <p className="mt-1 text-xs text-slate-500">
                 This is the final verdict for the entire engagement. Selecting{' '}
-                <span className="font-semibold text-emerald-700">REHIRE_ELIGIBLE</span>{' '}
+                <span className="font-semibold text-green-700">REHIRE_ELIGIBLE</span>{' '}
                 marks the intern for the rehire pipeline in ERM.
               </p>
             )}
@@ -333,7 +333,7 @@ export default function ComposePage() {
           </section>
 
           {err && (
-            <p className="rounded-md border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800">
+            <p className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-800">
               {err}
             </p>
           )}
@@ -342,7 +342,7 @@ export default function ComposePage() {
             <div className="flex items-center justify-between rounded-lg border border-slate-200 bg-white px-4 py-3">
               <p className="text-[11px] text-slate-500">
                 {savedAt && (
-                  <span className="text-emerald-700">
+                  <span className="text-green-700">
                     Saved at {savedAt.toLocaleTimeString()}
                   </span>
                 )}

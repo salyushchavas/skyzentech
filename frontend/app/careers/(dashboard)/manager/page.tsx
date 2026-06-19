@@ -62,7 +62,7 @@ export default function ManagerHomePage() {
       </header>
 
       {err && (
-        <p className="rounded-md border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800">
+        <p className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-800">
           {err}
         </p>
       )}
@@ -223,9 +223,9 @@ function CountCard({
   hint?: string;
   tone?: 'slate' | 'emerald' | 'amber' | 'rose';
 }) {
-  const cls = tone === 'emerald' ? 'text-emerald-700'
+  const cls = tone === 'emerald' ? 'text-green-700'
     : tone === 'amber' ? 'text-amber-700'
-    : tone === 'rose' ? 'text-rose-700'
+    : tone === 'rose' ? 'text-red-700'
     : 'text-slate-900';
   return (
     <Link

@@ -5,10 +5,10 @@ import type { OfferStatus } from './types';
 const STYLES: Record<OfferStatus, string> = {
   DRAFT: 'bg-slate-100 text-slate-600',
   SENT: 'bg-amber-100 text-amber-800',
-  SIGNED: 'bg-emerald-100 text-emerald-800',
+  SIGNED: 'bg-green-100 text-green-800',
   VOIDED: 'bg-slate-200 text-slate-700',
-  EXPIRED: 'bg-rose-100 text-rose-800',
-  DECLINED: 'bg-rose-100 text-rose-800',
+  EXPIRED: 'bg-red-100 text-red-800',
+  DECLINED: 'bg-red-100 text-red-800',
 };
 
 const LABEL: Record<OfferStatus, string> = {

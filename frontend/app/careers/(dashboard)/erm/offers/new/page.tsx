@@ -234,7 +234,7 @@ function CreateOfferPageInner() {
               </div>
 
               {needsSelectionAck && (
-                <p className="rounded-md border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800">
+                <p className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-800">
                   <strong>Selection acknowledgment required.</strong>{' '}
                   The applicant hasn&apos;t clicked &quot;Receive my offer letter&quot;
                   on their dashboard yet, so the offer can&apos;t be sent. The
@@ -243,7 +243,7 @@ function CreateOfferPageInner() {
               )}
 
               {err && (
-                <p className="rounded-md border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800">
+                <p className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-800">
                   {err}
                 </p>
               )}
@@ -306,7 +306,7 @@ function Field({
   return (
     <div>
       <label className="text-sm font-medium text-slate-800">
-        {label} {required && <span className="text-rose-600">*</span>}
+        {label} {required && <span className="text-red-600">*</span>}
       </label>
       <input
         value={value}
@@ -360,7 +360,7 @@ function DateField({
   return (
     <div>
       <label className="text-sm font-medium text-slate-800">
-        {label} {required && <span className="text-rose-600">*</span>}
+        {label} {required && <span className="text-red-600">*</span>}
       </label>
       <input
         type="date"

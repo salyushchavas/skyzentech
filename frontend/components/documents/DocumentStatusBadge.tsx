@@ -11,8 +11,8 @@ const COLOR_MAP: Record<DocumentStatusColor, string> = {
   red: 'bg-red-100 text-red-800',
   blue: 'bg-slate-100 text-slate-700',
   gray: 'bg-gray-100 text-gray-700',
-  purple: 'bg-purple-100 text-purple-800',
-  orange: 'bg-orange-100 text-orange-800',
+  purple: 'bg-slate-100 text-slate-700',
+  orange: 'bg-amber-100 text-amber-800',
 };
 
 export default function DocumentStatusBadge({ statusLabel, color }: Props) {

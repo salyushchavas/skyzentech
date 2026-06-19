@@ -49,7 +49,7 @@ export default function InternDocumentsPage() {
       subtitle="Download each template, fill it offline, then upload the completed file."
     >
       {err && (
-        <p className="mb-3 rounded-md border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800">
+        <p className="mb-3 rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-800">
           {err}
         </p>
       )}
@@ -87,14 +87,14 @@ function PacketView({ packet, onChanged }: {
           <span className={
             'rounded-full px-3 py-1 text-xs font-semibold ' +
             (packet.status === 'COMPLETED'
-              ? 'bg-emerald-100 text-emerald-800'
+              ? 'bg-green-100 text-green-800'
               : 'bg-amber-100 text-amber-800')
           }>
             {packet.status.replace('_', ' ')}
           </span>
         </div>
         <div className="mt-3 h-2 overflow-hidden rounded-full bg-slate-100">
-          <div className="h-full bg-emerald-500" style={{ width: `${pct}%` }} />
+          <div className="h-full bg-green-500" style={{ width: `${pct}%` }} />
         </div>
         {packet.customInstructions && (
           <p className="mt-3 whitespace-pre-wrap rounded-md bg-slate-50 p-3 text-xs text-slate-700">
@@ -156,8 +156,8 @@ function SubmitHandoffCard({
 
   if (packet.status === 'COMPLETED') {
     return (
-      <section className="mb-4 rounded-lg border border-emerald-200 bg-emerald-50 p-4 shadow-sm">
-        <p className="inline-flex items-center gap-2 text-sm font-semibold text-emerald-900">
+      <section className="mb-4 rounded-lg border border-green-200 bg-green-50 p-4 shadow-sm">
+        <p className="inline-flex items-center gap-2 text-sm font-semibold text-green-900">
           <CheckCircle2 className="h-4 w-4" />
           ERM has verified all your documents. You&apos;re onboarded.
         </p>
@@ -228,7 +228,7 @@ function SubmitHandoffCard({
         </button>
       </div>
       {err && (
-        <p className="mt-2 rounded-md border border-rose-200 bg-rose-50 p-2 text-xs text-rose-800">
+        <p className="mt-2 rounded-md border border-red-200 bg-red-50 p-2 text-xs text-red-800">
           {err}
         </p>
       )}
@@ -327,7 +327,7 @@ function TaskCard({ task, packet, onChanged }: {
             </p>
           )}
           {showReviewerComments && (
-            <div className="mt-2 rounded-md border border-rose-200 bg-rose-50 p-2 text-xs text-rose-800">
+            <div className="mt-2 rounded-md border border-red-200 bg-red-50 p-2 text-xs text-red-800">
               <p className="font-semibold">ERM feedback:</p>
               <p className="mt-1 whitespace-pre-wrap">{task.reviewComments}</p>
             </div>
@@ -380,7 +380,7 @@ function TaskCard({ task, packet, onChanged }: {
         </div>
       </div>
       {err && (
-        <p className="mt-2 rounded-md border border-rose-200 bg-rose-50 p-2 text-xs text-rose-800">
+        <p className="mt-2 rounded-md border border-red-200 bg-red-50 p-2 text-xs text-red-800">
           {err}
         </p>
       )}
@@ -393,9 +393,9 @@ function TaskBadge({ status }: { status: TaskStatus }) {
     PENDING: 'bg-slate-100 text-slate-700',
     SUBMITTED: 'bg-slate-100 text-slate-700',
     UNDER_REVIEW: 'bg-amber-100 text-amber-800',
-    ACCEPTED: 'bg-emerald-100 text-emerald-800',
-    REJECTED: 'bg-rose-100 text-rose-800',
-    RESEND_REQUESTED: 'bg-orange-100 text-orange-800',
+    ACCEPTED: 'bg-green-100 text-green-800',
+    REJECTED: 'bg-red-100 text-red-800',
+    RESEND_REQUESTED: 'bg-amber-100 text-amber-800',
     WAIVED: 'bg-slate-200 text-slate-700',
   };
   return (

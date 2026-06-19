@@ -21,10 +21,10 @@ import type { CandidateOfferResponse, OfferStatus } from '@/types';
 const STATUS_PILL: Record<OfferStatus, string> = {
   DRAFT:    'bg-slate-100 text-slate-700',
   SENT:     'bg-amber-100 text-amber-800',
-  SIGNED:   'bg-emerald-100 text-emerald-800',
-  ACCEPTED: 'bg-emerald-100 text-emerald-800',
-  VOIDED:   'bg-rose-100 text-rose-800',
-  REVOKED:  'bg-rose-100 text-rose-800',
+  SIGNED:   'bg-green-100 text-green-800',
+  ACCEPTED: 'bg-green-100 text-green-800',
+  VOIDED:   'bg-red-100 text-red-800',
+  REVOKED:  'bg-red-100 text-red-800',
   EXPIRED:  'bg-slate-100 text-slate-600',
   DECLINED: 'bg-slate-100 text-slate-600',
 };
@@ -63,7 +63,7 @@ export default function InternOfferPage() {
   if (err) {
     return (
       <InternPageShell title="Offer Letter">
-        <p className="rounded-md border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800">{err}</p>
+        <p className="rounded-md border border-red-200 bg-red-50 p-4 text-sm text-red-800">{err}</p>
       </InternPageShell>
     );
   }
@@ -144,7 +144,7 @@ function SentVariant({
         {daysUntilExpiry !== null && (
           <span className={
             'rounded-full px-3 py-1 text-xs font-medium '
-            + (daysUntilExpiry <= 2 ? 'bg-rose-100 text-rose-800' : 'bg-slate-100 text-slate-700')
+            + (daysUntilExpiry <= 2 ? 'bg-red-100 text-red-800' : 'bg-slate-100 text-slate-700')
           }>
             <Clock className="mr-1 inline h-3 w-3" />
             Expires in {daysUntilExpiry} day{daysUntilExpiry === 1 ? '' : 's'}
@@ -188,8 +188,8 @@ function SentVariant({
 
 function SignedVariant({ offer }: { offer: CandidateOfferResponse }) {
   return (
-    <section className="overflow-hidden rounded-lg border border-emerald-200 bg-white shadow-sm">
-      <div className="bg-emerald-600 px-6 py-3 text-sm font-semibold text-white">
+    <section className="overflow-hidden rounded-lg border border-green-200 bg-white shadow-sm">
+      <div className="bg-green-600 px-6 py-3 text-sm font-semibold text-white">
         <CheckCircle2 className="mr-2 inline h-4 w-4" strokeWidth={2.5} />
         Signed{offer.signedAt ? ` on ${new Date(offer.signedAt).toLocaleString()}` : ''}
       </div>
@@ -202,7 +202,7 @@ function SignedVariant({ offer }: { offer: CandidateOfferResponse }) {
         )}
 
         {offer.employeeId && (
-          <div className="mt-4 inline-flex items-center gap-2 rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-semibold text-emerald-900">
+          <div className="mt-4 inline-flex items-center gap-2 rounded-md border border-green-200 bg-green-50 px-3 py-2 text-sm font-semibold text-green-900">
             <Sparkles className="h-4 w-4" strokeWidth={2.5} />
             Employee ID: <span className="font-mono">{offer.employeeId}</span>
           </div>
@@ -226,8 +226,8 @@ function SignedVariant({ offer }: { offer: CandidateOfferResponse }) {
 
 function VoidedVariant({ offer }: { offer: CandidateOfferResponse }) {
   return (
-    <section className="rounded-lg border border-rose-200 bg-white p-6 shadow-sm">
-      <div className="inline-flex items-center gap-1.5 rounded-full bg-rose-100 px-2.5 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-rose-800">
+    <section className="rounded-lg border border-red-200 bg-white p-6 shadow-sm">
+      <div className="inline-flex items-center gap-1.5 rounded-full bg-red-100 px-2.5 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-red-800">
         <XCircle className="h-3 w-3" strokeWidth={2.5} />
         Voided
       </div>

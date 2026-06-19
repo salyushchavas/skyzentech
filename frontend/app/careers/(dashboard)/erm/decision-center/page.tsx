@@ -96,7 +96,7 @@ export default function ErmDecisionCenterPage() {
         </div>
 
         {err && (
-          <p className="mb-3 rounded-md border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800">
+          <p className="mb-3 rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-800">
             {err}
           </p>
         )}
@@ -192,7 +192,7 @@ function Row({ row, onSend }: { row: AwaitingOfferRow; onSend: () => void }) {
       </td>
       <td className="px-3 py-2 text-xs">
         {row.overallRecommendation ? (
-          <span className="rounded-full bg-emerald-50 px-2 py-0.5 font-semibold text-emerald-700">
+          <span className="rounded-full bg-green-50 px-2 py-0.5 font-semibold text-green-700">
             {row.overallRecommendation.replaceAll('_', ' ')}
           </span>
         ) : (
@@ -216,7 +216,7 @@ function Row({ row, onSend }: { row: AwaitingOfferRow; onSend: () => void }) {
 function EmptyState() {
   return (
     <div className="flex flex-col items-center gap-3 p-12 text-center">
-      <CheckCircle2 className="h-8 w-8 text-emerald-500" />
+      <CheckCircle2 className="h-8 w-8 text-green-500" />
       <p className="text-sm font-medium text-slate-800">No applicants waiting for an offer.</p>
       <p className="max-w-sm text-xs text-slate-500">
         When you complete an interview with the <strong>SELECTED</strong> decision, the

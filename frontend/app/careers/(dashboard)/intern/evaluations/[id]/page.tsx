@@ -90,7 +90,7 @@ export default function InternEvaluationDetailPage() {
   if (err || !eval_) {
     return (
       <InternPageShell title="Evaluation">
-        <p className="rounded-md border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800">
+        <p className="rounded-md border border-red-200 bg-red-50 p-4 text-sm text-red-800">
           {err ?? 'Evaluation not found'}
         </p>
       </InternPageShell>
@@ -169,7 +169,7 @@ export default function InternEvaluationDetailPage() {
           </button>
         </section>
       ) : eval_.internAcknowledgedAt && (
-        <section className="mt-6 rounded-lg border border-emerald-200 bg-emerald-50 p-5 text-sm text-emerald-900">
+        <section className="mt-6 rounded-lg border border-green-200 bg-green-50 p-5 text-sm text-green-900">
           <div className="inline-flex items-center gap-1 font-semibold">
             <CheckCircle2 className="h-4 w-4" />
             Acknowledged on {new Date(eval_.internAcknowledgedAt).toLocaleString()}

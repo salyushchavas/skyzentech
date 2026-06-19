@@ -38,7 +38,7 @@ export default function EvaluationDetailPage() {
     return <div className="mx-auto max-w-5xl p-6"><div className="h-48 animate-pulse rounded-lg bg-slate-100" /></div>;
   }
   if (err || !data) {
-    return <div className="mx-auto max-w-5xl p-6"><p className="rounded-md border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800">{err ?? 'Not found'}</p></div>;
+    return <div className="mx-auto max-w-5xl p-6"><p className="rounded-md border border-red-200 bg-red-50 p-4 text-sm text-red-800">{err ?? 'Not found'}</p></div>;
   }
 
   const canAmend = ['PUBLISHED', 'ACKNOWLEDGED', 'AMENDED'].includes(data.status);
@@ -127,7 +127,7 @@ export default function EvaluationDetailPage() {
         <h2 className="text-sm font-semibold text-slate-900">Intern acknowledgment</h2>
         {data.internAcknowledgedAt ? (
           <div>
-            <p className="mt-2 text-xs text-emerald-700">
+            <p className="mt-2 text-xs text-green-700">
               Acknowledged {new Date(data.internAcknowledgedAt).toLocaleString()}
             </p>
             {data.internResponse && (
@@ -175,7 +175,7 @@ export default function EvaluationDetailPage() {
 
 function StatusPill({ status }: { status: string }) {
   const tone = status === 'PUBLISHED' ? 'bg-amber-100 text-amber-800'
-    : status === 'ACKNOWLEDGED' ? 'bg-emerald-100 text-emerald-800'
+    : status === 'ACKNOWLEDGED' ? 'bg-green-100 text-green-800'
     : status === 'AMENDED' ? 'bg-amber-100 text-amber-800'
     : 'bg-slate-100 text-slate-700';
   return <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${tone}`}>{status}</span>;
@@ -282,7 +282,7 @@ function AmendModal({
         <div className="flex-1 overflow-y-auto px-5 py-4 space-y-3">
           <label className="block">
             <span className="text-xs font-semibold text-slate-700">
-              Amendment reason <span className="text-rose-600">*</span>{' '}
+              Amendment reason <span className="text-red-600">*</span>{' '}
               <span className="text-[10px] text-slate-500">
                 ({reason.trim().length}/30 min)
               </span>
@@ -345,7 +345,7 @@ function AmendModal({
           </div>
 
           {err && (
-            <p className="rounded-md border border-rose-200 bg-rose-50 p-2 text-xs text-rose-800">
+            <p className="rounded-md border border-red-200 bg-red-50 p-2 text-xs text-red-800">
               {err}
             </p>
           )}

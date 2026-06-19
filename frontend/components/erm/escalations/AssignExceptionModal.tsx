@@ -49,7 +49,7 @@ export default function AssignExceptionModal({
         </div>
         <div className="px-5 py-4">
           <label className="block text-xs font-medium text-slate-700">
-            Assignee user ID <span className="text-rose-500">*</span>
+            Assignee user ID <span className="text-red-500">*</span>
             <input
               value={assigneeUserId}
               onChange={(e) => setAssigneeUserId(e.target.value)}
@@ -61,7 +61,7 @@ export default function AssignExceptionModal({
             </span>
           </label>
           {err && (
-            <p className="mt-3 rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-700">
+            <p className="mt-3 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
               {err}
             </p>
           )}

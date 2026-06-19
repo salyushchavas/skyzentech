@@ -82,7 +82,7 @@ function StageStrip({
             <div
               aria-hidden="true"
               className={`mx-1 hidden h-px flex-1 sm:block ${
-                stage.state === 'done' ? 'bg-emerald-300' : 'bg-gray-200'
+                stage.state === 'done' ? 'bg-green-300' : 'bg-gray-200'
               }`}
             />
           )}
@@ -173,9 +173,9 @@ function stageVisuals(state: StageState): {
     case 'done':
       return {
         icon: Check,
-        bg: 'bg-emerald-100',
-        fg: 'text-emerald-700',
-        ring: 'ring-1 ring-emerald-200',
+        bg: 'bg-green-100',
+        fg: 'text-green-700',
+        ring: 'ring-1 ring-green-200',
       };
     case 'current':
       return {
@@ -226,8 +226,8 @@ function subStepVisuals(state: SubStepState): {
     case 'done':
       return {
         icon: Check,
-        bg: 'bg-emerald-100',
-        fg: 'text-emerald-700',
+        bg: 'bg-green-100',
+        fg: 'text-green-700',
         text: 'text-gray-700 line-through decoration-emerald-300',
       };
     case 'current':

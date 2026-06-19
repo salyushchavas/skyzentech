@@ -96,7 +96,7 @@ function Body({ id }: { id: string }) {
 
   if (err && !d) {
     return (
-      <p className="rounded-md border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800">
+      <p className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-800">
         {err}
       </p>
     );
@@ -149,7 +149,7 @@ function Body({ id }: { id: string }) {
               <button
                 type="button"
                 onClick={() => setModal('resolve')}
-                className="rounded-md bg-emerald-600 px-3 py-1 text-xs font-semibold text-white hover:bg-emerald-700"
+                className="rounded-md bg-green-600 px-3 py-1 text-xs font-semibold text-white hover:bg-green-700"
               >
                 Resolve
               </button>
@@ -213,16 +213,16 @@ function Body({ id }: { id: string }) {
           </div>
 
           {d.resolutionNote && (
-            <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-4">
-              <p className="mb-1 text-xs font-semibold text-emerald-800">
+            <div className="rounded-lg border border-green-200 bg-green-50 p-4">
+              <p className="mb-1 text-xs font-semibold text-green-800">
                 Resolution
                 {d.resolutionReasonCode && (
-                  <span className="ml-2 rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-semibold text-emerald-700">
+                  <span className="ml-2 rounded-full bg-green-100 px-2 py-0.5 text-[10px] font-semibold text-green-700">
                     {d.resolutionReasonCode}
                   </span>
                 )}
               </p>
-              <p className="whitespace-pre-wrap text-sm text-emerald-900">
+              <p className="whitespace-pre-wrap text-sm text-green-900">
                 {d.resolutionNote}
               </p>
             </div>
@@ -231,7 +231,7 @@ function Body({ id }: { id: string }) {
           <div className="rounded-lg border border-slate-200 bg-white p-4">
             <h3 className="mb-2 text-sm font-semibold text-slate-900">
               Add note
-              <span className="ml-2 text-[10px] font-normal text-rose-600">
+              <span className="ml-2 text-[10px] font-normal text-red-600">
                 ERM-only
               </span>
             </h3>

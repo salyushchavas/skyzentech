@@ -140,7 +140,7 @@ export default function RescheduleModal({ interview, open, onClose, onApplied }:
           </div>
           <div>
             <label className="text-sm font-medium text-slate-800">
-              Reason <span className="text-rose-600">*</span>
+              Reason <span className="text-red-600">*</span>
             </label>
             <select
               value={reasonCode}
@@ -162,7 +162,7 @@ export default function RescheduleModal({ interview, open, onClose, onApplied }:
           {selected?.requiresFreeText && (
             <div>
               <label className="text-sm font-medium text-slate-800">
-                Free-text reason <span className="text-rose-600">*</span>
+                Free-text reason <span className="text-red-600">*</span>
               </label>
               <textarea
                 value={reasonText}
@@ -191,7 +191,7 @@ export default function RescheduleModal({ interview, open, onClose, onApplied }:
             </label>
           </div>
           {err && (
-            <p className="rounded-md border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800">
+            <p className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-800">
               {err}
             </p>
           )}

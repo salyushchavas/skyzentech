@@ -46,8 +46,8 @@ const STYLE: Record<string, IconStyle> = {
   },
   REOPEN: {
     Icon: RotateCcw,
-    bg: 'bg-orange-100',
-    fg: 'text-orange-600',
+    bg: 'bg-amber-100',
+    fg: 'text-amber-600',
   },
 };
 

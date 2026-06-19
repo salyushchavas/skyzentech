@@ -9,7 +9,7 @@ const COLOR_MAP: Record<string, string> = {
   DRAFT: 'bg-gray-200 text-gray-700',
   SENT: 'bg-slate-100 text-slate-700',
   ACCEPTED: 'bg-green-100 text-green-800',
-  DECLINED: 'bg-orange-100 text-orange-800',
+  DECLINED: 'bg-red-100 text-red-800',
   EXPIRED: 'bg-amber-100 text-amber-800',
   REVOKED: 'bg-red-100 text-red-800',
 };

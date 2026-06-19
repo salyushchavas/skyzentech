@@ -163,7 +163,7 @@ function ManagerInactiveInternsInner() {
       </header>
 
       {err && (
-        <p className="rounded-md border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800">
+        <p className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-800">
           {err}
         </p>
       )}
@@ -232,15 +232,15 @@ function SummaryStrip({ rows }: { rows: InactiveRow[] }) {
 const TONE_BG: Record<string, string> = {
   slate: 'bg-slate-50',
   amber: 'bg-amber-50',
-  rose: 'bg-rose-50',
-  emerald: 'bg-emerald-50',
+  rose: 'bg-red-50',
+  emerald: 'bg-green-50',
   indigo: 'bg-slate-100',
 };
 const TONE_TEXT: Record<string, string> = {
   slate: 'text-slate-900',
   amber: 'text-amber-900',
-  rose: 'text-rose-900',
-  emerald: 'text-emerald-900',
+  rose: 'text-red-900',
+  emerald: 'text-green-900',
   indigo: 'text-slate-700',
 };
 
@@ -268,12 +268,12 @@ function RowCard({
             </span>
             <ExitTypePill type={row.exitType} />
             {row.rehireEligible === false && (
-              <span className="inline-flex items-center gap-1 rounded-full bg-rose-100 px-2 py-0.5 text-[11px] font-medium text-rose-800 ring-1 ring-inset ring-rose-200">
+              <span className="inline-flex items-center gap-1 rounded-full bg-red-100 px-2 py-0.5 text-[11px] font-medium text-red-800 ring-1 ring-inset ring-red-200">
                 <ShieldOff className="h-3 w-3" /> No rehire
               </span>
             )}
             {row.rehireEligible === true && row.exitType !== 'COMPLETED' && (
-              <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-medium text-emerald-800 ring-1 ring-inset ring-emerald-200">
+              <span className="inline-flex items-center gap-1 rounded-full bg-green-100 px-2 py-0.5 text-[11px] font-medium text-green-800 ring-1 ring-inset ring-green-200">
                 <ShieldCheck className="h-3 w-3" /> Rehirable
               </span>
             )}
@@ -415,7 +415,7 @@ function ChecklistRow({ ok, label }: { ok: boolean; label: string }) {
   return (
     <li className="flex items-center gap-1.5 text-slate-700">
       {ok
-        ? <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
+        ? <CheckCircle2 className="h-3.5 w-3.5 text-green-600" />
         : <XCircle className="h-3.5 w-3.5 text-slate-400" />}
       <span>{label}</span>
     </li>
@@ -431,9 +431,9 @@ function ExitTypePill({ type }: { type: ExitType | null }) {
     );
   }
   const cfg: Record<ExitType, { tone: string; label: string }> = {
-    COMPLETED:  { tone: 'bg-emerald-100 text-emerald-800 ring-emerald-200', label: 'Completed' },
+    COMPLETED:  { tone: 'bg-green-100 text-green-800 ring-green-200', label: 'Completed' },
     RESIGNED:   { tone: 'bg-amber-100 text-amber-800 ring-amber-200',       label: 'Resigned' },
-    TERMINATED: { tone: 'bg-rose-100 text-rose-800 ring-rose-200',          label: 'Terminated' },
+    TERMINATED: { tone: 'bg-red-100 text-red-800 ring-red-200',          label: 'Terminated' },
     EXTENDED:   { tone: 'bg-slate-100 text-slate-700 ring-slate-200',    label: 'Extended' },
   };
   const c = cfg[type];

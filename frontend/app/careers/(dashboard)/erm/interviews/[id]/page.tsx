@@ -107,7 +107,7 @@ export default function InterviewDetailPage() {
       <ProtectedRoute requiredRoles={['ERM', 'SUPER_ADMIN', 'MANAGER', 'TRAINER']}>
         <DashboardLayout>
           <PageHeader title="Interview" />
-          <p className="rounded-md border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800">
+          <p className="rounded-md border border-red-200 bg-red-50 p-4 text-sm text-red-800">
             {err ?? 'Interview not found'}
           </p>
         </DashboardLayout>
@@ -379,16 +379,16 @@ export default function InterviewDetailPage() {
 
             {data.status === 'COMPLETED'
               && data.managerHireDecision === 'REJECTED' && (
-              <section className="rounded-lg border border-rose-200 bg-rose-50 p-4 shadow-sm">
-                <h3 className="text-xs font-semibold uppercase tracking-wide text-rose-800">
+              <section className="rounded-lg border border-red-200 bg-red-50 p-4 shadow-sm">
+                <h3 className="text-xs font-semibold uppercase tracking-wide text-red-800">
                   Manager declined hire
                 </h3>
-                <p className="mt-2 text-xs text-rose-900">
+                <p className="mt-2 text-xs text-red-900">
                   A Manager declined this hire. The application has been
                   moved to REJECTED.
                 </p>
                 {data.managerHireDecisionNote && (
-                  <p className="mt-2 whitespace-pre-line text-xs text-rose-900">
+                  <p className="mt-2 whitespace-pre-line text-xs text-red-900">
                     {data.managerHireDecisionNote}
                   </p>
                 )}
@@ -396,23 +396,23 @@ export default function InterviewDetailPage() {
             )}
 
             {data.status === 'COMPLETED' && data.managerHireDecision === 'APPROVED' && (
-              <section className="rounded-lg border border-emerald-200 bg-emerald-50 p-4 shadow-sm">
+              <section className="rounded-lg border border-green-200 bg-green-50 p-4 shadow-sm">
                 {activeOffer ? (
                   <div>
                     <div className="flex items-center gap-2">
-                      <CheckCircle2 className="h-4 w-4 text-emerald-700" />
-                      <h3 className="text-xs font-semibold uppercase tracking-wide text-emerald-800">
+                      <CheckCircle2 className="h-4 w-4 text-green-700" />
+                      <h3 className="text-xs font-semibold uppercase tracking-wide text-green-800">
                         Offer {activeOffer.status === 'SIGNED' ? 'Signed' : 'Sent'}
                       </h3>
                     </div>
-                    <p className="mt-2 text-xs text-emerald-900">
+                    <p className="mt-2 text-xs text-green-900">
                       {activeOffer.status === 'SIGNED'
                         ? `Signed ${activeOffer.signedAt ? new Date(activeOffer.signedAt).toLocaleDateString() : '—'}`
                         : `Sent ${activeOffer.sentAt ? new Date(activeOffer.sentAt).toLocaleDateString() : '—'}`}
                     </p>
                     <Link
                       href={`/careers/erm/offers/${activeOffer.offerId}`}
-                      className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-emerald-800 hover:underline"
+                      className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-green-800 hover:underline"
                     >
                       Open offer
                       <ExternalLink className="h-3 w-3" />
@@ -420,10 +420,10 @@ export default function InterviewDetailPage() {
                   </div>
                 ) : (
                   <div>
-                    <h3 className="text-xs font-semibold uppercase tracking-wide text-emerald-800">
+                    <h3 className="text-xs font-semibold uppercase tracking-wide text-green-800">
                       Next step
                     </h3>
-                    <p className="mt-1 text-xs text-emerald-900">
+                    <p className="mt-1 text-xs text-green-900">
                       Applicant selected. Send the offer letter to advance the application.
                     </p>
                     <button
@@ -517,7 +517,7 @@ function Btn({
         (primary
           ? 'bg-brand-700 text-white hover:bg-brand-800 disabled:bg-slate-300'
           : danger
-            ? 'border border-rose-200 text-rose-700 hover:bg-rose-50 disabled:opacity-50'
+            ? 'border border-red-200 text-red-700 hover:bg-red-50 disabled:opacity-50'
             : 'border border-slate-200 text-slate-700 hover:bg-slate-50 disabled:opacity-50')
       }
     >

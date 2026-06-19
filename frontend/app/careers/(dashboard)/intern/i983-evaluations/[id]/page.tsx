@@ -68,7 +68,7 @@ export default function InternI983DetailPage() {
     return <InternPageShell title="I-983"><div className="h-32 animate-pulse rounded-lg bg-slate-100" /></InternPageShell>;
   }
   if (err || !data) {
-    return <InternPageShell title="I-983"><p className="rounded-md border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800">{err ?? 'Not found'}</p></InternPageShell>;
+    return <InternPageShell title="I-983"><p className="rounded-md border border-red-200 bg-red-50 p-4 text-sm text-red-800">{err ?? 'Not found'}</p></InternPageShell>;
   }
 
   return (
@@ -93,7 +93,7 @@ export default function InternI983DetailPage() {
         </div>
       )}
       {data.acknowledgedAt && (
-        <div className="mb-4 rounded-md border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-900">
+        <div className="mb-4 rounded-md border border-green-200 bg-green-50 p-3 text-sm text-green-900">
           <CheckCircle2 className="mr-1 inline h-4 w-4" />
           <strong>Signed on {new Date(data.acknowledgedAt).toLocaleString()}</strong>
           {data.studentTypedSignature && (
@@ -186,7 +186,7 @@ export default function InternI983DetailPage() {
           </label>
 
           {err && (
-            <p className="mt-3 rounded-md border border-rose-200 bg-rose-50 p-2 text-xs text-rose-800">{err}</p>
+            <p className="mt-3 rounded-md border border-red-200 bg-red-50 p-2 text-xs text-red-800">{err}</p>
           )}
 
           <div className="mt-4 flex items-center justify-between">

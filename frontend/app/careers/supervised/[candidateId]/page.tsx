@@ -81,20 +81,20 @@ interface EvaluatorOption {
 const ASSIGNMENT_COLOR: Record<AssignmentStatus, string> = {
   ASSIGNED: 'bg-slate-100 text-slate-700',
   IN_PROGRESS: 'bg-amber-100 text-amber-800',
-  SUBMITTED: 'bg-purple-100 text-purple-800',
-  REVIEWED: 'bg-emerald-100 text-emerald-800',
+  SUBMITTED: 'bg-slate-100 text-slate-700',
+  REVIEWED: 'bg-green-100 text-green-800',
 };
 
 const TIMESHEET_COLOR: Record<TimesheetStatus, string> = {
   DRAFT: 'bg-gray-100 text-gray-700',
-  SUBMITTED: 'bg-purple-100 text-purple-800',
-  APPROVED: 'bg-emerald-100 text-emerald-800',
+  SUBMITTED: 'bg-slate-100 text-slate-700',
+  APPROVED: 'bg-green-100 text-green-800',
   REJECTED: 'bg-red-100 text-red-800',
 };
 
 const EVALUATION_COLOR: Record<EvaluationStatus, string> = {
   SCHEDULED: 'bg-slate-100 text-slate-700',
-  COMPLETED: 'bg-emerald-100 text-emerald-800',
+  COMPLETED: 'bg-green-100 text-green-800',
   MISSED: 'bg-gray-100 text-gray-700',
 };
 
@@ -337,7 +337,7 @@ function InternDetail() {
       </div>
 
       {toast && (
-        <div className="rounded border border-emerald-200 bg-emerald-50 px-4 py-2 text-sm text-emerald-800">
+        <div className="rounded border border-green-200 bg-green-50 px-4 py-2 text-sm text-green-800">
           {toast}
         </div>
       )}
@@ -447,7 +447,7 @@ function InternDetail() {
                     <button
                       type="button"
                       onClick={() => void approveTimesheet(t)}
-                      className="rounded-md bg-emerald-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-emerald-700"
+                      className="rounded-md bg-green-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-green-700"
                     >
                       Approve ✓
                     </button>
@@ -730,8 +730,8 @@ function AssignmentRow({
             </div>
           )}
           {isReviewed && assignment.reviewNote && (
-            <div className="rounded border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-900">
-              <div className="mb-1 text-xs font-semibold uppercase tracking-wide text-emerald-700">
+            <div className="rounded border border-green-200 bg-green-50 p-3 text-sm text-green-900">
+              <div className="mb-1 text-xs font-semibold uppercase tracking-wide text-green-700">
                 Reviewer note
               </div>
               <p className="whitespace-pre-wrap">{assignment.reviewNote}</p>

@@ -112,7 +112,7 @@ function TemplatesTab() {
     <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
       <div className="space-y-3">
         {err && (
-          <p className="rounded-md border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800">
+          <p className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-800">
             {err}
           </p>
         )}
@@ -293,7 +293,7 @@ function TemplateEditor({
         </div>
       )}
       {err && (
-        <p className="mt-2 rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-700">
+        <p className="mt-2 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
           {err}
         </p>
       )}
@@ -351,7 +351,7 @@ function ReasonsTab() {
 
   if (err) {
     return (
-      <p className="rounded-md border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800">
+      <p className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-800">
         {err}
       </p>
     );
@@ -422,7 +422,7 @@ function WorkloadTab() {
 
   if (err) {
     return (
-      <p className="rounded-md border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800">
+      <p className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-800">
         {err}
       </p>
     );

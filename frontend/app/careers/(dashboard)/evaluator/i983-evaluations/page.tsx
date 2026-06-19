@@ -103,7 +103,7 @@ export default function I983EvaluationsPage() {
       </div>
 
       {err && (
-        <p className="rounded-md border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800">
+        <p className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-800">
           {err}
         </p>
       )}
@@ -195,7 +195,7 @@ function DueSoonRow({ row }: { row: I983ListRow }) {
         ) : row.nextDueDate ? (
           <span className={
             'inline-flex items-center gap-0.5 rounded-full px-2 py-0.5 font-semibold ' +
-            (isPast ? 'bg-rose-100 text-rose-700'
+            (isPast ? 'bg-red-100 text-red-700'
               : isUrgent ? 'bg-amber-100 text-amber-800'
                 : 'bg-slate-100 text-slate-700')
           }>
@@ -328,14 +328,14 @@ function CompletedTable({ rows }: { rows: I983ListRow[] }) {
               </td>
               <td className="px-3 py-2 text-xs">
                 {r.dsoSubmittedAt ? (
-                  <span className="inline-flex items-center gap-0.5 rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-semibold text-emerald-700">
+                  <span className="inline-flex items-center gap-0.5 rounded-full bg-green-100 px-2 py-0.5 text-[10px] font-semibold text-green-700">
                     <CheckCircle2 className="h-3 w-3" />
                     {new Date(r.dsoSubmittedAt).toLocaleDateString()}
                   </span>
                 ) : ackAt ? (
                   <span className={
                     'inline-flex items-center gap-0.5 rounded-full px-2 py-0.5 font-semibold ' +
-                    (dsoUrgent ? 'bg-rose-100 text-rose-700' : 'bg-amber-100 text-amber-800')
+                    (dsoUrgent ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-800')
                   }>
                     <Clock className="h-3 w-3" />
                     Pending ({daysSinceAck}d)
@@ -363,7 +363,7 @@ function CompletedTable({ rows }: { rows: I983ListRow[] }) {
 
 function StatusPill({ status }: { status: string }) {
   const tone = status === 'PUBLISHED' ? 'bg-amber-100 text-amber-800'
-    : status === 'IN_PROGRESS' ? 'bg-sky-100 text-sky-800'
+    : status === 'IN_PROGRESS' ? 'bg-slate-100 text-slate-700'
     : status === 'SCHEDULED' ? 'bg-slate-100 text-slate-700'
     : status === 'AMENDED' ? 'bg-amber-100 text-amber-800'
     : 'bg-slate-100 text-slate-700';

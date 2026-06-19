@@ -13,7 +13,7 @@ export default function KPICard({ snapshot }: { snapshot: KpiSnapshot }) {
         'group block rounded-lg border bg-white p-4 shadow-sm transition-all ' +
         'hover:-translate-y-0.5 hover:shadow-md ' +
         (isUrgent
-          ? 'border-rose-200 ring-1 ring-rose-100'
+          ? 'border-red-200 ring-1 ring-red-100'
           : 'border-slate-200')
       }
     >
@@ -31,7 +31,7 @@ export default function KPICard({ snapshot }: { snapshot: KpiSnapshot }) {
           {snapshot.count}
         </span>
         {isUrgent && (
-          <span className="rounded-full bg-rose-100 px-2 py-0.5 text-[11px] font-semibold text-rose-700">
+          <span className="rounded-full bg-red-100 px-2 py-0.5 text-[11px] font-semibold text-red-700">
             {snapshot.urgentCount} urgent
           </span>
         )}

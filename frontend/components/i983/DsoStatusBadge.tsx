@@ -7,7 +7,7 @@ interface Props {
 
 const COLOR: Record<string, string> = {
   NOT_SUBMITTED: 'bg-gray-200 text-gray-700',
-  SUBMITTED: 'bg-purple-100 text-purple-800',
+  SUBMITTED: 'bg-slate-100 text-slate-700',
   APPROVED: 'bg-green-100 text-green-800',
   REJECTED: 'bg-red-100 text-red-800',
   AMENDMENT_REQUESTED: 'bg-amber-100 text-amber-800',

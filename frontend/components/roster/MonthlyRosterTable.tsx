@@ -134,7 +134,7 @@ export default function MonthlyRosterTable({
       </div>
 
       {err && (
-        <p className="rounded-md border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800">
+        <p className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-800">
           {err}
         </p>
       )}
@@ -231,14 +231,14 @@ function SummaryStrip({
 const TONE_BG: Record<string, string> = {
   slate: 'bg-slate-50',
   amber: 'bg-amber-50',
-  rose: 'bg-rose-50',
-  emerald: 'bg-emerald-50',
+  rose: 'bg-red-50',
+  emerald: 'bg-green-50',
 };
 const TONE_TEXT: Record<string, string> = {
   slate: 'text-slate-900',
   amber: 'text-amber-900',
-  rose: 'text-rose-900',
-  emerald: 'text-emerald-900',
+  rose: 'text-red-900',
+  emerald: 'text-green-900',
 };
 
 // ── Row ──────────────────────────────────────────────────────────────────
@@ -257,7 +257,7 @@ function Row({
     <tr
       className={
         'transition-colors hover:bg-slate-50 '
-        + (attention ? 'bg-rose-50/40 ring-1 ring-inset ring-rose-200/40' : '')
+        + (attention ? 'bg-red-50/40 ring-1 ring-inset ring-red-200/40' : '')
       }
     >
       <td className="px-3 py-2">
@@ -270,7 +270,7 @@ function Row({
             {row.technologyTitle ? ' · ' + row.technologyTitle : ''}
           </span>
           {showNoManagerBadge && noManager && (
-            <span className="mt-1 inline-flex items-center gap-1 rounded-full bg-rose-100 px-2 py-0.5 text-[10px] font-medium text-rose-800 ring-1 ring-inset ring-rose-200">
+            <span className="mt-1 inline-flex items-center gap-1 rounded-full bg-red-100 px-2 py-0.5 text-[10px] font-medium text-red-800 ring-1 ring-inset ring-red-200">
               <UserX className="h-3 w-3" /> No manager
             </span>
           )}
@@ -442,10 +442,10 @@ function Pill({
   tone, children,
 }: { tone: PillTone; children: ReactNode }) {
   const tones: Record<PillTone, string> = {
-    emerald: 'bg-emerald-50 text-emerald-800 ring-emerald-200',
+    emerald: 'bg-green-50 text-green-800 ring-green-200',
     amber:   'bg-amber-50  text-amber-800  ring-amber-200',
-    rose:    'bg-rose-50   text-rose-800   ring-rose-200',
-    sky:     'bg-sky-50    text-sky-800    ring-sky-200',
+    rose:    'bg-red-50   text-red-800   ring-red-200',
+    sky:     'bg-slate-100    text-slate-700    ring-slate-200',
     slate:   'bg-slate-100 text-slate-700  ring-slate-200',
     indigo:  'bg-slate-100 text-slate-700 ring-slate-200',
   };

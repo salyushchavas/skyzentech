@@ -203,7 +203,7 @@ function Body() {
                 type="button"
                 onClick={() => setReturnOpen(true)}
                 disabled={busy !== null}
-                className="inline-flex items-center gap-1.5 rounded-md border border-orange-300 bg-white px-3 py-2 text-sm font-medium text-orange-800 hover:bg-orange-50 disabled:opacity-60"
+                className="inline-flex items-center gap-1.5 rounded-md border border-amber-300 bg-white px-3 py-2 text-sm font-medium text-amber-800 hover:bg-amber-50 disabled:opacity-60"
               >
                 <RotateCcw className="h-3.5 w-3.5" strokeWidth={2} />
                 Return for revisions
@@ -214,7 +214,7 @@ function Body() {
                 type="button"
                 onClick={() => setConfirmApprove(true)}
                 disabled={busy !== null}
-                className="inline-flex items-center gap-1.5 rounded-md bg-emerald-600 px-3 py-2 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-60"
+                className="inline-flex items-center gap-1.5 rounded-md bg-green-600 px-3 py-2 text-sm font-medium text-white hover:bg-green-700 disabled:opacity-60"
               >
                 <CheckCircle2 className="h-3.5 w-3.5" strokeWidth={2} />
                 Approve technically
@@ -338,7 +338,7 @@ function Body() {
                 type="button"
                 onClick={() => void approve()}
                 disabled={busy !== null}
-                className="inline-flex items-center gap-1.5 rounded-md bg-emerald-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-60"
+                className="inline-flex items-center gap-1.5 rounded-md bg-green-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-green-700 disabled:opacity-60"
               >
                 <CheckCircle2 className="h-3.5 w-3.5" strokeWidth={2} />
                 {busy === 'approve' ? 'Approving…' : 'Approve'}
@@ -401,7 +401,7 @@ function Body() {
                   || reason.trim().length < REASON_MIN
                   || reason.trim().length > REASON_MAX
                 }
-                className="inline-flex items-center gap-1.5 rounded-md border border-orange-300 bg-white px-3 py-1.5 text-sm font-medium text-orange-800 hover:bg-orange-50 disabled:opacity-60"
+                className="inline-flex items-center gap-1.5 rounded-md border border-amber-300 bg-white px-3 py-1.5 text-sm font-medium text-amber-800 hover:bg-amber-50 disabled:opacity-60"
               >
                 <RotateCcw className="h-3.5 w-3.5" strokeWidth={2} />
                 {busy === 'return' ? 'Returning…' : 'Return'}
@@ -419,8 +419,8 @@ function Body() {
 function OutcomeBadge({ outcome }: { outcome: ReviewOutcome }) {
   const palette: Record<ReviewOutcome, string> = {
     PENDING: 'bg-amber-100 text-amber-800',
-    APPROVED: 'bg-emerald-100 text-emerald-800',
-    RETURNED: 'bg-orange-100 text-orange-800',
+    APPROVED: 'bg-green-100 text-green-800',
+    RETURNED: 'bg-amber-100 text-amber-800',
   };
   const label: Record<ReviewOutcome, string> = {
     PENDING: 'Awaiting review',
@@ -442,12 +442,12 @@ function OutcomeBadge({ outcome }: { outcome: ReviewOutcome }) {
 function ReviewedBanner({ submission }: { submission: WorkspaceSubmission }) {
   if (submission.reviewOutcome === 'APPROVED') {
     return (
-      <div className="mb-3 flex items-start gap-2 rounded-md border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-900">
+      <div className="mb-3 flex items-start gap-2 rounded-md border border-green-200 bg-green-50 p-3 text-sm text-green-900">
         <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0" strokeWidth={2} />
         <div>
           <p className="font-medium">Technically approved.</p>
           {submission.reviewedAt && (
-            <p className="text-xs text-emerald-800">
+            <p className="text-xs text-green-800">
               {formatRelative(submission.reviewedAt)}
             </p>
           )}
@@ -457,7 +457,7 @@ function ReviewedBanner({ submission }: { submission: WorkspaceSubmission }) {
   }
   if (submission.reviewOutcome === 'RETURNED') {
     return (
-      <div className="mb-3 flex items-start gap-2 rounded-md border border-orange-200 bg-orange-50 p-3 text-sm text-orange-900">
+      <div className="mb-3 flex items-start gap-2 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
         <RotateCcw className="mt-0.5 h-3.5 w-3.5 shrink-0" strokeWidth={2} />
         <div>
           <p className="font-medium">
@@ -467,7 +467,7 @@ function ReviewedBanner({ submission }: { submission: WorkspaceSubmission }) {
               : ''}.
           </p>
           {submission.reviewReason && (
-            <p className="mt-1 whitespace-pre-wrap text-orange-800">
+            <p className="mt-1 whitespace-pre-wrap text-amber-800">
               {submission.reviewReason}
             </p>
           )}

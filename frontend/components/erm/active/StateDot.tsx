@@ -3,9 +3,9 @@
 import type { CardState, MonitorState } from './types';
 
 const DOT: Record<CardState, string> = {
-  OK: 'bg-emerald-500',
+  OK: 'bg-green-500',
   WARN: 'bg-amber-500',
-  URGENT: 'bg-rose-500',
+  URGENT: 'bg-red-500',
 };
 
 export default function StateDot({

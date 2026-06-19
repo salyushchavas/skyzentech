@@ -124,7 +124,7 @@ function ErmActiveInternsInner() {
                 void ensureManagers();
                 setAssignFor(row);
               }}
-              className="inline-flex items-center gap-1 rounded-md border border-rose-300 px-2 py-1 text-[11px] font-semibold text-rose-700 hover:bg-rose-50"
+              className="inline-flex items-center gap-1 rounded-md border border-red-300 px-2 py-1 text-[11px] font-semibold text-red-700 hover:bg-red-50"
             >
               <UserPlus className="h-3 w-3" /> Assign manager
             </button>
@@ -205,7 +205,7 @@ function AssignManagerModal({
           )}
         </div>
         {err && (
-          <p className="mt-3 rounded-md border border-rose-200 bg-rose-50 p-2 text-xs text-rose-800">
+          <p className="mt-3 rounded-md border border-red-200 bg-red-50 p-2 text-xs text-red-800">
             {err}
           </p>
         )}

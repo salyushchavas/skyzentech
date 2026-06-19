@@ -139,7 +139,7 @@ function Body() {
       </header>
 
       {toast && (
-        <div className="rounded-md border border-emerald-200 bg-emerald-50 px-4 py-2 text-sm text-emerald-800">
+        <div className="rounded-md border border-green-200 bg-green-50 px-4 py-2 text-sm text-green-800">
           {toast}
         </div>
       )}
@@ -221,7 +221,7 @@ function Row({
             {session.deviceLabel}
           </span>
           {session.current && (
-            <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-emerald-800">
+            <span className="inline-flex items-center gap-1 rounded-full bg-green-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-green-800">
               <CheckCircle2 className="h-2.5 w-2.5" strokeWidth={2.5} />
               Current
             </span>

@@ -194,7 +194,7 @@ function Body() {
             type="button"
             onClick={() => void runCode()}
             disabled={running || !languageId}
-            className="inline-flex items-center gap-1.5 rounded-md bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-60"
+            className="inline-flex items-center gap-1.5 rounded-md bg-green-600 px-4 py-2 text-sm font-semibold text-white hover:bg-green-700 disabled:opacity-60"
           >
             {running ? (
               <Loader2 className="h-4 w-4 animate-spin" strokeWidth={2.5} />
@@ -207,7 +207,7 @@ function Body() {
       </header>
 
       {langError && (
-        <div className="rounded-md border border-orange-200 bg-orange-50 p-3 text-sm text-orange-900">
+        <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
           {langError}
         </div>
       )}
@@ -337,7 +337,7 @@ function Badge({
   children: React.ReactNode;
 }) {
   const palette: Record<typeof tone, string> = {
-    success: 'bg-emerald-100 text-emerald-800',
+    success: 'bg-green-100 text-green-800',
     warn: 'bg-amber-100 text-amber-800',
     error: 'bg-red-100 text-red-800',
     neutral: 'bg-gray-100 text-gray-700',

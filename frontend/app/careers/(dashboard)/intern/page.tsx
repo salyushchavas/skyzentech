@@ -49,7 +49,7 @@ export default function InternHomePage() {
   if (error || !data) {
     return (
       <InternPageShell title="Home">
-        <p className="rounded-md border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800">
+        <p className="rounded-md border border-red-200 bg-red-50 p-4 text-sm text-red-800">
           We couldn&apos;t load your dashboard right now. {error ?? 'Please try again.'}
         </p>
       </InternPageShell>
@@ -124,22 +124,22 @@ function SelectionAckCard({ ack }: { ack: InternSelectionAck }) {
   }
 
   return (
-    <section className="rounded-lg border border-emerald-200 bg-emerald-50 p-6 shadow-sm">
-      <div className="inline-flex items-center gap-1.5 rounded-full bg-emerald-100 px-2.5 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-emerald-800">
+    <section className="rounded-lg border border-green-200 bg-green-50 p-6 shadow-sm">
+      <div className="inline-flex items-center gap-1.5 rounded-full bg-green-100 px-2.5 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-green-800">
         <PartyPopper className="h-3 w-3" strokeWidth={2.5} />
         Congratulations
       </div>
-      <h2 className="mt-2 text-xl font-semibold text-emerald-900">
+      <h2 className="mt-2 text-xl font-semibold text-green-900">
         You&apos;ve been selected for {jobLabel}
       </h2>
-      <p className="mt-1 text-sm text-emerald-900/90">
+      <p className="mt-1 text-sm text-green-900/90">
         When you&apos;re ready, click the button below. We&apos;ll prepare and
         send your offer letter right after — you&apos;ll receive an IDMS
         email to review and sign.
       </p>
       {ack.applicantVisibleNotes && (
-        <div className="mt-3 rounded-md border border-emerald-200 bg-white p-3 text-sm text-slate-700">
-          <p className="text-[11px] font-semibold uppercase tracking-wide text-emerald-700">
+        <div className="mt-3 rounded-md border border-green-200 bg-white p-3 text-sm text-slate-700">
+          <p className="text-[11px] font-semibold uppercase tracking-wide text-green-700">
             From the interview team
           </p>
           <p className="mt-1 whitespace-pre-wrap">{ack.applicantVisibleNotes}</p>
@@ -150,11 +150,11 @@ function SelectionAckCard({ ack }: { ack: InternSelectionAck }) {
           type="button"
           onClick={onClick}
           disabled={busy}
-          className="inline-flex items-center rounded-md bg-emerald-700 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-emerald-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-2 disabled:opacity-60"
+          className="inline-flex items-center rounded-md bg-green-700 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-green-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-500 focus-visible:ring-offset-2 disabled:opacity-60"
         >
           {busy ? 'Sending…' : 'Receive my offer letter'}
         </button>
-        {err && <p className="mt-2 text-xs text-rose-700">{err}</p>}
+        {err && <p className="mt-2 text-xs text-red-700">{err}</p>}
       </div>
     </section>
   );
@@ -250,7 +250,7 @@ function AcknowledgeSelectionButton({ label, href }: { label: string; href: stri
       >
         {busy ? 'Sending…' : label}
       </button>
-      {err && <p className="mt-2 text-xs text-rose-700">{err}</p>}
+      {err && <p className="mt-2 text-xs text-red-700">{err}</p>}
     </div>
   );
 }
@@ -278,7 +278,7 @@ function ResendVerificationButton({ label }: { label: string }) {
 
   if (done) {
     return (
-      <p className="text-sm text-emerald-700">
+      <p className="text-sm text-green-700">
         Verification email sent — check your inbox.
       </p>
     );
@@ -295,7 +295,7 @@ function ResendVerificationButton({ label }: { label: string }) {
         {sending ? 'Sending…' : label}
       </button>
       {err && (
-        <p className="mt-2 text-xs text-rose-700">{err}</p>
+        <p className="mt-2 text-xs text-red-700">{err}</p>
       )}
     </div>
   );

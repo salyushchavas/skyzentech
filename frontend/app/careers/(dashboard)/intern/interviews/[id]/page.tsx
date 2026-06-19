@@ -16,7 +16,7 @@ const BANNER_BY_DECISION: Record<
   { tone: string; title: string; description: string }
 > = {
   SELECTED: {
-    tone: 'border-emerald-200 bg-emerald-50 text-emerald-900',
+    tone: 'border-green-200 bg-green-50 text-green-900',
     title: "You've been selected",
     description: 'Watch your inbox for the offer letter.',
   },
@@ -64,7 +64,7 @@ export default function InternInterviewDetailPage() {
   if (err || !interview) {
     return (
       <InternPageShell title="Interview">
-        <p className="rounded-md border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800">
+        <p className="rounded-md border border-red-200 bg-red-50 p-4 text-sm text-red-800">
           {err ?? 'Interview not found'}
         </p>
       </InternPageShell>

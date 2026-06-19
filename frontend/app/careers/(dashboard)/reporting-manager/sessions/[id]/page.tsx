@@ -276,7 +276,7 @@ function Body() {
             <span
               className={
                 'h-2 w-2 rounded-full ' +
-                (dirty ? 'bg-amber-500' : 'bg-emerald-500')
+                (dirty ? 'bg-amber-500' : 'bg-green-500')
               }
             />
             {busy === 'save'
@@ -299,7 +299,7 @@ function Body() {
 
       {/* Sign-off section */}
       {!isTerminal && (
-        <div className="space-y-3 rounded-lg border border-emerald-200 bg-emerald-50/30 p-4">
+        <div className="space-y-3 rounded-lg border border-green-200 bg-green-50/30 p-4">
           <h2 className="text-sm font-semibold text-gray-900">Sign off</h2>
           <p className="text-xs text-gray-600">
             Available once questions and responses are saved. Locks the project
@@ -335,7 +335,7 @@ function Body() {
               type="button"
               onClick={() => setConfirmSignOff(true)}
               disabled={!canSignOff || busy !== null}
-              className="inline-flex items-center gap-1.5 rounded-md bg-emerald-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-60"
+              className="inline-flex items-center gap-1.5 rounded-md bg-green-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-green-700 disabled:opacity-60"
             >
               <CheckCircle2 className="h-3.5 w-3.5" strokeWidth={2} />
               Sign off &amp; complete project
@@ -382,7 +382,7 @@ function Body() {
                 void signOff();
               }}
               disabled={busy !== null}
-              className="inline-flex items-center gap-1.5 rounded-md bg-emerald-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-60"
+              className="inline-flex items-center gap-1.5 rounded-md bg-green-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-green-700 disabled:opacity-60"
             >
               <CheckCircle2 className="h-3.5 w-3.5" strokeWidth={2} />
               {busy === 'signoff' ? 'Signing off…' : 'Sign off'}
@@ -464,7 +464,7 @@ function StatusBadge({ status }: { status: QaSessionStatus }) {
   const palette: Record<QaSessionStatus, string> = {
     SCHEDULED: 'bg-slate-100 text-slate-700',
     CONDUCTED: 'bg-amber-100 text-amber-800',
-    COMPLETED: 'bg-emerald-100 text-emerald-800',
+    COMPLETED: 'bg-green-100 text-green-800',
     RETURNED: 'bg-amber-100 text-amber-800',
   };
   const label: Record<QaSessionStatus, string> = {
@@ -496,7 +496,7 @@ function Banner({
 }) {
   const style =
     kind === 'success'
-      ? 'border-emerald-200 bg-emerald-50 text-emerald-900'
+      ? 'border-green-200 bg-green-50 text-green-900'
       : 'border-amber-200 bg-amber-50 text-amber-900';
   const Icon = kind === 'success' ? CheckCircle2 : Clock;
   return (

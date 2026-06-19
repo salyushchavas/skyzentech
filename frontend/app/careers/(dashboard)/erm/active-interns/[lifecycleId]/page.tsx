@@ -63,7 +63,7 @@ function Body({ lifecycleId }: { lifecycleId: string }) {
 
   if (err && !v) {
     return (
-      <p className="rounded-md border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800">
+      <p className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-800">
         {err}
       </p>
     );
@@ -148,7 +148,7 @@ function QuickActions({
         </Link>
         <Link
           href={`/careers/erm/exits/initiate?lifecycleId=${lifecycleId}`}
-          className="block rounded border border-rose-200 bg-rose-50 px-3 py-1.5 text-rose-700 hover:bg-rose-100"
+          className="block rounded border border-red-200 bg-red-50 px-3 py-1.5 text-red-700 hover:bg-red-100"
         >
           Initiate exit →
         </Link>
@@ -346,9 +346,9 @@ function TimesheetCardView({ card }: { card: TimesheetCard }) {
                 <span
                   className={
                     t.status === 'REJECTED'
-                      ? 'text-rose-700'
+                      ? 'text-red-700'
                       : t.status === 'APPROVED'
-                        ? 'text-emerald-700'
+                        ? 'text-green-700'
                         : ''
                   }
                 >
@@ -387,10 +387,10 @@ function ComplianceCardView({
                 className={
                   'inline-block h-1.5 w-1.5 rounded-full mr-1 ' +
                   (a.severity === 'URGENT'
-                    ? 'bg-rose-500'
+                    ? 'bg-red-500'
                     : a.severity === 'WARN'
                       ? 'bg-amber-500'
-                      : 'bg-sky-500')
+                      : 'bg-slate-500')
                 }
               />
               {EXCEPTION_TYPE_LABEL[a.label] ?? a.label}
@@ -427,10 +427,10 @@ function EscalationsCardView({
                 className={
                   'inline-block h-1.5 w-1.5 rounded-full ' +
                   (e.severity === 'URGENT'
-                    ? 'bg-rose-500'
+                    ? 'bg-red-500'
                     : e.severity === 'WARN'
                       ? 'bg-amber-500'
-                      : 'bg-sky-500')
+                      : 'bg-slate-500')
                 }
               />
               <Link

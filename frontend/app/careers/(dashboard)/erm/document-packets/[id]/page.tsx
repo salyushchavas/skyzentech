@@ -94,7 +94,7 @@ export default function DocumentPacketDetailPage() {
       <ProtectedRoute requiredRoles={['ERM', 'SUPER_ADMIN']}>
         <DashboardLayout>
           <PageHeader title="Document packet" />
-          <p className="rounded-md border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800">
+          <p className="rounded-md border border-red-200 bg-red-50 p-4 text-sm text-red-800">
             {err ?? 'Not found'}
           </p>
         </DashboardLayout>
@@ -124,7 +124,7 @@ export default function DocumentPacketDetailPage() {
             </span>
           )}
           {p.completedAt && (
-            <span className="text-xs text-emerald-700">
+            <span className="text-xs text-green-700">
               Completed {new Date(p.completedAt).toLocaleString()}
             </span>
           )}
@@ -142,7 +142,7 @@ export default function DocumentPacketDetailPage() {
         )}
 
         {actionErr && (
-          <p className="mb-3 rounded-md border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800">
+          <p className="mb-3 rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-800">
             {actionErr}
           </p>
         )}
@@ -179,7 +179,7 @@ export default function DocumentPacketDetailPage() {
             type="button"
             onClick={cancel}
             disabled={p.status === 'COMPLETED' || p.status === 'CANCELLED'}
-            className="rounded-md border border-rose-300 bg-white px-3 py-1.5 text-xs font-medium text-rose-800 hover:bg-rose-50 disabled:opacity-50"
+            className="rounded-md border border-red-300 bg-white px-3 py-1.5 text-xs font-medium text-red-800 hover:bg-red-50 disabled:opacity-50"
           >
             Cancel packet (SUPER_ADMIN)
           </button>
@@ -230,8 +230,8 @@ function PacketBadge({ status }: { status: PacketStatus }) {
     ASSIGNED: 'bg-slate-100 text-slate-700',
     IN_PROGRESS: 'bg-amber-100 text-amber-800',
     ALL_SUBMITTED: 'bg-amber-100 text-amber-800',
-    COMPLETED: 'bg-emerald-100 text-emerald-800',
-    CANCELLED: 'bg-rose-100 text-rose-800',
+    COMPLETED: 'bg-green-100 text-green-800',
+    CANCELLED: 'bg-red-100 text-red-800',
   };
   return (
     <span className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${styles[status]}`}>
@@ -245,9 +245,9 @@ function TaskBadge({ status }: { status: TaskStatus }) {
     PENDING: 'bg-slate-100 text-slate-700',
     SUBMITTED: 'bg-slate-100 text-slate-700',
     UNDER_REVIEW: 'bg-amber-100 text-amber-800',
-    ACCEPTED: 'bg-emerald-100 text-emerald-800',
-    REJECTED: 'bg-rose-100 text-rose-800',
-    RESEND_REQUESTED: 'bg-orange-100 text-orange-800',
+    ACCEPTED: 'bg-green-100 text-green-800',
+    REJECTED: 'bg-red-100 text-red-800',
+    RESEND_REQUESTED: 'bg-amber-100 text-amber-800',
     WAIVED: 'bg-slate-200 text-slate-700',
   };
   return (

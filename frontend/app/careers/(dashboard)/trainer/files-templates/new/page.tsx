@@ -88,7 +88,7 @@ export default function NewTemplatePage() {
           <input type="checkbox" checked={publishNow} onChange={(e) => setPublishNow(e.target.checked)} />
           <span>Publish immediately (otherwise saved as draft)</span>
         </label>
-        {err && <p className="rounded-md border border-rose-200 bg-rose-50 p-2 text-xs text-rose-800">{err}</p>}
+        {err && <p className="rounded-md border border-red-200 bg-red-50 p-2 text-xs text-red-800">{err}</p>}
         <div className="flex justify-end gap-2">
           <Link href="/careers/trainer/files-templates"
             className="rounded-md border border-slate-200 px-3 py-1.5 text-sm text-slate-700">Cancel</Link>

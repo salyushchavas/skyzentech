@@ -85,7 +85,7 @@ export default function EvaluatorSettingsPage() {
       </header>
 
       {err && (
-        <p className="rounded-md border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800">
+        <p className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-800">
           {err}
         </p>
       )}
@@ -182,7 +182,7 @@ export default function EvaluatorSettingsPage() {
 
       <div className="flex items-center justify-end text-[11px] text-slate-500">
         {saving ? 'Saving…' : savedAt && (
-          <span className="inline-flex items-center gap-1 text-emerald-700">
+          <span className="inline-flex items-center gap-1 text-green-700">
             <Save className="h-3 w-3" />
             Saved {savedAt.toLocaleTimeString()}
           </span>

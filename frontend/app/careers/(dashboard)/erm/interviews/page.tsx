@@ -127,7 +127,7 @@ export default function InterviewSchedulerPage() {
         </div>
 
         {err && (
-          <p className="mb-3 rounded-md border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800">
+          <p className="mb-3 rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-800">
             {err}
           </p>
         )}
@@ -274,7 +274,7 @@ function CalendarView() {
   if (loading) return <div className="h-32 animate-pulse rounded-lg bg-slate-50" />;
   if (err) {
     return (
-      <p className="rounded-md border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800">
+      <p className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-800">
         {err}
       </p>
     );

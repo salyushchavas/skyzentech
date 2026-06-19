@@ -31,7 +31,7 @@ interface Ticket {
 const STATUS_PILL: Record<string, string> = {
   OPEN: 'bg-amber-100 text-amber-800',
   IN_PROGRESS: 'bg-slate-100 text-slate-700',
-  RESOLVED: 'bg-emerald-100 text-emerald-800',
+  RESOLVED: 'bg-green-100 text-green-800',
   CLOSED: 'bg-slate-100 text-slate-600',
 };
 
@@ -88,7 +88,7 @@ export default function TicketThreadPage() {
   if (err || !ticket) {
     return (
       <InternPageShell title="Ticket">
-        <p className="rounded-md border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800">
+        <p className="rounded-md border border-red-200 bg-red-50 p-4 text-sm text-red-800">
           {err ?? 'Ticket not found'}
         </p>
       </InternPageShell>

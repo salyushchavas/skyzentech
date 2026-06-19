@@ -133,17 +133,17 @@ function ScreeningForm() {
 
   if (done) {
     return (
-      <div className="mx-auto max-w-2xl rounded-lg border border-emerald-200 bg-emerald-50 p-8 text-center">
-        <CheckCircle2 className="mx-auto mb-3 h-10 w-10 text-emerald-600" strokeWidth={2} />
-        <h2 className="mb-2 text-lg font-semibold text-emerald-900">
+      <div className="mx-auto max-w-2xl rounded-lg border border-green-200 bg-green-50 p-8 text-center">
+        <CheckCircle2 className="mx-auto mb-3 h-10 w-10 text-green-600" strokeWidth={2} />
+        <h2 className="mb-2 text-lg font-semibold text-green-900">
           Thanks — your screening is in.
         </h2>
-        <p className="mb-1 text-sm text-emerald-800">
+        <p className="mb-1 text-sm text-green-800">
           {data.jobPostingTitle ? `For ${data.jobPostingTitle}.` : ''} A recruiter will review and reach
           out with next steps.
         </p>
         {typeof done.score === 'number' && typeof done.maxScore === 'number' && done.maxScore > 0 && (
-          <p className="mt-3 text-sm font-medium text-emerald-900">
+          <p className="mt-3 text-sm font-medium text-green-900">
             Score: {done.score} / {done.maxScore}
           </p>
         )}

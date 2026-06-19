@@ -19,7 +19,7 @@ interface SupportTicket {
 const STATUS_PILL: Record<string, string> = {
   OPEN: 'bg-amber-100 text-amber-800',
   IN_PROGRESS: 'bg-slate-100 text-slate-700',
-  RESOLVED: 'bg-emerald-100 text-emerald-800',
+  RESOLVED: 'bg-green-100 text-green-800',
   CLOSED: 'bg-slate-100 text-slate-600',
 };
 
@@ -237,7 +237,7 @@ function NewTicketModal({ onClose, onCreated }: { onClose: () => void; onCreated
             />
           </label>
         </div>
-        {err && <p className="mt-3 rounded-md border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800">{err}</p>}
+        {err && <p className="mt-3 rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-800">{err}</p>}
         <div className="mt-5 flex justify-end gap-2">
           <button type="button" onClick={onClose}
             className="rounded-md px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100">

@@ -16,7 +16,7 @@ export default function TrainerRightSidePanel() {
   if (rightPanelError) {
     return (
       <aside className="hidden h-full w-64 shrink-0 border-l border-slate-200 bg-white p-4 xl:flex xl:flex-col">
-        <p className="text-xs text-rose-700">{rightPanelError}</p>
+        <p className="text-xs text-red-700">{rightPanelError}</p>
       </aside>
     );
   }
@@ -101,7 +101,7 @@ function QuickActionRow({ action }: { action: QuickAction }) {
             className={
               'rounded-full px-1.5 py-0.5 text-[10px] font-semibold ' +
               (action.badge >= 5
-                ? 'bg-rose-100 text-rose-700'
+                ? 'bg-red-100 text-red-700'
                 : 'bg-slate-100 text-slate-600')
             }
           >
@@ -116,10 +116,10 @@ function QuickActionRow({ action }: { action: QuickAction }) {
 function AlertRow({ alert }: { alert: Alert }) {
   const dotClass =
     alert.severity === 'URGENT'
-      ? 'bg-rose-500'
+      ? 'bg-red-500'
       : alert.severity === 'WARN'
         ? 'bg-amber-500'
-        : 'bg-sky-500';
+        : 'bg-slate-500';
   return (
     <li className="flex items-center justify-between px-3 py-1.5 text-xs">
       <span className="flex items-center gap-2">

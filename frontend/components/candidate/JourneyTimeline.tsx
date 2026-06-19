@@ -37,9 +37,9 @@ interface Props {
 function StatusIcon({ status }: { status: TimelineStatus }) {
   switch (status) {
     case 'DONE':
-      return <CheckCircle2 className="h-4 w-4 text-emerald-600" strokeWidth={2.5} />;
+      return <CheckCircle2 className="h-4 w-4 text-green-600" strokeWidth={2.5} />;
     case 'IN_PROGRESS':
-      return <Clock className="h-4 w-4 text-sky-600" strokeWidth={2.5} />;
+      return <Clock className="h-4 w-4 text-slate-500" strokeWidth={2.5} />;
     case 'WAITING':
       return <PauseCircle className="h-4 w-4 text-amber-600" strokeWidth={2.5} />;
     case 'BLOCKED':

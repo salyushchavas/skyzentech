@@ -90,7 +90,7 @@ export default function DocumentPacketsPage() {
         </div>
 
         {err && (
-          <p className="mb-3 rounded-md border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800">
+          <p className="mb-3 rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-800">
             {err}
           </p>
         )}
@@ -176,14 +176,14 @@ function Row({ p }: { p: DocumentPacketRow }) {
       <td className="px-3 py-2">
         <div className="flex items-center gap-2">
           <div className="h-1.5 w-24 overflow-hidden rounded-full bg-slate-100">
-            <div className="h-full bg-emerald-500" style={{ width: `${pct}%` }} />
+            <div className="h-full bg-green-500" style={{ width: `${pct}%` }} />
           </div>
           <span className="text-[11px] text-slate-500">
             {p.acceptedTasks}/{p.totalTasks}
           </span>
         </div>
         {p.rejectedTasks > 0 && (
-          <span className="mt-0.5 inline-block text-[10px] text-rose-600">
+          <span className="mt-0.5 inline-block text-[10px] text-red-600">
             {p.rejectedTasks} rejected
           </span>
         )}
@@ -204,8 +204,8 @@ function StatusPill({ status }: { status: PacketStatus }) {
     ASSIGNED: 'bg-slate-100 text-slate-700',
     IN_PROGRESS: 'bg-amber-100 text-amber-800',
     ALL_SUBMITTED: 'bg-amber-100 text-amber-800',
-    COMPLETED: 'bg-emerald-100 text-emerald-800',
-    CANCELLED: 'bg-rose-100 text-rose-800',
+    COMPLETED: 'bg-green-100 text-green-800',
+    CANCELLED: 'bg-red-100 text-red-800',
   };
   return (
     <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${styles[status]}`}>

@@ -74,7 +74,7 @@ export default function ResendOfferModal({ offer, open, onClose, onApplied }: Pr
         <div className="mt-4 space-y-4">
           <div>
             <label className="text-sm font-medium text-slate-800">
-              Reason <span className="text-rose-600">*</span>
+              Reason <span className="text-red-600">*</span>
             </label>
             <select
               value={reasonCode}
@@ -96,7 +96,7 @@ export default function ResendOfferModal({ offer, open, onClose, onApplied }: Pr
           {opt?.requiresFreeText && (
             <div>
               <label className="text-sm font-medium text-slate-800">
-                Free-text reason <span className="text-rose-600">*</span>
+                Free-text reason <span className="text-red-600">*</span>
               </label>
               <textarea
                 value={reasonText}
@@ -122,7 +122,7 @@ export default function ResendOfferModal({ offer, open, onClose, onApplied }: Pr
             />
           </div>
           {err && (
-            <p className="rounded-md border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800">
+            <p className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-800">
               {err}
             </p>
           )}

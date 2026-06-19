@@ -140,8 +140,8 @@ export const CHECKLIST_LABEL: Record<string, string> = {
 };
 
 export const EXIT_TYPE_TONE: Record<ExitType, string> = {
-  COMPLETED: 'bg-emerald-100 text-emerald-800',
+  COMPLETED: 'bg-green-100 text-green-800',
   RESIGNED: 'bg-amber-100 text-amber-800',
-  TERMINATED: 'bg-rose-100 text-rose-800',
-  EXTENDED: 'bg-sky-100 text-sky-800',
+  TERMINATED: 'bg-red-100 text-red-800',
+  EXTENDED: 'bg-slate-100 text-slate-700',
 };

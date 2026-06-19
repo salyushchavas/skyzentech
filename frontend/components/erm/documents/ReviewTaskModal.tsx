@@ -242,13 +242,13 @@ export default function ReviewTaskModal({ taskId, onClose, onReviewed }: Props) 
               )}
 
               {err && (
-                <p className="rounded-md border border-rose-200 bg-rose-50 p-2 text-xs text-rose-800">
+                <p className="rounded-md border border-red-200 bg-red-50 p-2 text-xs text-red-800">
                   {err}
                 </p>
               )}
             </div>
           ) : (
-            <p className="rounded-md border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800">
+            <p className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-800">
               {err ?? 'Not found'}
             </p>
           )}
@@ -268,8 +268,8 @@ export default function ReviewTaskModal({ taskId, onClose, onReviewed }: Props) 
             disabled={submitting || !detail}
             className={
               'rounded-md px-4 py-1.5 text-sm font-semibold text-white disabled:bg-slate-300 ' +
-              (decision === 'ACCEPT' ? 'bg-emerald-700 hover:bg-emerald-800'
-                : 'bg-rose-700 hover:bg-rose-800')
+              (decision === 'ACCEPT' ? 'bg-green-700 hover:bg-green-800'
+                : 'bg-red-700 hover:bg-red-800')
             }
           >
             {submitting ? 'Submitting…' : decision === 'ACCEPT' ? 'Mark verified' : 'Send back'}

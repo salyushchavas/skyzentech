@@ -163,7 +163,7 @@ export default function TemplateDetailPage(props: { params: Promise<RouteParams>
     return (
       <div className="mx-auto max-w-3xl space-y-3 p-6">
         {err ? (
-          <p className="rounded-md border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800">{err}</p>
+          <p className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-800">{err}</p>
         ) : (
           <div className="h-48 animate-pulse rounded-lg bg-slate-100" />
         )}
@@ -194,7 +194,7 @@ export default function TemplateDetailPage(props: { params: Promise<RouteParams>
             {t.archived ? (
               <span className="rounded-full bg-slate-200 px-2 py-0.5 font-semibold text-slate-700">Archived</span>
             ) : t.published ? (
-              <span className="rounded-full bg-emerald-100 px-2 py-0.5 font-semibold text-emerald-800">Published</span>
+              <span className="rounded-full bg-green-100 px-2 py-0.5 font-semibold text-green-800">Published</span>
             ) : (
               <span className="rounded-full bg-amber-100 px-2 py-0.5 font-semibold text-amber-800">Draft</span>
             )}
@@ -210,7 +210,7 @@ export default function TemplateDetailPage(props: { params: Promise<RouteParams>
               </button>
             ) : (
               <button type="button" onClick={() => action('publish')} disabled={busy}
-                className="inline-flex items-center gap-1 rounded-md bg-emerald-700 px-2 py-1 text-xs font-semibold text-white hover:bg-emerald-800">
+                className="inline-flex items-center gap-1 rounded-md bg-green-700 px-2 py-1 text-xs font-semibold text-white hover:bg-green-800">
                 <Eye className="h-3 w-3" /> Publish
               </button>
             )
@@ -226,14 +226,14 @@ export default function TemplateDetailPage(props: { params: Promise<RouteParams>
             </button>
           ) : (
             <button type="button" onClick={() => action('archive')} disabled={busy}
-              className="inline-flex items-center gap-1 rounded-md border border-rose-300 px-2 py-1 text-xs font-medium text-rose-800 hover:bg-rose-50">
+              className="inline-flex items-center gap-1 rounded-md border border-red-300 px-2 py-1 text-xs font-medium text-red-800 hover:bg-red-50">
               <Archive className="h-3 w-3" /> Archive
             </button>
           )}
         </div>
       </div>
 
-      {err && <p className="rounded-md border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800">{err}</p>}
+      {err && <p className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-800">{err}</p>}
 
       <section className="space-y-3 rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
         <h3 className="text-sm font-semibold text-slate-900">Edit</h3>
@@ -294,7 +294,7 @@ export default function TemplateDetailPage(props: { params: Promise<RouteParams>
                   </p>
                 </div>
                 <button type="button" onClick={() => detach(a.documentId)} disabled={busy}
-                  className="inline-flex items-center gap-1 rounded-md border border-rose-200 px-2 py-1 text-xs text-rose-800">
+                  className="inline-flex items-center gap-1 rounded-md border border-red-200 px-2 py-1 text-xs text-red-800">
                   <Trash2 className="h-3 w-3" /> Remove
                 </button>
               </li>

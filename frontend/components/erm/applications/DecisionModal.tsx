@@ -208,7 +208,7 @@ export default function DecisionModal({
           {decision !== 'SHORTLIST' && (
             <div className="mt-4">
               <label className="text-sm font-medium text-slate-800">
-                Reason code <span className="text-rose-600">*</span>
+                Reason code <span className="text-red-600">*</span>
               </label>
               <select
                 value={reasonCode}
@@ -232,7 +232,7 @@ export default function DecisionModal({
           {requiresText && (
             <div className="mt-4">
               <label className="text-sm font-medium text-slate-800">
-                Free-text reason <span className="text-rose-600">*</span>{' '}
+                Free-text reason <span className="text-red-600">*</span>{' '}
                 <span className="text-xs text-slate-500">(ERM-only)</span>
               </label>
               <textarea
@@ -248,7 +248,7 @@ export default function DecisionModal({
           {decision === 'REQUEST_INFO' && (
             <div className="mt-4">
               <p className="text-sm font-medium text-slate-800">
-                Fields to request <span className="text-rose-600">*</span>
+                Fields to request <span className="text-red-600">*</span>
               </p>
               <ul className="mt-2 space-y-2">
                 {INFO_FIELD_OPTIONS.map((o) => (
@@ -268,7 +268,7 @@ export default function DecisionModal({
           )}
 
           {err && (
-            <p className="mt-4 rounded-md border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800">
+            <p className="mt-4 rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-800">
               {err}
             </p>
           )}

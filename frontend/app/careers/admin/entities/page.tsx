@@ -57,7 +57,7 @@ function EntitiesList() {
   return (
     <section>
       {toast && (
-        <div className="mb-4 rounded border border-emerald-200 bg-emerald-50 px-4 py-2 text-sm text-emerald-800">
+        <div className="mb-4 rounded border border-green-200 bg-green-50 px-4 py-2 text-sm text-green-800">
           {toast}
         </div>
       )}
@@ -100,13 +100,13 @@ function EntitiesList() {
                   <span
                     className={
                       'inline-flex items-center gap-1.5 text-xs ' +
-                      (e.isActive ? 'text-emerald-700' : 'text-gray-500')
+                      (e.isActive ? 'text-green-700' : 'text-gray-500')
                     }
                   >
                     <span
                       className={
                         'h-2 w-2 rounded-full ' +
-                        (e.isActive ? 'bg-emerald-500' : 'bg-gray-400')
+                        (e.isActive ? 'bg-green-500' : 'bg-gray-400')
                       }
                     />
                     {e.isActive ? 'Active' : 'Inactive'}

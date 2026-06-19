@@ -95,11 +95,11 @@ export default function TimezoneSelect({ value, onChange, disabled }: Props) {
             disabled={disabled}
             className={
               'w-full rounded-md border px-3 py-2 text-sm ' +
-              (otherInvalid ? 'border-rose-400' : 'border-slate-200')
+              (otherInvalid ? 'border-red-400' : 'border-slate-200')
             }
           />
           {otherInvalid && (
-            <p className="mt-1 text-xs text-rose-700">
+            <p className="mt-1 text-xs text-red-700">
               Not a recognized IANA timezone id.
             </p>
           )}

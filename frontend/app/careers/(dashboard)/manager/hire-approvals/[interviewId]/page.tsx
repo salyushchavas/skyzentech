@@ -69,7 +69,7 @@ export default function HireApprovalDetailPage() {
   if (!d) {
     return (
       <div className="mx-auto max-w-5xl space-y-4 p-6">
-        <p className="rounded-md border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800">
+        <p className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-800">
           {err ?? 'Not found.'}
         </p>
       </div>
@@ -162,8 +162,8 @@ export default function HireApprovalDetailPage() {
           {decided ? (
             <section className={
               d.managerHireDecision === 'APPROVED'
-                ? 'rounded-lg border border-emerald-200 bg-emerald-50 p-4 shadow-sm'
-                : 'rounded-lg border border-rose-200 bg-rose-50 p-4 shadow-sm'
+                ? 'rounded-lg border border-green-200 bg-green-50 p-4 shadow-sm'
+                : 'rounded-lg border border-red-200 bg-red-50 p-4 shadow-sm'
             }>
               <h3 className="text-xs font-semibold uppercase tracking-wide">
                 Decision: {d.managerHireDecision}
@@ -194,7 +194,7 @@ export default function HireApprovalDetailPage() {
                 className="mt-1 w-full resize-y rounded-md border border-slate-200 px-2 py-1.5 text-sm"
               />
               {actionErr && (
-                <p className="mt-2 rounded-md border border-rose-200 bg-rose-50 p-2 text-xs text-rose-800">
+                <p className="mt-2 rounded-md border border-red-200 bg-red-50 p-2 text-xs text-red-800">
                   {actionErr}
                 </p>
               )}
@@ -203,7 +203,7 @@ export default function HireApprovalDetailPage() {
                   type="button"
                   onClick={() => decide('approve')}
                   disabled={submitting}
-                  className="w-full rounded-md bg-emerald-700 px-3 py-2 text-sm font-semibold text-white hover:bg-emerald-800 disabled:bg-slate-300"
+                  className="w-full rounded-md bg-green-700 px-3 py-2 text-sm font-semibold text-white hover:bg-green-800 disabled:bg-slate-300"
                 >
                   {submitting ? 'Saving…' : 'Hire'}
                 </button>
@@ -211,7 +211,7 @@ export default function HireApprovalDetailPage() {
                   type="button"
                   onClick={() => decide('reject')}
                   disabled={submitting}
-                  className="w-full rounded-md border border-rose-300 bg-white px-3 py-2 text-sm font-semibold text-rose-700 hover:bg-rose-50 disabled:opacity-60"
+                  className="w-full rounded-md border border-red-300 bg-white px-3 py-2 text-sm font-semibold text-red-700 hover:bg-red-50 disabled:opacity-60"
                 >
                   No-Hire
                 </button>

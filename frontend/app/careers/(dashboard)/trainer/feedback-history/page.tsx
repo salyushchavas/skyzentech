@@ -200,7 +200,7 @@ function FeedbackHistoryInner() {
         </div>
       </div>
 
-      {err && <p className="rounded-md border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800">{err}</p>}
+      {err && <p className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-800">{err}</p>}
 
       <div className="overflow-hidden rounded-lg border border-slate-200 bg-white">
         {loading && !data ? (
@@ -296,9 +296,9 @@ function labelDecision(d: Decision): string {
 function DecisionPill({ decision }: { decision: string | null }) {
   if (!decision) return <span className="text-xs text-slate-400">—</span>;
   const cls =
-    decision === 'ACCEPT' ? 'bg-emerald-100 text-emerald-800' :
+    decision === 'ACCEPT' ? 'bg-green-100 text-green-800' :
     decision === 'REQUEST_REVISION' ? 'bg-amber-100 text-amber-800' :
-    decision === 'ESCALATE' ? 'bg-rose-100 text-rose-800' :
+    decision === 'ESCALATE' ? 'bg-red-100 text-red-800' :
     'bg-slate-100 text-slate-700';
   return (
     <span className={`inline-block rounded px-1.5 py-0.5 text-[11px] font-semibold ${cls}`}>
@@ -344,7 +344,7 @@ function DetailDrawer({ submissionId, onClose }: { submissionId: string; onClose
           </button>
         </div>
         <div className="flex-1 space-y-4 overflow-y-auto p-5 text-sm">
-          {err && <p className="rounded-md border border-rose-200 bg-rose-50 p-2 text-xs text-rose-800">{err}</p>}
+          {err && <p className="rounded-md border border-red-200 bg-red-50 p-2 text-xs text-red-800">{err}</p>}
           {!detail && !err && <div className="h-32 animate-pulse rounded bg-slate-100" />}
           {detail && (
             <>
@@ -464,7 +464,7 @@ function TimelineDrawer({ internLifecycleId, onClose }: {
           </button>
         </div>
         <div className="flex-1 space-y-4 overflow-y-auto p-5 text-sm">
-          {err && <p className="rounded-md border border-rose-200 bg-rose-50 p-2 text-xs text-rose-800">{err}</p>}
+          {err && <p className="rounded-md border border-red-200 bg-red-50 p-2 text-xs text-red-800">{err}</p>}
           {!data && !err && <div className="h-32 animate-pulse rounded bg-slate-100" />}
           {data && (
             <>
@@ -527,7 +527,7 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 function Stat({ label, value, sub, tone = 'slate' }: {
   label: string; value: number | string; sub?: string; tone?: 'slate' | 'rose' | 'teal';
 }) {
-  const cls = tone === 'rose' ? 'text-rose-700' : tone === 'teal' ? 'text-brand-700' : 'text-slate-900';
+  const cls = tone === 'rose' ? 'text-red-700' : tone === 'teal' ? 'text-brand-700' : 'text-slate-900';
   return (
     <div className="rounded-md border border-slate-200 bg-white p-2">
       <p className="text-[10px] uppercase tracking-wide text-slate-500">{label}</p>

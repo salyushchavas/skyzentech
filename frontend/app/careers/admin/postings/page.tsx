@@ -21,7 +21,7 @@ const STATUS_OPTIONS: JobPostingStatus[] = ['DRAFT', 'OPEN', 'PAUSED', 'CLOSED']
 
 const STATUS_COLOR: Record<JobPostingStatus, string> = {
   DRAFT: 'bg-gray-100 text-gray-700',
-  OPEN: 'bg-emerald-100 text-emerald-800',
+  OPEN: 'bg-green-100 text-green-800',
   PAUSED: 'bg-amber-100 text-amber-800',
   CLOSED: 'bg-red-100 text-red-800',
 };

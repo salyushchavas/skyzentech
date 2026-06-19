@@ -3,15 +3,15 @@
 import type { Severity } from './types';
 
 const STYLES: Record<Severity, string> = {
-  URGENT: 'bg-rose-100 text-rose-800 ring-rose-200',
+  URGENT: 'bg-red-100 text-red-800 ring-red-200',
   WARN: 'bg-amber-100 text-amber-800 ring-amber-200',
-  INFO: 'bg-sky-100 text-sky-800 ring-sky-200',
+  INFO: 'bg-slate-100 text-slate-700 ring-slate-200',
 };
 
 const DOT: Record<Severity, string> = {
-  URGENT: 'bg-rose-500',
+  URGENT: 'bg-red-500',
   WARN: 'bg-amber-500',
-  INFO: 'bg-sky-500',
+  INFO: 'bg-slate-500',
 };
 
 export default function SeverityBadge({

@@ -133,7 +133,7 @@ export default function EvaluatorReportsPage() {
       </header>
 
       {err && (
-        <p className="rounded-md border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800">
+        <p className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-800">
           {err}
         </p>
       )}
@@ -280,7 +280,7 @@ function KpiCard({
   const cls = tone === 'amber'
     ? 'text-amber-700'
     : tone === 'emerald'
-      ? 'text-emerald-700'
+      ? 'text-green-700'
       : 'text-slate-900';
   return (
     <div className="rounded-lg border border-slate-200 bg-white p-3 shadow-sm">

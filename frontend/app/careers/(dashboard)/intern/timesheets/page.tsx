@@ -132,7 +132,7 @@ export default function InternTimesheetsPage() {
             <span className={
               'rounded-md px-2 py-1 '
               + (pendingCount === 0
-                  ? 'bg-emerald-50 text-emerald-800'
+                  ? 'bg-green-50 text-green-800'
                   : 'bg-amber-50 text-amber-900')
             }>
               {pendingCount === 0
@@ -144,7 +144,7 @@ export default function InternTimesheetsPage() {
       </div>
 
       {err && (
-        <p className="mb-4 rounded-md border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800">
+        <p className="mb-4 rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-800">
           {err}
         </p>
       )}
@@ -209,7 +209,7 @@ function WeekCard({
       </header>
 
       {status === 'REJECTED' && t?.reviewNote && (
-        <div className="mt-3 rounded-md border border-rose-200 bg-rose-50 p-2 text-xs text-rose-900">
+        <div className="mt-3 rounded-md border border-red-200 bg-red-50 p-2 text-xs text-red-900">
           <p className="font-semibold">Returned for correction</p>
           <p className="mt-0.5 whitespace-pre-wrap">{t.reviewNote}</p>
         </div>
@@ -254,8 +254,8 @@ function StatusPill({ status }: { status: TimesheetStatus }) {
     DRAFT:     { tone: 'bg-slate-100 text-slate-700',  label: 'Not submitted', icon: <Clock className="h-3 w-3" /> },
     SUBMITTED: { tone: 'bg-slate-100 text-slate-700',    label: 'Submitted',     icon: <Lock className="h-3 w-3" /> },
     VERIFIED:  { tone: 'bg-slate-100 text-slate-700', label: 'Verified',     icon: <Lock className="h-3 w-3" /> },
-    APPROVED:  { tone: 'bg-emerald-100 text-emerald-800', label: 'Approved',   icon: <CheckCircle2 className="h-3 w-3" /> },
-    REJECTED:  { tone: 'bg-rose-100 text-rose-800',    label: 'Returned',      icon: <AlertTriangle className="h-3 w-3" /> },
+    APPROVED:  { tone: 'bg-green-100 text-green-800', label: 'Approved',   icon: <CheckCircle2 className="h-3 w-3" /> },
+    REJECTED:  { tone: 'bg-red-100 text-red-800',    label: 'Returned',      icon: <AlertTriangle className="h-3 w-3" /> },
   };
   const c = cfg[status];
   return (
@@ -349,12 +349,12 @@ function DayCell({
         placeholder={inMonth ? '0' : '—'}
         className={
           'mt-1 w-full rounded-md border px-2 py-1 text-sm '
-          + (err ? 'border-rose-400 ' : 'border-slate-200 ')
+          + (err ? 'border-red-400 ' : 'border-slate-200 ')
           + (disabled ? 'cursor-not-allowed bg-slate-100 text-slate-500' : 'bg-white')
         }
         aria-label={`Hours for ${DAY_LABEL[dayOfWeek]}, week of ${weekStart}`}
       />
-      {err && <p className="mt-1 text-[10px] text-rose-700">{err}</p>}
+      {err && <p className="mt-1 text-[10px] text-red-700">{err}</p>}
     </div>
   );
 }
@@ -419,7 +419,7 @@ function SubmitButton({
         <Send className="h-3 w-3" />
         {busy ? 'Submitting…' : 'Submit week'}
       </button>
-      {err && <p className="text-[10px] text-rose-700">{err}</p>}
+      {err && <p className="text-[10px] text-red-700">{err}</p>}
     </div>
   );
 }

@@ -1,9 +1,9 @@
 'use client';
 
 const STYLES: Record<string, string> = {
-  SELECTED: 'bg-emerald-100 text-emerald-800',
+  SELECTED: 'bg-green-100 text-green-800',
   HOLD: 'bg-amber-100 text-amber-800',
-  REJECTED: 'bg-rose-100 text-rose-800',
+  REJECTED: 'bg-red-100 text-red-800',
 };
 
 const LABEL: Record<string, string> = {

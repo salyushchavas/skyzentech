@@ -63,7 +63,7 @@ export default function QuickActionsPanel({ actions, loading }: Props) {
                 (a.badge === 0
                   ? 'bg-slate-100 text-slate-500'
                   : red
-                    ? 'bg-rose-100 text-rose-700'
+                    ? 'bg-red-100 text-red-700'
                     : 'bg-brand-100 text-brand-800')
               }
             >

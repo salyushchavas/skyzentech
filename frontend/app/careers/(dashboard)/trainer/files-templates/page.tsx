@@ -119,7 +119,7 @@ export default function FilesTemplatesPage() {
       </div>
 
       {err && (
-        <p className="rounded-md border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800">{err}</p>
+        <p className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-800">{err}</p>
       )}
 
       <div className="overflow-hidden rounded-lg border border-slate-200 bg-white">
@@ -179,7 +179,7 @@ function Row({ t }: { t: TemplateRow }) {
         {t.archived ? (
           <span className="rounded-full bg-slate-200 px-2 py-0.5 text-[11px] font-semibold text-slate-700">Archived</span>
         ) : t.published ? (
-          <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-semibold text-emerald-800">Published</span>
+          <span className="rounded-full bg-green-100 px-2 py-0.5 text-[11px] font-semibold text-green-800">Published</span>
         ) : (
           <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-semibold text-amber-800">Draft</span>
         )}

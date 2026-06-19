@@ -74,7 +74,7 @@ function Body({ userId }: { userId: string }) {
 
   if (err && !t) {
     return (
-      <p className="rounded-md border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800">
+      <p className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-800">
         {err}
       </p>
     );
@@ -224,7 +224,7 @@ function WorkAuthSection({
           )}
           {card.ermNotes && (
             <div className="mt-2 rounded bg-slate-50 p-2 text-[11px] text-slate-700">
-              <span className="block text-[10px] font-semibold uppercase text-rose-600">
+              <span className="block text-[10px] font-semibold uppercase text-red-600">
                 ERM-only
               </span>
               {card.ermNotes}
@@ -343,7 +343,7 @@ function EverifySection({
           )}
           {card.ermNotes && (
             <div className="mt-2 rounded bg-slate-50 p-2 text-[11px] text-slate-700">
-              <span className="block text-[10px] font-semibold uppercase text-rose-600">
+              <span className="block text-[10px] font-semibold uppercase text-red-600">
                 ERM-only
               </span>
               {card.ermNotes}

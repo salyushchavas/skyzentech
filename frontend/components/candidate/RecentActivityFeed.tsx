@@ -15,7 +15,7 @@ interface Props {
 }
 
 const SOURCE_PILL: Record<string, string> = {
-  HR: 'bg-emerald-100 text-emerald-800',
+  HR: 'bg-green-100 text-green-800',
   OPERATIONS: 'bg-slate-100 text-slate-700',
   TE: 'bg-amber-100 text-amber-800',
   RM: 'bg-amber-100 text-amber-800',

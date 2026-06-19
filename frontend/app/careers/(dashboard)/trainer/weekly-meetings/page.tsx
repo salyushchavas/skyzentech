@@ -118,7 +118,7 @@ function WeeklyMeetingsInner() {
         </select>
       </div>
 
-      {err && <p className="rounded-md border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800">{err}</p>}
+      {err && <p className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-800">{err}</p>}
 
       <section className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
         <h3 className="mb-2 text-sm font-semibold text-slate-900">
@@ -206,9 +206,9 @@ function MeetingRow({ m, interns, onAction }: {
 function StatusBadge({ status }: { status: Meeting['status'] }) {
   const styles: Record<Meeting['status'], string> = {
     SCHEDULED: 'bg-slate-100 text-slate-700',
-    COMPLETED: 'bg-emerald-100 text-emerald-800',
+    COMPLETED: 'bg-green-100 text-green-800',
     CANCELLED: 'bg-slate-200 text-slate-700',
-    NO_SHOW: 'bg-rose-100 text-rose-800',
+    NO_SHOW: 'bg-red-100 text-red-800',
   };
   return (
     <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${styles[status]}`}>
@@ -290,7 +290,7 @@ function ScheduleModal({ prefillIntern, interns, onClose, onCreated }: {
           <option value="WEEKLY">Weekly (12 occurrences)</option>
         </select>
       </Field>
-      {err && <p className="rounded-md border border-rose-200 bg-rose-50 p-2 text-xs text-rose-800">{err}</p>}
+      {err && <p className="rounded-md border border-red-200 bg-red-50 p-2 text-xs text-red-800">{err}</p>}
       <div className="flex justify-end gap-2">
         <button type="button" onClick={onClose} className="rounded-md border border-slate-200 px-3 py-1.5 text-sm">Cancel</button>
         <button type="button" onClick={submit} disabled={submitting}
@@ -332,7 +332,7 @@ function MeetingActionModal({ meeting, interns, onClose, onChanged }: {
       {meeting.status === 'SCHEDULED' && action === 'view' && (
         <div className="flex flex-wrap gap-2 border-t border-slate-100 pt-3">
           <button type="button" onClick={() => setAction('complete')}
-            className="inline-flex items-center gap-1 rounded-md bg-emerald-700 px-3 py-1.5 text-xs font-semibold text-white">
+            className="inline-flex items-center gap-1 rounded-md bg-green-700 px-3 py-1.5 text-xs font-semibold text-white">
             <CheckCircle2 className="h-3.5 w-3.5" /> Complete
           </button>
           <button type="button" onClick={() => setAction('reschedule')}
@@ -344,7 +344,7 @@ function MeetingActionModal({ meeting, interns, onClose, onChanged }: {
             <AlertOctagon className="h-3.5 w-3.5" /> Mark missed
           </button>
           <button type="button" onClick={() => setAction('cancel')}
-            className="inline-flex items-center gap-1 rounded-md border border-rose-300 px-3 py-1.5 text-xs font-medium text-rose-800">
+            className="inline-flex items-center gap-1 rounded-md border border-red-300 px-3 py-1.5 text-xs font-medium text-red-800">
             <XCircle className="h-3.5 w-3.5" /> Cancel
           </button>
         </div>
@@ -410,7 +410,7 @@ function CompleteForm({ meetingId, onDone, onCancel }: {
         <textarea value={blockers} onChange={(e) => setBlockers(e.target.value)} rows={2} maxLength={2000}
           className="w-full rounded-md border border-slate-200 px-2 py-1.5 text-sm" />
       </Field>
-      {err && <p className="rounded-md border border-rose-200 bg-rose-50 p-2 text-xs text-rose-800">{err}</p>}
+      {err && <p className="rounded-md border border-red-200 bg-red-50 p-2 text-xs text-red-800">{err}</p>}
       <FormButtons busy={busy} onCancel={onCancel} onSubmit={submit} label="Mark completed" tone="emerald" />
     </div>
   );
@@ -449,7 +449,7 @@ function RescheduleForm({ meeting, onDone, onCancel }: {
         <textarea value={reason} onChange={(e) => setReason(e.target.value)} rows={3} maxLength={1000}
           className="w-full rounded-md border border-slate-200 px-2 py-1.5 text-sm" />
       </Field>
-      {err && <p className="rounded-md border border-rose-200 bg-rose-50 p-2 text-xs text-rose-800">{err}</p>}
+      {err && <p className="rounded-md border border-red-200 bg-red-50 p-2 text-xs text-red-800">{err}</p>}
       <FormButtons busy={busy} onCancel={onCancel} onSubmit={submit} label="Reschedule" tone="teal" />
     </div>
   );
@@ -487,7 +487,7 @@ function MarkMissedForm({ meetingId, onDone, onCancel }: {
         <textarea value={reason} onChange={(e) => setReason(e.target.value)} rows={3} maxLength={1000}
           className="w-full rounded-md border border-slate-200 px-2 py-1.5 text-sm" />
       </Field>
-      {err && <p className="rounded-md border border-rose-200 bg-rose-50 p-2 text-xs text-rose-800">{err}</p>}
+      {err && <p className="rounded-md border border-red-200 bg-red-50 p-2 text-xs text-red-800">{err}</p>}
       <FormButtons busy={busy} onCancel={onCancel} onSubmit={submit} label="Mark missed" tone="amber" />
     </div>
   );
@@ -517,7 +517,7 @@ function CancelForm({ meetingId, onDone, onCancel }: {
         <textarea value={reason} onChange={(e) => setReason(e.target.value)} rows={3} maxLength={1000}
           className="w-full rounded-md border border-slate-200 px-2 py-1.5 text-sm" />
       </Field>
-      {err && <p className="rounded-md border border-rose-200 bg-rose-50 p-2 text-xs text-rose-800">{err}</p>}
+      {err && <p className="rounded-md border border-red-200 bg-red-50 p-2 text-xs text-red-800">{err}</p>}
       <FormButtons busy={busy} onCancel={onCancel} onSubmit={submit} label="Cancel meeting" tone="rose" />
     </div>
   );
@@ -529,8 +529,8 @@ function FormButtons({ busy, onCancel, onSubmit, label, tone }: {
 }) {
   const cls: Record<string, string> = {
     teal: 'bg-brand-700 hover:bg-brand-800',
-    emerald: 'bg-emerald-700 hover:bg-emerald-800',
-    rose: 'bg-rose-700 hover:bg-rose-800',
+    emerald: 'bg-green-700 hover:bg-green-800',
+    rose: 'bg-red-700 hover:bg-red-800',
     amber: 'bg-amber-600 hover:bg-amber-700',
   };
   return (

@@ -3,9 +3,9 @@
 import type { AlertSeverity } from './types';
 
 const COLOR: Record<AlertSeverity, string> = {
-  URGENT: 'bg-rose-500',
+  URGENT: 'bg-red-500',
   WARN: 'bg-amber-500',
-  INFO: 'bg-sky-500',
+  INFO: 'bg-slate-500',
 };
 
 export default function AlertSeverityDot({

@@ -48,7 +48,7 @@ export default function ActiveInternDetailPage(props: {
   if (err && !d) {
     return (
       <div className="mx-auto max-w-6xl p-6">
-        <p className="rounded-md border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800">
+        <p className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-800">
           {err}
         </p>
       </div>
@@ -346,7 +346,7 @@ function RecentProjectItem({
         <span className={
           'rounded-full px-2 py-0.5 text-[10px] font-medium '
           + (ktDone
-              ? 'bg-emerald-100 text-emerald-800'
+              ? 'bg-green-100 text-green-800'
               : 'bg-slate-100 text-slate-700')
         }>
           KT: {ktDone ? 'Done' : 'Not done'}
@@ -441,11 +441,11 @@ function KtMarkModal({
               placeholder="https://zoom.us/j/… or a recording URL"
               className={
                 'mt-1 w-full rounded-md border px-3 py-2 text-sm '
-                + (linkError ? 'border-rose-400' : 'border-slate-200')
+                + (linkError ? 'border-red-400' : 'border-slate-200')
               }
             />
             {linkError && (
-              <p className="mt-1 text-xs text-rose-700">{linkError}</p>
+              <p className="mt-1 text-xs text-red-700">{linkError}</p>
             )}
           </div>
           <div>
@@ -462,7 +462,7 @@ function KtMarkModal({
             />
           </div>
           {err && (
-            <p className="rounded-md border border-rose-200 bg-rose-50 p-2 text-xs text-rose-800">
+            <p className="rounded-md border border-red-200 bg-red-50 p-2 text-xs text-red-800">
               {err}
             </p>
           )}

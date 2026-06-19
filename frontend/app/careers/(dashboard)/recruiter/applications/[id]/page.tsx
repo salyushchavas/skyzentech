@@ -626,7 +626,7 @@ function ActionPanel({
         </button>
       )}
       {screeningStatus === 'SENT' && (
-        <p className="rounded-md border border-sky-200 bg-sky-50 px-3 py-2 text-xs text-sky-800">
+        <p className="rounded-md border border-slate-300 bg-slate-100 px-3 py-2 text-xs text-slate-700">
           Screening sent — waiting on the candidate.
         </p>
       )}
@@ -730,7 +730,7 @@ const RECOMMENDATION_LABEL: Record<InterviewRecommendation, string> = {
 };
 
 const RECOMMENDATION_COLOR: Record<InterviewRecommendation, string> = {
-  STRONG_HIRE: 'bg-emerald-100 text-emerald-800',
+  STRONG_HIRE: 'bg-green-100 text-green-800',
   HIRE: 'bg-brand-100 text-brand-800',
   NO_HIRE: 'bg-amber-100 text-amber-800',
   STRONG_NO_HIRE: 'bg-red-100 text-red-700',
@@ -830,11 +830,11 @@ function ScreeningPanel({
         {screening.status === 'COMPLETED' &&
         typeof screening.score === 'number' &&
         typeof screening.maxScore === 'number' ? (
-          <span className="rounded-full bg-emerald-100 px-2.5 py-0.5 text-xs font-semibold text-emerald-800">
+          <span className="rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-semibold text-green-800">
             Score: {screening.score} / {screening.maxScore}
           </span>
         ) : (
-          <span className="rounded-full bg-sky-100 px-2.5 py-0.5 text-xs font-medium text-sky-800">
+          <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-700">
             Pending
           </span>
         )}
@@ -862,11 +862,11 @@ function ScreeningPanel({
                     const isCandidate = a.choiceIndex === ci;
                     const isCorrect = a.correctChoiceIndex === ci;
                     const cls = isCandidate && isCorrect
-                      ? 'border-emerald-300 bg-emerald-50 text-emerald-800'
+                      ? 'border-green-300 bg-green-50 text-green-800'
                       : isCandidate
                         ? 'border-red-300 bg-red-50 text-red-800'
                         : isCorrect
-                          ? 'border-emerald-200 bg-white text-emerald-700'
+                          ? 'border-green-200 bg-white text-green-700'
                           : 'border-gray-200 bg-white text-gray-600';
                     return (
                       <li

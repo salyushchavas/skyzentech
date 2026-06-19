@@ -86,7 +86,7 @@ export default function ResolveExceptionModal({
         </div>
         <div className="space-y-3 px-5 py-4">
           <label className="block text-xs font-medium text-slate-700">
-            Reason code <span className="text-rose-500">*</span>
+            Reason code <span className="text-red-500">*</span>
             <select
               value={reasonCode}
               onChange={(e) => setReasonCode(e.target.value)}
@@ -102,7 +102,7 @@ export default function ResolveExceptionModal({
           </label>
           {needsFreeText && (
             <label className="block text-xs font-medium text-slate-700">
-              Reason detail <span className="text-rose-500">*</span>
+              Reason detail <span className="text-red-500">*</span>
               <textarea
                 value={reasonText}
                 onChange={(e) => setReasonText(e.target.value)}
@@ -114,7 +114,7 @@ export default function ResolveExceptionModal({
           )}
           <label className="block text-xs font-medium text-slate-700">
             {mode === 'resolve' ? 'Resolution note' : 'Dismissal note'}{' '}
-            <span className="text-rose-500">*</span>
+            <span className="text-red-500">*</span>
             <textarea
               value={note}
               onChange={(e) => setNote(e.target.value)}
@@ -127,7 +127,7 @@ export default function ResolveExceptionModal({
             </span>
           </label>
           {err && (
-            <p className="rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-700">
+            <p className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
               {err}
             </p>
           )}

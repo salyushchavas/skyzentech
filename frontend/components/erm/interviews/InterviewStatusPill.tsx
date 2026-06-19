@@ -6,7 +6,7 @@ const STYLES: Record<InterviewStatus, string> = {
   SCHEDULED: 'bg-amber-100 text-amber-800',
   COMPLETED: 'bg-slate-100 text-slate-700',
   CANCELLED: 'bg-slate-100 text-slate-600',
-  NO_SHOW: 'bg-rose-100 text-rose-800',
+  NO_SHOW: 'bg-red-100 text-red-800',
 };
 
 const LABEL: Record<InterviewStatus, string> = {

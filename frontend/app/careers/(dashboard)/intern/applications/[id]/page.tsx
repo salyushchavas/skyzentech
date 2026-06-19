@@ -14,9 +14,9 @@ const STAGE_STYLE: Record<string, string> = {
   SHORTLISTED: 'bg-amber-100 text-amber-800',
   INTERVIEW_SCHEDULED: 'bg-amber-100 text-amber-800',
   INTERVIEWED: 'bg-slate-100 text-slate-700',
-  OFFERED: 'bg-emerald-100 text-emerald-800',
-  HIRED: 'bg-emerald-100 text-emerald-800',
-  REJECTED: 'bg-rose-100 text-rose-800',
+  OFFERED: 'bg-green-100 text-green-800',
+  HIRED: 'bg-green-100 text-green-800',
+  REJECTED: 'bg-red-100 text-red-800',
   WITHDRAWN: 'bg-slate-100 text-slate-600',
 };
 
@@ -52,7 +52,7 @@ export default function InternApplicationDetailPage() {
   if (err || !app) {
     return (
       <InternPageShell title="Application">
-        <p className="rounded-md border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800">
+        <p className="rounded-md border border-red-200 bg-red-50 p-4 text-sm text-red-800">
           {err ?? 'Application not found'}
         </p>
       </InternPageShell>
@@ -87,9 +87,9 @@ export default function InternApplicationDetailPage() {
       )}
 
       {showFeedback && (
-        <section className="mb-6 rounded-lg border border-emerald-200 bg-emerald-50 p-5">
-          <h2 className="text-sm font-semibold text-emerald-900">From the team</h2>
-          <p className="mt-2 whitespace-pre-wrap text-sm text-emerald-900">
+        <section className="mb-6 rounded-lg border border-green-200 bg-green-50 p-5">
+          <h2 className="text-sm font-semibold text-green-900">From the team</h2>
+          <p className="mt-2 whitespace-pre-wrap text-sm text-green-900">
             {app.applicantVisibleFeedback}
           </p>
         </section>

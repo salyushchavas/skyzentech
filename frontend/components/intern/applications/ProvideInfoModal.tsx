@@ -95,7 +95,7 @@ export default function ProvideInfoModal({
           {need('resume') && (
             <div>
               <label className="text-sm font-medium text-slate-800">
-                Resume file ID <span className="text-rose-600">*</span>
+                Resume file ID <span className="text-red-600">*</span>
               </label>
               <input
                 value={resumeFileId}
@@ -162,7 +162,7 @@ export default function ProvideInfoModal({
           {need('other') && (
             <div>
               <label className="text-sm font-medium text-slate-800">
-                Additional details <span className="text-rose-600">*</span>
+                Additional details <span className="text-red-600">*</span>
               </label>
               <textarea
                 value={freeTextResponse}
@@ -174,7 +174,7 @@ export default function ProvideInfoModal({
           )}
 
           {err && (
-            <p className="rounded-md border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800">
+            <p className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-800">
               {err}
             </p>
           )}

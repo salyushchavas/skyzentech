@@ -184,7 +184,7 @@ function Body() {
 
       {/* Returned reason / approved-by banner */}
       {week.status === 'APPROVED' && (
-        <div className="rounded-md border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-900">
+        <div className="rounded-md border border-green-200 bg-green-50 p-3 text-sm text-green-900">
           Approved
           {week.approvedByName && <> by {week.approvedByName}</>}
           {week.approvedAt && <> · {formatRelative(week.approvedAt)}</>}.
@@ -213,7 +213,7 @@ function Body() {
             type="button"
             onClick={() => setConfirmApprove(true)}
             disabled={busy !== null}
-            className="inline-flex items-center gap-1.5 rounded-md bg-emerald-600 px-3 py-2 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-60"
+            className="inline-flex items-center gap-1.5 rounded-md bg-green-600 px-3 py-2 text-sm font-medium text-white hover:bg-green-700 disabled:opacity-60"
           >
             <CheckCircle2 className="h-3.5 w-3.5" strokeWidth={2} />
             Approve
@@ -244,7 +244,7 @@ function Body() {
                 void approve();
               }}
               disabled={busy !== null}
-              className="inline-flex items-center gap-1.5 rounded-md bg-emerald-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-60"
+              className="inline-flex items-center gap-1.5 rounded-md bg-green-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-green-700 disabled:opacity-60"
             >
               <CheckCircle2 className="h-3.5 w-3.5" strokeWidth={2} />
               {busy === 'approve' ? 'Approving…' : 'Approve'}
@@ -306,7 +306,7 @@ function StatusBadge({ status }: { status: TimesheetStatus }) {
   const palette: Record<TimesheetStatus, string> = {
     DRAFT: 'bg-gray-100 text-gray-700',
     SUBMITTED: 'bg-amber-100 text-amber-800',
-    APPROVED: 'bg-emerald-100 text-emerald-800',
+    APPROVED: 'bg-green-100 text-green-800',
     REJECTED: 'bg-amber-100 text-amber-800',
   };
   const label: Record<TimesheetStatus, string> = {

@@ -155,7 +155,7 @@ function EvaluationHistoryInner() {
       </section>
 
       {err && (
-        <p className="rounded-md border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800">
+        <p className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-800">
           {err}
         </p>
       )}
@@ -210,7 +210,7 @@ function EvaluationHistoryInner() {
                     )}
                   </td>
                   <td className="px-3 py-2">
-                    <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold text-emerald-700">
+                    <span className="rounded-full bg-green-50 px-2 py-0.5 text-[10px] font-semibold text-green-700">
                       {r.status}
                     </span>
                   </td>

@@ -82,7 +82,7 @@ export default function CancelModal({ interview, open, onClose, onApplied }: Pro
         <div className="mt-4 space-y-4">
           <div>
             <label className="text-sm font-medium text-slate-800">
-              Reason <span className="text-rose-600">*</span>
+              Reason <span className="text-red-600">*</span>
             </label>
             <select
               value={reasonCode}
@@ -104,7 +104,7 @@ export default function CancelModal({ interview, open, onClose, onApplied }: Pro
           {selected?.requiresFreeText && (
             <div>
               <label className="text-sm font-medium text-slate-800">
-                Free-text reason <span className="text-rose-600">*</span>
+                Free-text reason <span className="text-red-600">*</span>
               </label>
               <textarea
                 value={reasonText}
@@ -123,7 +123,7 @@ export default function CancelModal({ interview, open, onClose, onApplied }: Pro
             Notify applicant
           </label>
           {err && (
-            <p className="rounded-md border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800">
+            <p className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-800">
               {err}
             </p>
           )}
@@ -141,7 +141,7 @@ export default function CancelModal({ interview, open, onClose, onApplied }: Pro
             type="button"
             onClick={submit}
             disabled={submitting}
-            className="rounded-md bg-rose-700 px-4 py-2 text-sm font-semibold text-white hover:bg-rose-800 disabled:opacity-60"
+            className="rounded-md bg-red-700 px-4 py-2 text-sm font-semibold text-white hover:bg-red-800 disabled:opacity-60"
           >
             {submitting ? 'Cancelling…' : 'Cancel interview'}
           </button>
