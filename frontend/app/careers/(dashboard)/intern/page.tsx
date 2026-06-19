@@ -1,36 +1,79 @@
 'use client';
 
 import Link from 'next/link';
-import { Mail, PartyPopper, Sparkles } from 'lucide-react';
+import {
+  AlertCircle,
+  ArrowRight,
+  CheckCircle2,
+  Circle,
+  Inbox,
+  PartyPopper,
+  Sparkles,
+} from 'lucide-react';
+import { useState } from 'react';
 import api from '@/lib/api';
-import InternPageShell from '@/components/intern/InternPageShell';
-import InternProfileCompletionCard from '@/components/intern/InternProfileCompletionCard';
+import StepperHorizontal from '@/components/ui/StepperHorizontal';
+import RightSidePanel from '@/components/intern/RightSidePanel';
+import InactiveBanner from '@/components/exit/InactiveBanner';
 import ExitSummaryCard from '@/components/exit/ExitSummaryCard';
+import InternProfileCompletionCard from '@/components/intern/InternProfileCompletionCard';
 import {
   useInternDashboard,
-  type InternContact,
+  type InternDashboardResponse,
   type InternLifecycleStatus,
-  type InternMode,
   type InternNextAction,
   type InternSelectionAck,
 } from '@/components/intern/InternDashboardContext';
-import { useState } from 'react';
+import { cn } from '@/lib/cn';
 
-const MODE_LABEL: Record<InternMode, string> = {
-  APPLICANT: 'Applicant',
-  INTERVIEW: 'Interview',
-  OFFER: 'Offer',
-  NEW_HIRE: 'New Hire',
-  ACTIVE_INTERN: 'Active Intern',
-  INACTIVE: 'Inactive',
-};
+// ─────────────────────────────────────────────────────────────────────────
+// Condensed 6-milestone journey for the home-page top bar.
+// The shared InternPageShell still renders the full 9-step InternStepper
+// on every OTHER intern route; the home page bypasses the shell so the
+// journey-view layout can lead with this condensed bar instead.
+// ─────────────────────────────────────────────────────────────────────────
+const MILESTONES = [
+  { key: 'apply', label: 'Apply' },
+  { key: 'shortlist', label: 'Shortlist' },
+  { key: 'interview', label: 'Interview' },
+  { key: 'offer', label: 'Offer' },
+  { key: 'onboard', label: 'Onboard' },
+  { key: 'active', label: 'Active' },
+];
 
-function humanizeStatus(s: InternLifecycleStatus): string {
-  return s
-    .toLowerCase()
-    .split('_')
-    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
-    .join(' ');
+function milestoneIndexFor(s: InternLifecycleStatus): number {
+  switch (s) {
+    case 'REGISTERED':
+    case 'EMAIL_VERIFIED':
+      return 0;
+    case 'APPLICATION_SUBMITTED':
+      return 1;
+    case 'SHORTLISTED':
+    case 'INTERVIEW_SCHEDULED':
+    case 'INTERVIEW_COMPLETED':
+      return 2;
+    case 'OFFER_SENT':
+      return 3;
+    case 'OFFER_SIGNED':
+    case 'EMPLOYEE_ID_CREATED':
+    case 'ONBOARDING_ASSIGNED':
+    case 'ONBOARDING_ACCEPTED':
+      return 4;
+    case 'ACTIVE_INTERN':
+      return 5;
+    case 'INACTIVE_INTERN':
+      // Past every milestone — StepperHorizontal renders all as done.
+      return MILESTONES.length;
+    default:
+      return 0;
+  }
+}
+
+function currentMilestoneLabel(s: InternLifecycleStatus): string {
+  if (s === 'INACTIVE_INTERN') return 'Internship concluded';
+  if (s === 'ACTIVE_INTERN') return 'Active intern';
+  const idx = milestoneIndexFor(s);
+  return MILESTONES[idx]?.label ?? 'Getting started';
 }
 
 export default function InternHomePage() {
@@ -38,143 +81,128 @@ export default function InternHomePage() {
 
   if (loading && !data) {
     return (
-      <InternPageShell title="Home">
-        <div className="space-y-3">
-          <div className="h-32 animate-pulse rounded-lg bg-slate-100" aria-hidden />
-          <div className="h-48 animate-pulse rounded-lg bg-slate-100" aria-hidden />
-        </div>
-      </InternPageShell>
+      <div className="space-y-6">
+        <div className="h-12 w-72 animate-pulse rounded bg-slate-100" aria-hidden />
+        <div className="h-14 animate-pulse rounded-lg bg-slate-100" aria-hidden />
+        <div className="h-48 animate-pulse rounded-lg bg-slate-100" aria-hidden />
+      </div>
     );
   }
 
   if (error || !data) {
     return (
-      <InternPageShell title="Home">
-        <p className="rounded-md border border-red-200 bg-red-50 p-4 text-sm text-red-800">
-          We couldn&apos;t load your dashboard right now. {error ?? 'Please try again.'}
-        </p>
-      </InternPageShell>
+      <div className="rounded-md border border-red-200 bg-red-50 p-4 text-sm text-red-800">
+        We couldn&apos;t load your dashboard right now. {error ?? 'Please try again.'}
+      </div>
     );
   }
 
   const firstName = data.user.firstName || data.user.email.split('@')[0];
-  const modeLabel = MODE_LABEL[data.mode] ?? data.mode;
-  const subtitle = `Mode: ${modeLabel} · ${humanizeStatus(data.lifecycleStatus)}`;
-
+  const stageLabel = currentMilestoneLabel(data.lifecycleStatus);
   const isInactive = data.mode === 'INACTIVE';
+  const milestoneIdx = milestoneIndexFor(data.lifecycleStatus);
 
-  return (
-    <InternPageShell title={`Welcome, ${firstName}`} subtitle={subtitle}>
-      {data.lifecycleStatus === 'REGISTERED' && (
-        <div className="mb-6 rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-          Verify your email to apply.
+  if (isInactive) {
+    // INACTIVE keeps a simpler, exit-summary-led layout. Journey bar still
+    // renders so the intern sees the completed arc; everything else is the
+    // exit summary + next action.
+    return (
+      <>
+        <InactiveBanner exitSummary={data.exitSummary ?? null} />
+        <HeroHeader firstName={firstName} stageLabel={stageLabel} />
+        <JourneyBar currentIndex={milestoneIdx} />
+        <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_280px]">
+          <main className="min-w-0 space-y-6">
+            <DoThisNextHero action={data.nextAction} />
+            {data.exitSummary && <ExitSummaryCard summary={data.exitSummary} />}
+          </main>
+          <RightSidePanel />
         </div>
-      )}
-
-      {isInactive && data.exitSummary ? (
-        <div className="space-y-6">
-          <NextActionCard action={data.nextAction} />
-          <ExitSummaryCard summary={data.exitSummary} />
-          <ContactsCard contacts={data.contacts} />
-        </div>
-      ) : (
-        <>
-          {data.applyReadiness && !data.applyReadiness.complete && (
-            <InternProfileCompletionCard readiness={data.applyReadiness} />
-          )}
-          {data.selectionAck && (
-            <div className="mb-6">
-              <SelectionAckCard ack={data.selectionAck} />
-            </div>
-          )}
-          <NextActionCard action={data.nextAction} />
-          <div className="mt-6 grid gap-6 lg:grid-cols-2">
-            <ContactsCard contacts={data.contacts} />
-            <ActivityCard />
-          </div>
-        </>
-      )}
-    </InternPageShell>
-  );
-}
-
-// ── Selection acknowledgment ─────────────────────────────────────────────
-
-function SelectionAckCard({ ack }: { ack: InternSelectionAck }) {
-  const { refresh } = useInternDashboard();
-  const [busy, setBusy] = useState(false);
-  const [err, setErr] = useState<string | null>(null);
-  const jobLabel = ack.jobTitle?.trim() || 'the role';
-
-  async function onClick() {
-    setBusy(true);
-    setErr(null);
-    try {
-      // Full /api/v1 path — the axios baseURL is the bare backend host
-      // (no /api/v1 rewrite), so a bare /applications/... 404s.
-      await api.post(`/api/v1/applications/${ack.applicationId}/acknowledge-selection`);
-      // Optimistic refresh — the dashboard endpoint will null out
-      // selectionAck and shift NextAction to "Offer on its way".
-      await refresh();
-    } catch (e) {
-      const ax = e as { response?: { data?: { error?: string } } };
-      setErr(
-        ax.response?.data?.error
-          ?? (e instanceof Error ? e.message : 'Could not record acknowledgment'),
-      );
-    } finally {
-      setBusy(false);
-    }
+      </>
+    );
   }
 
   return (
-    <section className="rounded-lg border border-green-200 bg-green-50 p-6 shadow-sm">
-      <div className="inline-flex items-center gap-1.5 rounded-full bg-green-100 px-2.5 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-green-800">
-        <PartyPopper className="h-3 w-3" strokeWidth={2.5} />
-        Congratulations
-      </div>
-      <h2 className="mt-2 text-xl font-semibold text-green-900">
-        You&apos;ve been selected for {jobLabel}
-      </h2>
-      <p className="mt-1 text-sm text-green-900/90">
-        When you&apos;re ready, click the button below. We&apos;ll prepare and
-        send your offer letter right after — you&apos;ll receive an IDMS
-        email to review and sign.
-      </p>
-      {ack.applicantVisibleNotes && (
-        <div className="mt-3 rounded-md border border-green-200 bg-white p-3 text-sm text-slate-700">
-          <p className="text-[11px] font-semibold uppercase tracking-wide text-green-700">
-            From the interview team
-          </p>
-          <p className="mt-1 whitespace-pre-wrap">{ack.applicantVisibleNotes}</p>
+    <>
+      <HeroHeader firstName={firstName} stageLabel={stageLabel} />
+
+      {!data.emailVerified && (
+        <div
+          role="status"
+          className="mb-6 flex items-start gap-3 rounded-md border-l-4 border-l-amber-500 bg-amber-50 p-4 text-amber-900"
+        >
+          <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" strokeWidth={2.5} />
+          <div className="flex-1 text-sm">
+            <p className="font-medium">Verify your email to apply</p>
+            <p className="mt-0.5 text-xs opacity-90">
+              We sent a code to {data.user.email}. Open the action below to resend.
+            </p>
+          </div>
         </div>
       )}
-      <div className="mt-4">
-        <button
-          type="button"
-          onClick={onClick}
-          disabled={busy}
-          className="inline-flex items-center rounded-md bg-green-700 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-green-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-500 focus-visible:ring-offset-2 disabled:opacity-60"
-        >
-          {busy ? 'Sending…' : 'Receive my offer letter'}
-        </button>
-        {err && <p className="mt-2 text-xs text-red-700">{err}</p>}
+
+      <JourneyBar currentIndex={milestoneIdx} />
+
+      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_280px]">
+        <main className="min-w-0 space-y-6">
+          {!data.applyReadiness.complete && (
+            <InternProfileCompletionCard readiness={data.applyReadiness} />
+          )}
+
+          {data.selectionAck && <SelectionAckCard ack={data.selectionAck} />}
+
+          <DoThisNextHero action={data.nextAction} />
+
+          <TasksCard data={data} />
+
+          <ActivityCard />
+        </main>
+        <RightSidePanel />
+      </div>
+    </>
+  );
+}
+
+// ─── Hero header ────────────────────────────────────────────────────────
+
+function HeroHeader({
+  firstName,
+  stageLabel,
+}: {
+  firstName: string;
+  stageLabel: string;
+}) {
+  return (
+    <header className="mb-6">
+      <h1 className="text-2xl font-semibold text-slate-900 sm:text-3xl">
+        Welcome back, {firstName}
+      </h1>
+      <p className="mt-1 text-sm text-slate-600">
+        You&apos;re at the <span className="font-medium text-brand-700">{stageLabel}</span> step.
+      </p>
+    </header>
+  );
+}
+
+// ─── Condensed journey bar ──────────────────────────────────────────────
+
+function JourneyBar({ currentIndex }: { currentIndex: number }) {
+  return (
+    <section
+      aria-label="Your journey"
+      className="mb-8 overflow-x-auto rounded-lg border border-slate-200 bg-white p-4 shadow-ds-sm"
+    >
+      <div className="min-w-[36rem]">
+        <StepperHorizontal steps={MILESTONES} currentIndex={currentIndex} />
       </div>
     </section>
   );
 }
 
-// ── Next action ───────────────────────────────────────────────────────────
+// ─── Do this next hero ──────────────────────────────────────────────────
 
-function NextActionCard({ action }: { action: InternNextAction }) {
-  const isResendVerification =
-    action.ctaHref === '/api/v1/auth/resend-verification';
-  // Backend buildNextAction emits this href when SelectionAckPolicy
-  // .needsAck is true for the candidate — the NEXT ACTION owns the
-  // acknowledge CTA so it can't be missed if the SelectionAckCard
-  // above isn't visible. Pattern mirrors the resend-verification
-  // custom-button path. Backend emits the full /api/v1/applications/
-  // prefix because the axios client has no rewrite.
+function DoThisNextHero({ action }: { action: InternNextAction }) {
+  const isResendVerification = action.ctaHref === '/api/v1/auth/resend-verification';
   const ackPrefix = '/api/v1/applications/';
   const ackSuffix = '/acknowledge-selection';
   const isAcknowledgeSelection =
@@ -183,16 +211,18 @@ function NextActionCard({ action }: { action: InternNextAction }) {
     && action.ctaHref.endsWith(ackSuffix);
 
   return (
-    <section className="rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
+    <section
+      className={cn(
+        'rounded-lg border-l-4 border-l-brand-600 border border-slate-200 bg-white p-6 shadow-ds-sm',
+      )}
+    >
       <div className="flex items-start justify-between gap-4">
         <div className="flex-1">
           <div className="mb-1 inline-flex items-center gap-1.5 rounded-full bg-brand-50 px-2.5 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-brand-700">
             <Sparkles className="h-3 w-3" strokeWidth={2.5} />
-            Next action
+            Do this next
           </div>
-          <h2 className="text-xl font-semibold text-slate-900">
-            {action.title}
-          </h2>
+          <h2 className="text-xl font-semibold text-slate-900">{action.title}</h2>
           <p className="mt-1 text-sm text-slate-600">{action.description}</p>
         </div>
         {action.waiting && (
@@ -211,9 +241,10 @@ function NextActionCard({ action }: { action: InternNextAction }) {
           ) : (
             <Link
               href={action.ctaHref}
-              className="inline-flex items-center rounded-md bg-brand-700 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-brand-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2"
+              className="inline-flex items-center gap-1.5 rounded-md bg-brand-700 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-brand-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2"
             >
               {action.ctaLabel}
+              <ArrowRight className="h-4 w-4" strokeWidth={2.5} />
             </Link>
           )}
         </div>
@@ -298,55 +329,153 @@ function ResendVerificationButton({ label }: { label: string }) {
       >
         {sending ? 'Sending…' : label}
       </button>
-      {err && (
-        <p className="mt-2 text-xs text-red-700">{err}</p>
-      )}
+      {err && <p className="mt-2 text-xs text-red-700">{err}</p>}
     </div>
   );
 }
 
-// ── Contacts ─────────────────────────────────────────────────────────────
+// ─── Selection ack (kept for the "you've been selected" surge moment) ──
 
-function ContactsCard({
-  contacts,
-}: {
-  contacts: { erm: InternContact | null; trainer: InternContact | null; evaluator: InternContact | null; manager: InternContact | null };
-}) {
-  const entries: Array<{ role: string; contact: InternContact }> = [];
-  if (contacts.erm) entries.push({ role: 'ERM', contact: contacts.erm });
-  if (contacts.trainer) entries.push({ role: 'Trainer', contact: contacts.trainer });
-  if (contacts.evaluator) entries.push({ role: 'Evaluator', contact: contacts.evaluator });
-  if (contacts.manager) entries.push({ role: 'Manager', contact: contacts.manager });
+function SelectionAckCard({ ack }: { ack: InternSelectionAck }) {
+  const { refresh } = useInternDashboard();
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const jobLabel = ack.jobTitle?.trim() || 'the role';
+
+  async function onClick() {
+    setBusy(true);
+    setErr(null);
+    try {
+      await api.post(`/api/v1/applications/${ack.applicationId}/acknowledge-selection`);
+      await refresh();
+    } catch (e) {
+      const ax = e as { response?: { data?: { error?: string } } };
+      setErr(
+        ax.response?.data?.error
+          ?? (e instanceof Error ? e.message : 'Could not record acknowledgment'),
+      );
+    } finally {
+      setBusy(false);
+    }
+  }
 
   return (
-    <section className="rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
-      <h3 className="text-sm font-semibold text-slate-900">Your contacts</h3>
-      {entries.length === 0 ? (
-        <p className="mt-3 text-sm text-slate-500">
-          Contacts will appear here once you&apos;re paired with the team.
-        </p>
+    <section className="rounded-lg border border-green-200 bg-green-50 p-6 shadow-sm">
+      <div className="inline-flex items-center gap-1.5 rounded-full bg-green-100 px-2.5 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-green-800">
+        <PartyPopper className="h-3 w-3" strokeWidth={2.5} />
+        Congratulations
+      </div>
+      <h2 className="mt-2 text-xl font-semibold text-green-900">
+        You&apos;ve been selected for {jobLabel}
+      </h2>
+      <p className="mt-1 text-sm text-green-900/90">
+        When you&apos;re ready, click the button below. We&apos;ll prepare and send
+        your offer letter right after — you&apos;ll receive an IDMS email to review
+        and sign.
+      </p>
+      {ack.applicantVisibleNotes && (
+        <div className="mt-3 rounded-md border border-green-200 bg-white p-3 text-sm text-slate-700">
+          <p className="text-[11px] font-semibold uppercase tracking-wide text-green-700">
+            From the interview team
+          </p>
+          <p className="mt-1 whitespace-pre-wrap">{ack.applicantVisibleNotes}</p>
+        </div>
+      )}
+      <div className="mt-4">
+        <button
+          type="button"
+          onClick={onClick}
+          disabled={busy}
+          className="inline-flex items-center rounded-md bg-green-700 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-green-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-500 focus-visible:ring-offset-2 disabled:opacity-60"
+        >
+          {busy ? 'Sending…' : 'Receive my offer letter'}
+        </button>
+        {err && <p className="mt-2 text-xs text-red-700">{err}</p>}
+      </div>
+    </section>
+  );
+}
+
+// ─── Tasks (derived from existing signals; honest empty state) ─────────
+
+interface DerivedTask {
+  key: string;
+  label: string;
+  href?: string;
+}
+
+function deriveTasks(data: InternDashboardResponse): DerivedTask[] {
+  const tasks: DerivedTask[] = [];
+
+  // Verify-email is a top-of-funnel todo — covered by the banner above too,
+  // but listed here so the consolidated checklist is honest about what's
+  // pending the intern.
+  if (!data.emailVerified) {
+    tasks.push({ key: 'verify-email', label: 'Verify your email' });
+  }
+
+  // Profile completion is already surfaced as its own card; the Tasks card
+  // gets a single-line entry so the consolidated checklist is complete.
+  if (data.applyReadiness && !data.applyReadiness.complete) {
+    tasks.push({
+      key: 'complete-profile',
+      label: 'Complete your profile',
+      href: '/careers/intern/profile/complete',
+    });
+  }
+
+  // Surface the live next-action only when it's a do-now action AND not
+  // already represented by the verify-email / profile entries above
+  // (avoid duplicating).
+  const a = data.nextAction;
+  if (a && a.ctaLabel && a.ctaHref && !a.waiting) {
+    const ctaIsVerify = a.ctaHref === '/api/v1/auth/resend-verification';
+    const ctaIsProfile = a.ctaHref === '/careers/intern/profile/complete';
+    if (!ctaIsVerify && !ctaIsProfile) {
+      // Selection-ack also drives its own card; skip to avoid duplication.
+      const ctaIsSelectionAck =
+        a.ctaHref.startsWith('/api/v1/applications/')
+        && a.ctaHref.endsWith('/acknowledge-selection');
+      if (!ctaIsSelectionAck) {
+        const isInternalLink = a.ctaHref.startsWith('/') && !a.ctaHref.startsWith('/api/');
+        tasks.push({
+          key: 'next-action',
+          label: a.title,
+          href: isInternalLink ? a.ctaHref : undefined,
+        });
+      }
+    }
+  }
+
+  return tasks;
+}
+
+function TasksCard({ data }: { data: InternDashboardResponse }) {
+  const tasks = deriveTasks(data);
+
+  return (
+    <section className="rounded-lg border border-slate-200 bg-white p-6 shadow-ds-sm">
+      <h3 className="text-sm font-semibold text-slate-900">Your tasks</h3>
+      {tasks.length === 0 ? (
+        <div className="mt-3 flex items-start gap-3 rounded-md bg-slate-50 p-4 text-sm text-slate-600">
+          <Inbox className="mt-0.5 h-4 w-4 shrink-0 text-slate-400" strokeWidth={2} />
+          <span>Nothing pending right now — your team will reach out when there&apos;s a move.</span>
+        </div>
       ) : (
-        <ul className="mt-3 space-y-3">
-          {entries.map(({ role, contact }) => (
-            <li key={role} className="flex items-center gap-3">
-              <span className="flex h-9 w-9 items-center justify-center rounded-full bg-brand-100 text-sm font-semibold text-brand-800">
-                {initialsOf(contact.name)}
-              </span>
-              <div className="min-w-0 flex-1">
-                <div className="text-sm font-medium text-slate-900">
-                  {contact.name}
-                  <span className="ml-2 text-xs font-normal text-slate-500">
-                    {role}
-                  </span>
-                </div>
-                <a
-                  href={`mailto:${contact.email}`}
-                  className="inline-flex items-center gap-1 text-xs text-brand-700 hover:underline"
+        <ul className="mt-3 space-y-2">
+          {tasks.map((t) => (
+            <li key={t.key} className="flex items-center gap-3 rounded-md border border-slate-100 bg-white px-3 py-2 text-sm">
+              <Circle className="h-4 w-4 shrink-0 text-slate-400" strokeWidth={2} />
+              {t.href ? (
+                <Link
+                  href={t.href}
+                  className="flex-1 text-slate-800 hover:text-brand-700 hover:underline"
                 >
-                  <Mail className="h-3 w-3" strokeWidth={2} />
-                  {contact.email}
-                </a>
-              </div>
+                  {t.label}
+                </Link>
+              ) : (
+                <span className="flex-1 text-slate-800">{t.label}</span>
+              )}
             </li>
           ))}
         </ul>
@@ -355,24 +484,17 @@ function ContactsCard({
   );
 }
 
-function initialsOf(name: string): string {
-  return name
-    .trim()
-    .split(/\s+/)
-    .slice(0, 2)
-    .map((w) => w[0]?.toUpperCase() ?? '')
-    .join('');
-}
-
-// ── Activity placeholder ─────────────────────────────────────────────────
+// ─── Activity (no DTO data today — honest empty state) ─────────────────
 
 function ActivityCard() {
   return (
-    <section className="rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
+    <section className="rounded-lg border border-slate-200 bg-white p-6 shadow-ds-sm">
       <h3 className="text-sm font-semibold text-slate-900">Recent activity</h3>
-      <p className="mt-3 text-sm text-slate-500">
-        Activity will appear here as your journey progresses.
-      </p>
+      <div className="mt-3 flex items-start gap-3 rounded-md bg-slate-50 p-4 text-sm text-slate-600">
+        <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-slate-400" strokeWidth={2} />
+        <span>Activity will appear here as your journey progresses.</span>
+      </div>
     </section>
   );
 }
+
