@@ -114,18 +114,18 @@ export function statusLabel(status: string | null | undefined): string {
 /** Tailwind class triplet for surface + text + border in a given tone. */
 export const TONE_CLASSES: Record<Semantic, { bg: string; text: string; border: string; icon: string; ring: string }> = {
   success: {
-    bg: 'bg-emerald-50',
-    text: 'text-emerald-700',
-    border: 'border-emerald-200',
-    icon: 'text-emerald-600',
-    ring: 'ring-emerald-200',
+    bg: 'bg-green-50',
+    text: 'text-green-700',
+    border: 'border-green-200',
+    icon: 'text-green-600',
+    ring: 'ring-green-200',
   },
   info: {
-    bg: 'bg-blue-50',
-    text: 'text-blue-700',
-    border: 'border-blue-200',
-    icon: 'text-blue-600',
-    ring: 'ring-blue-200',
+    bg: 'bg-slate-100',
+    text: 'text-slate-700',
+    border: 'border-slate-300',
+    icon: 'text-slate-500',
+    ring: 'ring-slate-200',
   },
   warning: {
     bg: 'bg-amber-50',

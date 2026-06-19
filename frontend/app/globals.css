@@ -16,10 +16,10 @@
   --ds-text-muted: #475569;    /* slate-600 */
   --ds-text-subtle: #94a3b8;   /* slate-400 */
 
-  /* Brand */
-  --ds-brand: #0f766e;         /* teal-700 */
-  --ds-brand-hover: #115e59;   /* teal-800 */
-  --ds-brand-ring: #14b8a6;    /* teal-500 */
+  /* Brand (orange) */
+  --ds-brand: #c2410c;         /* brand-700 */
+  --ds-brand-hover: #9a3412;   /* brand-800 */
+  --ds-brand-ring: #f97316;    /* brand-500 */
 }
 
 /* Reset focus ring to brand teal globally for dashboard surfaces. Marketing
