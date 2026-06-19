@@ -3,8 +3,9 @@
 import { useState, useMemo } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Briefcase, CheckCircle2, MapPin } from 'lucide-react';
+import { Briefcase, CheckCircle2, Lock, MapPin } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
+import { useInternDashboardOptional } from '@/components/intern/InternDashboardContext';
 import { formatRelative } from '@/lib/format-date';
 import type { JobPostingResponse } from '@/types';
 import Modal from '@/components/ui/Modal';
@@ -191,10 +192,18 @@ function ApplyCell({
 }) {
   const router = useRouter();
   const { user } = useAuth();
+  const dashboard = useInternDashboardOptional();
   const isAuthed = !!user;
   const isApplicant = !!user?.roles?.includes('INTERN');
   const isPostApplicant =
     isAuthed && !isApplicant && (user?.roles?.length ?? 0) > 0;
+
+  // Approach 1 — only locks for an INTERN inside the dashboard layout
+  // (where the provider is present). On the public openings page the
+  // dashboard hook returns null and the server-side gate remains the sole
+  // authority.
+  const readiness = dashboard?.data?.applyReadiness;
+  const profileLocked = isApplicant && readiness != null && !readiness.complete;
 
   if (applied) {
     return (
@@ -211,6 +220,23 @@ function ApplyCell({
         title="Only applicants (INTERN role) can apply">
         Staff view
       </span>
+    );
+  }
+
+  if (profileLocked) {
+    const focus = readiness!.missing[0];
+    const href = focus
+      ? `/careers/intern/profile/complete?focus=${encodeURIComponent(focus)}`
+      : '/careers/intern/profile/complete';
+    return (
+      <Link
+        href={href}
+        title="Complete your profile to apply"
+        className="inline-flex items-center gap-1 rounded-md border border-brand-300 bg-brand-50 px-3 py-1 text-xs font-semibold text-brand-700 hover:bg-brand-100"
+      >
+        <Lock className="h-3 w-3" strokeWidth={2.5} />
+        Apply
+      </Link>
     );
   }
 

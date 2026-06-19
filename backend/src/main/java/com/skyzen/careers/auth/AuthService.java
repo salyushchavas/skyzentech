@@ -102,7 +102,6 @@ public class AuthService {
                 .email(req.email())
                 .passwordHash(passwordEncoder.encode(req.password()))
                 .fullName(req.fullName())
-                .phoneNumber(req.phoneNumber())
                 .roles(EnumSet.of(UserRole.INTERN))
                 .emailVerified(false)
                 // Proof of consent — stamped because the @AssertTrue on
@@ -116,33 +115,16 @@ public class AuthService {
                 .build();
         userRepository.save(user);
 
-        // Phase 1.4 — persist whatever intake + attestation values the
-        // registration form sent. Each field is null-tolerant; the profile
-        // page is the primary edit surface, registration just captures what
-        // the candidate volunteered up-front.
+        // Approach 1 — signup persists the candidate row with only the legal
+        // name; every other intake field (phone, school/degree, work-auth
+        // attestation, etc.) is collected on the post-signup profile editor
+        // at /careers/intern/profile/complete. The apply endpoint guards on
+        // ProfileCompletionService so a blank row simply leaves Apply locked
+        // until the editor is finished — the column nullability matches.
         Candidate candidate = Candidate.builder()
                 .user(user)
-                .legalName(emptyToNull(req.legalName()))
-                .preferredName(emptyToNull(req.preferredName()))
-                // Legacy free-text fields — accepted from older clients but
-                // the new registration form writes the structured trio below.
-                .education(emptyToNull(req.education()))
-                .school(emptyToNull(req.school()))
-                .degree(emptyToNull(req.degree()))
-                // Phase 1.5 — structured education.
-                .degreeLevel(req.degreeLevel())
-                .specialization(emptyToNull(req.specialization()))
-                .graduationYear(req.graduationYear())
-                .skillset(emptyToNull(req.skillset()))
-                .authorizedToWork(req.authorizedToWork())
-                .sponsorshipNeeded(req.sponsorshipNeeded())
-                .expectedTrack(req.expectedTrack())
-                // Phase 1.5 — visa-conditional work-auth dates. The form
-                // nulls out fields that don't apply to the chosen track
-                // (per VisaDateRequirement); the server stores whatever
-                // it receives — null is "not applicable / not disclosed".
-                .validityDate(req.validityDate())
-                .validityStartDate(req.validityStartDate())
+                .legalName(emptyToNull(req.legalName() != null
+                        ? req.legalName() : req.fullName()))
                 .build();
         candidateRepository.save(candidate);
 

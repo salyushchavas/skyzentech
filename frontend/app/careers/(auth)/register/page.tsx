@@ -3,19 +3,13 @@
 import { FormEvent, Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { AlertCircle, GraduationCap, ShieldCheck, UserCircle } from 'lucide-react';
+import { AlertCircle, UserCircle } from 'lucide-react';
 import AuthLayout from '@/components/dashboard/AuthLayout';
 import RegisterDebugPanel, {
   type RegisterDebugInfo,
 } from '@/components/dashboard/RegisterDebugPanel';
 import { useAuth } from '@/lib/auth-context';
 import { apiBaseURL } from '@/lib/api';
-import type { DegreeLevel, WorkAuthTrack } from '@/types';
-import { DEGREE_LEVEL_LABEL } from '@/types';
-import {
-  visaDateRequirementFor,
-  VISA_TRACK_LABEL,
-} from '@/lib/visa-date-requirement';
 
 export default function RegisterPage() {
   return (
@@ -38,63 +32,22 @@ function RegisterPageInner() {
 
   const [lastAttempt, setLastAttempt] = useState<RegisterDebugInfo['lastAttempt']>(null);
 
-  // Core auth fields.
+  // Approach 1 — signup collects only the 4 legal-essentials. Everything
+  // else (phone, education, work-auth, skills, resume) is gathered on the
+  // /careers/intern/profile/complete wizard after the user lands in the
+  // dashboard. The apply endpoint guards on the same derived check, so the
+  // intern can browse immediately but Apply stays locked until the editor
+  // is finished.
+  const [legalName, setLegalName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
-  const [fullName, setFullName] = useState('');
-  const [phoneNumber, setPhoneNumber] = useState('');
-
-  // Phase 1.4 intake.
-  const [skillset, setSkillset] = useState('');
-  const [school, setSchool] = useState('');
-  // Phase 1.5 — structured education replaces free-text degree + summary.
-  const [degreeLevel, setDegreeLevel] = useState<DegreeLevel | ''>('');
-  const [specialization, setSpecialization] = useState('');
-  const [graduationYear, setGraduationYear] = useState<string>('');
-
-  // Phase 1.4 neutral self-attestation. tri-state strings ('' = unanswered,
-  // 'yes' / 'no') so the radio group reflects "not answered yet" correctly.
-  const [authorizedToWork, setAuthorizedToWork] = useState<'' | 'yes' | 'no'>('');
-  const [sponsorshipNeeded, setSponsorshipNeeded] = useState<'' | 'yes' | 'no'>('');
-  const [expectedTrack, setExpectedTrack] = useState<WorkAuthTrack | ''>('');
-  // Phase 1.5 — visa-conditional dates. validityDate is the END /
-  // expiration date; validityStartDate only shown for tracks whose
-  // VisaDateRequirement is BOTH.
-  const [validityDate, setValidityDate] = useState('');
-  const [validityStartDate, setValidityStartDate] = useState('');
-
-  // Phase 1.5 — which date fields to show, derived from the chosen track.
-  // The mapping lives in lib/visa-date-requirement.ts (single source).
-  const visaDateReq = visaDateRequirementFor(expectedTrack || undefined);
-  const showEndDate = visaDateReq !== 'NONE';
-  const showStartDate = visaDateReq === 'BOTH';
-
-  // Clear date values whenever the track switches to a requirement that
-  // no longer needs them — prevents stale dates from being submitted.
-  useEffect(() => {
-    if (!showStartDate && validityStartDate !== '') setValidityStartDate('');
-    if (!showEndDate && validityDate !== '') setValidityDate('');
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [showStartDate, showEndDate]);
-
-  // Graduation year bounds — wide enough for "I'm still in HS" through
-  // "MBA, graduated decades ago coming back for a career switch".
-  const currentYear = new Date().getFullYear();
-  const minGradYear = currentYear - 30;
-  const maxGradYear = currentYear + 8;
-
   const [acceptedTos, setAcceptedTos] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
   const errorRef = useRef<HTMLDivElement | null>(null);
 
-  // The legacy layout put the error at the top of a tall column, so users
-  // had to scroll up to read it after clicking Submit. The error banner now
-  // lives next to the submit button, but if the viewport is small we also
-  // smooth-scroll it into view on every new error so the user never has to
-  // hunt for it.
   useEffect(() => {
     if (error && errorRef.current) {
       errorRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -105,6 +58,10 @@ function RegisterPageInner() {
     e.preventDefault();
     setError(null);
 
+    if (!legalName.trim()) {
+      setError('Please enter your legal name as it appears on your government ID.');
+      return;
+    }
     if (password.length < 8) {
       setError('Password must be at least 8 characters.');
       return;
@@ -117,49 +74,19 @@ function RegisterPageInner() {
       setError('Please accept the Privacy Policy and Terms of Service to continue.');
       return;
     }
-    // Phase 1.5 — visa-conditional date validation.
-    if (showEndDate && expectedTrack && !validityDate) {
-      setError('Please enter the work-auth expiration date for the selected visa type.');
-      return;
-    }
-    if (showStartDate && expectedTrack && !validityStartDate) {
-      setError('Please enter the work-auth start date for the selected visa type.');
-      return;
-    }
-    if (showStartDate && showEndDate && validityStartDate && validityDate
-        && new Date(validityDate) <= new Date(validityStartDate)) {
-      setError('Work-auth end date must be after the start date.');
-      return;
-    }
-    // Graduation year — only validated when supplied (the structured trio
-    // is optional in registration; the profile page can fill it in later).
-    let graduationYearNum: number | undefined;
-    if (graduationYear) {
-      graduationYearNum = parseInt(graduationYear, 10);
-      if (Number.isNaN(graduationYearNum)
-          || graduationYearNum < minGradYear || graduationYearNum > maxGradYear) {
-        setError(`End year must be between ${minGradYear} and ${maxGradYear}.`);
-        return;
-      }
-    }
 
     setLoading(true);
     const startedAt = performance.now();
+    const trimmedName = legalName.trim();
     const requestBody = {
       email,
       password: '***',
-      fullName,
-      phoneNumber: phoneNumber || undefined,
-      skillset: skillset.trim() || undefined,
-      school: school.trim() || undefined,
-      degreeLevel: degreeLevel || undefined,
-      specialization: specialization.trim() || undefined,
-      graduationYear: graduationYearNum,
-      authorizedToWork: triStateToBool(authorizedToWork),
-      sponsorshipNeeded: triStateToBool(sponsorshipNeeded),
-      expectedTrack: expectedTrack || undefined,
-      validityDate: showEndDate && validityDate ? validityDate : undefined,
-      validityStartDate: showStartDate && validityStartDate ? validityStartDate : undefined,
+      fullName: trimmedName,
+      // legalName mirrors fullName at signup — both columns get the same
+      // value so the offer letter / compliance flows that key off legalName
+      // don't break, and the dashboard / nav that read fullName render the
+      // intern's name. The profile editor can split them later if needed.
+      legalName: trimmedName,
       acceptedTos,
     };
 
@@ -178,27 +105,9 @@ function RegisterPageInner() {
       const user = await register(
         email,
         password,
-        fullName,
-        phoneNumber || undefined,
-        {
-          // Trim + drop blanks so the backend stores null instead of "".
-          skillset: skillset.trim() || undefined,
-          school: school.trim() || undefined,
-          // Phase 1.5 — structured education replaces free-text degree +
-          // summary. The legacy `degree` / `education` fields stay
-          // available on the API for older clients; this form just leaves
-          // them empty and lets the backend persist the structured trio.
-          degreeLevel: degreeLevel || undefined,
-          specialization: specialization.trim() || undefined,
-          graduationYear: graduationYearNum,
-          authorizedToWork: triStateToBool(authorizedToWork),
-          sponsorshipNeeded: triStateToBool(sponsorshipNeeded),
-          expectedTrack: expectedTrack || undefined,
-          // Phase 1.5 — only send the date(s) the visa track actually needs.
-          validityDate: showEndDate && validityDate ? validityDate : undefined,
-          validityStartDate: showStartDate && validityStartDate
-            ? validityStartDate : undefined,
-        },
+        trimmedName,
+        undefined,
+        { legalName: trimmedName },
         acceptedTos,
       );
 
@@ -214,20 +123,7 @@ function RegisterPageInner() {
         errorClass: null,
         durationMs,
       });
-      // eslint-disable-next-line no-console
-      console.group('[REGISTER_DEBUG] response');
-      // eslint-disable-next-line no-console
-      console.log('status', 200);
-      // eslint-disable-next-line no-console
-      console.log('user', user);
-      // eslint-disable-next-line no-console
-      console.log('elapsed', durationMs, 'ms');
-      // eslint-disable-next-line no-console
-      console.groupEnd();
 
-      // Phase 1.2 — every fresh registration starts unverified; route to verify.
-      // The code is delivered ONLY by email (never round-tripped through the
-      // API), so the verify field starts empty and the user types it in.
       if (user.emailVerified === false || user.emailVerified === undefined) {
         const params = new URLSearchParams({ email: user.email });
         const returnTo = safeReturnTo();
@@ -252,18 +148,6 @@ function RegisterPageInner() {
         errorClass: classified.errorClass,
         durationMs,
       });
-      // eslint-disable-next-line no-console
-      console.group('[REGISTER_DEBUG] error');
-      // eslint-disable-next-line no-console
-      console.error('classification', classified.errorClass);
-      // eslint-disable-next-line no-console
-      console.error('user-facing message', classified.userMessage);
-      // eslint-disable-next-line no-console
-      console.error('error', err);
-      // eslint-disable-next-line no-console
-      console.error('elapsed', durationMs, 'ms');
-      // eslint-disable-next-line no-console
-      console.groupEnd();
     } finally {
       setLoading(false);
     }
@@ -281,185 +165,66 @@ function RegisterPageInner() {
   return (
     <AuthLayout
       title="Create your account"
-      subtitle="Apply to STEM internships in minutes"
-      wide
+      subtitle="Sign up in seconds — you'll add the rest from your dashboard."
     >
       <form onSubmit={onSubmit} className="space-y-6">
-        {/* Two-column card layout. Each section is its own card so the form
-            reads as bite-sized chunks, not one tall scroll. Stacks to a single
-            column under sm:. */}
-        <div className="grid gap-5 lg:grid-cols-2">
-          {/* Account card — required, anchors the left column. */}
-          <Card icon={<UserCircle />} title="Your account" required>
-            <Field id="fullName" label="Full name" type="text" value={fullName}
-              onChange={setFullName} required autoComplete="name" />
-            <Field id="email" label="Email" type="email" value={email}
-              onChange={setEmail} required autoComplete="email" />
-            <Field id="phoneNumber" label="Phone (optional)" type="tel"
-              value={phoneNumber} onChange={setPhoneNumber} autoComplete="tel" />
-            <div className="grid gap-3 sm:grid-cols-2">
-              <Field id="password" label="Password" type="password"
-                value={password} onChange={setPassword} required
-                autoComplete="new-password" minLength={8}
-                hint="At least 8 characters" />
-              <Field id="confirmPassword" label="Confirm" type="password"
-                value={confirmPassword} onChange={setConfirmPassword} required
-                autoComplete="new-password" />
-            </div>
-          </Card>
-
-          {/* Education card — top of right column. Phase 1.5 ships
-              the structured trio (Degree / Specialization / End Year)
-              in place of the free-text "Education summary" textbox. */}
-          <Card
-            icon={<GraduationCap />}
-            title="Education & skills"
-            subtitle="Optional — finish on your profile later"
-          >
-            <div className="grid gap-3 sm:grid-cols-2">
-              <Field id="school" label="School" type="text" value={school}
-                onChange={setSchool} autoComplete="organization" />
-              <div>
-                <label htmlFor="degreeLevel"
-                  className="mb-1 block text-sm font-medium text-gray-700">
-                  Degree
-                </label>
-                <select
-                  id="degreeLevel"
-                  value={degreeLevel}
-                  onChange={(e) => setDegreeLevel(e.target.value as DegreeLevel | '')}
-                  className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
-                >
-                  <option value="">Select…</option>
-                  {(Object.keys(DEGREE_LEVEL_LABEL) as DegreeLevel[]).map((d) => (
-                    <option key={d} value={d}>{DEGREE_LEVEL_LABEL[d]}</option>
-                  ))}
-                </select>
-              </div>
-            </div>
-            <div className="grid gap-3 sm:grid-cols-2">
-              <Field id="specialization" label="Specialization" type="text"
-                value={specialization} onChange={setSpecialization}
-                placeholder="e.g. Computer Science" />
-              <div>
-                <label htmlFor="graduationYear"
-                  className="mb-1 block text-sm font-medium text-gray-700">
-                  End year
-                </label>
-                <input
-                  id="graduationYear"
-                  type="number"
-                  inputMode="numeric"
-                  value={graduationYear}
-                  onChange={(e) => setGraduationYear(e.target.value)}
-                  min={minGradYear}
-                  max={maxGradYear}
-                  step={1}
-                  placeholder={String(currentYear)}
-                  className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
-                />
-                <p className="mt-1 text-[11px] text-gray-500">
-                  Expected or actual ({minGradYear}–{maxGradYear}).
-                </p>
-              </div>
-            </div>
+        <section className="flex flex-col gap-3 rounded-xl border border-gray-200 bg-white p-5">
+          <header className="flex items-start gap-3">
+            <span className="rounded-md bg-accent/10 p-1.5 text-accent">
+              <UserCircle className="h-4 w-4" />
+            </span>
             <div>
-              <label htmlFor="skillset"
-                className="mb-1 block text-sm font-medium text-gray-700">
-                Skills
-              </label>
-              <textarea
-                id="skillset"
-                value={skillset}
-                onChange={(e) => setSkillset(e.target.value)}
-                rows={2}
-                placeholder="Comma-separated, e.g. Python, SQL, React"
-                className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
-              />
-            </div>
-          </Card>
-
-          {/* Work-auth card — spans full width on lg to give the long
-              attestation questions breathing room without making the page
-              tall on desktop. */}
-          <Card
-            icon={<ShieldCheck />}
-            title="Work authorization"
-            subtitle="Your own statement — no documents are collected now"
-            className="lg:col-span-2"
-          >
-            <div className="grid gap-4 lg:grid-cols-2">
-              <YesNo
-                label="Are you currently authorized to work in the United States?"
-                value={authorizedToWork}
-                onChange={setAuthorizedToWork}
-                name="authorizedToWork"
-              />
-              <YesNo
-                label="Will you now or in the future require employment sponsorship?"
-                value={sponsorshipNeeded}
-                onChange={setSponsorshipNeeded}
-                name="sponsorshipNeeded"
-              />
-            </div>
-            <div className="grid gap-3 sm:grid-cols-2">
-              <div>
-                <label htmlFor="expectedTrack"
-                  className="mb-1 block text-sm font-medium text-gray-700">
-                  Expected authorization track
-                </label>
-                <select
-                  id="expectedTrack"
-                  value={expectedTrack}
-                  onChange={(e) =>
-                    setExpectedTrack(e.target.value as WorkAuthTrack | '')
-                  }
-                  className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
-                >
-                  <option value="">Select…</option>
-                  {(Object.keys(VISA_TRACK_LABEL) as WorkAuthTrack[]).map((t) => (
-                    <option key={t} value={t}>{VISA_TRACK_LABEL[t]}</option>
-                  ))}
-                </select>
-              </div>
-              {/* Date fields appear only for tracks whose
-                  VisaDateRequirement is END_ONLY (just end) or BOTH
-                  (start + end). Switching the track to NONE clears any
-                  previously-entered dates via the useEffect above so
-                  irrelevant values never reach the API. */}
-              {showStartDate && (
-                <Field
-                  id="validityStartDate"
-                  label="Authorization start date"
-                  type="date"
-                  value={validityStartDate}
-                  onChange={setValidityStartDate}
-                  required
-                />
-              )}
-              {showEndDate && (
-                <Field
-                  id="validityDate"
-                  label="Authorization end date (expiration)"
-                  type="date"
-                  value={validityDate}
-                  onChange={setValidityDate}
-                  required
-                />
-              )}
-            </div>
-            {!expectedTrack && (
-              <p className="text-[11px] text-gray-500">
-                Pick a track above to enter your authorization dates.
+              <h3 className="text-sm font-semibold text-gray-900">Your account</h3>
+              <p className="mt-0.5 text-xs text-gray-500">
+                We'll collect the rest (school, skills, resume) right after sign-up so you can start applying.
               </p>
-            )}
-          </Card>
-        </div>
+            </div>
+          </header>
+          <div className="space-y-3">
+            <Field
+              id="legalName"
+              label="Legal name"
+              type="text"
+              value={legalName}
+              onChange={setLegalName}
+              required
+              autoComplete="name"
+              hint="As per your government ID"
+            />
+            <Field
+              id="email"
+              label="Email"
+              type="email"
+              value={email}
+              onChange={setEmail}
+              required
+              autoComplete="email"
+            />
+            <div className="grid gap-3 sm:grid-cols-2">
+              <Field
+                id="password"
+                label="Password"
+                type="password"
+                value={password}
+                onChange={setPassword}
+                required
+                autoComplete="new-password"
+                minLength={8}
+                hint="At least 8 characters"
+              />
+              <Field
+                id="confirmPassword"
+                label="Confirm"
+                type="password"
+                value={confirmPassword}
+                onChange={setConfirmPassword}
+                required
+                autoComplete="new-password"
+              />
+            </div>
+          </div>
+        </section>
 
-        {/* Submit footer — ToS checkbox + button + INLINE error.
-            Keeping these visually grouped means the error appears right next
-            to the action the user just took, so they don't have to scroll
-            up looking for it. */}
         <div className="space-y-4 rounded-xl border border-gray-200 bg-gray-50/60 p-5">
           <label className="flex items-start gap-2 text-sm text-gray-700">
             <input
@@ -566,7 +331,6 @@ function classifyRegistrationError(err: unknown, fullUrl: string): ClassifiedErr
   const code = e.code ?? null;
   const response = e.response;
 
-  // Has a response → backend was reached. Classify by status code.
   if (response && typeof response.status === 'number') {
     const status = response.status;
     const statusText = response.statusText ?? null;
@@ -609,7 +373,6 @@ function classifyRegistrationError(err: unknown, fullUrl: string): ClassifiedErr
     };
   }
 
-  // Timeout — axios sets ECONNABORTED with "timeout of Xms exceeded".
   if (code === 'ECONNABORTED' || /timeout/i.test(rawMessage)) {
     const match = rawMessage.match(/timeout of (\d+)ms/);
     const seconds = match ? Math.round(Number(match[1]) / 1000) : null;
@@ -626,8 +389,6 @@ function classifyRegistrationError(err: unknown, fullUrl: string): ClassifiedErr
     };
   }
 
-  // DNS / network — fetch + axios in the browser surface ERR_NAME_NOT_RESOLVED
-  // as a "Network Error" with no response object. Sniff the message.
   const looksLikeDns =
     /name.?not.?resolved|getaddrinfo|enotfound|err_name_not_resolved/i.test(rawMessage);
   if (looksLikeDns) {
@@ -642,7 +403,6 @@ function classifyRegistrationError(err: unknown, fullUrl: string): ClassifiedErr
     };
   }
 
-  // Generic network failure — request was sent but no response.
   if (e.request || /network error|failed to fetch|err_connection|err_internet/i.test(rawMessage)) {
     return {
       userMessage: `Cannot reach server. URL: ${fullUrl}. Check your network or contact admin.`,
@@ -664,95 +424,6 @@ function classifyRegistrationError(err: unknown, fullUrl: string): ClassifiedErr
     errorCode: code,
     errorClass: 'UNKNOWN',
   };
-}
-
-function triStateToBool(v: '' | 'yes' | 'no'): boolean | undefined {
-  if (v === 'yes') return true;
-  if (v === 'no') return false;
-  return undefined;
-}
-
-function Card({
-  icon,
-  title,
-  subtitle,
-  required,
-  className,
-  children,
-}: {
-  icon: React.ReactNode;
-  title: string;
-  subtitle?: string;
-  required?: boolean;
-  className?: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <section
-      className={
-        'flex flex-col gap-3 rounded-xl border border-gray-200 bg-white p-5 ' +
-        (className ?? '')
-      }
-    >
-      <header className="flex items-start gap-3">
-        <span className="rounded-md bg-accent/10 p-1.5 text-accent">
-          <span className="block h-4 w-4 [&>svg]:h-4 [&>svg]:w-4">{icon}</span>
-        </span>
-        <div className="min-w-0">
-          <h3 className="text-sm font-semibold text-gray-900">
-            {title}
-            {required && (
-              <span className="ml-1 align-middle text-xs font-medium text-accent-dark">
-                required
-              </span>
-            )}
-          </h3>
-          {subtitle && <p className="mt-0.5 text-xs text-gray-500">{subtitle}</p>}
-        </div>
-      </header>
-      <div className="space-y-3">{children}</div>
-    </section>
-  );
-}
-
-function YesNo({
-  label,
-  value,
-  onChange,
-  name,
-}: {
-  label: string;
-  value: '' | 'yes' | 'no';
-  onChange: (v: '' | 'yes' | 'no') => void;
-  name: string;
-}) {
-  return (
-    <div>
-      <p className="mb-1.5 block text-sm font-medium text-gray-700">{label}</p>
-      <div className="flex gap-3">
-        {(['yes', 'no'] as const).map((opt) => (
-          <label
-            key={opt}
-            className={
-              'flex flex-1 cursor-pointer items-center justify-center gap-2 rounded-md border px-3 py-2 text-sm transition-colors ' +
-              (value === opt
-                ? 'border-accent bg-accent/5 text-accent-dark'
-                : 'border-gray-300 bg-white hover:bg-gray-50')
-            }
-          >
-            <input
-              type="radio"
-              name={name}
-              checked={value === opt}
-              onChange={() => onChange(opt)}
-              className="h-4 w-4 text-accent focus:ring-accent"
-            />
-            {opt === 'yes' ? 'Yes' : 'No'}
-          </label>
-        ))}
-      </div>
-    </div>
-  );
 }
 
 interface FieldProps {

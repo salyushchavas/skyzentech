@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { Mail, PartyPopper, Sparkles } from 'lucide-react';
 import api from '@/lib/api';
 import InternPageShell from '@/components/intern/InternPageShell';
+import InternProfileCompletionCard from '@/components/intern/InternProfileCompletionCard';
 import ExitSummaryCard from '@/components/exit/ExitSummaryCard';
 import {
   useInternDashboard,
@@ -78,6 +79,9 @@ export default function InternHomePage() {
         </div>
       ) : (
         <>
+          {data.applyReadiness && !data.applyReadiness.complete && (
+            <InternProfileCompletionCard readiness={data.applyReadiness} />
+          )}
           {data.selectionAck && (
             <div className="mb-6">
               <SelectionAckCard ack={data.selectionAck} />

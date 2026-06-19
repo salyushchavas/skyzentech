@@ -104,6 +104,19 @@ export interface InternSelectionAck {
   applicantVisibleNotes: string | null;
 }
 
+/**
+ * Approach 1 — derived "can this intern apply?" snapshot. Drives the
+ * dashboard completion card + the disabled-Apply tooltip; the server
+ * stays authoritative via the apply endpoint guard (409 PROFILE_INCOMPLETE).
+ * Always non-null on the response — empty profile reads as
+ * {complete:false, percent:0, missing:["phone","school",…]}.
+ */
+export interface InternApplyReadiness {
+  complete: boolean;
+  percent: number;
+  missing: string[];
+}
+
 export interface InternDashboardResponse {
   user: {
     firstName: string;
@@ -121,6 +134,7 @@ export interface InternDashboardResponse {
   contacts: InternContacts;
   exitSummary: InternExitSummary | null;
   selectionAck: InternSelectionAck | null;
+  applyReadiness: InternApplyReadiness;
   lastUpdatedAt: string;
 }
 

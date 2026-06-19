@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import api from '@/lib/api';
 import type { JobPostingResponse, ResumeResponse } from '@/types';
 import {
@@ -35,6 +36,7 @@ export default function ApplyNowModal({
   onClose,
   onApplied,
 }: Props) {
+  const router = useRouter();
   const [stepIdx, setStepIdx] = useState(0);
   const [reason, setReason] = useState('');
   const [resumes, setResumes] = useState<ResumeResponse[]>([]);
@@ -91,7 +93,24 @@ export default function ApplyNowModal({
       toast.success('Application submitted.');
       onApplied(res.data?.id ?? '');
     } catch (err: any) {
-      if (err?.response?.status === 409) {
+      const status = err?.response?.status;
+      const code = err?.response?.data?.code;
+      if (status === 409 && code === 'PROFILE_INCOMPLETE') {
+        // Approach 1 — server says the intern needs to finish their profile
+        // before this Apply will be accepted. Hand off to the editor with the
+        // first missing field focused; close the modal so the redirect lands
+        // cleanly.
+        const missing: string[] = err?.response?.data?.details?.missing ?? [];
+        const focus = missing[0];
+        const href = focus
+          ? `/careers/intern/profile/complete?focus=${encodeURIComponent(focus)}`
+          : '/careers/intern/profile/complete';
+        toast.error('Complete your profile to apply.');
+        onClose();
+        router.push(href);
+        return;
+      }
+      if (status === 409) {
         setError("You've already applied to this position.");
       } else {
         setError(err?.response?.data?.error ?? 'Submission failed. Please try again.');
