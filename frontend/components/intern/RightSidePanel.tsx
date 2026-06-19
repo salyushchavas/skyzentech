@@ -45,8 +45,8 @@ const REMINDER_STYLES: Record<Reminder['severity'], { box: string; icon: React.R
     icon: <AlertTriangle className="h-4 w-4 text-amber-600" strokeWidth={2.5} />,
   },
   INFO: {
-    box: 'border-blue-200 bg-blue-50 text-blue-900',
-    icon: <Info className="h-4 w-4 text-blue-600" strokeWidth={2.5} />,
+    box: 'border-slate-300 bg-slate-100 text-slate-700',
+    icon: <Info className="h-4 w-4 text-slate-500" strokeWidth={2.5} />,
   },
 };
 

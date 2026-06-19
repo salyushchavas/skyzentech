@@ -191,7 +191,7 @@ function Body() {
         </div>
       )}
       {week.status === 'REJECTED' && week.reviewNote && (
-        <div className="rounded-md border border-orange-200 bg-orange-50 p-3 text-sm text-orange-900">
+        <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
           <span className="font-medium">Return reason: </span>
           <span className="whitespace-pre-wrap">{week.reviewNote}</span>
         </div>
@@ -204,7 +204,7 @@ function Body() {
             type="button"
             onClick={() => setReturnOpen(true)}
             disabled={busy !== null}
-            className="inline-flex items-center gap-1.5 rounded-md border border-orange-300 bg-white px-3 py-2 text-sm font-medium text-orange-800 hover:bg-orange-50 disabled:opacity-60"
+            className="inline-flex items-center gap-1.5 rounded-md border border-amber-300 bg-white px-3 py-2 text-sm font-medium text-amber-800 hover:bg-amber-50 disabled:opacity-60"
           >
             <RotateCcw className="h-3.5 w-3.5" strokeWidth={2} />
             Return for correction
@@ -290,7 +290,7 @@ function Body() {
                 || reason.trim().length < REASON_MIN
                 || reason.trim().length > REASON_MAX
               }
-              className="inline-flex items-center gap-1.5 rounded-md border border-orange-300 bg-white px-3 py-1.5 text-sm font-medium text-orange-800 hover:bg-orange-50 disabled:opacity-60"
+              className="inline-flex items-center gap-1.5 rounded-md border border-amber-300 bg-white px-3 py-1.5 text-sm font-medium text-amber-800 hover:bg-amber-50 disabled:opacity-60"
             >
               <RotateCcw className="h-3.5 w-3.5" strokeWidth={2} />
               {busy === 'return' ? 'Returning…' : 'Return'}
@@ -307,7 +307,7 @@ function StatusBadge({ status }: { status: TimesheetStatus }) {
     DRAFT: 'bg-gray-100 text-gray-700',
     SUBMITTED: 'bg-amber-100 text-amber-800',
     APPROVED: 'bg-emerald-100 text-emerald-800',
-    REJECTED: 'bg-orange-100 text-orange-800',
+    REJECTED: 'bg-amber-100 text-amber-800',
   };
   const label: Record<TimesheetStatus, string> = {
     DRAFT: 'Draft',

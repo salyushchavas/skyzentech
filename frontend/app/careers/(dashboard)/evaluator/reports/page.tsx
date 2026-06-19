@@ -313,7 +313,7 @@ function CriterionRow({ label, value }: { label: string; value: number | null })
       </div>
       <div className="mt-1 h-2 w-full overflow-hidden rounded-full bg-slate-100">
         <div
-          className="h-full bg-violet-600"
+          className="h-full bg-brand-600"
           style={{ width: `${Math.min(100, pct)}%` }}
         />
       </div>

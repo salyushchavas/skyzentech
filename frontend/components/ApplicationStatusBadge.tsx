@@ -5,13 +5,13 @@ interface Props {
 }
 
 const COLOR_MAP: Record<string, string> = {
-  APPLIED: 'bg-blue-100 text-blue-800',
+  APPLIED: 'bg-slate-100 text-slate-700',
   // Phase 2.1 screening — visually grouped near Applied/Shortlisted band.
   SCREENING_SENT: 'bg-sky-100 text-sky-800',
   SCREENING_COMPLETED: 'bg-sky-100 text-sky-900',
-  SHORTLISTED: 'bg-indigo-100 text-indigo-800',
+  SHORTLISTED: 'bg-slate-100 text-slate-700',
   INTERVIEW_SCHEDULED: 'bg-purple-100 text-purple-800',
-  INTERVIEWED: 'bg-violet-100 text-violet-800',
+  INTERVIEWED: 'bg-amber-100 text-amber-800',
   // Phase 2.3 — slot in the Offer band visually so the stepper colors stay coherent.
   SELECTED_CONDITIONAL: 'bg-brand-50 text-brand-700 ring-1 ring-brand-200',
   OFFERED: 'bg-brand-100 text-brand-800',

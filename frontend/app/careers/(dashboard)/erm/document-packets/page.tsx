@@ -168,7 +168,7 @@ function Row({ p }: { p: DocumentPacketRow }) {
         {/* Phase 1.6 — surface the intern handoff so ERM knows the
             packet is awaiting verification (vs in-progress upload). */}
         {p.internLocked && p.status !== 'COMPLETED' && (
-          <span className="mt-1 block rounded-full bg-violet-100 px-2 py-0.5 text-[10px] font-semibold text-violet-700">
+          <span className="mt-1 block rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold text-amber-800">
             Awaiting verification
           </span>
         )}
@@ -201,9 +201,9 @@ function Row({ p }: { p: DocumentPacketRow }) {
 function StatusPill({ status }: { status: PacketStatus }) {
   const styles: Record<PacketStatus, string> = {
     DRAFT: 'bg-slate-100 text-slate-700',
-    ASSIGNED: 'bg-blue-100 text-blue-800',
+    ASSIGNED: 'bg-slate-100 text-slate-700',
     IN_PROGRESS: 'bg-amber-100 text-amber-800',
-    ALL_SUBMITTED: 'bg-violet-100 text-violet-800',
+    ALL_SUBMITTED: 'bg-amber-100 text-amber-800',
     COMPLETED: 'bg-emerald-100 text-emerald-800',
     CANCELLED: 'bg-rose-100 text-rose-800',
   };

@@ -283,8 +283,11 @@ function TimeToHireView({ data }: { data: TimeToHireData }) {
 }
 
 function DecisionFunnelView({ data }: { data: DecisionFunnelData }) {
-  const palette = ['#0d9488', '#f59e0b', '#e11d48', '#6366f1', '#475569',
-    '#0ea5e9', '#a855f7', '#22c55e', '#fb923c', '#ec4899'];
+  // 10-category palette using only the 5 brand-aligned ramps at two
+  // intensities each (brand / green / amber / red / slate). Was a
+  // cool-hue categorical palette (teal / indigo / sky / purple / pink).
+  const palette = ['#c2410c', '#fb923c', '#15803d', '#86efac', '#92400e',
+    '#fcd34d', '#b91c1c', '#fca5a5', '#334155', '#94a3b8'];
   const slices = data.decisions.map((d, i) => ({
     label: d.decision,
     value: d.count,
@@ -376,7 +379,9 @@ function CompletionTable({
 }
 
 function AttritionView({ data }: { data: AttritionData }) {
-  const palette = ['#10b981', '#f59e0b', '#e11d48', '#0ea5e9'];
+  // 4-category exit-type palette on the 5-tone system: green (completed),
+  // amber (warning/resigned), red (terminated), slate (extended/other).
+  const palette = ['#16a34a', '#d97706', '#dc2626', '#64748b'];
   const slices = data.byType.map((b, i) => ({
     label: b.exitType,
     value: b.count,

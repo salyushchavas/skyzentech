@@ -206,7 +206,7 @@ export default function ApplyNowModal({
           <SummaryRow label="Email" value={defaultEmail ?? '—'} />
           <SummaryRow label="Resume" value={selectedResume?.fileName ?? 'None'} />
           {reason && <SummaryRow label="Why interested" value={reason} multi />}
-          <div className="rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-xs text-blue-900">
+          <div className="rounded-md border border-slate-300 bg-slate-100 px-3 py-2 text-xs text-slate-700">
             By submitting, you confirm the information above is accurate.
           </div>
         </div>

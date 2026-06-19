@@ -63,7 +63,7 @@ export default function I983DetailPage() {
         </Link>
       </p>
 
-      <section className="rounded-lg border border-violet-200 bg-violet-50/30 p-5 shadow-sm">
+      <section className="rounded-lg border border-amber-200 bg-amber-50/30 p-5 shadow-sm">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <h1 className="text-xl font-semibold text-slate-900">
@@ -193,7 +193,7 @@ export default function I983DetailPage() {
 function StatusPill({ status }: { status: string }) {
   const tone = status === 'PUBLISHED' ? 'bg-amber-100 text-amber-800'
     : status === 'ACKNOWLEDGED' ? 'bg-emerald-100 text-emerald-800'
-    : status === 'AMENDED' ? 'bg-violet-100 text-violet-800'
+    : status === 'AMENDED' ? 'bg-amber-100 text-amber-800'
     : 'bg-slate-100 text-slate-700';
   return <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${tone}`}>{status}</span>;
 }

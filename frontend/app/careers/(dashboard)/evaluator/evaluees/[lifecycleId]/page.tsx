@@ -117,7 +117,7 @@ export default function EvalueeDetailPage() {
                   className={
                     'rounded-full px-2 py-0.5 font-semibold ' +
                     (stemOpt
-                      ? 'bg-violet-100 text-violet-700'
+                      ? 'bg-amber-100 text-amber-800'
                       : 'bg-emerald-100 text-emerald-700')
                   }
                 >
@@ -331,8 +331,8 @@ function MonitorI983({ detail }: { detail: EvalueeDetail }) {
   const i983 = detail.i983Status;
   if (!i983) return null;
   return (
-    <div className="rounded-lg border border-violet-200 bg-violet-50/30 p-4 shadow-sm">
-      <h3 className="inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-violet-800">
+    <div className="rounded-lg border border-amber-200 bg-amber-50/30 p-4 shadow-sm">
+      <h3 className="inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-amber-800">
         <FileText className="h-3.5 w-3.5" />
         I-983 Status (STEM OPT)
       </h3>
@@ -355,14 +355,14 @@ function MonitorI983({ detail }: { detail: EvalueeDetail }) {
       <div className="mt-3 flex flex-wrap gap-2">
         <Link
           href={`/careers/evaluator/i983-evaluations/schedule?internId=${detail.profile.lifecycleId}`}
-          className="inline-flex items-center gap-1 rounded-md bg-violet-700 px-3 py-1.5 text-xs font-semibold text-white hover:bg-violet-800"
+          className="inline-flex items-center gap-1 rounded-md bg-brand-700 px-3 py-1.5 text-xs font-semibold text-white hover:bg-brand-800"
         >
           <Briefcase className="h-3 w-3" />
           Conduct I-983
         </Link>
         <Link
           href="/careers/evaluator/i983-evaluations"
-          className="inline-flex items-center gap-1 rounded-md border border-violet-300 bg-white px-3 py-1.5 text-xs font-medium text-violet-700 hover:bg-violet-50"
+          className="inline-flex items-center gap-1 rounded-md border border-brand-300 bg-white px-3 py-1.5 text-xs font-medium text-brand-700 hover:bg-brand-50"
         >
           View all I-983
         </Link>
@@ -616,7 +616,7 @@ function TimelineEntry({ entry }: { entry: EvaluationTimelineEntry }) {
           className={
             'rounded-full px-2 py-0.5 text-[10px] font-semibold ' +
             (isI983
-              ? 'bg-violet-100 text-violet-700'
+              ? 'bg-amber-100 text-amber-800'
               : 'bg-slate-100 text-slate-700')
           }
         >

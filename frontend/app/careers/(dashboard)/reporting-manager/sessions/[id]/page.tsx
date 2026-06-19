@@ -351,7 +351,7 @@ function Body() {
             type="button"
             onClick={() => setReturnOpen(true)}
             disabled={busy !== null}
-            className="inline-flex items-center gap-1.5 rounded-md border border-orange-300 bg-white px-3 py-1.5 text-sm font-medium text-orange-800 hover:bg-orange-50 disabled:opacity-60"
+            className="inline-flex items-center gap-1.5 rounded-md border border-amber-300 bg-white px-3 py-1.5 text-sm font-medium text-amber-800 hover:bg-amber-50 disabled:opacity-60"
           >
             <RotateCcw className="h-3.5 w-3.5" strokeWidth={2} />
             Return to In Progress
@@ -429,7 +429,7 @@ function Body() {
                 || returnReason.trim().length < REASON_MIN
                 || returnReason.trim().length > REASON_MAX
               }
-              className="inline-flex items-center gap-1.5 rounded-md border border-orange-300 bg-white px-3 py-1.5 text-sm font-medium text-orange-800 hover:bg-orange-50 disabled:opacity-60"
+              className="inline-flex items-center gap-1.5 rounded-md border border-amber-300 bg-white px-3 py-1.5 text-sm font-medium text-amber-800 hover:bg-amber-50 disabled:opacity-60"
             >
               <RotateCcw className="h-3.5 w-3.5" strokeWidth={2} />
               {busy === 'return' ? 'Returning…' : 'Return'}
@@ -462,10 +462,10 @@ function Field({
 
 function StatusBadge({ status }: { status: QaSessionStatus }) {
   const palette: Record<QaSessionStatus, string> = {
-    SCHEDULED: 'bg-indigo-100 text-indigo-800',
-    CONDUCTED: 'bg-violet-100 text-violet-800',
+    SCHEDULED: 'bg-slate-100 text-slate-700',
+    CONDUCTED: 'bg-amber-100 text-amber-800',
     COMPLETED: 'bg-emerald-100 text-emerald-800',
-    RETURNED: 'bg-orange-100 text-orange-800',
+    RETURNED: 'bg-amber-100 text-amber-800',
   };
   const label: Record<QaSessionStatus, string> = {
     SCHEDULED: 'Scheduled',
@@ -497,7 +497,7 @@ function Banner({
   const style =
     kind === 'success'
       ? 'border-emerald-200 bg-emerald-50 text-emerald-900'
-      : 'border-orange-200 bg-orange-50 text-orange-900';
+      : 'border-amber-200 bg-amber-50 text-amber-900';
   const Icon = kind === 'success' ? CheckCircle2 : Clock;
   return (
     <div

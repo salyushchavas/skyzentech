@@ -166,7 +166,7 @@ function Body() {
           <button
             type="submit"
             disabled={submitting || projects.length === 0}
-            className="inline-flex items-center gap-1.5 rounded-md bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-60"
+            className="inline-flex items-center gap-1.5 rounded-md bg-brand-700 px-3 py-1.5 text-sm font-medium text-white hover:bg-brand-800 disabled:opacity-60"
           >
             <CalendarClock className="h-3.5 w-3.5" strokeWidth={2} />
             {submitting ? 'Scheduling…' : 'Schedule session'}

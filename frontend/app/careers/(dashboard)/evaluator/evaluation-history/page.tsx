@@ -186,7 +186,7 @@ function EvaluationHistoryInner() {
             )}
             {data?.items.map((r) => {
               const typeStyle = r.entryKind === 'I983'
-                ? 'bg-violet-100 text-violet-700'
+                ? 'bg-amber-100 text-amber-800'
                 : r.entryKind === 'FINAL'
                   ? 'bg-amber-100 text-amber-800'
                   : 'bg-slate-100 text-slate-700';

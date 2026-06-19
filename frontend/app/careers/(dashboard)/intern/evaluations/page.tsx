@@ -240,7 +240,7 @@ function Row({ ev }: { ev: InternEvaluation }) {
             </span>
             <span className={
               'rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide '
-              + (ev.status === 'PUBLISHED' ? 'bg-blue-100 text-blue-800'
+              + (ev.status === 'PUBLISHED' ? 'bg-slate-100 text-slate-700'
                   : ev.status === 'ACKNOWLEDGED' ? 'bg-emerald-100 text-emerald-800'
                   : 'bg-amber-100 text-amber-800')
             }>

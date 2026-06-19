@@ -227,9 +227,9 @@ function TaskRow({ t, onOpen }: { t: TaskSummary; onOpen: () => void }) {
 function PacketBadge({ status }: { status: PacketStatus }) {
   const styles: Record<PacketStatus, string> = {
     DRAFT: 'bg-slate-100 text-slate-700',
-    ASSIGNED: 'bg-blue-100 text-blue-800',
+    ASSIGNED: 'bg-slate-100 text-slate-700',
     IN_PROGRESS: 'bg-amber-100 text-amber-800',
-    ALL_SUBMITTED: 'bg-violet-100 text-violet-800',
+    ALL_SUBMITTED: 'bg-amber-100 text-amber-800',
     COMPLETED: 'bg-emerald-100 text-emerald-800',
     CANCELLED: 'bg-rose-100 text-rose-800',
   };
@@ -243,7 +243,7 @@ function PacketBadge({ status }: { status: PacketStatus }) {
 function TaskBadge({ status }: { status: TaskStatus }) {
   const styles: Record<TaskStatus, string> = {
     PENDING: 'bg-slate-100 text-slate-700',
-    SUBMITTED: 'bg-blue-100 text-blue-800',
+    SUBMITTED: 'bg-slate-100 text-slate-700',
     UNDER_REVIEW: 'bg-amber-100 text-amber-800',
     ACCEPTED: 'bg-emerald-100 text-emerald-800',
     REJECTED: 'bg-rose-100 text-rose-800',

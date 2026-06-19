@@ -264,7 +264,7 @@ function Row({ row }: { row: PipelineRow }) {
       </td>
       <td className="px-3 py-2 text-xs text-slate-700">
         {row.i983Required && (
-          <span className="inline-block rounded-full bg-indigo-100 px-2 py-0.5 text-[10px] font-semibold text-indigo-700">
+          <span className="inline-block rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold text-amber-800">
             I-983
           </span>
         )}

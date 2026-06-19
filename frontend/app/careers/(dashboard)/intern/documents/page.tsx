@@ -167,20 +167,20 @@ function SubmitHandoffCard({
 
   if (packet.internLocked) {
     return (
-      <section className="mb-4 rounded-lg border border-violet-200 bg-violet-50 p-4 shadow-sm">
+      <section className="mb-4 rounded-lg border border-amber-200 bg-amber-50 p-4 shadow-sm">
         <div className="flex items-start gap-3">
-          <Lock className="mt-0.5 h-4 w-4 text-violet-700" />
+          <Lock className="mt-0.5 h-4 w-4 text-amber-800" />
           <div className="flex-1">
-            <p className="text-sm font-semibold text-violet-900">
+            <p className="text-sm font-semibold text-amber-900">
               Submitted to ERM — awaiting verification
             </p>
-            <p className="mt-0.5 text-xs text-violet-800">
+            <p className="mt-0.5 text-xs text-amber-800">
               Your uploads are locked while ERM reviews each document.
               If anything needs changes, ERM will reject that document
               and it will reopen for you to upload again.
             </p>
             {packet.internSubmittedAt && (
-              <p className="mt-1 text-[11px] text-violet-700">
+              <p className="mt-1 text-[11px] text-amber-800">
                 Submitted {new Date(packet.internSubmittedAt).toLocaleString()}
               </p>
             )}
@@ -391,7 +391,7 @@ function TaskCard({ task, packet, onChanged }: {
 function TaskBadge({ status }: { status: TaskStatus }) {
   const styles: Record<TaskStatus, string> = {
     PENDING: 'bg-slate-100 text-slate-700',
-    SUBMITTED: 'bg-blue-100 text-blue-800',
+    SUBMITTED: 'bg-slate-100 text-slate-700',
     UNDER_REVIEW: 'bg-amber-100 text-amber-800',
     ACCEPTED: 'bg-emerald-100 text-emerald-800',
     REJECTED: 'bg-rose-100 text-rose-800',

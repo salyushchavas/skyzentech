@@ -447,7 +447,7 @@ function Pill({
     rose:    'bg-rose-50   text-rose-800   ring-rose-200',
     sky:     'bg-sky-50    text-sky-800    ring-sky-200',
     slate:   'bg-slate-100 text-slate-700  ring-slate-200',
-    indigo:  'bg-indigo-50 text-indigo-800 ring-indigo-200',
+    indigo:  'bg-slate-100 text-slate-700 ring-slate-200',
   };
   return (
     <span className={

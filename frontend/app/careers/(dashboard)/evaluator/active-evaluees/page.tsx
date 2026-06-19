@@ -16,7 +16,7 @@ const WORK_AUTH_OPTIONS: { value: string; label: string; tone: string }[] = [
   { value: 'PERMANENT_RESIDENT', label: 'Permanent Resident', tone: 'border-emerald-200' },
   { value: 'F1_CPT',          label: 'F-1 CPT',      tone: 'border-amber-200' },
   { value: 'F1_OPT',          label: 'F-1 OPT',      tone: 'border-amber-200' },
-  { value: 'F1_STEM_OPT',     label: 'F-1 STEM OPT', tone: 'border-violet-200' },
+  { value: 'F1_STEM_OPT',     label: 'F-1 STEM OPT', tone: 'border-amber-200' },
   { value: 'H1B',             label: 'H-1B',         tone: 'border-sky-200' },
 ];
 
@@ -231,7 +231,7 @@ function Row({ row, onClick }: { row: ActiveEvalueeRow; onClick: () => void }) {
             className={
               'inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold ' +
               (stemOpt
-                ? 'bg-violet-100 text-violet-700'
+                ? 'bg-amber-100 text-amber-800'
                 : 'bg-slate-100 text-slate-700')
             }
           >

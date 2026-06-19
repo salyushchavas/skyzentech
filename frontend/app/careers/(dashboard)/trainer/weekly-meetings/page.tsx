@@ -205,7 +205,7 @@ function MeetingRow({ m, interns, onAction }: {
 
 function StatusBadge({ status }: { status: Meeting['status'] }) {
   const styles: Record<Meeting['status'], string> = {
-    SCHEDULED: 'bg-blue-100 text-blue-800',
+    SCHEDULED: 'bg-slate-100 text-slate-700',
     COMPLETED: 'bg-emerald-100 text-emerald-800',
     CANCELLED: 'bg-slate-200 text-slate-700',
     NO_SHOW: 'bg-rose-100 text-rose-800',

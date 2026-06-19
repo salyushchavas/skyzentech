@@ -82,7 +82,7 @@ export default function EvaluatorRightSidePanel() {
                 <span
                   className={
                     rightPanel.evalueeContext.isStemOpt
-                      ? 'font-semibold text-violet-700'
+                      ? 'font-semibold text-amber-800'
                       : ''
                   }
                 >
@@ -101,7 +101,7 @@ export default function EvaluatorRightSidePanel() {
             </li>
           </ul>
           {rightPanel.evalueeContext.isStemOpt && (
-            <p className="mt-2 inline-flex items-center gap-1 rounded-full bg-violet-100 px-2 py-0.5 text-[10px] font-semibold text-violet-700">
+            <p className="mt-2 inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold text-amber-800">
               <Briefcase className="h-3 w-3" />
               STEM OPT — I-983 required
             </p>

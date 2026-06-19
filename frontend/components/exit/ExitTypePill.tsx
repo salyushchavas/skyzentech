@@ -4,7 +4,7 @@ const STYLES: Record<string, string> = {
   COMPLETED: 'bg-emerald-100 text-emerald-800',
   RESIGNED: 'bg-amber-100 text-amber-800',
   TERMINATED: 'bg-rose-100 text-rose-800',
-  EXTENDED: 'bg-blue-100 text-blue-800',
+  EXTENDED: 'bg-slate-100 text-slate-700',
 };
 
 export default function ExitTypePill({ exitType }: { exitType: string }) {

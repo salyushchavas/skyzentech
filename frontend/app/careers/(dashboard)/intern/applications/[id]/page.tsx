@@ -10,10 +10,10 @@ import InfoRequestedBanner from '@/components/intern/applications/InfoRequestedB
 import type { ApplicationResponse } from '@/types';
 
 const STAGE_STYLE: Record<string, string> = {
-  APPLIED: 'bg-blue-100 text-blue-800',
+  APPLIED: 'bg-slate-100 text-slate-700',
   SHORTLISTED: 'bg-amber-100 text-amber-800',
   INTERVIEW_SCHEDULED: 'bg-amber-100 text-amber-800',
-  INTERVIEWED: 'bg-blue-100 text-blue-800',
+  INTERVIEWED: 'bg-slate-100 text-slate-700',
   OFFERED: 'bg-emerald-100 text-emerald-800',
   HIRED: 'bg-emerald-100 text-emerald-800',
   REJECTED: 'bg-rose-100 text-rose-800',

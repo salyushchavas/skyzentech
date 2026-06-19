@@ -234,14 +234,14 @@ const TONE_BG: Record<string, string> = {
   amber: 'bg-amber-50',
   rose: 'bg-rose-50',
   emerald: 'bg-emerald-50',
-  indigo: 'bg-indigo-50',
+  indigo: 'bg-slate-100',
 };
 const TONE_TEXT: Record<string, string> = {
   slate: 'text-slate-900',
   amber: 'text-amber-900',
   rose: 'text-rose-900',
   emerald: 'text-emerald-900',
-  indigo: 'text-indigo-900',
+  indigo: 'text-slate-700',
 };
 
 // ── Row ──────────────────────────────────────────────────────────────────
@@ -434,7 +434,7 @@ function ExitTypePill({ type }: { type: ExitType | null }) {
     COMPLETED:  { tone: 'bg-emerald-100 text-emerald-800 ring-emerald-200', label: 'Completed' },
     RESIGNED:   { tone: 'bg-amber-100 text-amber-800 ring-amber-200',       label: 'Resigned' },
     TERMINATED: { tone: 'bg-rose-100 text-rose-800 ring-rose-200',          label: 'Terminated' },
-    EXTENDED:   { tone: 'bg-indigo-100 text-indigo-800 ring-indigo-200',    label: 'Extended' },
+    EXTENDED:   { tone: 'bg-slate-100 text-slate-700 ring-slate-200',    label: 'Extended' },
   };
   const c = cfg[type];
   return (

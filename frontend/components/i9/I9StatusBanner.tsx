@@ -19,7 +19,7 @@ export default function I9StatusBanner({ form }: Props) {
           BASE +
           (section1Overdue
             ? ' bg-red-50 border-red-200 text-red-900'
-            : ' bg-blue-50 border-blue-200 text-blue-900')
+            : ' bg-slate-100 border-slate-300 text-slate-700')
         }
       >
         <FileText className="h-6 w-6 flex-shrink-0" strokeWidth={2} />
@@ -45,7 +45,7 @@ export default function I9StatusBanner({ form }: Props) {
 
   if (form.status === 'REOPENED') {
     return (
-      <div className={BASE + ' bg-blue-50 border-blue-200 text-blue-900'}>
+      <div className={BASE + ' bg-slate-100 border-slate-300 text-slate-700'}>
         <RotateCcw className="h-6 w-6 flex-shrink-0" strokeWidth={2} />
         <div>
           <div className="text-base font-medium">

@@ -107,7 +107,7 @@ export default function InternI983DetailPage() {
         </div>
       )}
       {data.dsoSubmittedAt && (
-        <div className="mb-4 rounded-md border border-violet-200 bg-violet-50 p-3 text-xs text-violet-900">
+        <div className="mb-4 rounded-md border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">
           <strong>Submitted to your DSO</strong> on {new Date(data.dsoSubmittedAt).toLocaleDateString()}
           {data.dsoSubmissionMethod && ` via ${data.dsoSubmissionMethod.replaceAll('_', ' ').toLowerCase()}`}.
         </div>

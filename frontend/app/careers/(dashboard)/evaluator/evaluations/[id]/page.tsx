@@ -176,7 +176,7 @@ export default function EvaluationDetailPage() {
 function StatusPill({ status }: { status: string }) {
   const tone = status === 'PUBLISHED' ? 'bg-amber-100 text-amber-800'
     : status === 'ACKNOWLEDGED' ? 'bg-emerald-100 text-emerald-800'
-    : status === 'AMENDED' ? 'bg-violet-100 text-violet-800'
+    : status === 'AMENDED' ? 'bg-amber-100 text-amber-800'
     : 'bg-slate-100 text-slate-700';
   return <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${tone}`}>{status}</span>;
 }

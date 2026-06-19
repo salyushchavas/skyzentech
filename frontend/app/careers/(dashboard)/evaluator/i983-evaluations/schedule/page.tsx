@@ -223,8 +223,8 @@ function ScheduleI983Inner() {
 
         <aside className="space-y-3">
           {selected ? (
-            <div className="rounded-lg border border-violet-200 bg-violet-50/30 p-4">
-              <p className="text-[10px] font-semibold uppercase tracking-wide text-violet-800">
+            <div className="rounded-lg border border-amber-200 bg-amber-50/30 p-4">
+              <p className="text-[10px] font-semibold uppercase tracking-wide text-amber-800">
                 Plan context
               </p>
               <p className="mt-1 text-sm font-semibold text-slate-900">
@@ -239,7 +239,7 @@ function ScheduleI983Inner() {
                   <li>Training end: {selected.trainingEndDate}</li>
                 )}
                 {selected.nextDueDate && (
-                  <li className="text-violet-800 font-semibold">
+                  <li className="text-amber-800 font-semibold">
                     Next due: {selected.nextDueDate}
                   </li>
                 )}

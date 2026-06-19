@@ -400,8 +400,8 @@ function SeverityBadge({ sev }: { sev: RiskRow['severity'] }) {
 function StatusPill({ status }: { status: RiskRow['status'] }) {
   const map: Record<RiskRow['status'], string> = {
     OPEN: 'bg-slate-100 text-slate-700',
-    ASSIGNED: 'bg-violet-100 text-violet-700',
-    IN_PROGRESS: 'bg-violet-100 text-violet-700',
+    ASSIGNED: 'bg-amber-100 text-amber-800',
+    IN_PROGRESS: 'bg-amber-100 text-amber-800',
     RESOLVED: 'bg-emerald-100 text-emerald-700',
     DISMISSED: 'bg-slate-100 text-slate-500',
     AUTO_RESOLVED: 'bg-emerald-100 text-emerald-700',

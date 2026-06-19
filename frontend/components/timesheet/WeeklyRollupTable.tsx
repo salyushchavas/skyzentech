@@ -212,8 +212,8 @@ function SummaryStrip({ summary }: { summary: RollupSummary }) {
   ];
   const bg: Record<string, string> = {
     slate: 'bg-slate-50 text-slate-900',
-    blue: 'bg-blue-50 text-blue-900',
-    indigo: 'bg-indigo-50 text-indigo-900',
+    blue: 'bg-slate-100 text-slate-700',
+    indigo: 'bg-slate-100 text-slate-700',
     emerald: 'bg-emerald-50 text-emerald-900',
     rose: 'bg-rose-50 text-rose-900',
     amber: 'bg-amber-50 text-amber-900',
@@ -326,8 +326,8 @@ function StatusChip({ status }: { status: TimesheetStatus | null }) {
   }
   const cfg: Record<TimesheetStatus, { tone: string; label: string; icon: React.ReactNode }> = {
     DRAFT:     { tone: 'bg-slate-100 text-slate-700 ring-slate-200',          label: 'Draft',     icon: null },
-    SUBMITTED: { tone: 'bg-blue-50 text-blue-800 ring-blue-200',              label: 'Submitted', icon: <Lock className="h-2.5 w-2.5" /> },
-    VERIFIED:  { tone: 'bg-indigo-50 text-indigo-800 ring-indigo-200',        label: 'Verified',  icon: <ShieldCheck className="h-2.5 w-2.5" /> },
+    SUBMITTED: { tone: 'bg-slate-100 text-slate-700 ring-slate-200',              label: 'Submitted', icon: <Lock className="h-2.5 w-2.5" /> },
+    VERIFIED:  { tone: 'bg-slate-100 text-slate-700 ring-slate-200',        label: 'Verified',  icon: <ShieldCheck className="h-2.5 w-2.5" /> },
     APPROVED:  { tone: 'bg-emerald-50 text-emerald-800 ring-emerald-200',     label: 'Approved',  icon: <CheckCircle2 className="h-2.5 w-2.5" /> },
     REJECTED:  { tone: 'bg-rose-50 text-rose-800 ring-rose-200',              label: 'Rejected',  icon: <AlertTriangle className="h-2.5 w-2.5" /> },
   };

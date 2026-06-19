@@ -196,13 +196,13 @@ function NextStepHero({ step, tone }: { step: NextStepData; tone: Semantic }) {
       ? 'bg-amber-50 border-amber-200'
       : accent === 'success'
         ? 'bg-emerald-50 border-emerald-200'
-        : 'bg-blue-50 border-blue-200';
+        : 'bg-brand-50 border-brand-200';
   const titleColor =
     accent === 'warning'
       ? 'text-amber-900'
       : accent === 'success'
         ? 'text-emerald-900'
-        : 'text-blue-900';
+        : 'text-brand-900';
   return (
     <div
       className={cn(
@@ -210,7 +210,7 @@ function NextStepHero({ step, tone }: { step: NextStepData; tone: Semantic }) {
         bg,
         accent === 'warning' && 'border-l-amber-500',
         accent === 'success' && 'border-l-emerald-500',
-        accent === 'info' && 'border-l-blue-500',
+        accent === 'info' && 'border-l-brand-500',
       )}
     >
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -233,11 +233,15 @@ function NextStepHero({ step, tone }: { step: NextStepData; tone: Semantic }) {
   );
 }
 
+// Lane palette: 5 sources, 5 distinct on-palette tones (no teal/blue/violet/indigo).
+// HR=green (people-ops), OPERATIONS=brand (action role, was blue),
+// TE=amber (review/feedback), RM=red (oversight, was purple — only on-palette
+// slot left that preserves distinctness), SYSTEM=slate (neutral default).
 const SOURCE_PILL: Record<string, string> = {
-  HR: 'bg-emerald-50 text-emerald-700 border-emerald-200',
-  OPERATIONS: 'bg-blue-50 text-blue-700 border-blue-200',
+  HR: 'bg-green-50 text-green-700 border-green-200',
+  OPERATIONS: 'bg-brand-50 text-brand-700 border-brand-200',
   TE: 'bg-amber-50 text-amber-800 border-amber-200',
-  RM: 'bg-purple-50 text-purple-700 border-purple-200',
+  RM: 'bg-red-50 text-red-700 border-red-200',
   SYSTEM: 'bg-slate-50 text-slate-700 border-slate-200',
 };
 

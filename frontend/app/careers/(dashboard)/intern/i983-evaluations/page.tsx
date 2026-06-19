@@ -60,15 +60,15 @@ function Row({ row }: { row: InternI983Row }) {
     <li>
       <Link
         href={`/careers/intern/i983-evaluations/${row.evaluationId}`}
-        className="block rounded-lg border border-violet-200 bg-violet-50/20 p-4 hover:border-violet-400 hover:shadow-sm"
+        className="block rounded-lg border border-amber-200 bg-amber-50/20 p-4 hover:border-amber-400 hover:shadow-sm"
       >
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div>
             <p className="inline-flex items-center gap-1.5 text-sm font-semibold text-slate-900">
-              <FileText className="h-3.5 w-3.5 text-violet-700" />
+              <FileText className="h-3.5 w-3.5 text-amber-800" />
               I-983 {row.evaluationType.replaceAll('_', ' ')}
               {row.version > 1 && (
-                <span className="ml-1 rounded-full bg-violet-100 px-1.5 py-0.5 text-[10px] font-semibold text-violet-800">
+                <span className="ml-1 rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold text-amber-800">
                   v{row.version}
                 </span>
               )}

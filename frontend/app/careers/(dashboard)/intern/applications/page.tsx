@@ -9,12 +9,12 @@ import { useInternDashboard } from '@/components/intern/InternDashboardContext';
 import type { ApplicationResponse, ApplicationStatus } from '@/types';
 
 const STAGE_STYLE: Record<string, string> = {
-  APPLIED:              'bg-blue-100 text-blue-800',
+  APPLIED:              'bg-slate-100 text-slate-700',
   SCREENING_SENT:       'bg-sky-100 text-sky-800',
   SCREENING_COMPLETED:  'bg-sky-100 text-sky-800',
   SHORTLISTED:          'bg-amber-100 text-amber-800',
   INTERVIEW_SCHEDULED:  'bg-amber-100 text-amber-800',
-  INTERVIEWED:          'bg-blue-100 text-blue-800',
+  INTERVIEWED:          'bg-slate-100 text-slate-700',
   SELECTED_CONDITIONAL: 'bg-emerald-100 text-emerald-800',
   OFFERED:              'bg-emerald-100 text-emerald-800',
   ACCEPTED:             'bg-emerald-100 text-emerald-800',

@@ -79,7 +79,7 @@ interface EvaluatorOption {
 }
 
 const ASSIGNMENT_COLOR: Record<AssignmentStatus, string> = {
-  ASSIGNED: 'bg-blue-100 text-blue-800',
+  ASSIGNED: 'bg-slate-100 text-slate-700',
   IN_PROGRESS: 'bg-amber-100 text-amber-800',
   SUBMITTED: 'bg-purple-100 text-purple-800',
   REVIEWED: 'bg-emerald-100 text-emerald-800',
@@ -93,7 +93,7 @@ const TIMESHEET_COLOR: Record<TimesheetStatus, string> = {
 };
 
 const EVALUATION_COLOR: Record<EvaluationStatus, string> = {
-  SCHEDULED: 'bg-blue-100 text-blue-800',
+  SCHEDULED: 'bg-slate-100 text-slate-700',
   COMPLETED: 'bg-emerald-100 text-emerald-800',
   MISSED: 'bg-gray-100 text-gray-700',
 };

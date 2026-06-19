@@ -55,10 +55,10 @@ const ROLE_COLOR: Record<UserRole, string> = {
   INTERN: 'bg-sky-100 text-sky-800',
   TRAINER: 'bg-amber-100 text-amber-800',
   EVALUATOR: 'bg-brand-100 text-brand-800',
-  REPORTING_MANAGER: 'bg-violet-100 text-violet-800',
-  MANAGER: 'bg-violet-100 text-violet-800',
+  REPORTING_MANAGER: 'bg-amber-100 text-amber-800',
+  MANAGER: 'bg-amber-100 text-amber-800',
   ERM: 'bg-emerald-100 text-emerald-800',
-  SUPER_ADMIN: 'bg-indigo-100 text-indigo-800',
+  SUPER_ADMIN: 'bg-slate-100 text-slate-700',
 };
 
 // Show SUPER_ADMIN first if present (god-mode); then MANAGER (oversight);

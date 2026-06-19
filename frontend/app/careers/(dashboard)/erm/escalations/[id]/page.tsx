@@ -141,7 +141,7 @@ function Body({ id }: { id: string }) {
                 <button
                   type="button"
                   onClick={() => void inProgress()}
-                  className="rounded-md border border-indigo-300 bg-indigo-50 px-3 py-1 text-xs font-medium text-indigo-700 hover:bg-indigo-100"
+                  className="rounded-md border border-brand-300 bg-brand-50 px-3 py-1 text-xs font-medium text-brand-700 hover:bg-brand-100"
                 >
                   In progress
                 </button>

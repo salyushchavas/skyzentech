@@ -23,7 +23,7 @@ function urgencyClass(remaining: number, variant: 'inline' | 'large'): string {
     if (remaining <= 0) return 'border-amber-200 bg-amber-50 text-amber-900';
     if (remaining < HOUR) return 'border-red-200 bg-red-50 text-red-900';
     if (remaining < 2 * DAY) return 'border-amber-200 bg-amber-50 text-amber-900';
-    return 'border-blue-200 bg-blue-50 text-blue-900';
+    return 'border-slate-300 bg-slate-100 text-slate-700';
   }
   if (remaining <= 0) return 'text-amber-700';
   if (remaining < HOUR) return 'text-red-700';

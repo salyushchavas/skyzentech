@@ -64,14 +64,14 @@ export default function I983EvaluationsPage() {
         </Link>
       </p>
 
-      <div className="rounded-lg border border-violet-200 bg-violet-50/30 p-4">
+      <div className="rounded-lg border border-amber-200 bg-amber-50/30 p-4">
         <div className="flex items-start gap-2">
-          <Info className="mt-0.5 h-4 w-4 text-violet-700" />
+          <Info className="mt-0.5 h-4 w-4 text-amber-800" />
           <div>
-            <p className="text-sm font-semibold text-violet-900">
+            <p className="text-sm font-semibold text-amber-900">
               I-983 Evaluations — STEM OPT compliance
             </p>
-            <p className="mt-1 text-xs text-violet-800">
+            <p className="mt-1 text-xs text-amber-800">
               Federally required for STEM OPT students: Annual Review at the
               12-month mark, Final Review at the end of training. Each must be
               submitted to the student's DSO within 10 days of student
@@ -365,7 +365,7 @@ function StatusPill({ status }: { status: string }) {
   const tone = status === 'PUBLISHED' ? 'bg-amber-100 text-amber-800'
     : status === 'IN_PROGRESS' ? 'bg-sky-100 text-sky-800'
     : status === 'SCHEDULED' ? 'bg-slate-100 text-slate-700'
-    : status === 'AMENDED' ? 'bg-violet-100 text-violet-700'
+    : status === 'AMENDED' ? 'bg-amber-100 text-amber-800'
     : 'bg-slate-100 text-slate-700';
   return <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${tone}`}>{status}</span>;
 }

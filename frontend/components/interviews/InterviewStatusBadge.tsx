@@ -6,7 +6,7 @@ interface Props {
 }
 
 const COLOR_MAP: Record<string, string> = {
-  SCHEDULED: 'bg-blue-100 text-blue-800',
+  SCHEDULED: 'bg-slate-100 text-slate-700',
   COMPLETED: 'bg-green-100 text-green-800',
   CANCELLED: 'bg-gray-200 text-gray-600',
   NO_SHOW: 'bg-amber-100 text-amber-800',

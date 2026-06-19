@@ -113,7 +113,7 @@ export default function ComposeI983Page() {
       </p>
 
       {/* Section 1: Intern + Plan Context */}
-      <section className="rounded-lg border border-violet-200 bg-violet-50/20 p-5 shadow-sm">
+      <section className="rounded-lg border border-amber-200 bg-amber-50/20 p-5 shadow-sm">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <h1 className="text-xl font-semibold text-slate-900">

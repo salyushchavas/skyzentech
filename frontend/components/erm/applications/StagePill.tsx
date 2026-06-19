@@ -1,11 +1,11 @@
 'use client';
 
 const STYLES: Record<string, string> = {
-  APPLIED: 'bg-blue-100 text-blue-800',
+  APPLIED: 'bg-slate-100 text-slate-700',
   HOLD: 'bg-slate-200 text-slate-700',
   INFO_REQUESTED: 'bg-purple-100 text-purple-800',
-  SCREENING_SENT: 'bg-indigo-100 text-indigo-800',
-  SCREENING_COMPLETED: 'bg-indigo-100 text-indigo-800',
+  SCREENING_SENT: 'bg-slate-100 text-slate-700',
+  SCREENING_COMPLETED: 'bg-slate-100 text-slate-700',
   SHORTLISTED: 'bg-amber-100 text-amber-800',
   INTERVIEW_SCHEDULED: 'bg-amber-100 text-amber-800',
   INTERVIEWED: 'bg-amber-100 text-amber-800',

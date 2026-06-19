@@ -59,12 +59,14 @@ function defaultMonth(): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
 }
 
+// Chart palette aligned to the 5-tone system: brand (action/in-flight),
+// green (success), amber (warning), red (danger), slate (neutral).
 const STATUS_COLORS: Record<string, string> = {
-  Assigned: '#0f766e',
-  Completed: '#059669',
-  'In Revision': '#d97706',
-  Escalated: '#e11d48',
-  Pending: '#64748b',
+  Assigned: '#c2410c',      // brand-700
+  Completed: '#16a34a',     // green-600
+  'In Revision': '#d97706', // amber-600
+  Escalated: '#dc2626',     // red-600
+  Pending: '#64748b',       // slate-500
 };
 
 export default function TrainerReportsPage() {

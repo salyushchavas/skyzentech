@@ -146,10 +146,10 @@ const ROLE_COLOR: Record<UserRole, string> = {
   INTERN: 'bg-sky-100 text-sky-800',
   TRAINER: 'bg-amber-100 text-amber-800',
   EVALUATOR: 'bg-brand-100 text-brand-800',
-  REPORTING_MANAGER: 'bg-violet-100 text-violet-800',
-  MANAGER: 'bg-violet-100 text-violet-800',
+  REPORTING_MANAGER: 'bg-amber-100 text-amber-800',
+  MANAGER: 'bg-amber-100 text-amber-800',
   ERM: 'bg-emerald-100 text-emerald-800',
-  SUPER_ADMIN: 'bg-indigo-100 text-indigo-800',
+  SUPER_ADMIN: 'bg-slate-100 text-slate-700',
 };
 
 export default function SupervisionPage({
@@ -1025,7 +1025,7 @@ function ReportingManagerAssigner({
               type="button"
               onClick={() => void save()}
               disabled={saving}
-              className="rounded-md bg-indigo-600 px-2.5 py-1 text-[11px] font-medium text-white hover:bg-indigo-700 disabled:opacity-60"
+              className="rounded-md bg-brand-700 px-2.5 py-1 text-[11px] font-medium text-white hover:bg-brand-800 disabled:opacity-60"
             >
               {saving ? 'Saving…' : 'Save'}
             </button>

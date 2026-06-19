@@ -252,8 +252,8 @@ function WeekCard({
 function StatusPill({ status }: { status: TimesheetStatus }) {
   const cfg: Record<TimesheetStatus, { tone: string; label: string; icon: React.ReactNode }> = {
     DRAFT:     { tone: 'bg-slate-100 text-slate-700',  label: 'Not submitted', icon: <Clock className="h-3 w-3" /> },
-    SUBMITTED: { tone: 'bg-blue-100 text-blue-800',    label: 'Submitted',     icon: <Lock className="h-3 w-3" /> },
-    VERIFIED:  { tone: 'bg-indigo-100 text-indigo-800', label: 'Verified',     icon: <Lock className="h-3 w-3" /> },
+    SUBMITTED: { tone: 'bg-slate-100 text-slate-700',    label: 'Submitted',     icon: <Lock className="h-3 w-3" /> },
+    VERIFIED:  { tone: 'bg-slate-100 text-slate-700', label: 'Verified',     icon: <Lock className="h-3 w-3" /> },
     APPROVED:  { tone: 'bg-emerald-100 text-emerald-800', label: 'Approved',   icon: <CheckCircle2 className="h-3 w-3" /> },
     REJECTED:  { tone: 'bg-rose-100 text-rose-800',    label: 'Returned',      icon: <AlertTriangle className="h-3 w-3" /> },
   };

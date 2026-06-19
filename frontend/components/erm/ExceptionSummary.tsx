@@ -39,7 +39,7 @@ const TYPE_SEVERITY: Record<ErmExceptionType, ErmExceptionSeverity> = {
 const SEVERITY_CLS: Record<ErmExceptionSeverity, string> = {
   URGENT: 'bg-rose-100 text-rose-800',
   WARN: 'bg-amber-100 text-amber-800',
-  INFO: 'bg-blue-100 text-blue-800',
+  INFO: 'bg-slate-100 text-slate-700',
 };
 
 const TYPE_ORDER: ErmExceptionType[] = [
