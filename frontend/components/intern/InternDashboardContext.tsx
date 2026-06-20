@@ -10,7 +10,6 @@ import {
   type ReactNode,
 } from 'react';
 import api from '@/lib/api';
-import type { InternStepperStep } from './InternStepper';
 
 // ── Types ─────────────────────────────────────────────────────────────────
 
@@ -128,7 +127,6 @@ export interface InternDashboardResponse {
   lifecycleStatus: InternLifecycleStatus;
   mode: InternMode;
   emailVerified: boolean;
-  stepper: InternStepperStep[];
   modules: InternModulesMap;
   nextAction: InternNextAction;
   contacts: InternContacts;

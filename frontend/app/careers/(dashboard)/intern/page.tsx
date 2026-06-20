@@ -12,69 +12,20 @@ import {
 } from 'lucide-react';
 import { useState } from 'react';
 import api from '@/lib/api';
-import StepperHorizontal from '@/components/ui/StepperHorizontal';
 import RightSidePanel from '@/components/intern/RightSidePanel';
 import InactiveBanner from '@/components/exit/InactiveBanner';
 import ExitSummaryCard from '@/components/exit/ExitSummaryCard';
 import InternProfileCompletionCard from '@/components/intern/InternProfileCompletionCard';
+import InternJourneyStepper, {
+  currentMilestoneLabel,
+} from '@/components/intern/InternJourneyStepper';
 import {
   useInternDashboard,
   type InternDashboardResponse,
-  type InternLifecycleStatus,
   type InternNextAction,
   type InternSelectionAck,
 } from '@/components/intern/InternDashboardContext';
 import { cn } from '@/lib/cn';
-
-// ─────────────────────────────────────────────────────────────────────────
-// Condensed 6-milestone journey for the home-page top bar.
-// The shared InternPageShell still renders the full 9-step InternStepper
-// on every OTHER intern route; the home page bypasses the shell so the
-// journey-view layout can lead with this condensed bar instead.
-// ─────────────────────────────────────────────────────────────────────────
-const MILESTONES = [
-  { key: 'apply', label: 'Apply' },
-  { key: 'shortlist', label: 'Shortlist' },
-  { key: 'interview', label: 'Interview' },
-  { key: 'offer', label: 'Offer' },
-  { key: 'onboard', label: 'Onboard' },
-  { key: 'active', label: 'Active' },
-];
-
-function milestoneIndexFor(s: InternLifecycleStatus): number {
-  switch (s) {
-    case 'REGISTERED':
-    case 'EMAIL_VERIFIED':
-      return 0;
-    case 'APPLICATION_SUBMITTED':
-      return 1;
-    case 'SHORTLISTED':
-    case 'INTERVIEW_SCHEDULED':
-    case 'INTERVIEW_COMPLETED':
-      return 2;
-    case 'OFFER_SENT':
-      return 3;
-    case 'OFFER_SIGNED':
-    case 'EMPLOYEE_ID_CREATED':
-    case 'ONBOARDING_ASSIGNED':
-    case 'ONBOARDING_ACCEPTED':
-      return 4;
-    case 'ACTIVE_INTERN':
-      return 5;
-    case 'INACTIVE_INTERN':
-      // Past every milestone — StepperHorizontal renders all as done.
-      return MILESTONES.length;
-    default:
-      return 0;
-  }
-}
-
-function currentMilestoneLabel(s: InternLifecycleStatus): string {
-  if (s === 'INACTIVE_INTERN') return 'Internship concluded';
-  if (s === 'ACTIVE_INTERN') return 'Active intern';
-  const idx = milestoneIndexFor(s);
-  return MILESTONES[idx]?.label ?? 'Getting started';
-}
 
 export default function InternHomePage() {
   const { data, loading, error } = useInternDashboard();
@@ -100,7 +51,6 @@ export default function InternHomePage() {
   const firstName = data.user.firstName || data.user.email.split('@')[0];
   const stageLabel = currentMilestoneLabel(data.lifecycleStatus);
   const isInactive = data.mode === 'INACTIVE';
-  const milestoneIdx = milestoneIndexFor(data.lifecycleStatus);
 
   if (isInactive) {
     // INACTIVE keeps a simpler, exit-summary-led layout. Journey bar still
@@ -110,7 +60,7 @@ export default function InternHomePage() {
       <>
         <InactiveBanner exitSummary={data.exitSummary ?? null} />
         <HeroHeader firstName={firstName} stageLabel={stageLabel} />
-        <JourneyBar currentIndex={milestoneIdx} />
+        <InternJourneyStepper status={data.lifecycleStatus} className="mb-8" />
         <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_280px]">
           <main className="min-w-0 space-y-6">
             <DoThisNextHero action={data.nextAction} />
@@ -141,7 +91,7 @@ export default function InternHomePage() {
         </div>
       )}
 
-      <JourneyBar currentIndex={milestoneIdx} />
+      <InternJourneyStepper status={data.lifecycleStatus} className="mb-8" />
 
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_280px]">
         <main className="min-w-0 space-y-6">
@@ -181,21 +131,6 @@ function HeroHeader({
         You&apos;re at the <span className="font-medium text-brand-700">{stageLabel}</span> step.
       </p>
     </header>
-  );
-}
-
-// ─── Condensed journey bar ──────────────────────────────────────────────
-
-function JourneyBar({ currentIndex }: { currentIndex: number }) {
-  return (
-    <section
-      aria-label="Your journey"
-      className="mb-8 overflow-x-auto rounded-lg border border-slate-200 bg-white p-4 shadow-ds-sm"
-    >
-      <div className="min-w-[36rem]">
-        <StepperHorizontal steps={MILESTONES} currentIndex={currentIndex} />
-      </div>
-    </section>
   );
 }
 

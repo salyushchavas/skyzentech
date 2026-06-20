@@ -2,7 +2,7 @@
 
 import type { ReactNode } from 'react';
 import PageHeader from '@/components/ui/PageHeader';
-import InternStepper from './InternStepper';
+import InternJourneyStepper from './InternJourneyStepper';
 import RightSidePanel from './RightSidePanel';
 import InactiveBanner from '@/components/exit/InactiveBanner';
 import { useInternDashboard } from './InternDashboardContext';
@@ -17,7 +17,7 @@ interface Props {
  * Standard top-of-page wrapper for every intern surface. Renders:
  *
  *   <PageHeader title subtitle />
- *   <InternStepper steps />            ← driven by the dashboard context
+ *   <InternJourneyStepper status />    ← shared with the home journey-view
  *   <main> {children} </main>
  *   <RightSidePanel />                 ← Phase 7 — contacts + reminders + bell + help
  *
@@ -32,7 +32,7 @@ export default function InternPageShell({ title, subtitle, children }: Props) {
     <>
       {inactive && <InactiveBanner exitSummary={data?.exitSummary ?? null} />}
       <PageHeader title={title} subtitle={subtitle} />
-      {data && <InternStepper steps={data.stepper} />}
+      {data && <InternJourneyStepper status={data.lifecycleStatus} />}
       {!data && loading && (
         <div className="mb-6 h-12 animate-pulse rounded-md bg-slate-100" aria-hidden />
       )}
