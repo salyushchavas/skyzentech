@@ -776,7 +776,7 @@ function KtMarkModal({
     setBusy(true);
     setErr(null);
     try {
-      await api.post(`/projects/${projectId}/kt-done`, {
+      await api.post(`/api/v1/projects/${projectId}/kt-done`, {
         meetingLink: trimmedLink || null,
         notes: notes.trim() || null,
       });

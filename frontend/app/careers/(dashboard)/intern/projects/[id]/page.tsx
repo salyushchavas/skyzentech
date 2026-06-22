@@ -586,7 +586,7 @@ function SubmissionForm({
     setErr(null);
     try {
       const res = await api.post<AssignmentSummary>(
-        `/project-assignments/${assignmentId}/submit`,
+        `/api/v1/project-assignments/${assignmentId}/submit`,
         {
           submissionNotes: notes.trim() || null,
           deliverableLinks: trimmedLinks,
