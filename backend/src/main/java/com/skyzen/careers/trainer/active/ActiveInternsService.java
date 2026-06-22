@@ -754,18 +754,28 @@ public class ActiveInternsService {
                             + "          COALESCE(p.project_number, 9) ASC "
                             + " LIMIT 5",
                     new Object[]{lifecycleId, lifecycleId},
-                    (rs, n) -> new RecentProjectRow(
-                            nullableUuid(rs.getString("id")),
-                            rs.getString("title"),
-                            rs.getString("status"),
-                            (Short) rs.getObject("project_number"),
-                            rs.getString("month_year"),
-                            rs.getDate("due_date") != null
-                                    ? rs.getDate("due_date").toLocalDate() : null,
-                            instantOf(rs.getTimestamp("reviewed_at")),
-                            rs.getString("kt_status"),
-                            instantOf(rs.getTimestamp("kt_completed_at")),
-                            rs.getString("kt_meeting_link")));
+                    (rs, n) -> {
+                        // pgjdbc on the Railway image returns Integer for
+                        // SMALLINT columns (not Short), so `(Short)
+                        // rs.getObject(...)` throws ClassCastException at
+                        // runtime — was the b160d83 "Recent projects empty"
+                        // root cause. getShort()+wasNull() is the robust
+                        // version that works against either driver behavior.
+                        short pn = rs.getShort("project_number");
+                        Short projectNumber = rs.wasNull() ? null : pn;
+                        return new RecentProjectRow(
+                                nullableUuid(rs.getString("id")),
+                                rs.getString("title"),
+                                rs.getString("status"),
+                                projectNumber,
+                                rs.getString("month_year"),
+                                rs.getDate("due_date") != null
+                                        ? rs.getDate("due_date").toLocalDate() : null,
+                                instantOf(rs.getTimestamp("reviewed_at")),
+                                rs.getString("kt_status"),
+                                instantOf(rs.getTimestamp("kt_completed_at")),
+                                rs.getString("kt_meeting_link"));
+                    });
         } catch (Exception e) {
             log.warn("[ActiveInterns] loadRecentProjects failed for lifecycle {}: {}",
                     lifecycleId, e.getMessage());
@@ -802,14 +812,23 @@ public class ActiveInternsService {
                             + " WHERE p.intern_lifecycle_id = ? "
                             + " ORDER BY ps.submitted_at DESC LIMIT 5",
                     new Object[]{lifecycleId},
-                    (rs, n) -> new RecentSubmissionRow(
-                            nullableUuid(rs.getString("id")),
-                            nullableUuid(rs.getString("project_id")),
-                            rs.getString("title"),
-                            instantOf(rs.getTimestamp("submitted_at")),
-                            (Short) rs.getObject("technical_score"),
-                            (Short) rs.getObject("communication_score"),
-                            rs.getString("next_action")));
+                    (rs, n) -> {
+                        // Same pgjdbc SMALLINT→Integer pitfall as
+                        // loadRecentProjects — read via getShort()+wasNull()
+                        // to be robust against either driver behavior.
+                        short tech = rs.getShort("technical_score");
+                        Short technicalScore = rs.wasNull() ? null : tech;
+                        short comm = rs.getShort("communication_score");
+                        Short communicationScore = rs.wasNull() ? null : comm;
+                        return new RecentSubmissionRow(
+                                nullableUuid(rs.getString("id")),
+                                nullableUuid(rs.getString("project_id")),
+                                rs.getString("title"),
+                                instantOf(rs.getTimestamp("submitted_at")),
+                                technicalScore,
+                                communicationScore,
+                                rs.getString("next_action"));
+                    });
         } catch (Exception e) {
             return List.of();
         }
