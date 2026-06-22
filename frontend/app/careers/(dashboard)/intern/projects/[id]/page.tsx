@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import {
   AlertTriangle,
+  ArrowRight,
   CheckCircle2,
   ChevronLeft,
   Clock,
@@ -12,6 +13,7 @@ import {
   GitBranch,
   Github,
   GraduationCap,
+  PencilLine,
   Plus,
   Send,
   Trash2,
@@ -259,6 +261,12 @@ function SubmissionCard({
   // What they last sent — surfaced read-only when not currently submitable.
   const lastSent = a.latestSubmission;
 
+  // ASSIGNED gets the dedicated Get-Started card (GitHub username capture +
+  // access-granted wait + Start button) instead of the static placeholder.
+  if (status === 'ASSIGNED') {
+    return <GetStartedCard a={a} onChanged={onChanged} />;
+  }
+
   return (
     <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
       <h3 className="text-sm font-semibold text-slate-900">
@@ -278,13 +286,229 @@ function SubmissionCard({
         <ReadOnlySubmission sub={lastSent} />
       ) : (
         <p className="mt-2 text-sm text-slate-500">
-          {status === 'ASSIGNED'
-            ? "You haven't started this project yet. Once you start, you'll be able to submit deliverable links here."
-            : 'Nothing to submit at this stage.'}
+          Nothing to submit at this stage.
         </p>
       )}
     </section>
   );
+}
+
+/**
+ * Three-stage gate on the ASSIGNED state, matching the backend's
+ * {@code ProjectAssignmentService.startAssignment} preconditions:
+ *   1. intern has a GitHub username on file
+ *   2. trainer has flipped {@code accessGranted=true}
+ *   3. intern clicks Start
+ * Each stage exposes the right action when it's the next step, and the
+ * Start button only enables when both upstream stages are satisfied.
+ */
+function GetStartedCard({
+  a, onChanged,
+}: { a: AssignmentSummary; onChanged: (next: AssignmentSummary) => void }) {
+  const initialUsername = a.intern?.githubUsername?.trim() ?? '';
+  const [savedUsername, setSavedUsername] = useState(initialUsername);
+  const [editingUsername, setEditingUsername] = useState(initialUsername === '');
+  const [usernameDraft, setUsernameDraft] = useState(initialUsername);
+  const [savingUsername, setSavingUsername] = useState(false);
+  const [usernameErr, setUsernameErr] = useState<string | null>(null);
+  const [starting, setStarting] = useState(false);
+  const [startErr, setStartErr] = useState<string | null>(null);
+
+  const accessGranted = a.accessGranted === true;
+  const hasUsername = savedUsername.trim() !== '';
+  const canStart = hasUsername && accessGranted;
+  const usernameDraftValid = isValidGitHubUsername(usernameDraft);
+
+  async function saveUsername() {
+    if (!usernameDraftValid) return;
+    setSavingUsername(true);
+    setUsernameErr(null);
+    try {
+      const res = await api.put<{ githubUsername: string }>(
+        '/api/v1/users/me/github-username',
+        { githubUsername: usernameDraft.trim() },
+      );
+      const stored = res.data?.githubUsername ?? usernameDraft.trim();
+      setSavedUsername(stored);
+      setUsernameDraft(stored);
+      setEditingUsername(false);
+    } catch (e) {
+      const ax = e as { response?: { data?: { error?: string } } };
+      setUsernameErr(
+        ax.response?.data?.error
+          ?? (e instanceof Error ? e.message : 'Could not save GitHub username'),
+      );
+    } finally {
+      setSavingUsername(false);
+    }
+  }
+
+  async function startProject() {
+    if (!canStart) return;
+    setStarting(true);
+    setStartErr(null);
+    try {
+      const res = await api.post<AssignmentSummary>(
+        `/api/v1/project-assignments/${a.id}/start`,
+      );
+      onChanged(res.data);
+    } catch (e) {
+      const ax = e as { response?: { data?: { error?: string } } };
+      setStartErr(
+        ax.response?.data?.error
+          ?? (e instanceof Error ? e.message : 'Could not start the project'),
+      );
+    } finally {
+      setStarting(false);
+    }
+  }
+
+  return (
+    <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+      <h3 className="text-sm font-semibold text-slate-900">Get started</h3>
+      <p className="mt-1 text-sm text-slate-600">
+        Add your GitHub username so your trainer can grant you repo access.
+        Once they do, you can start the project.
+      </p>
+
+      {/* Stage 1 — GitHub username */}
+      <div className="mt-4">
+        <label
+          htmlFor="ghu"
+          className="text-xs font-semibold uppercase tracking-wide text-slate-500"
+        >
+          1. Your GitHub username
+        </label>
+        {editingUsername ? (
+          <div className="mt-1 flex flex-wrap items-start gap-2">
+            <div className="flex-1 min-w-[12rem]">
+              <input
+                id="ghu"
+                type="text"
+                value={usernameDraft}
+                onChange={(e) =>
+                  setUsernameDraft(e.target.value.replace(/\s+/g, ''))
+                }
+                placeholder="octocat"
+                autoComplete="off"
+                spellCheck={false}
+                className={
+                  'w-full rounded-md border px-3 py-2 text-sm '
+                  + (usernameErr || (usernameDraft && !usernameDraftValid)
+                      ? 'border-red-400'
+                      : 'border-slate-200')
+                }
+              />
+              {usernameDraft && !usernameDraftValid && (
+                <p className="mt-1 text-xs text-red-700">
+                  Letters, numbers and single hyphens only; max 39 characters.
+                </p>
+              )}
+            </div>
+            <button
+              type="button"
+              onClick={saveUsername}
+              disabled={savingUsername || !usernameDraftValid}
+              className="rounded-md bg-brand-700 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-800 disabled:opacity-60"
+            >
+              {savingUsername ? 'Saving…' : 'Save'}
+            </button>
+            {hasUsername && (
+              <button
+                type="button"
+                onClick={() => {
+                  setUsernameDraft(savedUsername);
+                  setEditingUsername(false);
+                  setUsernameErr(null);
+                }}
+                className="rounded-md border border-slate-200 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+              >
+                Cancel
+              </button>
+            )}
+          </div>
+        ) : (
+          <div className="mt-1 flex items-center justify-between rounded-md border border-slate-200 bg-slate-50 px-3 py-2">
+            <span className="inline-flex items-center gap-2 text-sm text-slate-800">
+              <Github className="h-4 w-4 text-slate-500" />
+              <code className="font-mono">{savedUsername}</code>
+            </span>
+            <button
+              type="button"
+              onClick={() => {
+                setEditingUsername(true);
+                setUsernameErr(null);
+              }}
+              className="inline-flex items-center gap-1 text-xs font-medium text-brand-700 hover:underline"
+            >
+              <PencilLine className="h-3 w-3" /> Edit
+            </button>
+          </div>
+        )}
+        {usernameErr && (
+          <p className="mt-2 rounded-md border border-red-200 bg-red-50 p-2 text-xs text-red-700">
+            {usernameErr}
+          </p>
+        )}
+      </div>
+
+      {/* Stage 2 — repo access */}
+      <div className="mt-4">
+        <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+          2. Repo access
+        </p>
+        {accessGranted ? (
+          <p className="mt-1 inline-flex items-center gap-1.5 text-sm text-green-700">
+            <CheckCircle2 className="h-4 w-4" /> Trainer has granted you repo access.
+          </p>
+        ) : (
+          <p className="mt-1 inline-flex items-center gap-1.5 text-sm text-amber-700">
+            <Clock className="h-4 w-4" />
+            {hasUsername
+              ? 'Waiting for your trainer to grant repo access.'
+              : 'Save your GitHub username so your trainer can invite you.'}
+          </p>
+        )}
+      </div>
+
+      {/* Stage 3 — start */}
+      <div className="mt-5 flex items-center justify-between border-t border-slate-100 pt-4">
+        <p className="text-xs text-slate-500">
+          {canStart
+            ? 'Everything ready — start the project to enable submissions.'
+            : 'Complete the steps above to enable Start.'}
+        </p>
+        <button
+          type="button"
+          onClick={startProject}
+          disabled={starting || !canStart}
+          title={!canStart
+            ? 'Add your GitHub username and wait for trainer access first'
+            : undefined}
+          className="inline-flex items-center gap-2 rounded-md bg-brand-700 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-800 disabled:opacity-60"
+        >
+          {starting ? 'Starting…' : 'Start project'}
+          <ArrowRight className="h-4 w-4" />
+        </button>
+      </div>
+      {startErr && (
+        <p className="mt-2 rounded-md border border-red-200 bg-red-50 p-2 text-xs text-red-700">
+          {startErr}
+        </p>
+      )}
+    </section>
+  );
+}
+
+/**
+ * GitHub username validation — mirrors the backend's @Pattern on
+ * SetGithubUsernameRequest. Letters, digits and single hyphens, no
+ * leading/trailing hyphen, 1-39 chars.
+ */
+function isValidGitHubUsername(s: string): boolean {
+  const v = s.trim();
+  if (v.length === 0 || v.length > 39) return false;
+  return /^[A-Za-z0-9](?:[A-Za-z0-9]|-(?=[A-Za-z0-9])){0,38}$/.test(v);
 }
 
 function ReadOnlySubmission({ sub }: { sub: NonNullable<AssignmentSummary['latestSubmission']> }) {

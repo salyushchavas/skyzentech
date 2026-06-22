@@ -164,7 +164,12 @@ export default function ActiveInternDetailPage(props: {
           ) : (
             <ul className="space-y-2">
               {d.recentProjects.map((p) => (
-                <RecentProjectItem key={p.id} p={p} onChanged={() => void load()} />
+                <RecentProjectItem
+                  key={p.id}
+                  p={p}
+                  internUserId={d.intern.userId}
+                  onChanged={() => void load()}
+                />
               ))}
             </ul>
           )}
@@ -324,8 +329,8 @@ function Empty() {
 }
 
 function RecentProjectItem({
-  p, onChanged,
-}: { p: RecentProjectRow; onChanged: () => void }) {
+  p, internUserId, onChanged,
+}: { p: RecentProjectRow; internUserId: string | null; onChanged: () => void }) {
   const [ktOpen, setKtOpen] = useState(false);
   const ktDone = p.ktStatus === 'DONE';
   return (
@@ -364,13 +369,20 @@ function RecentProjectItem({
             meeting link
           </a>
         )}
-        <button
-          type="button"
-          onClick={() => setKtOpen(true)}
-          className="ml-auto rounded-md border border-slate-200 px-2 py-0.5 text-[10px] font-medium text-slate-700 hover:bg-slate-50"
-        >
-          {ktDone ? 'Update KT' : 'Mark KT done'}
-        </button>
+        <div className="ml-auto flex gap-1.5">
+          <GrantRepoAccessButton
+            projectId={p.id}
+            internUserId={internUserId}
+            onGranted={onChanged}
+          />
+          <button
+            type="button"
+            onClick={() => setKtOpen(true)}
+            className="rounded-md border border-slate-200 px-2 py-0.5 text-[10px] font-medium text-slate-700 hover:bg-slate-50"
+          >
+            {ktDone ? 'Update KT' : 'Mark KT done'}
+          </button>
+        </div>
       </div>
       {ktOpen && (
         <KtMarkModal
@@ -382,6 +394,109 @@ function RecentProjectItem({
         />
       )}
     </li>
+  );
+}
+
+interface AssignmentBrief {
+  id: string;
+  status: string;
+  accessGranted: boolean | null;
+  intern: { id: string; githubUsername: string | null } | null;
+}
+
+/**
+ * Lazy "Grant repo access" affordance. The trainer's recent-projects feed
+ * gives us project ids but not assignment ids — we look the assignment up
+ * on click (one round-trip), flip {@code accessGranted=true} via the
+ * existing trainer endpoint, and reflect the result locally so the row
+ * doesn't need a full page refresh.
+ *
+ * <p>States: idle → loading (fetching assignment) → ready (button "Grant
+ * repo access") → granting (loading) → granted (green pill). If the
+ * assignment doesn't exist for this (project, intern) pair or is already
+ * granted, the affordance hides itself.</p>
+ */
+function GrantRepoAccessButton({
+  projectId, internUserId, onGranted,
+}: { projectId: string; internUserId: string | null; onGranted: () => void }) {
+  const [assignment, setAssignment] = useState<AssignmentBrief | null>(null);
+  const [resolving, setResolving] = useState(true);
+  const [granting, setGranting] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const [justGranted, setJustGranted] = useState(false);
+
+  useEffect(() => {
+    if (!internUserId) {
+      setResolving(false);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await api.get<AssignmentBrief[]>(
+          `/api/v1/project-assignments/by-project/${projectId}`,
+        );
+        if (cancelled) return;
+        const mine = (res.data ?? []).find(
+          (a) => a.intern?.id === internUserId,
+        );
+        setAssignment(mine ?? null);
+      } catch (e) {
+        if (!cancelled) {
+          const ax = e as { response?: { data?: { error?: string } } };
+          setErr(ax.response?.data?.error ?? 'Lookup failed');
+        }
+      } finally {
+        if (!cancelled) setResolving(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [projectId, internUserId]);
+
+  async function grant() {
+    if (!assignment) return;
+    setGranting(true);
+    setErr(null);
+    try {
+      await api.post(`/api/v1/project-assignments/${assignment.id}/access-granted`);
+      setJustGranted(true);
+      onGranted();
+    } catch (e) {
+      const ax = e as { response?: { data?: { error?: string } } };
+      setErr(ax.response?.data?.error ?? 'Grant failed');
+    } finally {
+      setGranting(false);
+    }
+  }
+
+  // Don't surface anything while the lookup is in flight — the row keeps
+  // its existing KT affordance and the rest of the metadata.
+  if (resolving) return null;
+  // No assignment row (catalog-only project or legacy data without one).
+  if (!assignment) return null;
+  if (assignment.accessGranted === true || justGranted) {
+    return (
+      <span
+        className="inline-flex items-center gap-1 rounded-md border border-green-200 bg-green-50 px-2 py-0.5 text-[10px] font-medium text-green-800"
+        title={err ?? 'Repo access already granted to the intern'}
+      >
+        Repo access ✓
+      </span>
+    );
+  }
+  return (
+    <span className="inline-flex flex-col items-end">
+      <button
+        type="button"
+        onClick={grant}
+        disabled={granting}
+        title="Mark the intern as invited on GitHub so they can Start the project"
+        className="rounded-md border border-brand-300 bg-brand-50 px-2 py-0.5 text-[10px] font-semibold text-brand-800 hover:bg-brand-100 disabled:opacity-60"
+      >
+        {granting ? 'Granting…' : 'Grant repo access'}
+      </button>
+      {err && <span className="mt-0.5 text-[10px] text-red-700">{err}</span>}
+    </span>
   );
 }
 

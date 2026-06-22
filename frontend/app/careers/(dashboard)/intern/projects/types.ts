@@ -53,9 +53,19 @@ export interface LatestSubmission {
   reviewedByName: string | null;
 }
 
+export interface UserRef {
+  id: string;
+  fullName: string | null;
+  email: string | null;
+  githubUsername: string | null;
+}
+
 export interface AssignmentSummary {
   id: string;
   project: ProjectRef | null;
+  /** Backend's UserRef intern — includes githubUsername so the intern UI
+   *  can decide whether to prompt for one before the Start button enables. */
+  intern: UserRef | null;
   status: ProjectAssignmentStatus;
   assignmentDate: string | null;
   dueDate: string | null;
