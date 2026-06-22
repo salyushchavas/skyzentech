@@ -75,11 +75,6 @@ export default function ExitSummaryPage() {
             </Link>
           </li>
           <li>
-            <Link href="/careers/intern/onboarding" className="text-brand-700 hover:underline">
-              Onboarding history
-            </Link>
-          </li>
-          <li>
             <Link href="/careers/intern/evaluations" className="text-brand-700 hover:underline">
               Evaluation history
             </Link>

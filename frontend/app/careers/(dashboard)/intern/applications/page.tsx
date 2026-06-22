@@ -5,6 +5,8 @@ import Link from 'next/link';
 import { Briefcase, ChevronRight, Clock } from 'lucide-react';
 import api from '@/lib/api';
 import InternPageShell from '@/components/intern/InternPageShell';
+import Modal from '@/components/ui/Modal';
+import { toast } from '@/components/ui/Toast';
 import { useInternDashboard } from '@/components/intern/InternDashboardContext';
 import type { ApplicationResponse, ApplicationStatus } from '@/types';
 
@@ -48,6 +50,8 @@ export default function InternApplicationsPage() {
   const [items, setItems] = useState<ApplicationResponse[]>([]);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
+  const [pendingWithdraw, setPendingWithdraw] = useState<ApplicationResponse | null>(null);
+  const [withdrawing, setWithdrawing] = useState(false);
   const { refresh } = useInternDashboard();
 
   const load = useCallback(async () => {
@@ -67,14 +71,19 @@ export default function InternApplicationsPage() {
 
   useEffect(() => { void load(); }, [load]);
 
-  async function withdraw(id: string) {
-    if (!confirm('Withdraw this application? This cannot be undone.')) return;
+  async function confirmWithdraw() {
+    if (!pendingWithdraw) return;
+    setWithdrawing(true);
     try {
-      await api.patch(`/api/v1/applications/${id}/withdraw`);
+      await api.patch(`/api/v1/applications/${pendingWithdraw.id}/withdraw`);
+      setPendingWithdraw(null);
+      toast.success('Application withdrawn.');
       await load();
       await refresh();
     } catch (e) {
-      alert(e instanceof Error ? e.message : 'Could not withdraw');
+      toast.error(e instanceof Error ? e.message : 'Could not withdraw');
+    } finally {
+      setWithdrawing(false);
     }
   }
 
@@ -123,7 +132,7 @@ export default function InternApplicationsPage() {
                 {(a.status === 'APPLIED' || a.status === 'SHORTLISTED') && (
                   <button
                     type="button"
-                    onClick={() => withdraw(a.id)}
+                    onClick={() => setPendingWithdraw(a)}
                     className="rounded-md border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50"
                   >
                     Withdraw
@@ -141,6 +150,39 @@ export default function InternApplicationsPage() {
           ))}
         </ul>
       )}
+
+      <Modal
+        open={pendingWithdraw != null}
+        onOpenChange={(o) => !withdrawing && !o && setPendingWithdraw(null)}
+        title="Withdraw this application?"
+        size="sm"
+        footer={
+          <>
+            <button
+              type="button"
+              onClick={() => setPendingWithdraw(null)}
+              disabled={withdrawing}
+              className="rounded-md border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-60"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={confirmWithdraw}
+              disabled={withdrawing}
+              className="rounded-md bg-red-600 px-4 py-1.5 text-xs font-semibold text-white hover:bg-red-700 disabled:opacity-60"
+            >
+              {withdrawing ? 'Withdrawing…' : 'Yes, withdraw'}
+            </button>
+          </>
+        }
+      >
+        <p className="text-sm text-slate-700">
+          You&apos;re about to withdraw your application for{' '}
+          <strong>{pendingWithdraw?.jobPostingTitle ?? 'this role'}</strong>.
+          This cannot be undone.
+        </p>
+      </Modal>
     </InternPageShell>
   );
 }

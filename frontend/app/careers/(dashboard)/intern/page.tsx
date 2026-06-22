@@ -25,10 +25,11 @@ import {
   type InternNextAction,
   type InternSelectionAck,
 } from '@/components/intern/InternDashboardContext';
+import DashboardRefreshButton from '@/components/ui/DashboardRefreshButton';
 import { cn } from '@/lib/cn';
 
 export default function InternHomePage() {
-  const { data, loading, error } = useInternDashboard();
+  const { data, loading, error, refresh } = useInternDashboard();
 
   if (loading && !data) {
     return (
@@ -59,7 +60,7 @@ export default function InternHomePage() {
     return (
       <>
         <InactiveBanner exitSummary={data.exitSummary ?? null} />
-        <HeroHeader firstName={firstName} stageLabel={stageLabel} />
+        <HeroHeader firstName={firstName} stageLabel={stageLabel} onRefresh={refresh} />
         <InternJourneyStepper status={data.lifecycleStatus} className="mb-8" />
         <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_280px]">
           <main className="min-w-0 space-y-6">
@@ -74,7 +75,7 @@ export default function InternHomePage() {
 
   return (
     <>
-      <HeroHeader firstName={firstName} stageLabel={stageLabel} />
+      <HeroHeader firstName={firstName} stageLabel={stageLabel} onRefresh={refresh} />
 
       {!data.emailVerified && (
         <div
@@ -118,18 +119,23 @@ export default function InternHomePage() {
 function HeroHeader({
   firstName,
   stageLabel,
+  onRefresh,
 }: {
   firstName: string;
   stageLabel: string;
+  onRefresh: () => Promise<void>;
 }) {
   return (
-    <header className="mb-6">
-      <h1 className="text-2xl font-semibold text-slate-900 sm:text-3xl">
-        Welcome back, {firstName}
-      </h1>
-      <p className="mt-1 text-sm text-slate-600">
-        You&apos;re at the <span className="font-medium text-brand-700">{stageLabel}</span> step.
-      </p>
+    <header className="mb-6 flex flex-wrap items-start justify-between gap-3">
+      <div className="min-w-0">
+        <h1 className="text-2xl font-semibold text-slate-900 sm:text-3xl">
+          Welcome back, {firstName}
+        </h1>
+        <p className="mt-1 text-sm text-slate-600">
+          You&apos;re at the <span className="font-medium text-brand-700">{stageLabel}</span> step.
+        </p>
+      </div>
+      <DashboardRefreshButton onRefresh={onRefresh} />
     </header>
   );
 }

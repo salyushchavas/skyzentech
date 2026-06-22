@@ -16,6 +16,7 @@ import RecentActivityCard from '@/components/erm/RecentActivityCard';
 import ScopeToggle from '@/components/erm/ScopeToggle';
 import ErmRightSidePanel from '@/components/erm/ErmRightSidePanel';
 import { HorizontalBars } from '@/components/erm/reports/Bars';
+import DashboardRefreshButton from '@/components/ui/DashboardRefreshButton';
 import { formatRelative } from '@/lib/format-date';
 import type {
   ActiveInternDetail,
@@ -29,7 +30,7 @@ const PIPELINE_POLL_MS = 180_000;
 const PIPELINE_RANGE_DAYS = 90;
 
 export default function ErmHomePage() {
-  const { data, loading, error, scope, setScope } = useErmDashboard();
+  const { data, loading, error, scope, setScope, refresh } = useErmDashboard();
   const [drawerLifecycleId, setDrawerLifecycleId] = useState<string | null>(null);
 
   const callerName = data
@@ -47,7 +48,8 @@ export default function ErmHomePage() {
           <div className="min-w-0 flex-1">
             <PageHeader title="ERM Control Center" subtitle={subtitle} />
           </div>
-          <div className="pt-1">
+          <div className="flex items-center gap-2 pt-1">
+            <DashboardRefreshButton onRefresh={refresh} />
             <ScopeToggle scope={scope} onChange={setScope} />
           </div>
         </div>

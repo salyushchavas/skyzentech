@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { Bell, CheckCheck, ChevronRight } from 'lucide-react';
 import api from '@/lib/api';
 import InternPageShell from '@/components/intern/InternPageShell';
+import { toast } from '@/components/ui/Toast';
 
 interface UserNotification {
   id: string;
@@ -52,8 +53,9 @@ export default function InternMessagesPage() {
     try {
       await api.post('/api/v1/notifications/mark-all-read');
       await load();
+      toast.success('All messages marked as read.');
     } catch (e) {
-      alert(e instanceof Error ? e.message : 'Mark-all-read failed');
+      toast.error(e instanceof Error ? e.message : 'Mark-all-read failed');
     }
   }
 

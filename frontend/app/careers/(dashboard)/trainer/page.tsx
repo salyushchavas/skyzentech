@@ -1,10 +1,10 @@
 'use client';
 
-import { RefreshCw } from 'lucide-react';
 import { useTrainerDashboard } from '@/components/trainer/TrainerDashboardContext';
 import KPIGrid from '@/components/trainer/KPIGrid';
 import TodayMeetingsCard from '@/components/trainer/TodayMeetingsCard';
 import RecentActivityCard from '@/components/trainer/RecentActivityCard';
+import DashboardRefreshButton from '@/components/ui/DashboardRefreshButton';
 
 export default function TrainerHomePage() {
   const {
@@ -39,14 +39,7 @@ export default function TrainerHomePage() {
             {asOf ? ` · as of ${asOf}` : ''}
           </p>
         </div>
-        <button
-          type="button"
-          onClick={() => void refreshDashboard()}
-          className="inline-flex items-center gap-1 rounded-md border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
-        >
-          <RefreshCw className="h-3.5 w-3.5" strokeWidth={2} />
-          Refresh
-        </button>
+        <DashboardRefreshButton onRefresh={refreshDashboard} />
       </header>
 
       {dashboardError && (

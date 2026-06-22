@@ -1,9 +1,10 @@
 'use client';
 
 import Link from 'next/link';
-import { AlertCircle, ArrowRight, RefreshCw } from 'lucide-react';
+import { AlertCircle, ArrowRight } from 'lucide-react';
 import { useEvaluatorDashboard } from '@/components/evaluator/EvaluatorDashboardContext';
 import type { KpiSnapshot } from '@/components/evaluator/types';
+import DashboardRefreshButton from '@/components/ui/DashboardRefreshButton';
 
 export default function EvaluatorHomePage() {
   const { dashboard, dashboardLoading, dashboardError, refreshAll } = useEvaluatorDashboard();
@@ -32,14 +33,7 @@ export default function EvaluatorHomePage() {
             )}
           </p>
         </div>
-        <button
-          type="button"
-          onClick={() => void refreshAll()}
-          className="inline-flex items-center gap-1 rounded-md border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
-        >
-          <RefreshCw className="h-3.5 w-3.5" />
-          Refresh
-        </button>
+        <DashboardRefreshButton onRefresh={refreshAll} />
       </header>
 
       {dashboardError && (

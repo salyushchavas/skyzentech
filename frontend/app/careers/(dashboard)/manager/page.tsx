@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import api from '@/lib/api';
 import type { OverviewResponse } from '@/components/manager/types';
+import DashboardRefreshButton from '@/components/ui/DashboardRefreshButton';
 
 export default function ManagerHomePage() {
   const [data, setData] = useState<OverviewResponse | null>(null);
@@ -39,12 +40,17 @@ export default function ManagerHomePage() {
   return (
     <div className="mx-auto max-w-6xl space-y-5 p-6">
       <header className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
-        <p className="text-[10px] font-semibold uppercase tracking-wide text-brand-700">
-          Executive Overview
-        </p>
-        <h1 className="mt-1 text-2xl font-semibold text-slate-900">
-          Manager Dashboard
-        </h1>
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="min-w-0">
+            <p className="text-[10px] font-semibold uppercase tracking-wide text-brand-700">
+              Executive Overview
+            </p>
+            <h1 className="mt-1 text-2xl font-semibold text-slate-900">
+              Manager Dashboard
+            </h1>
+          </div>
+          <DashboardRefreshButton onRefresh={load} />
+        </div>
         <p className="mt-1 text-sm text-slate-600">
           Portfolio-wide read of the applicant funnel and intern lifecycle.
           Numbers reconcile with ERM&apos;s view — same{' '}
