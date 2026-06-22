@@ -2397,21 +2397,67 @@ public class SchemaFixupRunner implements CommandLineRunner {
     /** Trainer Phase 2 — drop NOT NULL on projects.engagement_id +
      *  projects.intern_id so lifecycle-tracked projects (which key off
      *  intern_lifecycle_id) can land without an Engagement / Candidate
-     *  row. Legacy paths that still populate both keep working. */
+     *  row. Legacy paths that still populate both keep working.
+     *
+     *  <p>Previously this swallowed failures at DEBUG, so a silent ALTER
+     *  failure (lock, permission, transient DB error) would leave
+     *  engagement_id NOT NULL in production and every trainer project
+     *  assignment would 23502. We now: (1) log each ALTER attempt at INFO,
+     *  (2) log failures at WARN with the exception chain, (3) post-ALTER
+     *  query information_schema.columns to VERIFY the column is actually
+     *  nullable, and (4) log loudly when verification disagrees with our
+     *  assumptions so the next deploy operator can see the relax didn't
+     *  take effect.</p>
+     */
     private void relaxProjectLegacyFkNotNull() {
-        String[] alters = {
-                "ALTER TABLE projects ALTER COLUMN engagement_id DROP NOT NULL",
-                "ALTER TABLE projects ALTER COLUMN intern_id DROP NOT NULL"
+        String[][] columns = {
+                {"projects", "engagement_id"},
+                {"projects", "intern_id"}
         };
-        for (String sql : alters) {
-            try {
-                jdbcTemplate.execute(sql);
-            } catch (Exception e) {
-                // Already nullable, or table not yet created — both fine.
-                log.debug("[SchemaFixupRunner] Trainer Phase 2 ALTER skipped: {} — {}",
-                        sql, e.getMessage());
-            }
+        for (String[] col : columns) {
+            relaxOneNotNull(col[0], col[1]);
         }
+    }
+
+    private void relaxOneNotNull(String table, String column) {
+        String sql = "ALTER TABLE " + table + " ALTER COLUMN " + column + " DROP NOT NULL";
+        try {
+            jdbcTemplate.execute(sql);
+            log.info("[SchemaFixupRunner] DROP NOT NULL succeeded on {}.{}", table, column);
+        } catch (Exception e) {
+            log.warn("[SchemaFixupRunner] DROP NOT NULL on {}.{} FAILED: {} — root: {}",
+                    table, column, e.getMessage(), rootMessage(e), e);
+        }
+        // Verify regardless of the ALTER's reported outcome (it could have
+        // succeeded silently or failed silently). information_schema returns
+        // is_nullable = 'YES'/'NO'.
+        try {
+            String isNullable = jdbcTemplate.queryForObject(
+                    "SELECT is_nullable FROM information_schema.columns "
+                            + "WHERE table_name = ? AND column_name = ?",
+                    String.class, table, column);
+            if (isNullable == null) {
+                log.warn("[SchemaFixupRunner] {}.{} not found in information_schema — "
+                        + "cannot verify nullability", table, column);
+            } else if ("YES".equalsIgnoreCase(isNullable)) {
+                log.info("[SchemaFixupRunner] verified {}.{} is nullable", table, column);
+            } else {
+                log.error("[SchemaFixupRunner] {}.{} is STILL NOT NULL after DROP NOT NULL "
+                                + "attempt — trainer project assignments will continue to "
+                                + "23502 until this is resolved (check DB user privileges + "
+                                + "locks on the table).",
+                        table, column);
+            }
+        } catch (Exception verifyErr) {
+            log.warn("[SchemaFixupRunner] post-ALTER verify on {}.{} failed (non-fatal): {}",
+                    table, column, verifyErr.getMessage());
+        }
+    }
+
+    private static String rootMessage(Throwable t) {
+        Throwable cur = t;
+        while (cur.getCause() != null && cur.getCause() != cur) cur = cur.getCause();
+        return cur.getClass().getName() + ": " + cur.getMessage();
     }
 
     /**

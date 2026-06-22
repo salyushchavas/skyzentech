@@ -77,13 +77,18 @@ public class Project {
      * Trainer Phase 2 relaxed engagement_id + intern_id to nullable —
      * lifecycle-tracked projects key off {@link #internLifecycleId}
      * instead. Legacy single-allocation paths still populate both.
+     * {@code optional = true} + {@code nullable = true} are declared
+     * EXPLICITLY (rather than relying on defaults) so a future regression
+     * that adds {@code optional = false} is visible in this entity, and
+     * so Hibernate's DDL generator never emits NOT NULL again even on a
+     * cold-start environment.
      */
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "engagement_id")
+    @ManyToOne(fetch = FetchType.LAZY, optional = true)
+    @JoinColumn(name = "engagement_id", nullable = true)
     private Engagement engagement;
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "intern_id")
+    @ManyToOne(fetch = FetchType.LAZY, optional = true)
+    @JoinColumn(name = "intern_id", nullable = true)
     private Candidate intern;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
