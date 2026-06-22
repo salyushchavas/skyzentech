@@ -426,36 +426,48 @@ interface AssignmentBrief {
 function RepoAccessControls({
   projectId, internUserId, onChanged,
 }: { projectId: string; internUserId: string | null; onChanged: () => void }) {
+  // CRITICAL: every hook must be called UNCONDITIONALLY in the same order
+  // every render — React error #438 ("Should have a queue. You are likely
+  // calling Hooks conditionally") fires when the hook sequence differs
+  // between renders. Inline useEffect (matching the old working
+  // GrantRepoAccessButton) instead of a useCallback+useEffect duo so the
+  // dep-array surface is as small as possible. Refresh on demand via
+  // bumping `refreshKey`.
   const [assignment, setAssignment] = useState<AssignmentBrief | null>(null);
   const [resolving, setResolving] = useState(true);
   const [granting, setGranting] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [justGranted, setJustGranted] = useState(false);
   const [linkOpen, setLinkOpen] = useState(false);
+  const [refreshKey, setRefreshKey] = useState(0);
 
-  const load = useCallback(async () => {
+  useEffect(() => {
     if (!internUserId) {
       setResolving(false);
       return;
     }
-    try {
-      const res = await api.get<AssignmentBrief[]>(
-        `/api/v1/project-assignments/by-project/${projectId}`,
-      );
-      const list = Array.isArray(res?.data) ? res.data : [];
-      const mine = list.find((a) => a?.intern?.id === internUserId);
-      setAssignment(mine ?? null);
-      setErr(null);
-    } catch (e) {
-      const ax = e as { response?: { data?: { error?: string } } };
-      setErr(ax.response?.data?.error ?? 'Lookup failed');
-      setAssignment(null);
-    } finally {
-      setResolving(false);
-    }
-  }, [projectId, internUserId]);
-
-  useEffect(() => { void load(); }, [load]);
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await api.get<AssignmentBrief[]>(
+          `/api/v1/project-assignments/by-project/${projectId}`,
+        );
+        if (cancelled) return;
+        const list = Array.isArray(res?.data) ? res.data : [];
+        const mine = list.find((a) => a?.intern?.id === internUserId);
+        setAssignment(mine ?? null);
+        setErr(null);
+      } catch (e) {
+        if (cancelled) return;
+        const ax = e as { response?: { data?: { error?: string } } };
+        setErr(ax.response?.data?.error ?? 'Lookup failed');
+        setAssignment(null);
+      } finally {
+        if (!cancelled) setResolving(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [projectId, internUserId, refreshKey]);
 
   async function grant() {
     if (!assignment) return;
@@ -471,6 +483,10 @@ function RepoAccessControls({
     } finally {
       setGranting(false);
     }
+  }
+
+  function refresh() {
+    setRefreshKey((k) => k + 1);
   }
 
   // Hide while the lookup is in flight.
@@ -490,7 +506,7 @@ function RepoAccessControls({
       onClose={() => setLinkOpen(false)}
       onSaved={() => {
         setLinkOpen(false);
-        void load();
+        refresh();
         onChanged();
       }}
     />
