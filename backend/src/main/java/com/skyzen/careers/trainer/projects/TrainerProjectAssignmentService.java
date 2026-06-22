@@ -311,11 +311,16 @@ public class TrainerProjectAssignmentService {
         project = projectRepository.save(project);
 
         // 8) Event log chain
+        // LinkedHashMap (not Map.of) — templateId is null on the no-template
+        // path and Map.of rejects null values with NPE, which previously bubbled
+        // out of the assign-project call as a 500.
+        Map<String, Object> createdPayload = new LinkedHashMap<>();
+        createdPayload.put("projectNumber", req.projectNumber());
+        createdPayload.put("monthYear", req.monthYear());
+        createdPayload.put("templateId", req.projectTemplateId());
+        createdPayload.put("backdated", backdated);
         appendEventLog(project.getId(), caller.getId(), "CREATED", project,
-                Map.of("projectNumber", req.projectNumber(),
-                        "monthYear", req.monthYear(),
-                        "templateId", req.projectTemplateId(),
-                        "backdated", backdated));
+                createdPayload);
         if (template != null) {
             appendEventLog(project.getId(), caller.getId(), "TEMPLATE_INSTANTIATED",
                     "instantiated from template " + template.getTitle(),
@@ -397,11 +402,14 @@ public class TrainerProjectAssignmentService {
             // column lands in a future phase if/when projects support multi.
             project.setResourceLinksJson("[\"" + doc.getId() + "\"]");
             project = projectRepository.save(project);
+            // LinkedHashMap (not Map.of) — mime is null when the browser
+            // omits Content-Type (Map.of NPEs on nulls).
+            Map<String, Object> filePayload = new LinkedHashMap<>();
+            filePayload.put("documentId", doc.getId());
+            filePayload.put("fileSize", file.getSize());
+            filePayload.put("mimeType", mime);
             appendEventLog(project.getId(), caller.getId(), "FILE_ATTACHED",
-                    file.getOriginalFilename(),
-                    Map.of("documentId", doc.getId(),
-                            "fileSize", file.getSize(),
-                            "mimeType", mime));
+                    file.getOriginalFilename(), filePayload);
             return toDetail(project);
         } catch (BadRequestException re) {
             throw re;
