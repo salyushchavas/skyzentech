@@ -1005,6 +1005,25 @@ public class SchemaFixupRunner implements CommandLineRunner {
             log.warn("weekly_meetings table ensure failed (non-fatal): {}", e.getMessage(), e);
         }
 
+        // weekly_meetings.zoom_meeting_id — pre-Hibernate schema drift fix.
+        // Some older production rows have this column as numeric/text type
+        // (likely numeric(19,0) from a long-ago JPA default) which
+        // Hibernate's ddl-auto=update cannot auto-cast to BIGINT —
+        // surfaces as PSQLException "column cannot be cast automatically
+        // to type bigint" on every boot. Non-fatal for Hibernate (logs +
+        // continues) but the column type never gets fixed without this
+        // explicit USING cast. Idempotent: when already BIGINT, Postgres
+        // detects no-op.
+        try {
+            jdbcTemplate.execute(
+                    "ALTER TABLE weekly_meetings ALTER COLUMN zoom_meeting_id "
+                            + "TYPE BIGINT USING zoom_meeting_id::bigint");
+            log.info("Ensured weekly_meetings.zoom_meeting_id is BIGINT.");
+        } catch (Exception e) {
+            log.warn("weekly_meetings.zoom_meeting_id BIGINT cast failed (non-fatal): {}",
+                    e.getMessage());
+        }
+
         // weekly_meetings — persistent Zoom failure flag. Mirrors the ERM
         // interview ThreadLocal pattern but keeps the signal across requests
         // so the trainer UI can render a Regenerate banner on a fresh GET
