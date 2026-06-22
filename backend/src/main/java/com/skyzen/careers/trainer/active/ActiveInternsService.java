@@ -721,16 +721,39 @@ public class ActiveInternsService {
         }
     }
 
+    /**
+     * Trainer "Recent projects" feed for an intern's detail page.
+     *
+     * <p>Source: UNION of (a) the legacy {@code projects.intern_lifecycle_id}
+     * lookup and (b) the canonical {@code project_assignments.intern_id}
+     * lookup joined back to {@code projects}. The legacy column was the
+     * original source-of-truth but doesn't always carry the right value on
+     * wizard-assigned rows — the intern's "My Projects" reads exclusively
+     * from {@code project_assignments} (which is what made the discrepancy
+     * visible: intern sees the project, trainer sees "Nothing yet"). Sourcing
+     * both ways here means every project the intern can see, the trainer
+     * can see too, with no double-counting (DISTINCT on project id).</p>
+     */
     private List<RecentProjectRow> loadRecentProjects(UUID lifecycleId) {
         try {
             return jdbc.query(
-                    "SELECT id, title, status, project_number, month_year, due_date, "
-                            + "       reviewed_at, kt_status, kt_completed_at, kt_meeting_link "
-                            + "  FROM projects "
-                            + " WHERE intern_lifecycle_id = ? "
-                            + " ORDER BY COALESCE(month_year, '0000-00') DESC, "
-                            + "          COALESCE(project_number, 9) ASC LIMIT 5",
-                    new Object[]{lifecycleId},
+                    "SELECT p.id, p.title, p.status, p.project_number, "
+                            + "       p.month_year, p.due_date, p.reviewed_at, "
+                            + "       p.kt_status, p.kt_completed_at, p.kt_meeting_link "
+                            + "  FROM projects p "
+                            + " WHERE p.intern_lifecycle_id = ? "
+                            + "    OR p.id IN ( "
+                            + "         SELECT pa.project_id "
+                            + "           FROM project_assignments pa "
+                            + "          WHERE pa.intern_id = ( "
+                            + "                  SELECT il.user_id FROM intern_lifecycles il "
+                            + "                   WHERE il.id = ? "
+                            + "                ) "
+                            + "       ) "
+                            + " ORDER BY COALESCE(p.month_year, '0000-00') DESC, "
+                            + "          COALESCE(p.project_number, 9) ASC "
+                            + " LIMIT 5",
+                    new Object[]{lifecycleId, lifecycleId},
                     (rs, n) -> new RecentProjectRow(
                             nullableUuid(rs.getString("id")),
                             rs.getString("title"),
@@ -744,6 +767,8 @@ public class ActiveInternsService {
                             instantOf(rs.getTimestamp("kt_completed_at")),
                             rs.getString("kt_meeting_link")));
         } catch (Exception e) {
+            log.warn("[ActiveInterns] loadRecentProjects failed for lifecycle {}: {}",
+                    lifecycleId, e.getMessage());
             return List.of();
         }
     }
