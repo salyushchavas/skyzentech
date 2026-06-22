@@ -11,6 +11,8 @@ import com.skyzen.careers.repository.AuditLogRepository;
 import com.skyzen.careers.service.TimesheetService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -40,6 +42,22 @@ public class ErmTimesheetVerifyService {
     private final AuditLogRepository auditLogRepository;
     private final ObjectMapper objectMapper;
 
+    /**
+     * Self-injected proxy reference so {@link #verifyBatch} can invoke
+     * {@link #verify} VIA Spring's AOP proxy. A direct {@code verify(...)}
+     * call from {@code verifyBatch} bypasses the proxy (self-invocation),
+     * which means the inner method runs INSIDE the outer @Transactional —
+     * any per-row RuntimeException marks the whole batch tx as
+     * rollback-only and the commit throws UnexpectedRollbackException
+     * (the 500 with framework-only stack frames the user saw on
+     * traceId 9187e3be / 325d7764). Routing through the proxy with no
+     * outer transaction means each row gets its OWN tx; a single
+     * malformed row no longer poisons the batch.
+     */
+    @Autowired
+    @Lazy
+    private ErmTimesheetVerifyService self;
+
     @Transactional
     public TimesheetResponse verify(UUID timesheetId, User caller) {
         gate(caller, "verify");
@@ -59,18 +77,19 @@ public class ErmTimesheetVerifyService {
 
     /**
      * Batch-verify every SUBMITTED row in the supplied id list. Skips
-     * wrong-state rows silently (returns a per-id outcome map). Each
-     * row passes through the per-row service so the state-machine gate +
-     * audit + AFTER_COMMIT notify chain run identically to the single
-     * action path.
+     * wrong-state rows (returns a per-id outcome map). Each row passes
+     * through {@link #verify} VIA the self-injected proxy so it runs in
+     * its OWN transaction; a malformed/wrong-state row rolls back only
+     * itself, the rest succeed, and the batch wrapper commits the
+     * response cleanly. No outer @Transactional on the batch method —
+     * that's the whole point.
      */
-    @Transactional
     public Map<UUID, String> verifyBatch(List<UUID> ids, User caller) {
         Map<UUID, String> out = new LinkedHashMap<>();
         if (ids == null || ids.isEmpty()) return out;
         for (UUID id : ids) {
             try {
-                verify(id, caller);
+                self.verify(id, caller);
                 out.put(id, "VERIFIED");
             } catch (ForbiddenException fe) {
                 out.put(id, "FORBIDDEN");
