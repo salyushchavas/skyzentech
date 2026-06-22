@@ -1,6 +1,7 @@
 'use client';
 
-import { Component, use, useCallback, useEffect, useState, type ErrorInfo, type ReactNode } from 'react';
+import { Component, useCallback, useEffect, useState, type ErrorInfo, type ReactNode } from 'react';
+import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import api from '@/lib/api';
 import StateBadge from '@/components/trainer/StateBadge';
@@ -14,18 +15,21 @@ import type {
   RecentTimesheetRow,
 } from '@/components/trainer/types';
 
-type RouteParams = { lifecycleId: string };
-
 const POLL_MS = 60_000;
 
-export default function ActiveInternDetailPage(props: {
-  params: Promise<RouteParams>;
-}) {
-  const { lifecycleId } = use(props.params);
+export default function ActiveInternDetailPage() {
+  // useParams (next/navigation) is the standard client-component way to read
+  // dynamic-route params on Next 14. The previous `use(props.params)` form
+  // expects `params` to be a thenable (Next 15 behavior); on Next 14.2 it's a
+  // plain object and React's `use()` throws minified error #438 because the
+  // value is neither a Promise nor a Context.
+  const params = useParams<{ lifecycleId: string }>();
+  const lifecycleId = params?.lifecycleId ?? '';
   const [d, setD] = useState<ActiveInternDetail | null>(null);
   const [err, setErr] = useState<string | null>(null);
 
   const load = useCallback(async () => {
+    if (!lifecycleId) return;
     try {
       const res = await api.get<ActiveInternDetail>(
         `/api/v1/trainer/active-interns/${lifecycleId}`,
