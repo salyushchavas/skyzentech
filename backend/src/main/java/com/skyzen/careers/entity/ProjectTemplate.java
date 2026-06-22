@@ -2,6 +2,8 @@ package com.skyzen.careers.entity;
 
 import jakarta.persistence.*;
 import lombok.*;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 import java.time.Instant;
 import java.util.UUID;
@@ -50,7 +52,16 @@ public class ProjectTemplate {
     private String learningObjectiveLabel;
 
     /** JSON array of document UUIDs — resolved via DocumentService.
-     *  JSONB at the DB layer (per SchemaFixupRunner). */
+     *  Stored as Postgres JSONB ({@code SchemaFixupRunner} creates the column
+     *  with type {@code JSONB}); the Java side keeps it as a raw JSON string
+     *  so the existing service callers (which pass {@code "[]"} on create
+     *  and edit the array via JSON-text manipulation) don't have to change.
+     *  Without {@link JdbcTypeCode#value()} = {@link SqlTypes#JSON} Hibernate
+     *  binds {@code String} as {@code varchar} and pgjdbc rejects the
+     *  {@code character varying -> jsonb} cast with SQLGrammarException —
+     *  the root cause behind the "New Template" + "Assign Project (template
+     *  instantiation)" 500s. */
+    @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "attached_document_ids", columnDefinition = "jsonb")
     private String attachedDocumentIds;
 
