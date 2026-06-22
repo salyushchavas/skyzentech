@@ -5,9 +5,11 @@ import com.skyzen.careers.entity.AuditLog;
 import com.skyzen.careers.entity.Document;
 import com.skyzen.careers.entity.InternLifecycle;
 import com.skyzen.careers.entity.Project;
+import com.skyzen.careers.entity.ProjectAssignment;
 import com.skyzen.careers.entity.ProjectAssignmentEventLog;
 import com.skyzen.careers.entity.ProjectTemplate;
 import com.skyzen.careers.entity.User;
+import com.skyzen.careers.enums.ProjectAssignmentStatus;
 import com.skyzen.careers.enums.ProjectStatus;
 import com.skyzen.careers.enums.UserRole;
 import com.skyzen.careers.exception.BadRequestException;
@@ -19,6 +21,7 @@ import com.skyzen.careers.repository.AuditLogRepository;
 import com.skyzen.careers.repository.DocumentRepository;
 import com.skyzen.careers.repository.InternLifecycleRepository;
 import com.skyzen.careers.repository.ProjectAssignmentEventLogRepository;
+import com.skyzen.careers.repository.ProjectAssignmentRepository;
 import com.skyzen.careers.repository.ProjectRepository;
 import com.skyzen.careers.repository.ProjectTemplateRepository;
 import com.skyzen.careers.repository.UserRepository;
@@ -30,6 +33,8 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.time.Instant;
@@ -80,6 +85,7 @@ public class TrainerProjectAssignmentService {
     private final ProjectRepository projectRepository;
     private final ProjectTemplateRepository templateRepository;
     private final ProjectAssignmentEventLogRepository eventLogRepository;
+    private final ProjectAssignmentRepository projectAssignmentRepository;
     private final InternLifecycleRepository lifecycleRepository;
     private final UserRepository userRepository;
     private final DocumentRepository documentRepository;
@@ -310,6 +316,34 @@ public class TrainerProjectAssignmentService {
         }
         project = projectRepository.save(project);
 
+        // 7b) Intern-link row. The intern's "My Projects" surface reads from
+        // project_assignments (Flow B), so without this mirror the trainer's
+        // legacy Project (Flow A) is invisible to the assigned intern. Before
+        // this write existed, only a boot-time backfill in SchemaFixupRunner
+        // bridged the gap — meaning a freshly-assigned project stayed hidden
+        // until the next backend restart. Atomic with the Project save: if the
+        // transaction rolls back, both go together.
+        if (lc.getUserId() != null) {
+            ProjectAssignment link = ProjectAssignment.builder()
+                    .projectId(project.getId())
+                    .internId(lc.getUserId())
+                    .assignedById(caller.getId())
+                    .assignmentDate(project.getStartDate() != null
+                            ? project.getStartDate() : LocalDate.now())
+                    .dueDate(project.getDueDate())
+                    .status(ProjectAssignmentStatus.ASSIGNED)
+                    .accessGranted(Boolean.FALSE)
+                    .build();
+            projectAssignmentRepository.save(link);
+        } else {
+            // Defensive: an InternLifecycle without a user_id shouldn't be
+            // assignable in the first place (scope guard catches it), but if
+            // we somehow get here, log loudly so the orphaned Project is
+            // greppable in the audit log.
+            log.error("[TrainerProject] intern-link skipped — lifecycle {} has no user_id; "
+                    + "intern cannot see project {}", lc.getId(), project.getId());
+        }
+
         // 8) Event log chain
         // LinkedHashMap (not Map.of) — templateId is null on the no-template
         // path and Map.of rejects null values with NPE, which previously bubbled
@@ -345,22 +379,55 @@ public class TrainerProjectAssignmentService {
                         "monthYear", project.getMonthYear(),
                         "projectNumber", project.getProjectNumber()));
 
-        // 10) Notification fan-out — best-effort. Notify failures must
-        // NEVER roll back the assignment transaction. Inside the
-        // dispatcher each per-recipient block already has try/catch,
-        // but the outer body has unprotected lookups (findById,
-        // findByRole) that could throw — wrap the entire call so the
-        // assignment survives.
-        try {
-            notifier.dispatchProjectAssigned(project, lc, caller,
-                    Boolean.TRUE.equals(project.getNotifyStakeholdersInternal()),
-                    backdated, backdateAuthorizer);
-        } catch (Exception notifyErr) {
-            log.error("[TrainerProject] notify fan-out failed "
-                            + "(non-fatal; assignment kept) for project={} "
-                            + "intern_lifecycle={} month={} slot={}: {}",
-                    project.getId(), lc.getId(), req.monthYear(),
-                    req.projectNumber(), notifyErr.toString(), notifyErr);
+        // 10) Notification fan-out — deferred to AFTER the transaction commits.
+        // Before this change, emails fired inside the @Transactional method,
+        // so a commit-time failure (e.g. a NOT NULL violation on any of the
+        // deferred INSERTs above) sent the intern a "you've been assigned"
+        // email even though the assignment had been rolled back. Result: the
+        // intern clicked the email and saw "Project not found" because the
+        // Project + ProjectAssignment rows never persisted. Registering the
+        // notify as an afterCommit synchronization means the email only ever
+        // fires when the data actually landed.
+        final Project pFinal = project;
+        final InternLifecycle lcFinal = lc;
+        final User callerFinal = caller;
+        final boolean backdatedFinal = backdated;
+        final String authorizerFinal = backdateAuthorizer;
+        final String monthYearFinal = req.monthYear();
+        final Short slotFinal = req.projectNumber();
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(
+                    new TransactionSynchronization() {
+                        @Override
+                        public void afterCommit() {
+                            try {
+                                notifier.dispatchProjectAssigned(pFinal, lcFinal, callerFinal,
+                                        Boolean.TRUE.equals(pFinal.getNotifyStakeholdersInternal()),
+                                        backdatedFinal, authorizerFinal);
+                            } catch (Exception notifyErr) {
+                                log.error("[TrainerProject] post-commit notify fan-out "
+                                                + "failed (non-fatal; assignment already kept) "
+                                                + "for project={} intern_lifecycle={} month={} "
+                                                + "slot={}: {}",
+                                        pFinal.getId(), lcFinal.getId(),
+                                        monthYearFinal, slotFinal,
+                                        notifyErr.toString(), notifyErr);
+                            }
+                        }
+                    });
+        } else {
+            // No active transaction context (shouldn't happen — the method is
+            // @Transactional — but stay defensive). Fall back to the in-line
+            // call so a callsite outside Spring's tx AOP still notifies.
+            try {
+                notifier.dispatchProjectAssigned(project, lc, caller,
+                        Boolean.TRUE.equals(project.getNotifyStakeholdersInternal()),
+                        backdated, backdateAuthorizer);
+            } catch (Exception notifyErr) {
+                log.error("[TrainerProject] notify fan-out failed (non-tx fallback) "
+                                + "for project={}: {}",
+                        project.getId(), notifyErr.toString(), notifyErr);
+            }
         }
 
         return toDetail(project);
