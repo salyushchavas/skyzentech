@@ -96,6 +96,16 @@ public class SchemaFixupRunner implements CommandLineRunner {
             log.warn("user_roles_role_check drop failed (non-fatal): {}", e.getMessage(), e);
         }
 
+        // Phase B2 — VERIFIED was added to TimesheetStatus when the
+        // ERM-verify stage shipped. The original timesheets_status_check
+        // pre-dated VERIFIED so the ERM verifyBatch call fails with 23514
+        // the moment it tries to write VERIFIED. Drop + recreate with the
+        // full current enum; verify the rebuild took (engagement_id-relax
+        // lesson — silent DROP/ADD failures hide for weeks). App-layer
+        // @Enumerated(EnumType.STRING) on TimesheetStatus stays the real
+        // source of truth; the DB CHECK is belt-and-suspenders.
+        rebuildTimesheetsStatusCheck();
+
         // ── 8-role finalize: rename HR_COMPLIANCE → HR and
         //                    TECHNICAL_SUPERVISOR → TECHNICAL_EVALUATOR.
         //
@@ -2451,6 +2461,66 @@ public class SchemaFixupRunner implements CommandLineRunner {
         } catch (Exception verifyErr) {
             log.warn("[SchemaFixupRunner] post-ALTER verify on {}.{} failed (non-fatal): {}",
                     table, column, verifyErr.getMessage());
+        }
+    }
+
+    /**
+     * Phase B2 — rebuild {@code timesheets_status_check} to allow VERIFIED
+     * (and the rest of the current {@link com.skyzen.careers.enums.TimesheetStatus}
+     * set). The legacy CHECK was created before the ERM-verify stage and
+     * rejects every VERIFIED write with SQLSTATE 23514, which 500s the ERM
+     * verify / verifyBatch endpoints.
+     *
+     * <p>Same posture as
+     * {@link #relaxProjectLegacyFkNotNull()}: log INFO on success, WARN+chain
+     * on failure (no DEBUG-and-forget), and post-rebuild verify against
+     * {@code pg_constraint} so a silent rebuild miss is unmissable in the
+     * next deploy's log.</p>
+     */
+    private void rebuildTimesheetsStatusCheck() {
+        final String constraint = "timesheets_status_check";
+        // 1) Drop the stale CHECK (no-op if not present).
+        try {
+            jdbcTemplate.execute(
+                    "ALTER TABLE timesheets DROP CONSTRAINT IF EXISTS " + constraint);
+        } catch (Exception e) {
+            log.warn("[SchemaFixupRunner] {} DROP failed: {} — root: {}",
+                    constraint, e.getMessage(), rootMessage(e), e);
+        }
+        // 2) Add the new CHECK that matches the current TimesheetStatus enum
+        //    verbatim: DRAFT, SUBMITTED, VERIFIED, APPROVED, REJECTED.
+        try {
+            jdbcTemplate.execute(
+                    "ALTER TABLE timesheets ADD CONSTRAINT " + constraint
+                            + " CHECK (status IN ('DRAFT','SUBMITTED','VERIFIED',"
+                            + "'APPROVED','REJECTED'))");
+            log.info("[SchemaFixupRunner] rebuilt {} to current TimesheetStatus enum "
+                    + "(DRAFT,SUBMITTED,VERIFIED,APPROVED,REJECTED)", constraint);
+        } catch (Exception e) {
+            log.warn("[SchemaFixupRunner] {} ADD failed: {} — root: {}",
+                    constraint, e.getMessage(), rootMessage(e), e);
+        }
+        // 3) Verify via pg_constraint. ERROR (not warn) if the constraint
+        //    is still missing — that means the rebuild silently failed and
+        //    the ERM verifyBatch will keep 500'ing until someone intervenes
+        //    at the DB level.
+        try {
+            Integer count = jdbcTemplate.queryForObject(
+                    "SELECT COUNT(*) FROM pg_constraint c "
+                            + "JOIN pg_class t ON t.oid = c.conrelid "
+                            + "WHERE t.relname = 'timesheets' AND c.conname = ?",
+                    Integer.class, constraint);
+            if (count != null && count > 0) {
+                log.info("[SchemaFixupRunner] verified {} present on timesheets", constraint);
+            } else {
+                log.error("[SchemaFixupRunner] {} is MISSING on timesheets after rebuild "
+                        + "attempt — ERM verifyBatch will continue to 23514 until this is "
+                        + "resolved (check DB user privileges on the timesheets table).",
+                        constraint);
+            }
+        } catch (Exception verifyErr) {
+            log.warn("[SchemaFixupRunner] post-rebuild verify on {} failed (non-fatal): {}",
+                    constraint, verifyErr.getMessage());
         }
     }
 
