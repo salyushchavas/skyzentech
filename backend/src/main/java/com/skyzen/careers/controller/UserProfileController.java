@@ -73,4 +73,19 @@ public class UserProfileController {
             @AuthenticationPrincipal User caller) {
         return userProfileService.setGithubUsername(caller, req.githubUsername());
     }
+
+    /**
+     * Self-service Zoom host email — staff users set this so ZoomService
+     * uses their own licensed Zoom seat as the meeting host
+     * (POST /users/{userId}/meetings) instead of falling back to the
+     * service account. Validated as an email on the DTO.
+     */
+    @PutMapping("/me/zoom-email")
+    @PreAuthorize("isAuthenticated()")
+    public java.util.Map<String, Object> setZoomEmail(
+            @Valid @RequestBody
+            com.skyzen.careers.dto.user.SetZoomEmailRequest req,
+            @AuthenticationPrincipal User caller) {
+        return userProfileService.setZoomEmail(caller, req.zoomEmail());
+    }
 }

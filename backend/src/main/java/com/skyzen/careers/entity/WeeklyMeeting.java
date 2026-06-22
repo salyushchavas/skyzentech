@@ -83,6 +83,22 @@ public class WeeklyMeeting {
     @Column(name = "trainer_notes", columnDefinition = "TEXT")
     private String trainerNotes;
 
+    /**
+     * Set true when the most recent Zoom PATCH (reschedule) returned an
+     * error. Persisted because the ERM-interview ThreadLocal pattern only
+     * surfaces failure on the immediate response — a later GET wouldn't see
+     * it. The trainer UI uses this flag to show a "Regenerate Zoom" banner.
+     * Cleared on successful regenerate.
+     */
+    @Column(name = "zoom_update_failed", nullable = false,
+            columnDefinition = "boolean not null default false")
+    @Builder.Default
+    private Boolean zoomUpdateFailed = false;
+
+    /** Last Zoom error message (truncated). Null when zoomUpdateFailed=false. */
+    @Column(name = "zoom_last_error", columnDefinition = "TEXT")
+    private String zoomLastError;
+
     @Column(nullable = false, updatable = false)
     private Instant createdAt;
 

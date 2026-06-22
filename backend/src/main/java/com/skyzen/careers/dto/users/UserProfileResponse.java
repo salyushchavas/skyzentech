@@ -51,4 +51,11 @@ public class UserProfileResponse {
     private WorkAuthTrack expectedTrack;
     private LocalDate validityDate;
     private LocalDate validityStartDate;
+
+    /**
+     * Zoom host email — populated for any staff user (TRAINER, ERM,
+     * MANAGER, REPORTING_MANAGER, SUPER_ADMIN) so the per-host scheduler
+     * can render its own value. Null when the user hasn't set it.
+     */
+    private String zoomEmail;
 }

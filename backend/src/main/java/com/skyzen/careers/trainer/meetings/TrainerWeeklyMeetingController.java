@@ -179,6 +179,20 @@ public class TrainerWeeklyMeetingController {
         return toDto(m);
     }
 
+    /**
+     * Regenerate the Zoom meeting (delete + re-create under the current
+     * host). Used to recover from a silent Zoom PATCH failure on
+     * reschedule (zoom_update_failed=true) or from a null
+     * zoom_meeting_id left by a failed initial schedule. Mirrors the ERM
+     * interview /zoom/regenerate path.
+     */
+    @PostMapping("/{id}/zoom/regenerate")
+    @PreAuthorize("hasAnyRole('TRAINER', 'SUPER_ADMIN')")
+    public Map<String, Object> regenerateZoom(@PathVariable UUID id,
+                                               @AuthenticationPrincipal User caller) {
+        return toDto(meetingService.regenerateZoom(id, caller));
+    }
+
     /** Trainer-facing DTO — includes trainer_notes + zoom_start_url since
      *  this surface is gated to TRAINER / SUPER_ADMIN. The intern-facing
      *  endpoint (existing) strips those fields. */
@@ -201,6 +215,8 @@ public class TrainerWeeklyMeetingController {
         r.put("recurrence", m.getRecurrence());
         r.put("recurrenceParentId", m.getRecurrenceParentId());
         r.put("trainerNotes", m.getTrainerNotes());
+        r.put("zoomUpdateFailed", Boolean.TRUE.equals(m.getZoomUpdateFailed()));
+        r.put("zoomLastError", m.getZoomLastError());
         r.put("createdAt", m.getCreatedAt());
         r.put("updatedAt", m.getUpdatedAt());
         return r;

@@ -384,6 +384,7 @@ public class InterviewService {
         if (req.getType() != null) interview.setType(req.getType());
         if (req.getMeetingUrl() != null) interview.setMeetingUrl(req.getMeetingUrl());
         if (req.getCandidateNotes() != null) interview.setCandidateNotes(req.getCandidateNotes());
+        boolean interviewerChanged = false;
         if (req.getInterviewerId() != null
                 && !req.getInterviewerId().equals(interview.getInterviewer().getId())) {
             User newInterviewer = userRepository.findById(req.getInterviewerId())
@@ -394,6 +395,58 @@ public class InterviewService {
                 throw new BadRequestException("Interviewer must be an internal user, not a candidate");
             }
             interview.setInterviewer(newInterviewer);
+            interviewerChanged = true;
+        }
+
+        // Sync Zoom when the interviewer changes. Zoom S2S OAuth doesn't
+        // support host swap on an existing meeting, so we follow the
+        // documented delete + create workaround used by
+        // ErmInterviewService.changeInterviewer. Previously, swapping the
+        // interviewer left the Zoom meeting orphaned on the OLD host.
+        if (interviewerChanged) {
+            Long oldZoomId = interview.getZoomMeetingId();
+            if (oldZoomId != null && zoomService.isReady()) {
+                try {
+                    zoomService.deleteMeeting(oldZoomId);
+                } catch (Exception e) {
+                    log.warn("[Zoom] deleteMeeting failed on interviewer swap for {} (non-fatal): {}",
+                            interview.getId(), e.getMessage());
+                }
+            }
+            interview.setZoomMeetingId(null);
+            interview.setZoomJoinUrl(null);
+            interview.setZoomStartUrl(null);
+            interview.setZoomPassword(null);
+            if (zoomService.isReady()) {
+                try {
+                    User newInterviewer = interview.getInterviewer();
+                    String hostId = newInterviewer.getZoomEmail() != null
+                            && !newInterviewer.getZoomEmail().isBlank()
+                            ? newInterviewer.getZoomEmail() : "me";
+                    String topic = "Skyzen interview — "
+                            + (interview.getApplication() != null
+                                    && interview.getApplication().getJobPosting() != null
+                                    ? interview.getApplication().getJobPosting().getTitle()
+                                    : "Application");
+                    com.skyzen.careers.integration.zoom.ZoomMeetingResponse meeting =
+                            zoomService.createMeeting(
+                                    new com.skyzen.careers.integration.zoom.ZoomMeetingRequest(
+                                            hostId, topic, interview.getScheduledAt(),
+                                            interview.getDurationMinutes(),
+                                            interview.getTimezone(),
+                                            interview.getPrepInstructions()));
+                    interview.setZoomMeetingId(meeting.meetingId());
+                    interview.setZoomJoinUrl(meeting.joinUrl());
+                    interview.setZoomStartUrl(meeting.startUrl());
+                    interview.setZoomPassword(meeting.password());
+                    if (interview.getMeetingUrl() == null || interview.getMeetingUrl().isBlank()) {
+                        interview.setMeetingUrl(meeting.joinUrl());
+                    }
+                } catch (Exception e) {
+                    log.warn("[Zoom] createMeeting failed on interviewer swap for {} (degraded): {}",
+                            interview.getId(), e.getMessage());
+                }
+            }
         }
 
         interview = interviewRepository.save(interview);

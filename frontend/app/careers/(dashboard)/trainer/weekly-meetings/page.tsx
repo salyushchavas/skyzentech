@@ -4,7 +4,7 @@ import { Suspense, useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import api from '@/lib/api';
-import { Calendar, CheckCircle2, Clock, Plus, X, XCircle, AlertOctagon } from 'lucide-react';
+import { AlertTriangle, Calendar, CheckCircle2, Clock, Plus, RefreshCw, X, XCircle, AlertOctagon } from 'lucide-react';
 
 type InternRow = { internLifecycleId: string; fullName: string | null; employeeId: string | null };
 
@@ -16,9 +16,12 @@ type Meeting = {
   timezone: string | null;
   topic: string;
   agenda: string | null;
+  zoomMeetingId: number | null;
   zoomJoinUrl: string | null;
   zoomStartUrl: string | null;
   zoomPassword: string | null;
+  zoomUpdateFailed: boolean | null;
+  zoomLastError: string | null;
   hostUserId: string;
   status: 'SCHEDULED' | 'COMPLETED' | 'CANCELLED' | 'NO_SHOW';
   recurrence: string | null;
@@ -321,6 +324,7 @@ function MeetingActionModal({ meeting, interns, onClose, onChanged }: {
             Zoom: <a href={meeting.zoomJoinUrl} target="_blank" rel="noreferrer" className="text-brand-700 underline">{meeting.zoomJoinUrl}</a>
           </p>
         )}
+        <ZoomRegenerateBanner meeting={meeting} onRegenerated={onChanged} />
         {meeting.trainerNotes && (
           <details className="rounded-md border border-slate-200 bg-slate-50 p-2">
             <summary className="cursor-pointer text-xs font-semibold">Trainer notes</summary>
@@ -542,6 +546,69 @@ function FormButtons({ busy, onCancel, onSubmit, label, tone }: {
         className={`rounded-md px-4 py-1.5 text-sm font-semibold text-white disabled:bg-slate-300 ${cls[tone]}`}>
         {busy ? 'Submitting…' : label}
       </button>
+    </div>
+  );
+}
+
+/**
+ * Surfaces a persistent Zoom failure on the meeting row and offers a
+ * one-click Regenerate. Triggers when:
+ *   - the most recent Zoom PATCH on reschedule failed (zoomUpdateFailed=true), or
+ *   - the row is SCHEDULED but has no Zoom meeting id (initial create failed).
+ * Hidden for completed/cancelled meetings and for recurring series, since
+ * the backend blocks regenerate on those for desync reasons.
+ */
+function ZoomRegenerateBanner({ meeting, onRegenerated }: {
+  meeting: Meeting; onRegenerated: () => void;
+}) {
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  const isSeries = meeting.recurrence === 'WEEKLY' || meeting.recurrenceParentId != null;
+  const updateFailed = meeting.zoomUpdateFailed === true;
+  const missingZoom = meeting.status === 'SCHEDULED' && meeting.zoomMeetingId == null;
+  if (isSeries || (!updateFailed && !missingZoom)) return null;
+
+  async function regenerate() {
+    setBusy(true); setErr(null);
+    try {
+      await api.post(`/api/v1/trainer/weekly-meetings/${meeting.id}/zoom/regenerate`);
+      onRegenerated();
+    } catch (e) {
+      const ax = e as { response?: { data?: { error?: string } }; message?: string };
+      setErr(ax.response?.data?.error ?? ax.message ?? 'Regenerate failed');
+    } finally { setBusy(false); }
+  }
+
+  const title = updateFailed
+    ? 'Zoom meeting update failed on reschedule'
+    : 'Zoom link is missing';
+  const body = updateFailed
+    ? 'The stored Zoom meeting may now disagree with the new time. Regenerate to recreate it at the current schedule.'
+    : 'The original Zoom call failed when this meeting was created. Regenerate to attach a fresh link.';
+
+  return (
+    <div className="rounded-md border border-amber-200 bg-amber-50 p-2.5 text-xs text-amber-900">
+      <div className="flex items-start gap-2">
+        <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" strokeWidth={2} />
+        <div className="flex-1">
+          <p className="font-semibold">{title}</p>
+          <p className="mt-0.5">{body}</p>
+          {meeting.zoomLastError && (
+            <p className="mt-1 break-all font-mono text-[10px] opacity-80">
+              {meeting.zoomLastError}
+            </p>
+          )}
+          {err && (
+            <p className="mt-1 rounded-sm bg-white/60 p-1.5 font-mono text-[10px]">{err}</p>
+          )}
+        </div>
+        <button type="button" onClick={regenerate} disabled={busy}
+          className="inline-flex items-center gap-1 rounded-md border border-amber-400 px-2 py-1 text-[11px] font-semibold text-amber-900 hover:bg-white/60 disabled:opacity-60">
+          <RefreshCw className={'h-3 w-3 ' + (busy ? 'animate-spin' : '')} />
+          {busy ? 'Regenerating…' : 'Regenerate'}
+        </button>
+      </div>
     </div>
   );
 }

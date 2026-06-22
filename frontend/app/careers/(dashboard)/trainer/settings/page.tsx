@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import api from '@/lib/api';
-import { Bell, CheckCircle2, Info, Save, Sliders } from 'lucide-react';
+import { Bell, CheckCircle2, Info, Save, Sliders, Video } from 'lucide-react';
 
 type Settings = {
   defaultRecurrence: string | null;
@@ -162,6 +162,8 @@ export default function TrainerSettingsPage() {
                   value={settings.notifyStakeholders ?? true}
                   onChange={(v) => patch('notifyStakeholders', v)} />
               </Group>
+
+              <ZoomHostEmailCard />
             </div>
           )}
 
@@ -284,6 +286,96 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
       <span className="text-sm text-slate-700">{label}</span>
       {children}
     </label>
+  );
+}
+
+/**
+ * Self-service writer for users.zoom_email. Saves to a dedicated
+ * endpoint (PUT /api/v1/users/me/zoom-email) so it doesn't collide with
+ * the trainer-settings PUT above. Must match the user's licensed Zoom
+ * account on the company tenant — when blank, ZoomService falls back to
+ * the service account ("me") and the user is just an attendee on
+ * meetings they "host" from this app.
+ */
+function ZoomHostEmailCard() {
+  const [value, setValue] = useState<string>('');
+  const [initial, setInitial] = useState<string>('');
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const [savedAt, setSavedAt] = useState<Date | null>(null);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await api.get<{ zoomEmail: string | null }>('/api/v1/users/me');
+        setInitial(res.data.zoomEmail ?? '');
+        setValue(res.data.zoomEmail ?? '');
+      } catch {
+        // soft-fail; user can still type and save
+      } finally { setLoading(false); }
+    })();
+  }, []);
+
+  async function save() {
+    setSaving(true); setErr(null);
+    try {
+      await api.put('/api/v1/users/me/zoom-email', { zoomEmail: value.trim() });
+      setInitial(value.trim());
+      setSavedAt(new Date());
+    } catch (e) {
+      const ax = e as { response?: { data?: { error?: string } }; message?: string };
+      setErr(ax.response?.data?.error ?? ax.message ?? 'Save failed');
+    } finally { setSaving(false); }
+  }
+
+  const changed = value.trim() !== initial.trim();
+
+  return (
+    <div className="space-y-2 border-t border-slate-200 pt-4">
+      <div>
+        <h3 className="inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-slate-600">
+          <Video className="h-3.5 w-3.5" /> Zoom host email
+        </h3>
+        <p className="text-[11px] text-slate-500">
+          Must match your licensed Zoom account on the Skyzen tenant.
+          When set, you host your own weekly meetings + interviews.
+          When blank, meetings fall back to the service account.
+        </p>
+      </div>
+      <div className="flex flex-wrap items-center gap-2">
+        <input
+          type="email"
+          value={value}
+          onChange={(e) => setValue(e.target.value)}
+          placeholder={loading ? 'Loading…' : 'you@skyzen.com'}
+          disabled={loading || saving}
+          className="min-w-[220px] flex-1 rounded-md border border-slate-200 px-2 py-1.5 text-sm"
+        />
+        <button
+          type="button"
+          onClick={() => void save()}
+          disabled={loading || saving || !changed}
+          className="inline-flex items-center gap-1 rounded-md bg-brand-700 px-3 py-1.5 text-xs font-semibold text-white hover:bg-brand-800 disabled:bg-slate-300"
+        >
+          <Save className="h-3.5 w-3.5" />
+          {saving ? 'Saving…' : 'Save Zoom email'}
+        </button>
+      </div>
+      {err && (
+        <p className="rounded-md border border-red-200 bg-red-50 px-2 py-1.5 text-xs text-red-800">{err}</p>
+      )}
+      {savedAt && !err && (
+        <p className="inline-flex items-center gap-1 text-[11px] text-green-700">
+          <CheckCircle2 className="h-3 w-3" /> Saved {savedAt.toLocaleTimeString()}
+        </p>
+      )}
+      <p className="rounded-md border border-amber-200 bg-amber-50 px-2 py-1.5 text-[11px] text-amber-900">
+        Hosting requires a paid Zoom seat on the Skyzen account. If you
+        haven&apos;t been provisioned yet, leave this blank — your meetings
+        will still be created under the service-account host.
+      </p>
+    </div>
   );
 }
 

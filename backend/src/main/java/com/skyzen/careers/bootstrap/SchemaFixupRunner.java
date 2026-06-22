@@ -1005,6 +1005,23 @@ public class SchemaFixupRunner implements CommandLineRunner {
             log.warn("weekly_meetings table ensure failed (non-fatal): {}", e.getMessage(), e);
         }
 
+        // weekly_meetings — persistent Zoom failure flag. Mirrors the ERM
+        // interview ThreadLocal pattern but keeps the signal across requests
+        // so the trainer UI can render a Regenerate banner on a fresh GET
+        // after a silent Zoom PATCH failure during reschedule.
+        try {
+            jdbcTemplate.execute(
+                    "ALTER TABLE weekly_meetings ADD COLUMN IF NOT EXISTS "
+                            + "zoom_update_failed BOOLEAN NOT NULL DEFAULT FALSE");
+            jdbcTemplate.execute(
+                    "ALTER TABLE weekly_meetings ADD COLUMN IF NOT EXISTS "
+                            + "zoom_last_error TEXT");
+            log.info("Ensured weekly_meetings.zoom_update_failed + zoom_last_error columns exist.");
+        } catch (Exception e) {
+            log.warn("weekly_meetings zoom-status columns add failed (non-fatal): {}",
+                    e.getMessage(), e);
+        }
+
         // projects Phase 5 column additions. Existing Project entity already
         // has most fields; Phase 5 adds the doc-spec ones that were missing.
         // Idempotent — re-runs are no-ops once columns exist.

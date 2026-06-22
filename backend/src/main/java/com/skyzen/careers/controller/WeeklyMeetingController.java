@@ -73,6 +73,19 @@ public class WeeklyMeetingController {
         return toStaffDto(meetingService.cancel(id, actor));
     }
 
+    /**
+     * Regenerate the Zoom meeting attached to this weekly meeting. Mirrors
+     * the ERM-interview /zoom/regenerate path. Used after a silent Zoom
+     * PATCH failure on reschedule (zoom_update_failed=true) or when the
+     * initial schedule's Zoom call failed (zoom_meeting_id IS NULL).
+     */
+    @PostMapping("/{id}/zoom/regenerate")
+    @PreAuthorize("hasAnyRole('TRAINER', 'SUPER_ADMIN')")
+    public Map<String, Object> regenerateZoom(@PathVariable UUID id,
+                                               @AuthenticationPrincipal User actor) {
+        return toStaffDto(meetingService.regenerateZoom(id, actor));
+    }
+
     // ── Intern ─────────────────────────────────────────────────────────────
 
     @GetMapping("/mine")
@@ -113,6 +126,7 @@ public class WeeklyMeetingController {
         Map<String, Object> dto = baseDto(m);
         dto.put("zoomStartUrl", m.getZoomStartUrl());
         dto.put("trainerNotes", m.getTrainerNotes());
+        dto.put("zoomLastError", m.getZoomLastError());
         return dto;
     }
 
@@ -141,6 +155,7 @@ public class WeeklyMeetingController {
         dto.put("status", m.getStatus());
         dto.put("recurrence", m.getRecurrence());
         dto.put("recurrenceParentId", m.getRecurrenceParentId());
+        dto.put("zoomUpdateFailed", Boolean.TRUE.equals(m.getZoomUpdateFailed()));
         return dto;
     }
 

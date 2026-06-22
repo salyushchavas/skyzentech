@@ -76,6 +76,27 @@ public class UserProfileService {
         return out;
     }
 
+    /**
+     * Self-service Zoom host email. Validated on the DTO via @Email;
+     * trims + nulls blank. Used by ZoomService as the {@code userId} in
+     * {@code POST /users/{userId}/meetings} so the user hosts their own
+     * meetings. Falls back to the service account when blank.
+     */
+    @Transactional
+    public java.util.Map<String, Object> setZoomEmail(User caller, String zoomEmail) {
+        if (caller == null || caller.getId() == null) {
+            throw new BadRequestException("Authentication required");
+        }
+        User user = userRepository.findById(caller.getId())
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+        user.setZoomEmail(emptyToNull(zoomEmail));
+        userRepository.save(user);
+        java.util.Map<String, Object> out = new java.util.LinkedHashMap<>();
+        out.put("userId", user.getId());
+        out.put("zoomEmail", user.getZoomEmail());
+        return out;
+    }
+
     @Transactional
     public UserProfileResponse updateProfile(User caller, UpdateProfileRequest req) {
         if (caller == null || caller.getId() == null) {
@@ -216,6 +237,7 @@ public class UserProfileService {
                 .fullName(user.getFullName())
                 .email(user.getEmail())
                 .phone(user.getPhoneNumber())
+                .zoomEmail(user.getZoomEmail())
                 .roles(user.getRoles() == null
                         ? java.util.Set.of()
                         : user.getRoles().stream()
