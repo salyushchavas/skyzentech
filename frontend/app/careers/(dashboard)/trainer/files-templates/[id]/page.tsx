@@ -1,6 +1,7 @@
 'use client';
 
-import { use, useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { ChevronLeft, Copy, Eye, EyeOff, Archive, RotateCcw, Save, Upload, Trash2 } from 'lucide-react';
 import api from '@/lib/api';
@@ -32,10 +33,11 @@ type TemplateDetail = {
   attachments: Attachment[];
 };
 
-type RouteParams = { id: string };
-
-export default function TemplateDetailPage(props: { params: Promise<RouteParams> }) {
-  const { id } = use(props.params);
+export default function TemplateDetailPage() {
+  // useParams (next/navigation) — Next 14.2 delivers params as a plain
+  // object, not a Promise; React's use() rejects non-thenables with #438.
+  const params = useParams<{ id: string }>();
+  const id = params?.id ?? '';
   const [t, setT] = useState<TemplateDetail | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);

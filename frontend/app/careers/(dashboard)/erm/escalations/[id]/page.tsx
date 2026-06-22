@@ -1,6 +1,7 @@
 'use client';
 
-import { use, useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
+import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import api from '@/lib/api';
 import ProtectedRoute from '@/components/ProtectedRoute';
@@ -15,12 +16,11 @@ import {
   type ExceptionDetail,
 } from '@/components/erm/escalations/types';
 
-type RouteParams = { id: string };
-
-export default function EscalationDetailPage(props: {
-  params: Promise<RouteParams>;
-}) {
-  const { id } = use(props.params);
+export default function EscalationDetailPage() {
+  // useParams (next/navigation) — Next 14.2 delivers params as a plain
+  // object, not a Promise; React's use() rejects non-thenables with #438.
+  const params = useParams<{ id: string }>();
+  const id = params?.id ?? '';
   return (
     <ProtectedRoute requiredRoles={['ERM', 'SUPER_ADMIN']}>
       <DashboardLayout>

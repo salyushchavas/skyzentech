@@ -1,6 +1,7 @@
 'use client';
 
-import { use, useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
+import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import api from '@/lib/api';
 import ProtectedRoute from '@/components/ProtectedRoute';
@@ -20,14 +21,15 @@ import type {
   TrainerMeetingCard,
 } from '@/components/erm/active/types';
 
-type RouteParams = { lifecycleId: string };
-
 const POLL_MS = 60_000;
 
-export default function InternMonitorPage(props: {
-  params: Promise<RouteParams>;
-}) {
-  const { lifecycleId } = use(props.params);
+export default function InternMonitorPage() {
+  // useParams (next/navigation) is the standard client-component way to read
+  // dynamic-route params on Next 14. The previous `use(props.params)` form
+  // expects `params` to be a thenable (Next 15 behavior); on Next 14.2 it's a
+  // plain object and React's `use()` throws minified error #438.
+  const params = useParams<{ lifecycleId: string }>();
+  const lifecycleId = params?.lifecycleId ?? '';
   return (
     <ProtectedRoute requiredRoles={['ERM', 'SUPER_ADMIN']}>
       <DashboardLayout>

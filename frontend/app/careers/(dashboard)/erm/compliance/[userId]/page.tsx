@@ -1,6 +1,7 @@
 'use client';
 
-import { use, useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
+import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import api from '@/lib/api';
 import ProtectedRoute from '@/components/ProtectedRoute';
@@ -20,12 +21,11 @@ import type {
   WorkAuthCard,
 } from '@/components/erm/compliance/types';
 
-type RouteParams = { userId: string };
-
-export default function InternComplianceTimelinePage(props: {
-  params: Promise<RouteParams>;
-}) {
-  const { userId } = use(props.params);
+export default function InternComplianceTimelinePage() {
+  // useParams (next/navigation) — Next 14.2 delivers params as a plain
+  // object, not a Promise; React's use() rejects non-thenables with #438.
+  const params = useParams<{ userId: string }>();
+  const userId = params?.userId ?? '';
   return (
     <ProtectedRoute requiredRoles={['ERM', 'SUPER_ADMIN']}>
       <DashboardLayout>
