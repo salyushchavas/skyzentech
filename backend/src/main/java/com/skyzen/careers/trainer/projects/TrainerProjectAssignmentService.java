@@ -35,11 +35,14 @@ import com.skyzen.careers.trainer.projects.TrainerProjectDtos.ProjectDetail;
 import com.skyzen.careers.trainer.projects.TrainerProjectDtos.SlotStatusResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.web.multipart.MultipartFile;
+
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import java.time.Instant;
 import java.time.LocalDate;
@@ -100,6 +103,14 @@ public class TrainerProjectAssignmentService {
     private final ProjectNotificationDispatcher notifier;
     private final ObjectMapper objectMapper;
     private final TrainerScopeGuard trainerScopeGuard;
+    private final JdbcTemplate jdbcTemplate;
+
+    /**
+     * One-shot guard for {@link #ensureProjectsLegacyFkNullable()}. Set true
+     * after we've verified (or successfully ALTERed) the two legacy FK columns
+     * to nullable, so subsequent assignments skip the JDBC roundtrip.
+     */
+    private static final AtomicBoolean SCHEMA_RELAXED = new AtomicBoolean(false);
 
     // ── Slot status (live wizard indicator) ───────────────────────────────
 
@@ -162,6 +173,18 @@ public class TrainerProjectAssignmentService {
     private ProjectDetail assignProjectInternal(AssignProjectRequest req, User caller) {
         requireTrainer(caller);
         if (req == null) throw new BadRequestException("body required");
+
+        // Defensive: confirm (and if needed, force) the legacy FK columns are
+        // nullable. SchemaFixupRunner.relaxProjectLegacyFkNotNull is supposed
+        // to do this at boot, but production logs (traceId 36d10d20 +
+        // c4ebf7f0) showed engagement_id is STILL NOT NULL — either the
+        // relax never ran, ran without taking effect, or the DB role lacks
+        // ALTER privileges. Running the same ALTER here, inside the trainer's
+        // @Transactional, means DDL commits atomically with the project
+        // INSERT — both succeed-or-fail together. Idempotent (PG emits a
+        // NOTICE if already nullable) and one-shot per JVM lifetime so the
+        // overhead is one query + (rare) one ALTER per cold start.
+        ensureProjectsLegacyFkNullable();
 
         // 1) Resolve + scope-check intern
         if (req.internLifecycleId() == null) {
@@ -549,6 +572,70 @@ public class TrainerProjectAssignmentService {
                 && !caller.getRoles().contains(UserRole.SUPER_ADMIN)) {
             throw new ForbiddenException("TRAINER or SUPER_ADMIN required");
         }
+    }
+
+    /**
+     * In-request relax of {@code projects.engagement_id} + {@code intern_id}
+     * NOT NULL. Runs at most once per JVM lifetime (success path) — on the
+     * first assignProject call after deploy. If the column is already
+     * nullable (e.g. SchemaFixupRunner's boot relax took effect), the
+     * verify query short-circuits and no ALTER runs. If the column is
+     * still NOT NULL, we run the ALTER inside the trainer's @Transactional
+     * (Postgres DDL is transactional, so the ALTER commits with the
+     * subsequent INSERT). Verifies via information_schema.columns after
+     * the ALTER; on persistent failure logs the exact manual SQL the
+     * operator can paste into the Railway DB console as a superuser.
+     */
+    private void ensureProjectsLegacyFkNullable() {
+        if (SCHEMA_RELAXED.get()) return;
+        try {
+            String isNullable = queryIsNullable("engagement_id");
+            if ("YES".equalsIgnoreCase(isNullable)) {
+                SCHEMA_RELAXED.set(true);
+                return;
+            }
+            log.warn("[TrainerProject] projects.engagement_id is still NOT NULL — running "
+                    + "runtime ALTER (SchemaFixupRunner boot relax did not take effect)");
+            try {
+                jdbcTemplate.execute(
+                        "ALTER TABLE projects ALTER COLUMN engagement_id DROP NOT NULL");
+                jdbcTemplate.execute(
+                        "ALTER TABLE projects ALTER COLUMN intern_id DROP NOT NULL");
+            } catch (Exception alterErr) {
+                log.error("[TrainerProject] runtime ALTER on projects.engagement_id/intern_id "
+                                + "FAILED — DB role likely lacks ALTER TABLE privilege. "
+                                + "Run as a Postgres superuser via the DB console:\n"
+                                + "  ALTER TABLE projects ALTER COLUMN engagement_id DROP NOT NULL;\n"
+                                + "  ALTER TABLE projects ALTER COLUMN intern_id DROP NOT NULL;\n"
+                                + "Cause: {}",
+                        alterErr.getMessage(), alterErr);
+                return;
+            }
+            String verify = queryIsNullable("engagement_id");
+            if ("YES".equalsIgnoreCase(verify)) {
+                SCHEMA_RELAXED.set(true);
+                log.info("[TrainerProject] runtime ALTER succeeded — "
+                        + "projects.engagement_id + intern_id are now nullable");
+            } else {
+                log.error("[TrainerProject] runtime ALTER ran without error but "
+                        + "projects.engagement_id is STILL NOT NULL post-verify. "
+                        + "Something is re-asserting the constraint. Investigate "
+                        + "Postgres triggers/policies and run manually as superuser:\n"
+                        + "  ALTER TABLE projects ALTER COLUMN engagement_id DROP NOT NULL;\n"
+                        + "  ALTER TABLE projects ALTER COLUMN intern_id DROP NOT NULL;");
+            }
+        } catch (Exception e) {
+            log.error("[TrainerProject] ensureProjectsLegacyFkNullable check failed: {} "
+                    + "— continuing; the assignment INSERT will surface the real error.",
+                    e.getMessage(), e);
+        }
+    }
+
+    private String queryIsNullable(String columnName) {
+        return jdbcTemplate.queryForObject(
+                "SELECT is_nullable FROM information_schema.columns "
+                        + "WHERE table_name = 'projects' AND column_name = ?",
+                String.class, columnName);
     }
 
     private void requireInScope(InternLifecycle lc, User caller) {
