@@ -1,6 +1,6 @@
 'use client';
 
-import { use, useCallback, useEffect, useState } from 'react';
+import { Component, use, useCallback, useEffect, useState, type ErrorInfo, type ReactNode } from 'react';
 import Link from 'next/link';
 import api from '@/lib/api';
 import StateBadge from '@/components/trainer/StateBadge';
@@ -159,17 +159,18 @@ export default function ActiveInternDetailPage(props: {
           ctaDisabled={false}
           ctaHref={`/careers/trainer/assign-project?internId=${lifecycleId}&month=${d.summary.currentMonthProjects.monthYear ?? ''}`}
         >
-          {d.recentProjects.length === 0 ? (
+          {!d.recentProjects || d.recentProjects.length === 0 ? (
             <Empty />
           ) : (
             <ul className="space-y-2">
               {d.recentProjects.map((p) => (
-                <RecentProjectItem
-                  key={p.id}
-                  p={p}
-                  internUserId={d.intern.userId}
-                  onChanged={() => void load()}
-                />
+                <RowErrorBoundary key={p.id} label={p.title ?? '(untitled project)'}>
+                  <RecentProjectItem
+                    p={p}
+                    internUserId={d.intern?.userId ?? null}
+                    onChanged={() => void load()}
+                  />
+                </RowErrorBoundary>
               ))}
             </ul>
           )}
@@ -441,14 +442,14 @@ function RepoAccessControls({
       const res = await api.get<AssignmentBrief[]>(
         `/api/v1/project-assignments/by-project/${projectId}`,
       );
-      const mine = (res.data ?? []).find(
-        (a) => a.intern?.id === internUserId,
-      );
+      const list = Array.isArray(res?.data) ? res.data : [];
+      const mine = list.find((a) => a?.intern?.id === internUserId);
       setAssignment(mine ?? null);
       setErr(null);
     } catch (e) {
       const ax = e as { response?: { data?: { error?: string } } };
       setErr(ax.response?.data?.error ?? 'Lookup failed');
+      setAssignment(null);
     } finally {
       setResolving(false);
     }
@@ -512,12 +513,17 @@ function RepoAccessControls({
     );
   }
 
+  // Past this point `hasRepo === true` so the runtime guarantees repo +
+  // repo.repositoryUrl are non-null. Belt-and-suspenders optional chaining
+  // (?? '') protects against any future change to that invariant.
+  const repoUrl = repo?.repositoryUrl ?? '';
+
   if (accessGranted) {
     return (
       <span className="inline-flex items-center gap-1">
         <span
           className="inline-flex items-center gap-1 rounded-md border border-green-200 bg-green-50 px-2 py-0.5 text-[10px] font-medium text-green-800"
-          title={repo.repositoryUrl ?? 'Repo access already granted'}
+          title={repoUrl || 'Repo access already granted'}
         >
           Repo access ✓
         </span>
@@ -541,7 +547,7 @@ function RepoAccessControls({
           type="button"
           onClick={grant}
           disabled={granting}
-          title={`Grant the intern access to ${repo.repositoryUrl}`}
+          title={repoUrl ? `Grant the intern access to ${repoUrl}` : 'Grant repo access'}
           className="rounded-md border border-brand-300 bg-brand-50 px-2 py-0.5 text-[10px] font-semibold text-brand-800 hover:bg-brand-100 disabled:opacity-60"
         >
           {granting ? 'Granting…' : 'Grant repo access'}
@@ -559,6 +565,41 @@ function RepoAccessControls({
       {modal}
     </span>
   );
+}
+
+/**
+ * Tiny error boundary used per row in the recent-projects list. If one row's
+ * lazy fetch / render throws (e.g. a malformed AssignmentBrief payload, a
+ * null where we expected an object), it falls back to an inline "couldn't
+ * load this row" message so the rest of the page still renders — no more
+ * single-row crashes turning the whole detail page into a 500.
+ */
+class RowErrorBoundary extends Component<
+  { label: string; children: ReactNode },
+  { hasError: boolean; message: string | null }
+> {
+  state = { hasError: false, message: null as string | null };
+
+  static getDerivedStateFromError(error: Error) {
+    return { hasError: true, message: error?.message ?? 'render failed' };
+  }
+
+  componentDidCatch(error: Error, info: ErrorInfo) {
+    // eslint-disable-next-line no-console
+    console.error('[ActiveInternDetail] row render failed:', error, info);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <li className="rounded-md border border-red-200 bg-red-50 p-2 text-[11px] text-red-800">
+          Couldn&apos;t render row for <strong>{this.props.label}</strong>
+          {this.state.message ? ' — ' + this.state.message : ''}.
+        </li>
+      );
+    }
+    return this.props.children;
+  }
 }
 
 function LinkRepoModal({
