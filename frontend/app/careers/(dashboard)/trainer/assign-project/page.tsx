@@ -98,6 +98,11 @@ function AssignProjectPageInner() {
   const [githubInstructions, setGithubInstructions] = useState('');
   const [notifyStakeholders, setNotifyStakeholders] = useState(true);
   const [projectFile, setProjectFile] = useState<File | null>(null);
+  // Optional structured repo URL — when set, the publish call follows up
+  // with POST /api/v1/projects/catalog/{id}/repository so the trainer
+  // doesn't have to re-link from the active-intern detail page later.
+  const [repositoryUrl, setRepositoryUrl] = useState('');
+  const [repositoryName, setRepositoryName] = useState('');
 
   // Backdating
   const [backdateAuthorizedByName, setBackdateAuthorizedByName] = useState('');
@@ -231,6 +236,25 @@ function AssignProjectPageInner() {
             + (ax.response?.data?.error ?? 'unknown'));
         }
       }
+      // Optional repo link — best-effort. Backend gates Grant-Repo-Access
+      // on a ProjectRepositoryLink existing for the project; doing it here
+      // saves the trainer a second step on the active-intern detail page.
+      const repoUrlTrimmed = repositoryUrl.trim();
+      if (repoUrlTrimmed) {
+        const name = repositoryName.trim()
+          || (parseOwnerRepo(repoUrlTrimmed) ?? '');
+        try {
+          await api.post(`/api/v1/projects/catalog/${projectId}/repository`, {
+            repositoryName: name,
+            repositoryUrl: repoUrlTrimmed,
+          });
+        } catch (repoErr) {
+          const ax = repoErr as { response?: { data?: { error?: string } } };
+          alert('Project assigned, but repository link failed: '
+            + (ax.response?.data?.error ?? 'unknown')
+            + '. You can link it from the active-intern detail page.');
+        }
+      }
       router.push(`/careers/trainer/active-interns/${internLifecycleId}`);
     } catch (e) {
       const ax = e as { response?: { data?: { error?: string } }; message?: string };
@@ -304,6 +328,8 @@ function AssignProjectPageInner() {
           notifyStakeholders={notifyStakeholders}
           setNotifyStakeholders={setNotifyStakeholders}
           projectFile={projectFile} setProjectFile={setProjectFile}
+          repositoryUrl={repositoryUrl} setRepositoryUrl={setRepositoryUrl}
+          repositoryName={repositoryName} setRepositoryName={setRepositoryName}
           isBackdated={isBackdated}
           backdateAuthorizedByName={backdateAuthorizedByName}
           setBackdateAuthorizedByName={setBackdateAuthorizedByName}
@@ -547,6 +573,8 @@ function Step3(p: {
   githubInstructions: string; setGithubInstructions: (v: string) => void;
   notifyStakeholders: boolean; setNotifyStakeholders: (v: boolean) => void;
   projectFile: File | null; setProjectFile: (f: File | null) => void;
+  repositoryUrl: string; setRepositoryUrl: (v: string) => void;
+  repositoryName: string; setRepositoryName: (v: string) => void;
   isBackdated: boolean;
   backdateAuthorizedByName: string; setBackdateAuthorizedByName: (v: string) => void;
   backdateReason: string; setBackdateReason: (v: string) => void;
@@ -589,6 +617,52 @@ function Step3(p: {
           </button>
         )}
       </Field>
+
+      {/* Optional structured repository URL. When provided, publish() will
+          POST to /api/v1/projects/catalog/{id}/repository after the project
+          is created so the trainer can grant repo access immediately
+          afterward without another linking step. Validated to the GitHub
+          repo URL shape; bad URL disables the publish call without
+          breaking it. */}
+      <div className="rounded-md border border-brand-200 bg-brand-50/40 p-3">
+        <p className="text-xs font-semibold text-brand-900">
+          Repository link <span className="font-normal text-slate-500">(optional — enables "Grant repo access")</span>
+        </p>
+        <p className="mt-0.5 text-[11px] text-slate-600">
+          Attach the GitHub repository so you can grant the intern access
+          right after publishing. You can also link it later from the
+          intern's detail page.
+        </p>
+        <div className="mt-2 grid gap-2 sm:grid-cols-2">
+          <Field label="Repository URL">
+            <input
+              type="url"
+              value={p.repositoryUrl}
+              onChange={(e) => p.setRepositoryUrl(e.target.value)}
+              placeholder="https://github.com/owner/repo"
+              className={
+                'w-full rounded-md border px-2 py-1.5 text-sm '
+                + (p.repositoryUrl && !isAssignWizardGithubRepoUrl(p.repositoryUrl)
+                    ? 'border-red-400' : 'border-slate-200')
+              }
+            />
+            {p.repositoryUrl && !isAssignWizardGithubRepoUrl(p.repositoryUrl) && (
+              <p className="mt-1 text-[11px] text-red-700">
+                Must be https://github.com/owner/repo
+              </p>
+            )}
+          </Field>
+          <Field label="Display name (optional)">
+            <input
+              type="text"
+              value={p.repositoryName}
+              onChange={(e) => p.setRepositoryName(e.target.value)}
+              placeholder={parseOwnerRepo(p.repositoryUrl) || 'owner/repo'}
+              className="w-full rounded-md border border-slate-200 px-2 py-1.5 text-sm"
+            />
+          </Field>
+        </div>
+      </div>
 
       <label className="flex items-center gap-2 text-sm">
         <input type="checkbox" checked={p.notifyStakeholders}
@@ -676,6 +750,17 @@ function Row({ k, v }: { k: string; v: string | number | null | undefined }) {
       <span className="text-right text-slate-800">{v ?? '—'}</span>
     </div>
   );
+}
+
+/** GitHub repo URL: https://github.com/owner/repo (optional .git / trailing /). */
+function isAssignWizardGithubRepoUrl(s: string): boolean {
+  return /^https?:\/\/github\.com\/[\w.-]+\/[\w.-]+?(?:\.git)?\/?$/i.test(s.trim());
+}
+
+function parseOwnerRepo(s: string): string {
+  const m = /^https?:\/\/github\.com\/([\w.-]+)\/([\w.-]+?)(?:\.git)?\/?$/i.exec(s.trim());
+  if (!m) return '';
+  return `${m[1]}/${m[2]}`;
 }
 
 function TemplatePicker({ onClose, onPick }: {

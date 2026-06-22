@@ -369,11 +369,11 @@ function RecentProjectItem({
             meeting link
           </a>
         )}
-        <div className="ml-auto flex gap-1.5">
-          <GrantRepoAccessButton
+        <div className="ml-auto flex flex-wrap items-center gap-1.5">
+          <RepoAccessControls
             projectId={p.id}
             internUserId={internUserId}
-            onGranted={onChanged}
+            onChanged={onChanged}
           />
           <button
             type="button"
@@ -402,56 +402,59 @@ interface AssignmentBrief {
   status: string;
   accessGranted: boolean | null;
   intern: { id: string; githubUsername: string | null } | null;
+  project: {
+    id: string;
+    repository: { repositoryName: string | null; repositoryUrl: string | null } | null;
+  } | null;
 }
 
 /**
- * Lazy "Grant repo access" affordance. The trainer's recent-projects feed
- * gives us project ids but not assignment ids — we look the assignment up
- * on click (one round-trip), flip {@code accessGranted=true} via the
- * existing trainer endpoint, and reflect the result locally so the row
- * doesn't need a full page refresh.
+ * Composite "Link repository → Grant repo access → Granted" affordance.
+ * The trainer's recent-projects feed gives us project ids but not
+ * assignment ids — we look the (assignment + repo) up on mount and drive
+ * a single button that advances to the next outstanding step:
  *
- * <p>States: idle → loading (fetching assignment) → ready (button "Grant
- * repo access") → granting (loading) → granted (green pill). If the
- * assignment doesn't exist for this (project, intern) pair or is already
- * granted, the affordance hides itself.</p>
+ *  no repo link        → "Link repository" (opens {@link LinkRepoModal})
+ *  link but no grant   → "Grant repo access" (with "Edit repo" alongside)
+ *  granted             → "Repo access ✓" pill (title shows the linked URL,
+ *                        + an Edit affordance for updating the URL later)
+ *
+ * The Grant call rejects without a repo link (backend gates it), so
+ * sequencing here matches that gate and avoids the 400.
  */
-function GrantRepoAccessButton({
-  projectId, internUserId, onGranted,
-}: { projectId: string; internUserId: string | null; onGranted: () => void }) {
+function RepoAccessControls({
+  projectId, internUserId, onChanged,
+}: { projectId: string; internUserId: string | null; onChanged: () => void }) {
   const [assignment, setAssignment] = useState<AssignmentBrief | null>(null);
   const [resolving, setResolving] = useState(true);
   const [granting, setGranting] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [justGranted, setJustGranted] = useState(false);
+  const [linkOpen, setLinkOpen] = useState(false);
 
-  useEffect(() => {
+  const load = useCallback(async () => {
     if (!internUserId) {
       setResolving(false);
       return;
     }
-    let cancelled = false;
-    (async () => {
-      try {
-        const res = await api.get<AssignmentBrief[]>(
-          `/api/v1/project-assignments/by-project/${projectId}`,
-        );
-        if (cancelled) return;
-        const mine = (res.data ?? []).find(
-          (a) => a.intern?.id === internUserId,
-        );
-        setAssignment(mine ?? null);
-      } catch (e) {
-        if (!cancelled) {
-          const ax = e as { response?: { data?: { error?: string } } };
-          setErr(ax.response?.data?.error ?? 'Lookup failed');
-        }
-      } finally {
-        if (!cancelled) setResolving(false);
-      }
-    })();
-    return () => { cancelled = true; };
+    try {
+      const res = await api.get<AssignmentBrief[]>(
+        `/api/v1/project-assignments/by-project/${projectId}`,
+      );
+      const mine = (res.data ?? []).find(
+        (a) => a.intern?.id === internUserId,
+      );
+      setAssignment(mine ?? null);
+      setErr(null);
+    } catch (e) {
+      const ax = e as { response?: { data?: { error?: string } } };
+      setErr(ax.response?.data?.error ?? 'Lookup failed');
+    } finally {
+      setResolving(false);
+    }
   }, [projectId, internUserId]);
+
+  useEffect(() => { void load(); }, [load]);
 
   async function grant() {
     if (!assignment) return;
@@ -460,7 +463,7 @@ function GrantRepoAccessButton({
     try {
       await api.post(`/api/v1/project-assignments/${assignment.id}/access-granted`);
       setJustGranted(true);
-      onGranted();
+      onChanged();
     } catch (e) {
       const ax = e as { response?: { data?: { error?: string } } };
       setErr(ax.response?.data?.error ?? 'Grant failed');
@@ -469,36 +472,227 @@ function GrantRepoAccessButton({
     }
   }
 
-  // Don't surface anything while the lookup is in flight — the row keeps
-  // its existing KT affordance and the rest of the metadata.
+  // Hide while the lookup is in flight.
   if (resolving) return null;
   // No assignment row (catalog-only project or legacy data without one).
   if (!assignment) return null;
-  if (assignment.accessGranted === true || justGranted) {
+
+  const repo = assignment.project?.repository ?? null;
+  const hasRepo = !!repo?.repositoryUrl;
+  const accessGranted = assignment.accessGranted === true || justGranted;
+
+  // Modal wrapper used for both create + update.
+  const modal = linkOpen && (
+    <LinkRepoModal
+      projectId={projectId}
+      existing={repo}
+      onClose={() => setLinkOpen(false)}
+      onSaved={() => {
+        setLinkOpen(false);
+        void load();
+        onChanged();
+      }}
+    />
+  );
+
+  if (!hasRepo) {
     return (
-      <span
-        className="inline-flex items-center gap-1 rounded-md border border-green-200 bg-green-50 px-2 py-0.5 text-[10px] font-medium text-green-800"
-        title={err ?? 'Repo access already granted to the intern'}
-      >
-        Repo access ✓
+      <span className="inline-flex flex-col items-end gap-0.5">
+        <button
+          type="button"
+          onClick={() => setLinkOpen(true)}
+          title="Link the GitHub repository for this project so access can be granted."
+          className="rounded-md border border-brand-300 bg-brand-50 px-2 py-0.5 text-[10px] font-semibold text-brand-800 hover:bg-brand-100"
+        >
+          Link repository
+        </button>
+        {err && <span className="text-[10px] text-red-700">{err}</span>}
+        {modal}
       </span>
     );
   }
+
+  if (accessGranted) {
+    return (
+      <span className="inline-flex items-center gap-1">
+        <span
+          className="inline-flex items-center gap-1 rounded-md border border-green-200 bg-green-50 px-2 py-0.5 text-[10px] font-medium text-green-800"
+          title={repo.repositoryUrl ?? 'Repo access already granted'}
+        >
+          Repo access ✓
+        </span>
+        <button
+          type="button"
+          onClick={() => setLinkOpen(true)}
+          title="Update the linked repository URL"
+          className="rounded-md border border-slate-200 px-2 py-0.5 text-[10px] font-medium text-slate-600 hover:bg-slate-50"
+        >
+          Edit repo
+        </button>
+        {modal}
+      </span>
+    );
+  }
+
   return (
-    <span className="inline-flex flex-col items-end">
-      <button
-        type="button"
-        onClick={grant}
-        disabled={granting}
-        title="Mark the intern as invited on GitHub so they can Start the project"
-        className="rounded-md border border-brand-300 bg-brand-50 px-2 py-0.5 text-[10px] font-semibold text-brand-800 hover:bg-brand-100 disabled:opacity-60"
-      >
-        {granting ? 'Granting…' : 'Grant repo access'}
-      </button>
-      {err && <span className="mt-0.5 text-[10px] text-red-700">{err}</span>}
+    <span className="inline-flex flex-col items-end gap-0.5">
+      <span className="inline-flex items-center gap-1">
+        <button
+          type="button"
+          onClick={grant}
+          disabled={granting}
+          title={`Grant the intern access to ${repo.repositoryUrl}`}
+          className="rounded-md border border-brand-300 bg-brand-50 px-2 py-0.5 text-[10px] font-semibold text-brand-800 hover:bg-brand-100 disabled:opacity-60"
+        >
+          {granting ? 'Granting…' : 'Grant repo access'}
+        </button>
+        <button
+          type="button"
+          onClick={() => setLinkOpen(true)}
+          title="Update the linked repository URL"
+          className="rounded-md border border-slate-200 px-2 py-0.5 text-[10px] font-medium text-slate-600 hover:bg-slate-50"
+        >
+          Edit repo
+        </button>
+      </span>
+      {err && <span className="text-[10px] text-red-700">{err}</span>}
+      {modal}
     </span>
   );
 }
+
+function LinkRepoModal({
+  projectId, existing, onClose, onSaved,
+}: {
+  projectId: string;
+  existing: { repositoryName: string | null; repositoryUrl: string | null } | null;
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const isEdit = !!existing?.repositoryUrl;
+  const [name, setName] = useState(existing?.repositoryName ?? '');
+  const [url, setUrl] = useState(existing?.repositoryUrl ?? '');
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  const trimmedUrl = url.trim();
+  const urlValid = trimmedUrl === '' ? false : isGithubRepoUrl(trimmedUrl);
+  const urlError = trimmedUrl !== '' && !urlValid
+    ? 'Must be https://github.com/owner/repo'
+    : null;
+
+  // Default the display name to "owner/repo" parsed from the URL when the
+  // trainer hasn't typed one.
+  const effectiveName = (() => {
+    if (name.trim()) return name.trim();
+    const parsed = parseOwnerRepo(trimmedUrl);
+    return parsed ? `${parsed.owner}/${parsed.repo}` : '';
+  })();
+
+  async function save() {
+    if (!urlValid || !effectiveName) return;
+    setBusy(true);
+    setErr(null);
+    try {
+      const body = {
+        repositoryName: effectiveName,
+        repositoryUrl: trimmedUrl,
+      };
+      if (isEdit) {
+        await api.put(`/api/v1/projects/catalog/${projectId}/repository`, body);
+      } else {
+        await api.post(`/api/v1/projects/catalog/${projectId}/repository`, body);
+      }
+      onSaved();
+    } catch (e: any) {
+      setErr(e?.response?.data?.error ?? 'Failed to save repository link');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4">
+      <div className="w-full max-w-md rounded-lg bg-white p-5 shadow-xl">
+        <h3 className="text-base font-semibold text-slate-900">
+          {isEdit ? 'Update linked repository' : 'Link repository'}
+        </h3>
+        <p className="mt-1 text-xs text-slate-500">
+          {isEdit
+            ? 'Update the GitHub repository linked to this project. Existing intern access stays granted.'
+            : 'Attach the GitHub repository for this project. Required before the "Grant repo access" button enables.'}
+        </p>
+        <div className="mt-4 space-y-3">
+          <div>
+            <label className="text-xs font-medium text-slate-800">
+              Repository URL <span className="text-red-500">*</span>
+            </label>
+            <input
+              type="url"
+              value={url}
+              onChange={(e) => setUrl(e.target.value)}
+              placeholder="https://github.com/owner/repo"
+              className={
+                'mt-1 w-full rounded-md border px-3 py-2 text-sm '
+                + (urlError ? 'border-red-400' : 'border-slate-200')
+              }
+            />
+            {urlError && (
+              <p className="mt-1 text-xs text-red-700">{urlError}</p>
+            )}
+          </div>
+          <div>
+            <label className="text-xs font-medium text-slate-800">
+              Display name{' '}
+              <span className="text-slate-500">(optional — defaults to owner/repo)</span>
+            </label>
+            <input
+              type="text"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder={effectiveName || 'owner/repo'}
+              className="mt-1 w-full rounded-md border border-slate-200 px-3 py-2 text-sm"
+            />
+          </div>
+          {err && (
+            <p className="rounded-md border border-red-200 bg-red-50 p-2 text-xs text-red-800">
+              {err}
+            </p>
+          )}
+        </div>
+        <div className="mt-5 flex justify-end gap-2">
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-md border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={save}
+            disabled={busy || !urlValid || !effectiveName}
+            className="rounded-md bg-brand-700 px-3 py-1.5 text-xs font-semibold text-white hover:bg-brand-800 disabled:opacity-60"
+          >
+            {busy ? 'Saving…' : (isEdit ? 'Save' : 'Link repository')}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/** GitHub repo URL: https://github.com/owner/repo (optional .git / trailing /). */
+function isGithubRepoUrl(s: string): boolean {
+  return /^https?:\/\/github\.com\/[\w.-]+\/[\w.-]+?(?:\.git)?\/?$/i.test(s.trim());
+}
+
+function parseOwnerRepo(s: string): { owner: string; repo: string } | null {
+  const m = /^https?:\/\/github\.com\/([\w.-]+)\/([\w.-]+?)(?:\.git)?\/?$/i.exec(s.trim());
+  if (!m) return null;
+  return { owner: m[1], repo: m[2] };
+}
+
 
 function KtMarkModal({
   projectId, initialLink, alreadyDone, onClose, onSaved,
