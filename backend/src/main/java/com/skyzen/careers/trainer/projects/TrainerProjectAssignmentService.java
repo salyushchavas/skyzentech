@@ -2,7 +2,9 @@ package com.skyzen.careers.trainer.projects;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.skyzen.careers.entity.AuditLog;
+import com.skyzen.careers.entity.Candidate;
 import com.skyzen.careers.entity.Document;
+import com.skyzen.careers.entity.Engagement;
 import com.skyzen.careers.entity.InternLifecycle;
 import com.skyzen.careers.entity.Project;
 import com.skyzen.careers.entity.ProjectAssignment;
@@ -18,7 +20,9 @@ import com.skyzen.careers.exception.ForbiddenException;
 import com.skyzen.careers.exception.ResourceNotFoundException;
 import com.skyzen.careers.intern.DocumentVaultService;
 import com.skyzen.careers.repository.AuditLogRepository;
+import com.skyzen.careers.repository.CandidateRepository;
 import com.skyzen.careers.repository.DocumentRepository;
+import com.skyzen.careers.repository.EngagementRepository;
 import com.skyzen.careers.repository.InternLifecycleRepository;
 import com.skyzen.careers.repository.ProjectAssignmentEventLogRepository;
 import com.skyzen.careers.repository.ProjectAssignmentRepository;
@@ -87,6 +91,8 @@ public class TrainerProjectAssignmentService {
     private final ProjectAssignmentEventLogRepository eventLogRepository;
     private final ProjectAssignmentRepository projectAssignmentRepository;
     private final InternLifecycleRepository lifecycleRepository;
+    private final CandidateRepository candidateRepository;
+    private final EngagementRepository engagementRepository;
     private final UserRepository userRepository;
     private final DocumentRepository documentRepository;
     private final AuditLogRepository auditLogRepository;
@@ -280,11 +286,45 @@ public class TrainerProjectAssignmentService {
             templateRepository.save(template);
         }
 
+        // 6b) Resolve the intern's Candidate + Engagement so we can populate
+        // the legacy projects.engagement_id / projects.intern_id columns.
+        // SchemaFixupRunner.relaxProjectLegacyFkNotNull is intended to drop
+        // those NOT NULL constraints, but in production we've observed the
+        // ALTER doesn't always take effect (the verify-log step added in the
+        // last commit will reveal why on the next deploy). Populating both
+        // FK columns when we have the data makes the assignment commit
+        // regardless of the DB constraint's state, AND links the new Project
+        // to the canonical employment record for downstream reporting. An
+        // intern reaching ACTIVE_INTERN always has an Engagement (created at
+        // OFFER_ACCEPTED), so the lookup should succeed in the normal path.
+        Candidate internCandidate = null;
+        Engagement internEngagement = null;
+        if (lc.getUserId() != null) {
+            internCandidate = candidateRepository.findByUserId(lc.getUserId()).orElse(null);
+            if (internCandidate != null) {
+                internEngagement = engagementRepository
+                        .findByCandidateId(internCandidate.getId())
+                        .stream()
+                        .max(java.util.Comparator.comparing(Engagement::getCreatedAt))
+                        .orElse(null);
+            }
+            if (internEngagement == null) {
+                log.warn("[TrainerProject] no Engagement found for intern user_id={} "
+                                + "(candidate={}). Project insert will rely on the DB column "
+                                + "being nullable; if SchemaFixupRunner's relax didn't take "
+                                + "effect, this will 23502 on engagement_id.",
+                        lc.getUserId(),
+                        internCandidate != null ? internCandidate.getId() : null);
+            }
+        }
+
         // 7) Persist Project
         Project project = Project.builder()
                 .title(req.title().trim())
                 .description(template != null ? template.getDescription() : null)
                 .instructions(req.instructions())
+                .engagement(internEngagement)
+                .intern(internCandidate)
                 .internLifecycleId(lc.getId())
                 .projectNumber(req.projectNumber())
                 .monthYear(req.monthYear())
