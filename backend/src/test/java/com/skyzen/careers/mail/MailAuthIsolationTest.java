@@ -8,6 +8,7 @@ import com.skyzen.careers.mail.entity.MailAccount;
 import com.skyzen.careers.mail.entity.MailAccountStatus;
 import com.skyzen.careers.mail.entity.MailDomain;
 import com.skyzen.careers.mail.entity.MailRole;
+import com.skyzen.careers.mail.exception.MailAuthException;
 import com.skyzen.careers.mail.service.MailSessionTokenService;
 import io.jsonwebtoken.Claims;
 import org.junit.jupiter.api.Test;
@@ -16,6 +17,7 @@ import java.util.Set;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -109,5 +111,16 @@ class MailAuthIsolationTest {
         assertNotEquals(MailSessionTokenService.hash(a), MailSessionTokenService.hash(b));
         // SHA-256 hex = 64 chars.
         assertTrue(MailSessionTokenService.hash(a).matches("[0-9a-f]{64}"));
+    }
+
+    @Test
+    void unconfiguredSecret_bootsButFailsOnUse() {
+        // A blank MAIL_JWT_SECRET (env unset) must NOT throw at construction —
+        // the app boots; mail is simply disabled. Using it returns 503.
+        MailJwtUtil unconfigured = new MailJwtUtil("", 15);
+        assertFalse(unconfigured.isConfigured());
+        MailAuthException ex = assertThrows(MailAuthException.class,
+                () -> unconfigured.generateAccessToken(mailAccount(), UUID.randomUUID()));
+        assertEquals("MAIL_NOT_CONFIGURED", ex.getCode());
     }
 }
