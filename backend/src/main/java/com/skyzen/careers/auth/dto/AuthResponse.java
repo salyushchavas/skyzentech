@@ -23,5 +23,14 @@ public record AuthResponse(
         String fullName,
         List<String> roles,
         Boolean emailVerified,
-        String applicantId
+        String applicantId,
+        /**
+         * TRUE for staff accounts created by SUPER_ADMIN with a temp
+         * password. The frontend MUST redirect the user to the
+         * force-change-password screen until this flips false (it does so
+         * automatically after a successful change-password call). The
+         * server also enforces a route gate so a malicious client cannot
+         * bypass the redirect.
+         */
+        Boolean mustChangePassword
 ) {}

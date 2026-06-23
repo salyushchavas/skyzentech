@@ -158,6 +158,12 @@ public class UserProfileService {
             throw new BadRequestException("New password must be different from current");
         }
         user.setPasswordHash(passwordEncoder.encode(req.getNewPassword()));
+        // Clear the force-change gate atomically with the hash save. If the
+        // user was created by an admin with a temp password, this is the
+        // moment the ForcePasswordChangeFilter stops blocking their other
+        // requests. Safe to set unconditionally — a normal change-password
+        // call from an already-cleared user just rewrites false to false.
+        user.setMustChangePassword(false);
         userRepository.save(user);
 
         // Security: revoke every other session. The caller stays signed in on

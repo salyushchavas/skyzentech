@@ -34,19 +34,44 @@ import java.util.UUID;
 public class AdminUserService {
 
     /**
-     * Roles a SUPER_ADMIN may assign through the admin UI. APPLICANT and INTERN
-     * are excluded by design — those are candidate-side roles set by registration
-     * and the engagement-activation flip, not by the admin.
+     * Roles a SUPER_ADMIN may assign through the admin UI's CHANGE-ROLE flow.
+     * Includes SUPER_ADMIN so promotion to admin is possible (already gated
+     * by the last-SA self-lockout guards). INTERN excluded — that's set by
+     * candidate registration / engagement activation, not by the admin.
+     *
+     * <p>Distinct from {@link #STAFF_CREATABLE_ROLES} below; admin-driven
+     * CREATION of a brand-new account intentionally cannot mint a new
+     * SUPER_ADMIN — that's a separate elevation flow (promote an existing
+     * account).</p>
      */
     private static final Set<UserRole> STAFF_ROLES = EnumSet.of(
             UserRole.SUPER_ADMIN,
+            UserRole.MANAGER,
             UserRole.ERM,
+            UserRole.REPORTING_MANAGER,
+            UserRole.EVALUATOR,
+            UserRole.TRAINER);
+
+    /**
+     * Roles a SUPER_ADMIN may assign at CREATION time via
+     * POST /api/v1/admin/users. SUPER_ADMIN is intentionally excluded —
+     * elevating to admin must go through the change-role flow (which keeps
+     * the existing last-SA guards in play). INTERN is excluded because
+     * candidate accounts are created via /auth/register, not by an admin.
+     */
+    private static final Set<UserRole> STAFF_CREATABLE_ROLES = EnumSet.of(
+            UserRole.MANAGER,
             UserRole.ERM,
-            UserRole.TRAINER,
-            UserRole.MANAGER);
+            UserRole.REPORTING_MANAGER,
+            UserRole.EVALUATOR,
+            UserRole.TRAINER);
 
     private static final String STAFF_ROLE_MSG =
-            "role must be a STAFF role (SUPER_ADMIN / OPERATIONS / HR / TECHNICAL_EVALUATOR / EXECUTIVE)";
+            "role must be a STAFF role (SUPER_ADMIN / MANAGER / ERM / REPORTING_MANAGER / EVALUATOR / TRAINER)";
+
+    private static final String STAFF_CREATABLE_ROLE_MSG =
+            "role must be a creatable STAFF role (MANAGER / ERM / REPORTING_MANAGER / EVALUATOR / TRAINER). "
+                    + "Promote an existing user to SUPER_ADMIN via change-role instead of creating one.";
 
     /**
      * Surfaced both to the API caller (as a 409) and as the message the
@@ -75,10 +100,13 @@ public class AdminUserService {
     }
 
     @Transactional
-    public AdminUserResponse create(CreateUserRequest req) {
+    public AdminUserResponse create(CreateUserRequest req, User caller) {
         UserRole role = req.getRole();
-        if (!STAFF_ROLES.contains(role)) {
-            throw new BadRequestException(STAFF_ROLE_MSG);
+        // Server-side enforcement of the STAFF-only allow-list. The
+        // frontend picker is locked down too, but DON'T rely on it — a
+        // crafted request body could pick INTERN or SUPER_ADMIN otherwise.
+        if (!STAFF_CREATABLE_ROLES.contains(role)) {
+            throw new BadRequestException(STAFF_CREATABLE_ROLE_MSG);
         }
         String email = req.getEmail().trim().toLowerCase();
         if (userRepository.existsByEmail(email)) {
@@ -90,8 +118,28 @@ public class AdminUserService {
                 .fullName(req.getName().trim())
                 .roles(EnumSet.of(role))
                 .active(true)
+                // Staff don't go through the 6-digit email-verify flow — the
+                // admin who creates them implicitly vouches for the address,
+                // and skipping the verification gate lets the new user log
+                // straight into the force-change-password screen.
+                .emailVerified(true)
+                // Force the user to swap the admin-set temp password on
+                // first login. Cleared by UserProfileService.changePassword.
+                // The ForcePasswordChangeFilter is the server-side gate; the
+                // frontend redirect is the UX.
+                .mustChangePassword(true)
                 .build();
         user = userRepository.save(user);
+
+        // Audit the admin-driven creation. Actor = the SUPER_ADMIN who
+        // pressed Create; subject = the new user. Captures role + email so
+        // the forensic trail records both "who got created" and "by whom".
+        Map<String, Object> snap = new LinkedHashMap<>();
+        snap.put("createdEmail", user.getEmail());
+        snap.put("createdRole", role.name());
+        snap.put("mustChangePassword", true);
+        writeAudit("USER_CREATED_BY_ADMIN", user, caller, snap);
+
         return toResponse(user);
     }
 

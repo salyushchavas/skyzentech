@@ -51,6 +51,21 @@ public class User {
     private Boolean active = true;
 
     /**
+     * Forces the user to change their password on next login before any
+     * other API call succeeds. Set TRUE when a SUPER_ADMIN creates a
+     * staff user with a temp password; cleared atomically by
+     * {@link com.skyzen.careers.service.UserProfileService#changePassword}
+     * when the user supplies a fresh password. The server-side gate is
+     * enforced by {@code ForcePasswordChangeFilter}; the frontend mirrors
+     * the gate via {@code AuthContext} so the user is redirected to the
+     * force-change-password screen immediately on login.
+     */
+    @Column(name = "must_change_password", nullable = false,
+            columnDefinition = "boolean not null default false")
+    @Builder.Default
+    private Boolean mustChangePassword = false;
+
+    /**
      * Email-verification gate. New CANDIDATE registrations start FALSE; verified
      * via the 6-digit code in {@code emailVerificationCode}. Existing rows are
      * backfilled to TRUE on first boot (see {@code SchemaFixupRunner} —

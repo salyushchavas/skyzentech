@@ -2,6 +2,7 @@ package com.skyzen.careers.config;
 
 import com.skyzen.careers.auth.CustomAccessDeniedHandler;
 import com.skyzen.careers.auth.CustomAuthenticationEntryPoint;
+import com.skyzen.careers.auth.ForcePasswordChangeFilter;
 import com.skyzen.careers.auth.JwtAuthenticationFilter;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
@@ -21,6 +22,7 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 public class SecurityConfig {
 
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
+    private final ForcePasswordChangeFilter forcePasswordChangeFilter;
     private final CustomAuthenticationEntryPoint authenticationEntryPoint;
     private final CustomAccessDeniedHandler accessDeniedHandler;
 
@@ -74,7 +76,12 @@ public class SecurityConfig {
                         .authenticationEntryPoint(authenticationEntryPoint)
                         .accessDeniedHandler(accessDeniedHandler)
                 )
-                .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
+                .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
+                // ForcePasswordChangeFilter must run AFTER jwtAuthenticationFilter
+                // so SecurityContext already holds the authenticated User — that's
+                // where the must_change_password flag lives. Anonymous requests
+                // fall through this filter untouched.
+                .addFilterAfter(forcePasswordChangeFilter, JwtAuthenticationFilter.class);
         return http.build();
     }
 }

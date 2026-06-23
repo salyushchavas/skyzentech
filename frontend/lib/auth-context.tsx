@@ -1,6 +1,7 @@
 'use client';
 
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
+import { usePathname, useRouter } from 'next/navigation';
 import api from './api';
 import {
   clearAuth,
@@ -54,6 +55,9 @@ interface MeResponse {
   applicantId?: string;
   /** Phase 3 step 6 — candidate's expectedTrack so the sidebar can hide STEM-only tiles. */
   expectedTrack?: WorkAuthTrack;
+  /** TRUE for staff accounts created with a temp password (drives the
+   *  force-change-password redirect gate). */
+  mustChangePassword?: boolean;
 }
 
 interface AuthContextValue {
@@ -88,12 +92,15 @@ function userFromAuthResponse(res: AuthResponse, phoneNumber?: string): User {
     roles: res.roles,
     emailVerified: res.emailVerified,
     applicantId: res.applicantId,
+    mustChangePassword: res.mustChangePassword,
   };
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUserState] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const router = useRouter();
+  const pathname = usePathname();
 
   useEffect(() => {
     const stored = getUser();
@@ -108,6 +115,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Force-change-password gate. Mirrors the server-side
+  // ForcePasswordChangeFilter: when the user has the temp-password flag,
+  // every route except the change-password screen is unreachable. The
+  // server returns 403 PASSWORD_CHANGE_REQUIRED so this redirect is the
+  // UX, not the security guarantee. Re-runs on every route change so a
+  // back-button bypass instantly bounces back.
+  useEffect(() => {
+    if (
+      user?.mustChangePassword
+      && pathname !== '/careers/force-change-password'
+    ) {
+      router.replace('/careers/force-change-password');
+    }
+  }, [user?.mustChangePassword, pathname, router]);
 
   async function refreshFromMe(): Promise<void> {
     try {
@@ -124,6 +146,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           emailVerified: me.emailVerified,
           applicantId: me.applicantId,
           expectedTrack: me.expectedTrack,
+          mustChangePassword: me.mustChangePassword,
         };
         setUser(next);
         return next;

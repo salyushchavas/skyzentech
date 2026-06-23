@@ -760,6 +760,19 @@ public class SchemaFixupRunner implements CommandLineRunner {
             log.warn("users.zoom_email add failed (non-fatal): {}", e.getMessage(), e);
         }
 
+        // users.must_change_password — drives the first-login forced
+        // password-change flow for staff accounts created by SUPER_ADMIN
+        // with a temp password. Defaults FALSE so existing rows (intern
+        // signups, prior admin-created staff) aren't gated retroactively.
+        try {
+            jdbcTemplate.execute(
+                    "ALTER TABLE users ADD COLUMN IF NOT EXISTS "
+                            + "must_change_password BOOLEAN NOT NULL DEFAULT FALSE");
+            log.info("Ensured users.must_change_password column exists.");
+        } catch (Exception e) {
+            log.warn("users.must_change_password add failed (non-fatal): {}", e.getMessage(), e);
+        }
+
         // applications doc-spec fields added in Phase 2.
         try {
             jdbcTemplate.execute(

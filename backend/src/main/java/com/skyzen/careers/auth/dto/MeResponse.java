@@ -20,5 +20,9 @@ public record MeResponse(
         Instant createdAt,
         Boolean emailVerified,
         String applicantId,
-        String expectedTrack
+        String expectedTrack,
+        /** Mirrors {@link AuthResponse#mustChangePassword()} so a tab refresh
+         *  still routes to the force-change screen if the user hasn't
+         *  cleared the flag yet. */
+        Boolean mustChangePassword
 ) {}

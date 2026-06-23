@@ -24,14 +24,28 @@ interface AdminUserResponse {
  *  blocked-state banner instead of a passing toast. */
 const LAST_SUPER_ADMIN_FRAGMENT = 'last active SUPER_ADMIN';
 
-// STAFF_ROLES are the roles a SUPER_ADMIN can assign via this UI. INTERN is
-// NOT in the picker — that role is set by candidate registration, not by
-// admin-side assignment.
+// Roles the SUPER_ADMIN can assign via the CHANGE-ROLE flow. SUPER_ADMIN is
+// here so promotion stays possible (gated by the backend's last-SA guards).
+// INTERN is NOT in the picker — that role is set by candidate registration,
+// not by admin-side assignment.
 const STAFF_ROLES: UserRole[] = [
   'SUPER_ADMIN',
   'MANAGER',
   'ERM',
   'TRAINER',
+  'EVALUATOR',
+  'REPORTING_MANAGER',
+];
+
+// Roles the SUPER_ADMIN can pick when CREATING a brand-new account.
+// Intentionally narrower than STAFF_ROLES: SUPER_ADMIN is excluded so a
+// new admin can only come into existence via promotion of an existing
+// account (kept honest by the backend STAFF_CREATABLE_ROLES set).
+const STAFF_CREATABLE_ROLES: UserRole[] = [
+  'MANAGER',
+  'ERM',
+  'TRAINER',
+  'EVALUATOR',
   'REPORTING_MANAGER',
 ];
 
@@ -464,6 +478,12 @@ function NewUserModal({
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  // Post-success: hold the created credentials in-page so the admin can
+  // copy them once before closing the modal. The server doesn't echo the
+  // password back; we keep the value the admin typed.
+  const [created, setCreated] = useState<{
+    email: string; password: string; role: UserRole;
+  } | null>(null);
 
   const submit = async () => {
     if (!name.trim() || !email.trim() || !password.trim()) {
@@ -471,7 +491,7 @@ function NewUserModal({
       return;
     }
     if (password.length < 8) {
-      setError('Password must be at least 8 characters.');
+      setError('Temporary password must be at least 8 characters.');
       return;
     }
     setSubmitting(true);
@@ -483,7 +503,7 @@ function NewUserModal({
         role,
         initialPassword: password,
       });
-      onCreated();
+      setCreated({ email: email.trim(), password, role });
     } catch (err: any) {
       const status = err?.response?.status;
       const msg = err?.response?.data?.error;
@@ -499,6 +519,18 @@ function NewUserModal({
     }
   };
 
+  if (created) {
+    return (
+      <CredentialsHandoffModal
+        created={created}
+        onDone={() => {
+          setCreated(null);
+          onCreated();
+        }}
+      />
+    );
+  }
+
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
@@ -506,7 +538,12 @@ function NewUserModal({
       aria-modal="true"
     >
       <div className="w-full max-w-md rounded-lg bg-white p-6 shadow-xl">
-        <h3 className="mb-4 text-lg font-semibold text-gray-900">New user</h3>
+        <h3 className="mb-1 text-lg font-semibold text-gray-900">Create staff user</h3>
+        <p className="mb-4 text-xs text-gray-500">
+          Staff only — intern accounts are created by candidate registration,
+          not from here. The user will be forced to change their password on
+          first login.
+        </p>
         <div className="space-y-3">
           <div>
             <label className="mb-1 block text-sm font-medium text-gray-700">
@@ -538,16 +575,20 @@ function NewUserModal({
               onChange={(e) => setRole(e.target.value as UserRole)}
               className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
             >
-              {STAFF_ROLES.map((r) => (
+              {STAFF_CREATABLE_ROLES.map((r) => (
                 <option key={r} value={r}>
                   {ROLE_LABEL[r]}
                 </option>
               ))}
             </select>
+            <p className="mt-1 text-xs text-gray-500">
+              To grant SUPER_ADMIN, create the user with a different staff
+              role first, then use Change role to promote.
+            </p>
           </div>
           <div>
             <label className="mb-1 block text-sm font-medium text-gray-700">
-              Initial password <span className="text-red-500">*</span>
+              Temporary password <span className="text-red-500">*</span>
             </label>
             <input
               type="text"
@@ -557,7 +598,8 @@ function NewUserModal({
               className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
             />
             <p className="mt-1 text-xs text-gray-500">
-              Share this with the user; they can change it from their account later.
+              You&apos;ll share this with the user. They&apos;ll be required
+              to set their own password on first login.
             </p>
           </div>
           {error && <div className="text-sm text-red-600">{error}</div>}
@@ -576,10 +618,96 @@ function NewUserModal({
             disabled={submitting}
             className="rounded-md bg-accent px-4 py-2 text-sm font-medium text-white hover:bg-accent/90 disabled:opacity-60"
           >
-            {submitting ? 'Creating…' : 'Create user'}
+            {submitting ? 'Creating…' : 'Create staff user'}
           </button>
         </div>
       </div>
+    </div>
+  );
+}
+
+/**
+ * Post-create handoff screen. The admin sees email + temp password one
+ * last time and gets a Copy-to-clipboard affordance so they can paste it
+ * into Slack / email / wherever. Closing this triggers the table reload.
+ */
+function CredentialsHandoffModal({
+  created,
+  onDone,
+}: {
+  created: { email: string; password: string; role: UserRole };
+  onDone: () => void;
+}) {
+  const [copied, setCopied] = useState(false);
+
+  function copyCredentials() {
+    const text = `Email: ${created.email}\nTemporary password: ${created.password}\nRole: ${ROLE_LABEL[created.role]}\n\nSign in at: ${typeof window !== 'undefined' ? window.location.origin : ''}/careers/login\nYou'll be required to set a new password on first login.`;
+    if (typeof navigator !== 'undefined' && navigator.clipboard) {
+      navigator.clipboard.writeText(text).then(() => {
+        setCopied(true);
+        window.setTimeout(() => setCopied(false), 2000);
+      });
+    }
+  }
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+      role="dialog"
+      aria-modal="true"
+    >
+      <div className="w-full max-w-md rounded-lg bg-white p-6 shadow-xl">
+        <div className="mb-3 flex items-start gap-3">
+          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-green-100 text-green-700">
+            <Plus className="h-5 w-5 rotate-45" strokeWidth={2} />
+          </span>
+          <div className="flex-1">
+            <h3 className="text-lg font-semibold text-gray-900">User created</h3>
+            <p className="mt-1 text-xs text-gray-600">
+              Share these credentials with {created.email}. They&apos;ll be
+              required to set a new password on first login.
+            </p>
+          </div>
+        </div>
+
+        <dl className="space-y-2 rounded-md border border-gray-200 bg-gray-50 p-3 text-sm">
+          <Row k="Email" v={created.email} />
+          <Row k="Temporary password" v={created.password} mono />
+          <Row k="Role" v={ROLE_LABEL[created.role]} />
+        </dl>
+
+        <div className="mt-3 rounded-md border border-amber-200 bg-amber-50 p-2.5 text-[11px] text-amber-900">
+          This is the only time you&apos;ll see this password.
+          Copy or transcribe it now — the server never returns it again
+          after closing this dialog.
+        </div>
+
+        <div className="mt-5 flex items-center justify-end gap-2">
+          <button
+            type="button"
+            onClick={copyCredentials}
+            className="rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+          >
+            {copied ? 'Copied!' : 'Copy to clipboard'}
+          </button>
+          <button
+            type="button"
+            onClick={onDone}
+            className="rounded-md bg-accent px-4 py-2 text-sm font-medium text-white hover:bg-accent/90"
+          >
+            Done
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function Row({ k, v, mono }: { k: string; v: string; mono?: boolean }) {
+  return (
+    <div className="flex items-baseline justify-between gap-3">
+      <dt className="text-[11px] font-semibold uppercase tracking-wide text-gray-500">{k}</dt>
+      <dd className={'truncate text-sm text-gray-800 ' + (mono ? 'font-mono' : '')}>{v}</dd>
     </div>
   );
 }

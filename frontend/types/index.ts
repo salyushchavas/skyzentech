@@ -75,6 +75,13 @@ export interface User {
    * Used to gate STEM-OPT-only UI (I-983 Training Plan tile, page).
    */
   expectedTrack?: WorkAuthTrack;
+  /**
+   * TRUE for staff accounts created by SUPER_ADMIN with a temp password.
+   * When true, the AuthProvider redirects to /careers/force-change-password
+   * and the backend's ForcePasswordChangeFilter blocks every other API call
+   * until the user changes their password.
+   */
+  mustChangePassword?: boolean;
 }
 
 export interface AuthResponse {
@@ -89,6 +96,7 @@ export interface AuthResponse {
   roles: UserRole[];
   emailVerified?: boolean;
   applicantId?: string;
+  mustChangePassword?: boolean;
 }
 
 // Session management — /api/v1/me/sessions

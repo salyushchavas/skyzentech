@@ -416,7 +416,8 @@ public class AuthService {
                 user.getCreatedAt(),
                 user.getEmailVerified(),
                 user.getApplicantId(),
-                expectedTrack
+                expectedTrack,
+                Boolean.TRUE.equals(user.getMustChangePassword())
         );
     }
 
@@ -443,7 +444,8 @@ public class AuthService {
                 user.getFullName(),
                 roles,
                 user.getEmailVerified(),
-                user.getApplicantId()
+                user.getApplicantId(),
+                Boolean.TRUE.equals(user.getMustChangePassword())
         );
     }
 }
