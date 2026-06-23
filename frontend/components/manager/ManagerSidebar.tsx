@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import SignOutButton from '@/components/auth/SignOutButton';
+import { BRAND } from '@/lib/brand';
 
 /**
  * Manager Phase 0 — 10-item sidebar per the Manager Oversight spec (§10
@@ -34,7 +35,7 @@ export default function ManagerSidebar() {
     <aside className="hidden h-screen w-60 shrink-0 flex-col border-r border-slate-200 bg-white lg:flex">
       <div className="border-b border-slate-200 px-4 py-4">
         <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">
-          Skyzen Tech
+          {BRAND.name}
         </p>
         <p className="mt-0.5 text-sm font-semibold text-slate-900">Manager</p>
       </div>

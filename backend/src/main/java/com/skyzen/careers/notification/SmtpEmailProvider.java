@@ -81,23 +81,31 @@ public class SmtpEmailProvider implements EmailProvider {
     private final String mailFromName;
     private final String logoUrl;
     private final String brandUrl;
+    /** Brand name surfaced in subjects + body copy (e.g. "Skyzen Tech"). */
+    private final String brand;
+    /** "{brand} Careers" product noun (e.g. "Skyzen Careers"). */
+    private final String product;
 
     public SmtpEmailProvider(JavaMailSender mailSender,
                              String mailFromAddress,
                              String mailFromName,
                              String logoUrl,
-                             String brandUrl) {
+                             String brandUrl,
+                             String brand,
+                             String product) {
         this.mailSender = mailSender;
         this.mailFromAddress = mailFromAddress;
         this.mailFromName = mailFromName;
         this.logoUrl = logoUrl;
         this.brandUrl = brandUrl;
+        this.brand = brand;
+        this.product = product;
     }
 
     @Override
     public void sendRendered(String email, String subject, String body) {
         if (email == null || email.isBlank()) return;
-        String safeSubject = subject != null ? subject : "Skyzen Tech update";
+        String safeSubject = subject != null ? subject : brand + " update";
         String plain = body != null ? body : "";
         // Body comes from CommunicationTemplate — already plain text. Convert
         // line breaks for HTML preservation; do NOT trust the body as HTML.
@@ -115,7 +123,7 @@ public class SmtpEmailProvider implements EmailProvider {
     public void sendBrandedHtml(String email, String subject,
                                 String plainBody, String htmlBody) {
         if (email == null || email.isBlank()) return;
-        String safeSubject = subject != null ? subject : "Skyzen Tech update";
+        String safeSubject = subject != null ? subject : brand + " update";
         String plain = plainBody != null ? plainBody : "";
         // Caller has already built valid HTML; do NOT escape. Caller is
         // responsible for escape()ing any free-text it spliced in.
@@ -127,16 +135,16 @@ public class SmtpEmailProvider implements EmailProvider {
     public void sendVerificationCode(String email, String code, Instant expiresAt) {
         String expiryLabel = expiresAt != null ? EXPIRY_FORMAT.format(expiresAt) : "soon";
         String plain = ""
-                + "Welcome to Skyzen Tech Careers.\n\n"
+                + "Welcome to " + brand + " Careers.\n\n"
                 + "Your verification code is: " + code + "\n\n"
                 + "Enter this code on the verification screen to activate your account.\n"
                 + "It expires " + expiryLabel + ".\n\n"
                 + "If you didn't request this, you can safely ignore this email.\n\n"
-                + "— The Skyzen Tech team\n";
+                + "— The " + brand + " team\n";
         String html = wrapHtml(
                 "Verify your email",
                 "<p style=\"margin:0 0 12px;font-size:15px;color:" + COLOR_TEXT_BODY + ";\">"
-                        + "Welcome to <strong>Skyzen Tech Careers</strong>."
+                        + "Welcome to <strong>" + brand + " Careers</strong>."
                         + "</p>"
                         + "<p style=\"margin:0 0 8px;font-size:15px;color:" + COLOR_TEXT_BODY + ";\">"
                         + "Your verification code is:"
@@ -150,18 +158,18 @@ public class SmtpEmailProvider implements EmailProvider {
                         + "If you didn't request this, you can safely ignore this email."
                         + "</p>"
         );
-        send(email, "Your Skyzen Tech verification code", plain, html);
+        send(email, "Your " + brand + " verification code", plain, html);
     }
 
     @Override
     public void sendApplicantIdIssued(String email, String applicantId) {
         String plain = ""
-                + "Your Skyzen Applicant ID has been issued.\n\n"
+                + "Your Applicant ID has been issued.\n\n"
                 + "Applicant ID: " + applicantId + "\n\n"
                 + "Keep this for your records — recruiters reference it on every application.\n\n"
-                + "— The Skyzen Tech team\n";
+                + "— The " + brand + " team\n";
         String html = wrapHtml(
-                "Your Skyzen Applicant ID",
+                "Your Applicant ID",
                 "<p style=\"margin:0 0 12px;font-size:15px;color:" + COLOR_TEXT_BODY + ";\">"
                         + "Your account is verified — welcome aboard."
                         + "</p>"
@@ -178,22 +186,22 @@ public class SmtpEmailProvider implements EmailProvider {
                         + "Keep this for your records — recruiters reference it on every application."
                         + "</p>"
         );
-        send(email, "Your Skyzen Applicant ID", plain, html);
+        send(email, "Your Applicant ID", plain, html);
     }
 
     @Override
     public void sendPasswordReset(String email, String resetUrl, Instant expiresAt) {
         String expiryLabel = expiresAt != null ? EXPIRY_FORMAT.format(expiresAt) : "in 1 hour";
         String plain = ""
-                + "We received a request to reset your Skyzen Tech Careers password.\n\n"
+                + "We received a request to reset your " + brand + " Careers password.\n\n"
                 + "Reset link: " + resetUrl + "\n\n"
                 + "This link expires " + expiryLabel + ". If you didn't request this,\n"
                 + "ignore this email and your password stays unchanged.\n\n"
-                + "— The Skyzen Tech team\n";
+                + "— The " + brand + " team\n";
         String html = wrapHtml(
                 "Reset your password",
                 "<p style=\"margin:0 0 12px;font-size:15px;color:" + COLOR_TEXT_BODY + ";\">"
-                        + "We received a request to reset your Skyzen Tech Careers password."
+                        + "We received a request to reset your " + brand + " Careers password."
                         + "</p>"
                         + buttonBlock("Reset password", resetUrl)
                         + "<p style=\"margin:0 0 12px;font-size:13px;color:" + COLOR_TEXT_HINT + ";"
@@ -209,7 +217,7 @@ public class SmtpEmailProvider implements EmailProvider {
                         + "stays unchanged."
                         + "</p>"
         );
-        send(email, "Reset your Skyzen Tech Careers password", plain, html);
+        send(email, "Reset your " + brand + " Careers password", plain, html);
     }
 
     @Override
@@ -222,7 +230,7 @@ public class SmtpEmailProvider implements EmailProvider {
                 + "Great news — you've been conditionally selected for " + role + at + ".\n\n"
                 + "Your formal offer letter and compliance steps will follow shortly.\n"
                 + "We'll be in touch with next steps.\n\n"
-                + "— The Skyzen Tech team\n";
+                + "— The " + brand + " team\n";
         String html = wrapHtml(
                 "You've been conditionally selected",
                 "<p style=\"margin:0 0 12px;font-size:15px;color:" + COLOR_TEXT_BODY + ";\">"
@@ -234,7 +242,7 @@ public class SmtpEmailProvider implements EmailProvider {
                         + "We'll be in touch with next steps."
                         + "</p>"
         );
-        send(email, "You've been conditionally selected — Skyzen Tech", plain, html);
+        send(email, "You've been conditionally selected — " + brand, plain, html);
     }
 
     // ── Batch 1 — applicant lifecycle ───────────────────────────────────────
@@ -250,8 +258,8 @@ public class SmtpEmailProvider implements EmailProvider {
                 + "Thanks for applying to " + role + at + ".\n\n"
                 + "We've received your application and the recruiting team is reviewing it.\n"
                 + "We'll be in touch once there's an update — typically within a few days.\n\n"
-                + "You can track this application from your Skyzen Careers dashboard.\n\n"
-                + "— The Skyzen Tech team\n";
+                + "You can track this application from your " + product + " dashboard.\n\n"
+                + "— The " + brand + " team\n";
         String html = wrapHtml(
                 "We've got your application",
                 "<p style=\"margin:0 0 12px;font-size:15px;color:" + COLOR_TEXT_BODY + ";\">"
@@ -265,10 +273,10 @@ public class SmtpEmailProvider implements EmailProvider {
                         + "We'll be in touch once there's an update — typically within a few days."
                         + "</p>"
                         + "<p style=\"margin:16px 0 0;font-size:13px;color:" + COLOR_TEXT_MUTED + ";\">"
-                        + "You can track this application from your Skyzen Careers dashboard."
+                        + "You can track this application from your " + product + " dashboard."
                         + "</p>"
         );
-        send(email, "We've got your application — Skyzen Tech", plain, html);
+        send(email, "We've got your application — " + brand, plain, html);
     }
 
     @Override
@@ -282,7 +290,7 @@ public class SmtpEmailProvider implements EmailProvider {
                 + "Good news — you've been shortlisted for " + role + at + ".\n\n"
                 + "Our recruiting team will reach out shortly with the next steps,\n"
                 + "which typically include an interview.\n\n"
-                + "— The Skyzen Tech team\n";
+                + "— The " + brand + " team\n";
         String html = wrapHtml(
                 "You've been shortlisted",
                 "<p style=\"margin:0 0 12px;font-size:15px;color:" + COLOR_TEXT_BODY + ";\">"
@@ -296,7 +304,7 @@ public class SmtpEmailProvider implements EmailProvider {
                         + "typically include an interview."
                         + "</p>"
         );
-        send(email, "You've been shortlisted — Skyzen Tech", plain, html);
+        send(email, "You've been shortlisted — " + brand, plain, html);
     }
 
     @Override
@@ -311,10 +319,10 @@ public class SmtpEmailProvider implements EmailProvider {
                 + "into your application.\n\n"
                 + "After careful review, we've decided to move forward with other candidates\n"
                 + "whose experience more closely matches what we're looking for right now.\n\n"
-                + "This isn't a reflection of your potential — keep an eye on Skyzen Careers\n"
+                + "This isn't a reflection of your potential — keep an eye on " + product + "\n"
                 + "for roles that better match your strengths; you're welcome to apply again.\n\n"
                 + "Wishing you the very best with your search.\n\n"
-                + "— The Skyzen Tech team\n";
+                + "— The " + brand + " team\n";
         String html = wrapHtml(
                 "Update on your application",
                 "<p style=\"margin:0 0 12px;font-size:15px;color:" + COLOR_TEXT_BODY + ";\">"
@@ -328,14 +336,14 @@ public class SmtpEmailProvider implements EmailProvider {
                         + "whose experience more closely matches what we're looking for right now."
                         + "</p>"
                         + "<p style=\"margin:0 0 12px;font-size:14px;color:" + COLOR_TEXT_HINT + ";\">"
-                        + "This isn't a reflection of your potential — keep an eye on Skyzen Careers "
+                        + "This isn't a reflection of your potential — keep an eye on " + product + " "
                         + "for roles that better match your strengths; you're welcome to apply again."
                         + "</p>"
                         + "<p style=\"margin:16px 0 0;font-size:13px;color:" + COLOR_TEXT_MUTED + ";\">"
                         + "Wishing you the very best with your search."
                         + "</p>"
         );
-        send(email, "Update on your application — Skyzen Tech", plain, html);
+        send(email, "Update on your application — " + brand, plain, html);
     }
 
     @Override
@@ -360,7 +368,7 @@ public class SmtpEmailProvider implements EmailProvider {
                 + (meetingUrl != null ? "Link:        " + meetingUrl + "\n" : "")
                 + (candidateNotes != null ? "\nNotes from the team:\n" + candidateNotes + "\n" : "")
                 + "\nIf you need to reschedule, reply to your recruiter ASAP.\n\n"
-                + "— The Skyzen Tech team\n";
+                + "— The " + brand + " team\n";
         String html = wrapHtml(
                 "Your interview is scheduled",
                 "<p style=\"margin:0 0 12px;font-size:15px;color:" + COLOR_TEXT_BODY + ";\">"
@@ -383,7 +391,7 @@ public class SmtpEmailProvider implements EmailProvider {
                         + "If you need to reschedule, reply to your recruiter as soon as you can."
                         + "</p>"
         );
-        send(email, "Interview scheduled — Skyzen Tech", plain, html);
+        send(email, "Interview scheduled — " + brand, plain, html);
     }
 
     @Override
@@ -406,7 +414,7 @@ public class SmtpEmailProvider implements EmailProvider {
                 + (interviewerName != null ? "Interviewer: " + interviewerName + "\n" : "")
                 + (meetingUrl != null ? "Link:        " + meetingUrl + "\n" : "")
                 + "\nGood luck!\n\n"
-                + "— The Skyzen Tech team\n";
+                + "— The " + brand + " team\n";
         String html = wrapHtml(
                 "Interview reminder — tomorrow",
                 "<p style=\"margin:0 0 12px;font-size:15px;color:" + COLOR_TEXT_BODY + ";\">"
@@ -423,7 +431,7 @@ public class SmtpEmailProvider implements EmailProvider {
                         + "Good luck!"
                         + "</p>"
         );
-        send(email, "Interview reminder — Skyzen Tech", plain, html);
+        send(email, "Interview reminder — " + brand, plain, html);
     }
 
     @Override
@@ -444,10 +452,10 @@ public class SmtpEmailProvider implements EmailProvider {
                 + "Compensation: " + comp + "\n"
                 + "Start date:   " + start + "\n"
                 + "Respond by:   " + expires + "\n\n"
-                + "Review the full letter and respond from your Skyzen Careers dashboard:\n"
+                + "Review the full letter and respond from your " + product + " dashboard:\n"
                 + (viewOfferUrl != null ? viewOfferUrl + "\n\n" : "")
                 + "We're excited about the prospect of working together.\n\n"
-                + "— The Skyzen Tech team\n";
+                + "— The " + brand + " team\n";
         String html = wrapHtml(
                 "Your offer is here",
                 "<p style=\"margin:0 0 12px;font-size:15px;color:" + COLOR_TEXT_BODY + ";\">"
@@ -464,7 +472,7 @@ public class SmtpEmailProvider implements EmailProvider {
                         + "We're excited about the prospect of working together."
                         + "</p>"
         );
-        send(email, "Your offer from Skyzen Tech", plain, html);
+        send(email, "Your offer from " + brand, plain, html);
     }
 
     @Override
@@ -477,13 +485,13 @@ public class SmtpEmailProvider implements EmailProvider {
         String start = startDate != null ? DATE_FORMAT.format(startDate) : "TBD";
         String plain = ""
                 + greet + "\n\n"
-                + "Welcome to Skyzen — we've recorded your acceptance for " + role + at + ".\n\n"
+                + "Welcome to " + brand + " — we've recorded your acceptance for " + role + at + ".\n\n"
                 + "Start date: " + start + "\n\n"
                 + "Our team will be in touch with onboarding steps shortly. In the meantime,\n"
-                + "track outstanding compliance tasks from your Skyzen Careers dashboard.\n\n"
-                + "— The Skyzen Tech team\n";
+                + "track outstanding compliance tasks from your " + product + " dashboard.\n\n"
+                + "— The " + brand + " team\n";
         String html = wrapHtml(
-                "Welcome to Skyzen Tech",
+                "Welcome to " + brand,
                 "<p style=\"margin:0 0 12px;font-size:15px;color:" + COLOR_TEXT_BODY + ";\">"
                         + escape(greet) + "</p>"
                         + "<p style=\"margin:0 0 12px;font-size:15px;color:" + COLOR_TEXT_BODY + ";\">"
@@ -493,10 +501,10 @@ public class SmtpEmailProvider implements EmailProvider {
                         + miniRow("Start date", start)
                         + "<p style=\"margin:14px 0 0;font-size:14px;color:" + COLOR_TEXT_HINT + ";\">"
                         + "Our team will be in touch with onboarding steps shortly. In the meantime, "
-                        + "track outstanding compliance tasks from your Skyzen Careers dashboard."
+                        + "track outstanding compliance tasks from your " + product + " dashboard."
                         + "</p>"
         );
-        send(email, "Acceptance confirmed — Skyzen Tech", plain, html);
+        send(email, "Acceptance confirmed — " + brand, plain, html);
     }
 
     @Override
@@ -514,7 +522,7 @@ public class SmtpEmailProvider implements EmailProvider {
                 + "Start date: " + start + "\n\n"
                 + "Next: verify onboarding tasks seeded, confirm compliance routing,\n"
                 + "and prepare engagement activation.\n\n"
-                + "— Skyzen Careers ops bot\n";
+                + "— " + product + " ops bot\n";
         String html = wrapHtml(
                 "Offer accepted — operations heads-up",
                 "<p style=\"margin:0 0 12px;font-size:15px;color:" + COLOR_TEXT_BODY + ";\">"
@@ -544,24 +552,24 @@ public class SmtpEmailProvider implements EmailProvider {
         String start = startDate != null ? DATE_FORMAT.format(startDate) : "today";
         String plain = ""
                 + greet + "\n\n"
-                + "Welcome to Skyzen Tech! Your engagement for " + role + at + " is now active.\n\n"
+                + "Welcome to " + brand + "! Your engagement for " + role + at + " is now active.\n\n"
                 + "Start date: " + start + "\n\n"
-                + "Your Skyzen Careers dashboard is the home for your weekly materials,\n"
+                + "Your " + product + " dashboard is the home for your weekly materials,\n"
                 + "reports, projects, training plan, and evaluations.\n"
                 + (dashboardUrl != null ? "\nOpen your dashboard: " + dashboardUrl + "\n\n" : "\n")
                 + "We're glad to have you on the team.\n\n"
-                + "— The Skyzen Tech team\n";
+                + "— The " + brand + " team\n";
         String html = wrapHtml(
                 "Welcome aboard — let's get started",
                 "<p style=\"margin:0 0 12px;font-size:15px;color:" + COLOR_TEXT_BODY + ";\">"
                         + escape(greet) + "</p>"
                         + "<p style=\"margin:0 0 12px;font-size:15px;color:" + COLOR_TEXT_BODY + ";\">"
-                        + "Welcome to <strong>Skyzen Tech</strong>! Your engagement for "
+                        + "Welcome to <strong>" + brand + "</strong>! Your engagement for "
                         + "<strong>" + escape(role) + "</strong>" + escape(at) + " is now active."
                         + "</p>"
                         + miniRow("Start date", start)
                         + "<p style=\"margin:14px 0 12px;font-size:14px;color:" + COLOR_TEXT_HINT + ";\">"
-                        + "Your Skyzen Careers dashboard is the home for your weekly materials, "
+                        + "Your " + product + " dashboard is the home for your weekly materials, "
                         + "reports, projects, training plan, and evaluations."
                         + "</p>"
                         + (dashboardUrl != null
@@ -571,7 +579,7 @@ public class SmtpEmailProvider implements EmailProvider {
                         + "We're glad to have you on the team."
                         + "</p>"
         );
-        send(email, "Welcome to Skyzen Tech", plain, html);
+        send(email, "Welcome to " + brand, plain, html);
     }
 
     // ── Batch 2 — compliance / onboarding ───────────────────────────────────
@@ -590,7 +598,7 @@ public class SmtpEmailProvider implements EmailProvider {
                 + "Section 1 due: " + due + "\n\n"
                 + "Sign in to complete it from your dashboard:\n"
                 + (dashboardUrl != null ? dashboardUrl + "\n\n" : "\n")
-                + "— The Skyzen Tech team\n";
+                + "— The " + brand + " team\n";
         String html = wrapHtml(
                 "Your I-9 Section 1 is pending",
                 "<p style=\"margin:0 0 12px;font-size:15px;color:" + COLOR_TEXT_BODY + ";\">"
@@ -606,7 +614,7 @@ public class SmtpEmailProvider implements EmailProvider {
                         + "If you've already submitted it, you can ignore this reminder."
                         + "</p>"
         );
-        send(email, "I-9 Section 1 reminder — Skyzen Tech", plain, html);
+        send(email, "I-9 Section 1 reminder — " + brand, plain, html);
     }
 
     @Override
@@ -619,7 +627,7 @@ public class SmtpEmailProvider implements EmailProvider {
                 + "Section 2 due: " + due + "\n\n"
                 + "Open the I-9 in the HR dashboard to complete Section 2:\n"
                 + (hrDashboardUrl != null ? hrDashboardUrl + "\n\n" : "\n")
-                + "— Skyzen Careers ops bot\n";
+                + "— " + product + " ops bot\n";
         String html = wrapHtml(
                 "I-9 Section 2 is now due",
                 "<p style=\"margin:0 0 12px;font-size:15px;color:" + COLOR_TEXT_BODY + ";\">"
@@ -642,7 +650,7 @@ public class SmtpEmailProvider implements EmailProvider {
                 + "training plan on file before training begins.\n\n"
                 + "Sign in to provide your details and sign the plan:\n"
                 + (dashboardUrl != null ? dashboardUrl + "\n\n" : "\n")
-                + "— The Skyzen Tech team\n";
+                + "— The " + brand + " team\n";
         String html = wrapHtml(
                 "I-983 training plan needed",
                 "<p style=\"margin:0 0 12px;font-size:15px;color:" + COLOR_TEXT_BODY + ";\">"
@@ -659,7 +667,7 @@ public class SmtpEmailProvider implements EmailProvider {
                         + "your STEM OPT review will be."
                         + "</p>"
         );
-        send(email, "I-983 training plan needed — Skyzen Tech", plain, html);
+        send(email, "I-983 training plan needed — " + brand, plain, html);
     }
 
     @Override
@@ -670,7 +678,7 @@ public class SmtpEmailProvider implements EmailProvider {
                 + "It's ready for the employer signature. Open the plan in the HR\n"
                 + "dashboard to review and sign:\n"
                 + (hrDashboardUrl != null ? hrDashboardUrl + "\n\n" : "\n")
-                + "— Skyzen Careers ops bot\n";
+                + "— " + product + " ops bot\n";
         String html = wrapHtml(
                 "I-983 plan ready for employer signature",
                 "<p style=\"margin:0 0 12px;font-size:15px;color:" + COLOR_TEXT_BODY + ";\">"
@@ -693,7 +701,7 @@ public class SmtpEmailProvider implements EmailProvider {
                 + "We'll let you know if anything changes. You can also check progress\n"
                 + "from your dashboard:\n"
                 + (dashboardUrl != null ? dashboardUrl + "\n\n" : "\n")
-                + "— The Skyzen Tech team\n";
+                + "— The " + brand + " team\n";
         String html = wrapHtml(
                 "Your E-Verify case is open",
                 "<p style=\"margin:0 0 12px;font-size:15px;color:" + COLOR_TEXT_BODY + ";\">"
@@ -708,7 +716,7 @@ public class SmtpEmailProvider implements EmailProvider {
                         + "We'll email you if anything changes."
                         + "</p>"
         );
-        send(email, "E-Verify case opened — Skyzen Tech", plain, html);
+        send(email, "E-Verify case opened — " + brand, plain, html);
     }
 
     @Override
@@ -720,11 +728,11 @@ public class SmtpEmailProvider implements EmailProvider {
                 + "Tentative Nonconfirmation (TNC). This means the federal system\n"
                 + "couldn't immediately confirm your work eligibility.\n\n"
                 + "A TNC is NOT a final answer. You have the right to contest it,\n"
-                + "and Skyzen will walk you through the steps. Sign in to your\n"
+                + "and " + brand + " will walk you through the steps. Sign in to your\n"
                 + "dashboard right away:\n"
                 + (dashboardUrl != null ? dashboardUrl + "\n\n" : "\n")
                 + "Time matters here — please act today.\n\n"
-                + "— The Skyzen Tech team\n";
+                + "— The " + brand + " team\n";
         String html = wrapHtml(
                 "Urgent — E-Verify action required",
                 // Red urgency banner — only place we deviate from the calm
@@ -743,7 +751,7 @@ public class SmtpEmailProvider implements EmailProvider {
                         + "</p>"
                         + "<p style=\"margin:0 0 12px;font-size:14px;color:" + COLOR_TEXT_HINT + ";\">"
                         + "A TNC is <strong>not</strong> a final answer. You have the right to "
-                        + "contest it, and Skyzen will walk you through the steps."
+                        + "contest it, and " + brand + " will walk you through the steps."
                         + "</p>"
                         + (dashboardUrl != null
                             ? buttonBlock("Take action now", dashboardUrl) : "")
@@ -763,7 +771,7 @@ public class SmtpEmailProvider implements EmailProvider {
                 + "authorization is confirmed; no further action is needed.\n\n"
                 + "You can view the case status from your dashboard:\n"
                 + (dashboardUrl != null ? dashboardUrl + "\n\n" : "\n")
-                + "— The Skyzen Tech team\n";
+                + "— The " + brand + " team\n";
         String html = wrapHtml(
                 "E-Verify cleared",
                 "<p style=\"margin:0 0 12px;font-size:15px;color:" + COLOR_TEXT_BODY + ";\">"
@@ -774,7 +782,7 @@ public class SmtpEmailProvider implements EmailProvider {
                         + "</p>"
                         + (dashboardUrl != null ? buttonBlock("View status", dashboardUrl) : "")
         );
-        send(email, "E-Verify cleared — Skyzen Tech", plain, html);
+        send(email, "E-Verify cleared — " + brand, plain, html);
     }
 
     @Override
@@ -795,9 +803,9 @@ public class SmtpEmailProvider implements EmailProvider {
                 + "Authorization type: " + type + "\n"
                 + "Expires:            " + when + "\n\n"
                 + urgencyPhrase + "\n"
-                + "Open your Skyzen Careers dashboard to start the renewal process:\n"
+                + "Open your " + product + " dashboard to start the renewal process:\n"
                 + (dashboardUrl != null ? dashboardUrl + "\n\n" : "\n")
-                + "— The Skyzen Tech team\n";
+                + "— The " + brand + " team\n";
         String html = wrapHtml(
                 type + " expires in " + daysUntilExpiry + " day"
                         + (daysUntilExpiry == 1 ? "" : "s"),
@@ -825,7 +833,7 @@ public class SmtpEmailProvider implements EmailProvider {
         );
         send(email,
                 (urgent ? "URGENT — " : "")
-                        + type + " expires in " + daysUntilExpiry + "d — Skyzen Tech",
+                        + type + " expires in " + daysUntilExpiry + "d — " + brand,
                 plain, html);
     }
 
@@ -844,9 +852,9 @@ public class SmtpEmailProvider implements EmailProvider {
                 + "Reminder — \"" + title + "\" is " + overdueLabel + ".\n\n"
                 + "Due date:   " + due + "\n"
                 + "Status:     " + overdueLabel + "\n\n"
-                + "Open your Skyzen Careers dashboard to complete it:\n"
+                + "Open your " + product + " dashboard to complete it:\n"
                 + (dashboardUrl != null ? dashboardUrl + "\n\n" : "\n")
-                + "— The Skyzen Tech team\n";
+                + "— The " + brand + " team\n";
         String html = wrapHtml(
                 "Compliance task reminder",
                 "<p style=\"margin:0 0 12px;font-size:15px;color:" + COLOR_TEXT_BODY + ";\">"
@@ -860,7 +868,7 @@ public class SmtpEmailProvider implements EmailProvider {
                         + (dashboardUrl != null
                             ? buttonBlock("Open dashboard", dashboardUrl) : "")
         );
-        send(email, "Reminder: " + title + " — Skyzen Tech", plain, html);
+        send(email, "Reminder: " + title + " — " + brand, plain, html);
     }
 
     // ── Batch 3 — intern weekly cycle ───────────────────────────────────────
@@ -878,7 +886,7 @@ public class SmtpEmailProvider implements EmailProvider {
                 + "isn't submitted yet. The supervisor reviews these end-of-week.\n\n"
                 + "Open your dashboard to submit it:\n"
                 + (dashboardUrl != null ? dashboardUrl + "\n\n" : "\n")
-                + "— The Skyzen Tech team\n";
+                + "— The " + brand + " team\n";
         String html = wrapHtml(
                 "Submit your weekly report",
                 "<p style=\"margin:0 0 12px;font-size:15px;color:" + COLOR_TEXT_BODY + ";\">"
@@ -889,7 +897,7 @@ public class SmtpEmailProvider implements EmailProvider {
                         + "</p>"
                         + (dashboardUrl != null ? buttonBlock("Open weekly report", dashboardUrl) : "")
         );
-        send(email, "Weekly report due — Skyzen Tech", plain, html);
+        send(email, "Weekly report due — " + brand, plain, html);
     }
 
     @Override
@@ -906,7 +914,7 @@ public class SmtpEmailProvider implements EmailProvider {
                 + (notes != null ? "Notes from your supervisor:\n" + notes + "\n\n" : "")
                 + "Open your dashboard to address the changes and resubmit:\n"
                 + (dashboardUrl != null ? dashboardUrl + "\n\n" : "\n")
-                + "— The Skyzen Tech team\n";
+                + "— The " + brand + " team\n";
         String html = wrapHtml(
                 "Your weekly report needs changes",
                 "<p style=\"margin:0 0 12px;font-size:15px;color:" + COLOR_TEXT_BODY + ";\">"
@@ -923,7 +931,7 @@ public class SmtpEmailProvider implements EmailProvider {
                             : "")
                         + (dashboardUrl != null ? buttonBlock("Open and revise", dashboardUrl) : "")
         );
-        send(email, "Report returned — please revise — Skyzen Tech", plain, html);
+        send(email, "Report returned — please revise — " + brand, plain, html);
     }
 
     @Override
@@ -937,7 +945,7 @@ public class SmtpEmailProvider implements EmailProvider {
                 + "approved.\n\n"
                 + "Review it any time from your dashboard:\n"
                 + (dashboardUrl != null ? dashboardUrl + "\n\n" : "\n")
-                + "— The Skyzen Tech team\n";
+                + "— The " + brand + " team\n";
         String html = wrapHtml(
                 "Your weekly report is approved",
                 "<p style=\"margin:0 0 12px;font-size:15px;color:" + COLOR_TEXT_BODY + ";\">"
@@ -949,7 +957,7 @@ public class SmtpEmailProvider implements EmailProvider {
                         + "</p>"
                         + (dashboardUrl != null ? buttonBlock("View report", dashboardUrl) : "")
         );
-        send(email, "Report approved — Skyzen Tech", plain, html);
+        send(email, "Report approved — " + brand, plain, html);
     }
 
     @Override
@@ -962,7 +970,7 @@ public class SmtpEmailProvider implements EmailProvider {
                 + "Reminder — please log your hours for the week of " + week + ".\n\n"
                 + "Open your timesheet from the dashboard:\n"
                 + (dashboardUrl != null ? dashboardUrl + "\n\n" : "\n")
-                + "— The Skyzen Tech team\n";
+                + "— The " + brand + " team\n";
         String html = wrapHtml(
                 "Log this week's hours",
                 "<p style=\"margin:0 0 12px;font-size:15px;color:" + COLOR_TEXT_BODY + ";\">"
@@ -973,7 +981,7 @@ public class SmtpEmailProvider implements EmailProvider {
                         + "</p>"
                         + (dashboardUrl != null ? buttonBlock("Open timesheet", dashboardUrl) : "")
         );
-        send(email, "Timesheet due — Skyzen Tech", plain, html);
+        send(email, "Timesheet due — " + brand, plain, html);
     }
 
     @Override
@@ -991,7 +999,7 @@ public class SmtpEmailProvider implements EmailProvider {
                 + "Due date: " + due + "\n\n"
                 + "Open it from your dashboard to read the deliverables:\n"
                 + (dashboardUrl != null ? dashboardUrl + "\n\n" : "\n")
-                + "— The Skyzen Tech team\n";
+                + "— The " + brand + " team\n";
         String html = wrapHtml(
                 "A new project is yours",
                 "<p style=\"margin:0 0 12px;font-size:15px;color:" + COLOR_TEXT_BODY + ";\">"
@@ -1003,7 +1011,7 @@ public class SmtpEmailProvider implements EmailProvider {
                         + miniRow("Due date", escape(due))
                         + (dashboardUrl != null ? buttonBlock("Open project", dashboardUrl) : "")
         );
-        send(email, "New project assigned — Skyzen Tech", plain, html);
+        send(email, "New project assigned — " + brand, plain, html);
     }
 
     @Override
@@ -1018,7 +1026,7 @@ public class SmtpEmailProvider implements EmailProvider {
                 + who + " just submitted \"" + title + "\" for your review.\n\n"
                 + "Open it from your dashboard:\n"
                 + (supervisorDashboardUrl != null ? supervisorDashboardUrl + "\n\n" : "\n")
-                + "— Skyzen Careers ops bot\n";
+                + "— " + product + " ops bot\n";
         String html = wrapHtml(
                 "Project submission — " + title,
                 "<p style=\"margin:0 0 12px;font-size:15px;color:" + COLOR_TEXT_BODY + ";\">"
@@ -1030,7 +1038,7 @@ public class SmtpEmailProvider implements EmailProvider {
                         + (supervisorDashboardUrl != null
                             ? buttonBlock("Open and review", supervisorDashboardUrl) : "")
         );
-        send(supervisorEmail, "Project submitted by " + who + " — Skyzen Tech", plain, html);
+        send(supervisorEmail, "Project submitted by " + who + " — " + brand, plain, html);
     }
 
     @Override
@@ -1046,7 +1054,7 @@ public class SmtpEmailProvider implements EmailProvider {
                 + (notes != null ? "Notes from your supervisor:\n" + notes + "\n\n" : "")
                 + "Open it from your dashboard to revise and resubmit:\n"
                 + (dashboardUrl != null ? dashboardUrl + "\n\n" : "\n")
-                + "— The Skyzen Tech team\n";
+                + "— The " + brand + " team\n";
         String html = wrapHtml(
                 "Project returned — please revise",
                 "<p style=\"margin:0 0 12px;font-size:15px;color:" + COLOR_TEXT_BODY + ";\">"
@@ -1063,7 +1071,7 @@ public class SmtpEmailProvider implements EmailProvider {
                             : "")
                         + (dashboardUrl != null ? buttonBlock("Open and revise", dashboardUrl) : "")
         );
-        send(email, "Project returned: " + title + " — Skyzen Tech", plain, html);
+        send(email, "Project returned: " + title + " — " + brand, plain, html);
     }
 
     @Override
@@ -1076,7 +1084,7 @@ public class SmtpEmailProvider implements EmailProvider {
                 + "Great work — \"" + title + "\" has been marked complete by your supervisor.\n\n"
                 + "Review the closing notes any time from your dashboard:\n"
                 + (dashboardUrl != null ? dashboardUrl + "\n\n" : "\n")
-                + "— The Skyzen Tech team\n";
+                + "— The " + brand + " team\n";
         String html = wrapHtml(
                 "Project completed",
                 "<p style=\"margin:0 0 12px;font-size:15px;color:" + COLOR_TEXT_BODY + ";\">"
@@ -1087,7 +1095,7 @@ public class SmtpEmailProvider implements EmailProvider {
                         + "</p>"
                         + (dashboardUrl != null ? buttonBlock("View project", dashboardUrl) : "")
         );
-        send(email, "Project completed: " + title + " — Skyzen Tech", plain, html);
+        send(email, "Project completed: " + title + " — " + brand, plain, html);
     }
 
     @Override
@@ -1105,7 +1113,7 @@ public class SmtpEmailProvider implements EmailProvider {
                 + "Reminder — the " + type + " for " + who + " is " + ageLabel + ".\n\n"
                 + "Open it from your supervisor dashboard to finalize:\n"
                 + (supervisorDashboardUrl != null ? supervisorDashboardUrl + "\n\n" : "\n")
-                + "— Skyzen Careers ops bot\n";
+                + "— " + product + " ops bot\n";
         String html = wrapHtml(
                 "Evaluation pending — " + who,
                 "<p style=\"margin:0 0 12px;font-size:15px;color:" + COLOR_TEXT_BODY + ";\">"
@@ -1118,7 +1126,7 @@ public class SmtpEmailProvider implements EmailProvider {
                         + (supervisorDashboardUrl != null
                             ? buttonBlock("Open and finalize", supervisorDashboardUrl) : "")
         );
-        send(supervisorEmail, "Evaluation pending — " + who + " — Skyzen Tech", plain, html);
+        send(supervisorEmail, "Evaluation pending — " + who + " — " + brand, plain, html);
     }
 
     @Override
@@ -1135,7 +1143,7 @@ public class SmtpEmailProvider implements EmailProvider {
                 + "Overall rating: " + rating + "\n\n"
                 + "Read the full evaluation from your dashboard:\n"
                 + (dashboardUrl != null ? dashboardUrl + "\n\n" : "\n")
-                + "— The Skyzen Tech team\n";
+                + "— The " + brand + " team\n";
         String html = wrapHtml(
                 "Your evaluation is ready",
                 "<p style=\"margin:0 0 12px;font-size:15px;color:" + COLOR_TEXT_BODY + ";\">"
@@ -1147,7 +1155,7 @@ public class SmtpEmailProvider implements EmailProvider {
                         + miniRow("Overall rating", escape(rating))
                         + (dashboardUrl != null ? buttonBlock("Read your evaluation", dashboardUrl) : "")
         );
-        send(email, type + " evaluation finalized — Skyzen Tech", plain, html);
+        send(email, type + " evaluation finalized — " + brand, plain, html);
     }
 
     @Override
@@ -1160,7 +1168,7 @@ public class SmtpEmailProvider implements EmailProvider {
                 + "Your " + type + " self-evaluation is awaiting your reflection.\n\n"
                 + "Add your reflection and ratings before your supervisor finalizes:\n"
                 + (dashboardUrl != null ? dashboardUrl + "\n\n" : "\n")
-                + "— The Skyzen Tech team\n";
+                + "— The " + brand + " team\n";
         String html = wrapHtml(
                 "I-983 self-evaluation due",
                 "<p style=\"margin:0 0 12px;font-size:15px;color:" + COLOR_TEXT_BODY + ";\">"
@@ -1174,7 +1182,7 @@ public class SmtpEmailProvider implements EmailProvider {
                         + "Your supervisor will see this alongside their evaluation."
                         + "</p>"
         );
-        send(email, type + " self-evaluation due — Skyzen Tech", plain, html);
+        send(email, type + " self-evaluation due — " + brand, plain, html);
     }
 
     // ── Two-role workflow (P1b) ─────────────────────────────────────────────
@@ -1190,7 +1198,7 @@ public class SmtpEmailProvider implements EmailProvider {
                 + "Next: your Reporting Manager will schedule a brief viva to "
                 + "wrap things up.\n\n"
                 + (dashboardUrl != null ? dashboardUrl + "\n\n" : "\n")
-                + "— The Skyzen Tech team\n";
+                + "— The " + brand + " team\n";
         String html = wrapHtml(
                 "Technical approval — " + title,
                 "<p style=\"margin:0 0 12px;font-size:15px;color:" + COLOR_TEXT_BODY + ";\">"
@@ -1205,7 +1213,7 @@ public class SmtpEmailProvider implements EmailProvider {
                         + "</p>"
                         + (dashboardUrl != null ? buttonBlock("View project", dashboardUrl) : "")
         );
-        send(email, "Project tech-approved: " + title + " — Skyzen Tech", plain, html);
+        send(email, "Project tech-approved: " + title + " — " + brand, plain, html);
     }
 
     @Override
@@ -1221,7 +1229,7 @@ public class SmtpEmailProvider implements EmailProvider {
                 + (notes != null ? "Notes:\n" + notes + "\n\n" : "")
                 + "Open the project to revise and resubmit:\n"
                 + (dashboardUrl != null ? dashboardUrl + "\n\n" : "\n")
-                + "— The Skyzen Tech team\n";
+                + "— The " + brand + " team\n";
         String html = wrapHtml(
                 "Revisions requested — " + title,
                 "<p style=\"margin:0 0 12px;font-size:15px;color:" + COLOR_TEXT_BODY + ";\">"
@@ -1238,7 +1246,7 @@ public class SmtpEmailProvider implements EmailProvider {
                             : "")
                         + (dashboardUrl != null ? buttonBlock("Open project", dashboardUrl) : "")
         );
-        send(email, "Project returned for revisions: " + title + " — Skyzen Tech", plain, html);
+        send(email, "Project returned for revisions: " + title + " — " + brand, plain, html);
     }
 
     @Override
@@ -1251,7 +1259,7 @@ public class SmtpEmailProvider implements EmailProvider {
                 + "Your Reporting Manager is set up to run the viva for \"" + title + "\".\n\n"
                 + "Check your dashboard for the time and any pre-read notes:\n"
                 + (dashboardUrl != null ? dashboardUrl + "\n\n" : "\n")
-                + "— The Skyzen Tech team\n";
+                + "— The " + brand + " team\n";
         String html = wrapHtml(
                 "Viva scheduled — " + title,
                 "<p style=\"margin:0 0 12px;font-size:15px;color:" + COLOR_TEXT_BODY + ";\">"
@@ -1262,7 +1270,7 @@ public class SmtpEmailProvider implements EmailProvider {
                         + "</p>"
                         + (dashboardUrl != null ? buttonBlock("View project", dashboardUrl) : "")
         );
-        send(email, "Viva scheduled: " + title + " — Skyzen Tech", plain, html);
+        send(email, "Viva scheduled: " + title + " — " + brand, plain, html);
     }
 
     // ── Wire ────────────────────────────────────────────────────────────────
@@ -1294,6 +1302,13 @@ public class SmtpEmailProvider implements EmailProvider {
      * a muted disclaimer line. The body fragment is dropped inside the card.
      */
     private String wrapHtml(String heading, String bodyHtml) {
+        // Brand split for the header lockup: render the first word plain
+        // and any trailing word(s) in the accent gradient (preserves the
+        // Skyzen "Tech" treatment for the default and works for any
+        // two-word brand). Single-word brands render with no gradient.
+        String[] brandParts = brand.split("\\s+", 2);
+        String brandLead = brandParts[0];
+        String brandTail = brandParts.length > 1 ? brandParts[1] : null;
         return "<!doctype html><html><body style=\"margin:0;padding:0;background:" + COLOR_BODY_BG + ";"
                 + "font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',"
                 + "Arial,sans-serif;color:" + COLOR_TEXT_PRIMARY + ";\">"
@@ -1307,17 +1322,19 @@ public class SmtpEmailProvider implements EmailProvider {
                 + "<tr><td style=\"background:" + COLOR_HEADER_BG + ";padding:20px 28px;\">"
                 + "<a href=\"" + escape(brandUrl) + "\" "
                 + "style=\"display:inline-block;text-decoration:none;color:" + COLOR_HEADER_TEXT + ";\">"
-                + "<img src=\"" + escape(logoUrl) + "\" alt=\"Skyzen Tech\" "
+                + "<img src=\"" + escape(logoUrl) + "\" alt=\"" + brand + "\" "
                 + "height=\"32\" width=\"32\" "
                 + "style=\"vertical-align:middle;border:0;display:inline-block;height:32px;width:auto;"
                 + "margin-right:10px;\"/>"
                 + "<span style=\"vertical-align:middle;font-size:18px;font-weight:700;"
                 + "letter-spacing:-0.01em;color:" + COLOR_HEADER_TEXT + ";\">"
-                + "Skyzen "
-                + "<span style=\"background:linear-gradient(135deg," + COLOR_ACCENT_FROM + " 0%,"
-                + COLOR_ACCENT_TO + " 100%);"
-                + "-webkit-background-clip:text;background-clip:text;color:" + COLOR_ACCENT_FROM + ";"
-                + "-webkit-text-fill-color:transparent;\">Tech</span>"
+                + escape(brandLead)
+                + (brandTail != null
+                    ? " <span style=\"background:linear-gradient(135deg," + COLOR_ACCENT_FROM + " 0%,"
+                        + COLOR_ACCENT_TO + " 100%);"
+                        + "-webkit-background-clip:text;background-clip:text;color:" + COLOR_ACCENT_FROM + ";"
+                        + "-webkit-text-fill-color:transparent;\">" + escape(brandTail) + "</span>"
+                    : "")
                 + "</span>"
                 + "</a>"
                 + "</td></tr>"
@@ -1334,7 +1351,7 @@ public class SmtpEmailProvider implements EmailProvider {
                 // Footer disclaimer
                 + "<tr><td style=\"padding:16px 28px 22px;border-top:1px solid " + COLOR_CARD_BORDER + ";"
                 + "background:#fafbfc;font-size:12px;color:" + COLOR_TEXT_MUTED + ";\">"
-                + "This is an automated message from Skyzen Tech Careers. Please don't reply directly "
+                + "This is an automated message from " + brand + " Careers. Please don't reply directly "
                 + "to this email — replies are not monitored.<br/>"
                 + "<a href=\"" + escape(brandUrl) + "\" style=\"color:" + COLOR_ACCENT_TO + ";"
                 + "text-decoration:none;font-weight:600;\">skyzentech.com</a>"

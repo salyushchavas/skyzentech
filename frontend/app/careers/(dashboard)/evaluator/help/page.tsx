@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { useState } from 'react';
+import { BRAND } from '@/lib/brand';
 import {
   Award,
   BookOpen,
@@ -177,7 +178,7 @@ export default function EvaluatorHelpPage() {
         </p>
         <p className="mt-1">
           You are responsible for the accuracy of every evaluation you
-          publish. Skyzen Tech stores audit logs of every publish, amend, and
+          publish. {BRAND.name} stores audit logs of every publish, amend, and
           DSO submission. Treat evaluation content as a federal record where
           the intern is on STEM OPT.
         </p>

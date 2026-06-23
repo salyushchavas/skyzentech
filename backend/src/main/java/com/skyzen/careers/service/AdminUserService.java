@@ -3,6 +3,7 @@ package com.skyzen.careers.service;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.skyzen.careers.auth.SessionTokenService;
+import com.skyzen.careers.config.BrandConfig;
 import com.skyzen.careers.dto.admin.AdminUserResponse;
 import com.skyzen.careers.dto.admin.CreateStaffUserResponse;
 import com.skyzen.careers.dto.admin.CreateUserRequest;
@@ -101,6 +102,7 @@ public class AdminUserService {
     private final JdbcTemplate jdbcTemplate;
     private final StaffActivationTokenRepository activationTokenRepository;
     private final EmailProvider emailProvider;
+    private final BrandConfig brand;
 
     /** Single-use token lifetime — the brief locks this at 24 hours. */
     private static final Duration ACTIVATION_TOKEN_TTL = Duration.ofHours(24);
@@ -237,7 +239,7 @@ public class AdminUserService {
         String roleLabel = humanizeRole(role);
         String safeName = (fullName == null || fullName.isBlank()) ? "there" : fullName;
         String expiryLabel = ACTIVATION_EXPIRY_FMT.format(expiresAt);
-        String subject = "Activate your Skyzen Tech " + roleLabel + " account";
+        String subject = "Activate your " + brand.getName() + " " + roleLabel + " account";
 
         // Plain-text alternative for mail clients that don't render HTML
         // (also what spam-scoring sees). The HTML version is what most
@@ -245,20 +247,22 @@ public class AdminUserService {
         // shared branded wrapper without escaping our markup.
         String plain = ""
                 + "Hi " + safeName + ",\n\n"
-                + "A Skyzen administrator created a " + roleLabel + " account for you. "
-                + "Open the link below to set your password and sign in.\n\n"
+                + "A " + brand.getName() + " administrator created a " + roleLabel
+                + " account for you. Open the link below to set your password and "
+                + "sign in.\n\n"
                 + activationUrl + "\n\n"
                 + "This link expires " + expiryLabel + " and can only be used once.\n\n"
                 + "If you weren't expecting this invite, you can ignore this email.\n\n"
-                + "— The Skyzen Tech team\n";
+                + "— The " + brand.getName() + " team\n";
 
         String html = ""
                 + "<h2 style=\"margin:0 0 12px;font-size:20px;color:#0f172a;\">"
-                + "You've been added to Skyzen Tech</h2>"
+                + "You've been added to " + escapeHtml(brand.getName()) + "</h2>"
                 + "<p style=\"margin:0 0 12px;font-size:15px;color:#1f2937;\">"
                 + "Hi " + escapeHtml(safeName) + ",</p>"
                 + "<p style=\"margin:0 0 12px;font-size:15px;color:#1f2937;\">"
-                + "A Skyzen administrator created a <strong>" + escapeHtml(roleLabel)
+                + "A " + escapeHtml(brand.getName()) + " administrator created a <strong>"
+                + escapeHtml(roleLabel)
                 + "</strong> account for you. Click the button below to set your password and "
                 + "sign in. This link expires <strong>" + escapeHtml(expiryLabel)
                 + "</strong> and can only be used once.</p>"

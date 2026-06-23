@@ -21,6 +21,7 @@ import {
   PenLine,
 } from 'lucide-react';
 import api from '@/lib/api';
+import { BRAND } from '@/lib/brand';
 import ProtectedRoute from '@/components/ProtectedRoute';
 import InternPageShell from '@/components/intern/InternPageShell';
 
@@ -138,7 +139,7 @@ export default function InternOfferSignPage() {
                       {offer.signedAt ? ` on ${new Date(offer.signedAt).toLocaleString()}` : ''}.
                     </p>
                     <p className="mt-1 text-xs">
-                      Welcome to Skyzen Tech!
+                      Welcome to {BRAND.name}!
                       {offer.signedByTypedName && ` Signed as ${offer.signedByTypedName}.`}
                     </p>
                   </div>
@@ -187,7 +188,7 @@ export default function InternOfferSignPage() {
               <header className="mb-4 flex items-center gap-2 border-b border-slate-100 pb-3">
                 <FileText className="h-5 w-5 text-brand-700" />
                 <h2 className="text-base font-semibold text-slate-900">
-                  Skyzen Tech — Offer Letter
+                  {BRAND.name} — Offer Letter
                 </h2>
               </header>
 
@@ -306,7 +307,7 @@ function DefaultLetter({ offer }: { offer: ApplicantOfferView }) {
   return (
     <div className="space-y-4 text-sm leading-6 text-slate-800">
       <p>Hello {offer.applicantFullName ?? 'there'},</p>
-      <p>Skyzen Tech is pleased to extend the following internship offer:</p>
+      <p>{BRAND.name} is pleased to extend the following internship offer:</p>
       <dl className="grid grid-cols-[10rem_1fr] gap-y-1 rounded-md border border-slate-200 bg-slate-50 p-4 text-sm">
         {fieldRows.map(([k, v]) => (
           <div key={k} className="contents">

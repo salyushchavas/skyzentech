@@ -36,6 +36,7 @@ import {
   type InternModulesMap,
 } from '@/components/intern/InternDashboardContext';
 import SignOutButton from '@/components/auth/SignOutButton';
+import { BRAND } from '@/lib/brand';
 import type { UserRole } from '@/types';
 
 interface StaffLink {
@@ -156,7 +157,7 @@ export default function DashboardSidebar({ onNavigate }: Props) {
         className="flex h-14 shrink-0 items-center gap-2 border-b border-slate-200 px-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2"
       >
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src="/images/skyzen-logo.png" alt="Skyzen" className="h-7 w-auto" />
+        <img src={BRAND.logoUrl} alt={BRAND.name} className="h-7 w-auto" />
         <span className="text-sm font-semibold text-slate-900">Careers</span>
       </Link>
 

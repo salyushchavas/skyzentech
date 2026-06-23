@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import { Inter, Poppins } from 'next/font/google';
 import { Toaster } from 'react-hot-toast';
 import { AuthProvider } from '@/lib/auth-context';
+import { BRAND } from '@/lib/brand';
 import IdleTimeoutProvider from '@/components/auth/IdleTimeoutProvider';
 import './globals.css';
 
@@ -22,13 +23,17 @@ const inter = Inter({
   display: 'swap',
 });
 
+// Defaults preserve byte-exact current Skyzen copy (see lib/brand.ts).
+// Per-brand deploys override via NEXT_PUBLIC_BRAND_DOCUMENT_*. The public
+// marketing page at app/page.tsx has its own metadata that supersedes
+// these for the root route — these are the fallback for app/careers/* etc.
 export const metadata: Metadata = {
   title: {
-    default: 'Skyzen Technologies — IT Staffing & STEM Internships',
-    template: '%s — Skyzen Technologies',
+    default: BRAND.documentTitle,
+    template: BRAND.documentTitleTemplate,
   },
-  description:
-    'Skyzen Technologies LLC — premier IT consulting, software development, staffing, and STEM internships based in Plano, TX. Trusted by 21+ enterprise clients.',
+  description: BRAND.documentDescription,
+  icons: BRAND.faviconUrl ? { icon: BRAND.faviconUrl } : undefined,
 };
 
 export default function RootLayout({

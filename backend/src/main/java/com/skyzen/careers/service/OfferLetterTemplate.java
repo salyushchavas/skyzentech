@@ -1,10 +1,12 @@
 package com.skyzen.careers.service;
 
+import com.skyzen.careers.config.BrandConfig;
 import com.skyzen.careers.entity.Candidate;
 import com.skyzen.careers.entity.JobPosting;
 import com.skyzen.careers.entity.Offer;
 import com.skyzen.careers.entity.StaffingEntity;
 import com.skyzen.careers.entity.User;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
 import java.time.LocalDate;
@@ -14,6 +16,7 @@ import java.time.format.DateTimeFormatter;
 import java.util.Locale;
 
 @Component
+@RequiredArgsConstructor
 public class OfferLetterTemplate {
 
     private static final DateTimeFormatter DATE_FMT =
@@ -21,6 +24,8 @@ public class OfferLetterTemplate {
 
     private static final DateTimeFormatter EXPIRES_FMT =
             DateTimeFormatter.ofPattern("MMMM d, yyyy 'at' h:mm a z", Locale.ENGLISH);
+
+    private final BrandConfig brand;
 
     public String generate(Candidate candidate,
                            JobPosting posting,
@@ -79,12 +84,13 @@ public class OfferLetterTemplate {
                 + "  • Compensation: " + compStr + "\n"
                 + "  • Reporting Location: " + location + "\n\n"
                 + "This offer is valid until " + expiresStr + ". "
-                + "To accept or decline, please respond through your Skyzen Careers candidate dashboard.\n"
+                + "To accept or decline, please respond through your "
+                + brand.getProductName() + " candidate dashboard.\n"
                 + addTermsBlock
                 + "\nWe're excited about the possibility of you joining us. "
                 + "If you have any questions, please don't hesitate to reach out.\n\n"
                 + "Welcome aboard,\n"
-                + "The Skyzen Hiring Team\n";
+                + "The " + brand.getName() + " Hiring Team\n";
     }
 
     private static String formatDate(LocalDate d) {

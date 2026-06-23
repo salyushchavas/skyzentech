@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import AuthLayout from '@/components/dashboard/AuthLayout';
 import { useAuth } from '@/lib/auth-context';
+import { BRAND } from '@/lib/brand';
 import { getDashboardForUser } from '@/lib/role-routing';
 
 export default function LoginPage() {
@@ -57,7 +58,7 @@ function LoginInner() {
   }
 
   return (
-    <AuthLayout title="Welcome back" subtitle="Sign in to your Skyzen Careers account">
+    <AuthLayout title="Welcome back" subtitle={`Sign in to your ${BRAND.productName} account`}>
       {notice && (
         <div className="mb-4 rounded border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
           {notice}

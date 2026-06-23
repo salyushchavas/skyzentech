@@ -1,5 +1,6 @@
 package com.skyzen.careers.notification;
 
+import com.skyzen.careers.config.BrandConfig;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
@@ -52,16 +53,17 @@ public class EmailProviderConfiguration {
     private String brandUrl;
 
     @Bean
-    public EmailProvider emailProvider(JavaMailSender mailSender) {
+    public EmailProvider emailProvider(JavaMailSender mailSender, BrandConfig brand) {
         if (isBlank(mailHost) || isBlank(mailUsername)) {
             log.warn("SMTP not configured (spring.mail.host / spring.mail.username missing) — "
                     + "falling back to LogEmailProvider. Emails will be logged, not sent. "
                     + "Set SMTP_HOST + SMTP_USERNAME + SMTP_PASSWORD + MAIL_FROM to enable real send.");
             return new LogEmailProvider();
         }
-        log.info("SMTP configured — using SmtpEmailProvider (host={}, from=\"{}\" <{}>)",
-                mailHost, mailFromName, mailFrom);
-        return new SmtpEmailProvider(mailSender, mailFrom, mailFromName, logoUrl, brandUrl);
+        log.info("SMTP configured — using SmtpEmailProvider (host={}, from=\"{}\" <{}>, brand=\"{}\")",
+                mailHost, mailFromName, mailFrom, brand.getName());
+        return new SmtpEmailProvider(mailSender, mailFrom, mailFromName, logoUrl, brandUrl,
+                brand.getName(), brand.getProductName());
     }
 
     private static boolean isBlank(String s) {

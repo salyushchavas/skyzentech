@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import SiteFooter from '@/components/SiteFooter';
+import { BRAND } from '@/lib/brand';
 
 interface Props {
   children: React.ReactNode;
@@ -19,9 +20,10 @@ export default function AuthLayout({ children, title, subtitle, wide }: Props) {
     <div className="flex min-h-screen flex-col bg-gradient-to-br from-gray-50 to-gray-100">
       <main className="flex flex-1 items-center justify-center p-4 py-8">
         <div className={`mx-auto w-full ${width}`}>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
-            src="/images/skyzen-logo.png"
-            alt="Skyzen"
+            src={BRAND.logoUrl}
+            alt={BRAND.name}
             className="mx-auto mb-6 h-10 w-auto"
           />
           {title && (
