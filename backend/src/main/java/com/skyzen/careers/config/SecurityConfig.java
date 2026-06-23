@@ -57,7 +57,14 @@ public class SecurityConfig {
                                 "/auth/forgot-password",
                                 "/auth/reset-password",
                                 "/auth/verify-email",
-                                "/auth/resend-verification"
+                                "/auth/resend-verification",
+                                // Admin-invite activation flow. Both
+                                // endpoints validate the raw token
+                                // internally (hash + lookup + expiry +
+                                // single-use); no authenticated session
+                                // exists yet for an invited staff user.
+                                "/auth/activate/validate",
+                                "/auth/activate"
                         ).permitAll()
                         .requestMatchers("/health", "/error").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/v1/job-postings").permitAll()

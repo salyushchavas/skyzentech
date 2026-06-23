@@ -465,6 +465,14 @@ function UsersTable() {
   );
 }
 
+interface CreatedStaffInvite {
+  email: string;
+  role: UserRole;
+  activationUrl: string;
+  activationExpiresAt: string;
+  inviteEmailSent: boolean;
+}
+
 function NewUserModal({
   onClose,
   onCreated,
@@ -475,35 +483,41 @@ function NewUserModal({
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [role, setRole] = useState<UserRole>('ERM');
-  const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
-  // Post-success: hold the created credentials in-page so the admin can
-  // copy them once before closing the modal. The server doesn't echo the
-  // password back; we keep the value the admin typed.
-  const [created, setCreated] = useState<{
-    email: string; password: string; role: UserRole;
-  } | null>(null);
+  // Post-success: hold the activation URL + expiry so the admin can copy
+  // it before closing the modal. The server returns the raw token in the
+  // response ONCE — this is the only time it leaves the backend.
+  const [created, setCreated] = useState<CreatedStaffInvite | null>(null);
 
   const submit = async () => {
-    if (!name.trim() || !email.trim() || !password.trim()) {
-      setError('Name, email, and password are required.');
-      return;
-    }
-    if (password.length < 8) {
-      setError('Temporary password must be at least 8 characters.');
+    if (!email.trim()) {
+      setError('Email is required.');
       return;
     }
     setSubmitting(true);
     setError(null);
     try {
-      await api.post('/api/v1/admin/users', {
-        name: name.trim(),
+      const res = await api.post<{
+        email: string;
+        roles: UserRole[];
+        activationUrl: string;
+        activationExpiresAt: string;
+        inviteEmailSent: boolean;
+      }>('/api/v1/admin/users', {
+        name: name.trim() || undefined,
         email: email.trim(),
         role,
-        initialPassword: password,
       });
-      setCreated({ email: email.trim(), password, role });
+      const primaryRoleOnRow =
+        res.data.roles && res.data.roles.length > 0 ? res.data.roles[0] : role;
+      setCreated({
+        email: res.data.email,
+        role: primaryRoleOnRow,
+        activationUrl: res.data.activationUrl,
+        activationExpiresAt: res.data.activationExpiresAt,
+        inviteEmailSent: Boolean(res.data.inviteEmailSent),
+      });
     } catch (err: any) {
       const status = err?.response?.status;
       const msg = err?.response?.data?.error;
@@ -521,7 +535,7 @@ function NewUserModal({
 
   if (created) {
     return (
-      <CredentialsHandoffModal
+      <ActivationLinkHandoffModal
         created={created}
         onDone={() => {
           setCreated(null);
@@ -538,23 +552,14 @@ function NewUserModal({
       aria-modal="true"
     >
       <div className="w-full max-w-md rounded-lg bg-white p-6 shadow-xl">
-        <h3 className="mb-1 text-lg font-semibold text-gray-900">Create staff user</h3>
+        <h3 className="mb-1 text-lg font-semibold text-gray-900">Invite staff user</h3>
         <p className="mb-4 text-xs text-gray-500">
           Staff only — intern accounts are created by candidate registration,
-          not from here. The user will be forced to change their password on
-          first login.
+          not from here. We&apos;ll email the user a one-time activation link
+          (expires in 24 hours). You&apos;ll also see the link on the next
+          screen as a copy-fallback.
         </p>
         <div className="space-y-3">
-          <div>
-            <label className="mb-1 block text-sm font-medium text-gray-700">
-              Name <span className="text-red-500">*</span>
-            </label>
-            <input
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
-            />
-          </div>
           <div>
             <label className="mb-1 block text-sm font-medium text-gray-700">
               Email <span className="text-red-500">*</span>
@@ -582,24 +587,22 @@ function NewUserModal({
               ))}
             </select>
             <p className="mt-1 text-xs text-gray-500">
-              To grant SUPER_ADMIN, create the user with a different staff
+              To grant SUPER_ADMIN, invite the user with a different staff
               role first, then use Change role to promote.
             </p>
           </div>
           <div>
             <label className="mb-1 block text-sm font-medium text-gray-700">
-              Temporary password <span className="text-red-500">*</span>
+              Display name (optional)
             </label>
             <input
-              type="text"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="At least 8 characters"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="Defaults to the local-part of the email"
               className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
             />
             <p className="mt-1 text-xs text-gray-500">
-              You&apos;ll share this with the user. They&apos;ll be required
-              to set their own password on first login.
+              The user can change this on their profile after activating.
             </p>
           </div>
           {error && <div className="text-sm text-red-600">{error}</div>}
@@ -618,7 +621,7 @@ function NewUserModal({
             disabled={submitting}
             className="rounded-md bg-accent px-4 py-2 text-sm font-medium text-white hover:bg-accent/90 disabled:opacity-60"
           >
-            {submitting ? 'Creating…' : 'Create staff user'}
+            {submitting ? 'Sending invite…' : 'Send invite'}
           </button>
         </div>
       </div>
@@ -627,28 +630,35 @@ function NewUserModal({
 }
 
 /**
- * Post-create handoff screen. The admin sees email + temp password one
- * last time and gets a Copy-to-clipboard affordance so they can paste it
- * into Slack / email / wherever. Closing this triggers the table reload.
+ * Post-create handoff. The admin sees the activation URL + expiry one
+ * last time and gets a Copy-to-clipboard affordance so they can paste
+ * the link into Slack / email / wherever (fallback if the auto-sent
+ * email is delayed or hits spam). Closing this triggers the table
+ * reload.
  */
-function CredentialsHandoffModal({
+function ActivationLinkHandoffModal({
   created,
   onDone,
 }: {
-  created: { email: string; password: string; role: UserRole };
+  created: CreatedStaffInvite;
   onDone: () => void;
 }) {
   const [copied, setCopied] = useState(false);
 
-  function copyCredentials() {
-    const text = `Email: ${created.email}\nTemporary password: ${created.password}\nRole: ${ROLE_LABEL[created.role]}\n\nSign in at: ${typeof window !== 'undefined' ? window.location.origin : ''}/careers/login\nYou'll be required to set a new password on first login.`;
+  function copyUrl() {
     if (typeof navigator !== 'undefined' && navigator.clipboard) {
-      navigator.clipboard.writeText(text).then(() => {
+      navigator.clipboard.writeText(created.activationUrl).then(() => {
         setCopied(true);
         window.setTimeout(() => setCopied(false), 2000);
       });
     }
   }
+
+  const expiryHuman = (() => {
+    try {
+      return new Date(created.activationExpiresAt).toLocaleString();
+    } catch { return created.activationExpiresAt; }
+  })();
 
   return (
     <div
@@ -656,40 +666,55 @@ function CredentialsHandoffModal({
       role="dialog"
       aria-modal="true"
     >
-      <div className="w-full max-w-md rounded-lg bg-white p-6 shadow-xl">
+      <div className="w-full max-w-lg rounded-lg bg-white p-6 shadow-xl">
         <div className="mb-3 flex items-start gap-3">
           <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-green-100 text-green-700">
             <Plus className="h-5 w-5 rotate-45" strokeWidth={2} />
           </span>
           <div className="flex-1">
-            <h3 className="text-lg font-semibold text-gray-900">User created</h3>
+            <h3 className="text-lg font-semibold text-gray-900">Invite sent</h3>
             <p className="mt-1 text-xs text-gray-600">
-              Share these credentials with {created.email}. They&apos;ll be
-              required to set a new password on first login.
+              {created.inviteEmailSent
+                ? <>An activation email was sent to <strong>{created.email}</strong>.</>
+                : <>We couldn&apos;t send the activation email to <strong>{created.email}</strong> (check SMTP). Share the link below out-of-band.</>}
             </p>
           </div>
         </div>
 
         <dl className="space-y-2 rounded-md border border-gray-200 bg-gray-50 p-3 text-sm">
           <Row k="Email" v={created.email} />
-          <Row k="Temporary password" v={created.password} mono />
           <Row k="Role" v={ROLE_LABEL[created.role]} />
+          <Row k="Expires" v={expiryHuman} />
         </dl>
 
+        <div className="mt-3">
+          <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-gray-500">
+            Activation link
+          </label>
+          <div className="flex items-stretch gap-2">
+            <input
+              readOnly
+              value={created.activationUrl}
+              onFocus={(e) => e.currentTarget.select()}
+              className="min-w-0 flex-1 rounded-md border border-gray-300 bg-white px-3 py-2 font-mono text-xs text-gray-800"
+            />
+            <button
+              type="button"
+              onClick={copyUrl}
+              className="shrink-0 rounded-md border border-gray-300 bg-white px-3 py-2 text-xs font-medium text-gray-700 hover:bg-gray-50"
+            >
+              {copied ? 'Copied!' : 'Copy'}
+            </button>
+          </div>
+        </div>
+
         <div className="mt-3 rounded-md border border-amber-200 bg-amber-50 p-2.5 text-[11px] text-amber-900">
-          This is the only time you&apos;ll see this password.
-          Copy or transcribe it now — the server never returns it again
-          after closing this dialog.
+          One-time use. Expires in 24 hours. After it&apos;s redeemed or
+          expires, you&apos;ll need to re-invite the user to issue a fresh
+          link.
         </div>
 
         <div className="mt-5 flex items-center justify-end gap-2">
-          <button
-            type="button"
-            onClick={copyCredentials}
-            className="rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
-          >
-            {copied ? 'Copied!' : 'Copy to clipboard'}
-          </button>
           <button
             type="button"
             onClick={onDone}

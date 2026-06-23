@@ -773,6 +773,47 @@ public class SchemaFixupRunner implements CommandLineRunner {
             log.warn("users.must_change_password add failed (non-fatal): {}", e.getMessage(), e);
         }
 
+        // users.password_hash — drop NOT NULL so the activation-link admin
+        // create flow can persist an unactivated row (no usable password
+        // until the user redeems their activation link). AuthService.login
+        // refuses null-hash rows with a clear "Account not activated"
+        // error; setPassword via /auth/activate clears the null.
+        try {
+            jdbcTemplate.execute(
+                    "ALTER TABLE users ALTER COLUMN password_hash DROP NOT NULL");
+            log.info("Ensured users.password_hash is nullable (activation-link flow).");
+        } catch (Exception e) {
+            log.warn("users.password_hash DROP NOT NULL failed (non-fatal): {}",
+                    e.getMessage(), e);
+        }
+
+        // staff_activation_tokens — one row per outstanding admin invite.
+        // Token stored ONLY as SHA-256 hex of the raw value (never raw).
+        // Single-use via used_at IS NOT NULL; 24-hour expiry; uniqueness
+        // on the hash so a collision can't shadow another row.
+        try {
+            jdbcTemplate.execute(
+                    "CREATE TABLE IF NOT EXISTS staff_activation_tokens ("
+                            + "  id UUID PRIMARY KEY,"
+                            + "  user_id UUID NOT NULL,"
+                            + "  token_hash VARCHAR(128) NOT NULL,"
+                            + "  expires_at TIMESTAMP NOT NULL,"
+                            + "  used_at TIMESTAMP,"
+                            + "  created_at TIMESTAMP NOT NULL DEFAULT NOW(),"
+                            + "  created_by_id UUID"
+                            + ")");
+            jdbcTemplate.execute(
+                    "CREATE UNIQUE INDEX IF NOT EXISTS idx_staff_activation_tokens_hash "
+                            + "ON staff_activation_tokens(token_hash)");
+            jdbcTemplate.execute(
+                    "CREATE INDEX IF NOT EXISTS idx_staff_activation_tokens_user "
+                            + "ON staff_activation_tokens(user_id)");
+            log.info("Ensured staff_activation_tokens table + indexes exist.");
+        } catch (Exception e) {
+            log.warn("staff_activation_tokens table ensure failed (non-fatal): {}",
+                    e.getMessage(), e);
+        }
+
         // applications doc-spec fields added in Phase 2.
         try {
             jdbcTemplate.execute(

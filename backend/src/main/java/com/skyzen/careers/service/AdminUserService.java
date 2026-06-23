@@ -2,25 +2,38 @@ package com.skyzen.careers.service;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.skyzen.careers.auth.SessionTokenService;
 import com.skyzen.careers.dto.admin.AdminUserResponse;
+import com.skyzen.careers.dto.admin.CreateStaffUserResponse;
 import com.skyzen.careers.dto.admin.CreateUserRequest;
 import com.skyzen.careers.dto.admin.UpdateUserRoleRequest;
 import com.skyzen.careers.dto.admin.UpdateUserStatusRequest;
 import com.skyzen.careers.entity.AuditLog;
+import com.skyzen.careers.entity.StaffActivationToken;
 import com.skyzen.careers.entity.User;
 import com.skyzen.careers.enums.UserRole;
 import com.skyzen.careers.exception.BadRequestException;
 import com.skyzen.careers.exception.ConflictException;
 import com.skyzen.careers.exception.ResourceNotFoundException;
+import com.skyzen.careers.notification.EmailDeliveryException;
+import com.skyzen.careers.notification.EmailProvider;
 import com.skyzen.careers.repository.AuditLogRepository;
+import com.skyzen.careers.repository.StaffActivationTokenRepository;
 import com.skyzen.careers.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.security.SecureRandom;
+import java.time.Duration;
+import java.time.Instant;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
+import java.util.Base64;
 import java.util.EnumSet;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -86,6 +99,26 @@ public class AdminUserService {
     private final PasswordEncoder passwordEncoder;
     private final ObjectMapper objectMapper;
     private final JdbcTemplate jdbcTemplate;
+    private final StaffActivationTokenRepository activationTokenRepository;
+    private final EmailProvider emailProvider;
+
+    /** Single-use token lifetime — the brief locks this at 24 hours. */
+    private static final Duration ACTIVATION_TOKEN_TTL = Duration.ofHours(24);
+
+    /**
+     * Where the activation link points. The {@code {token}} placeholder
+     * is substituted with the raw token at issue time. Same env-var
+     * shape as the password-reset link so OPS provisions one URL
+     * template per environment.
+     */
+    @Value("${app.activation.url-template:http://localhost:3000/careers/activate?token={token}}")
+    private String activationUrlTemplate;
+
+    private static final SecureRandom SECURE_RANDOM = new SecureRandom();
+
+    private static final DateTimeFormatter ACTIVATION_EXPIRY_FMT =
+            DateTimeFormatter.ofPattern("MMM d, yyyy 'at' h:mm a z")
+                    .withZone(ZoneId.of("America/New_York"));
 
     @Transactional(readOnly = true)
     public List<AdminUserResponse> list(UserRole roleFilter, String search) {
@@ -99,8 +132,19 @@ public class AdminUserService {
                 .toList();
     }
 
+    /**
+     * Admin-driven staff invite. Mints a User row with NO usable
+     * password (passwordHash = null) and issues a one-time activation
+     * token. The raw token is returned in the response (admin's
+     * copy-fallback) AND emailed to the user. Token is stored ONLY as
+     * its SHA-256 hash; 24-hour expiry; single-use.
+     *
+     * <p>Login refuses any row with a null hash via the explicit gate in
+     * {@code AuthService.login} — there's no way to authenticate as the
+     * new user until they redeem the link and set a password.</p>
+     */
     @Transactional
-    public AdminUserResponse create(CreateUserRequest req, User caller) {
+    public CreateStaffUserResponse create(CreateUserRequest req, User caller) {
         UserRole role = req.getRole();
         // Server-side enforcement of the STAFF-only allow-list. The
         // frontend picker is locked down too, but DON'T rely on it — a
@@ -112,36 +156,148 @@ public class AdminUserService {
         if (userRepository.existsByEmail(email)) {
             throw new ConflictException("A user with that email already exists");
         }
+        String name = (req.getName() == null || req.getName().isBlank())
+                ? deriveNameFromEmail(email)
+                : req.getName().trim();
+
         User user = User.builder()
                 .email(email)
-                .passwordHash(passwordEncoder.encode(req.getInitialPassword()))
-                .fullName(req.getName().trim())
+                // No usable password until the user activates. The
+                // password_hash column was made nullable in
+                // SchemaFixupRunner for this exact path.
+                .passwordHash(null)
+                .fullName(name)
                 .roles(EnumSet.of(role))
                 .active(true)
                 // Staff don't go through the 6-digit email-verify flow — the
-                // admin who creates them implicitly vouches for the address,
-                // and skipping the verification gate lets the new user log
-                // straight into the force-change-password screen.
+                // admin who creates them implicitly vouches for the address.
+                // The activation link itself acts as the email-ownership
+                // proof: only the inbox owner can complete activation.
                 .emailVerified(true)
-                // Force the user to swap the admin-set temp password on
-                // first login. Cleared by UserProfileService.changePassword.
-                // The ForcePasswordChangeFilter is the server-side gate; the
-                // frontend redirect is the UX.
-                .mustChangePassword(true)
+                // The activation flow is the password-setting moment; the
+                // temp-password gate doesn't apply here.
+                .mustChangePassword(false)
                 .build();
         user = userRepository.save(user);
 
-        // Audit the admin-driven creation. Actor = the SUPER_ADMIN who
-        // pressed Create; subject = the new user. Captures role + email so
-        // the forensic trail records both "who got created" and "by whom".
+        // ── Mint the activation token ────────────────────────────────────
+        // 32 random bytes → base64url (no padding) ≈ 43 chars, ~256 bits.
+        // Store ONLY its SHA-256 hash; the raw value is shown once and
+        // never persisted.
+        byte[] rawBytes = new byte[32];
+        SECURE_RANDOM.nextBytes(rawBytes);
+        String rawToken = Base64.getUrlEncoder().withoutPadding().encodeToString(rawBytes);
+        String tokenHash = SessionTokenService.hash(rawToken);
+        Instant expiresAt = Instant.now().plus(ACTIVATION_TOKEN_TTL);
+
+        StaffActivationToken token = StaffActivationToken.builder()
+                .userId(user.getId())
+                .tokenHash(tokenHash)
+                .expiresAt(expiresAt)
+                .createdById(caller != null ? caller.getId() : null)
+                .build();
+        activationTokenRepository.save(token);
+
+        String activationUrl = activationUrlTemplate.replace("{token}", rawToken);
+
+        // ── Email the invite (best-effort) ───────────────────────────────
+        // Failure here is non-fatal: the admin has the URL in the response
+        // and can share it out-of-band. We surface inviteEmailSent so the
+        // admin UI knows whether to nudge the user to check email.
+        boolean emailSent = sendActivationEmail(user.getEmail(), user.getFullName(),
+                role, activationUrl, expiresAt);
+
+        // Audit. NEVER include the raw token in the audit JSON — the only
+        // sensitive thing in the snapshot would be that token, and audit
+        // rows persist far beyond the 24-hour token window.
         Map<String, Object> snap = new LinkedHashMap<>();
         snap.put("createdEmail", user.getEmail());
         snap.put("createdRole", role.name());
-        snap.put("mustChangePassword", true);
-        writeAudit("USER_CREATED_BY_ADMIN", user, caller, snap);
+        snap.put("activationTokenIssued", true);
+        snap.put("activationExpiresAt", expiresAt.toString());
+        snap.put("inviteEmailSent", emailSent);
+        writeAudit("USER_CREATED_BY_ADMIN_INVITE", user, caller, snap);
 
-        return toResponse(user);
+        return CreateStaffUserResponse.builder()
+                .id(user.getId())
+                .name(user.getFullName())
+                .email(user.getEmail())
+                .roles(user.getRoles())
+                .active(Boolean.TRUE.equals(user.getActive()))
+                .createdAt(user.getCreatedAt())
+                .applicantId(user.getApplicantId())
+                .activationUrl(activationUrl)
+                .activationExpiresAt(expiresAt)
+                .inviteEmailSent(emailSent)
+                .build();
     }
+
+    private boolean sendActivationEmail(String email, String fullName, UserRole role,
+                                        String activationUrl, Instant expiresAt) {
+        String roleLabel = humanizeRole(role);
+        String safeName = (fullName == null || fullName.isBlank()) ? "there" : fullName;
+        String expiryLabel = ACTIVATION_EXPIRY_FMT.format(expiresAt);
+        String subject = "Activate your Skyzen Tech " + roleLabel + " account";
+        String body = ""
+                + "<h2 style=\"margin:0 0 12px;\">You've been added to Skyzen Tech</h2>"
+                + "<p>Hi " + escapeHtml(safeName) + ",</p>"
+                + "<p>A Skyzen administrator created a <strong>" + escapeHtml(roleLabel)
+                + "</strong> account for you. Click the button below to set your password and "
+                + "sign in. This link expires <strong>" + escapeHtml(expiryLabel)
+                + "</strong> and can only be used once.</p>"
+                + "<p style=\"margin:24px 0;\">"
+                + "<a href=\"" + escapeAttr(activationUrl) + "\" "
+                + "style=\"display:inline-block;padding:12px 24px;background:#fb9b47;"
+                + "color:#fff;text-decoration:none;border-radius:6px;font-weight:600;\">"
+                + "Activate your account</a></p>"
+                + "<p style=\"color:#6b7280;font-size:13px;\">If the button doesn't work, "
+                + "paste this URL into your browser:<br>"
+                + "<span style=\"word-break:break-all;\">" + escapeHtml(activationUrl)
+                + "</span></p>"
+                + "<p style=\"color:#6b7280;font-size:13px;\">If you weren't expecting this "
+                + "invite, you can ignore this email.</p>";
+        try {
+            emailProvider.sendRendered(email, subject, body);
+            return true;
+        } catch (EmailDeliveryException e) {
+            log.warn("[AdminUserService] activation invite email failed for {} (admin can "
+                    + "still copy-share the URL): {}", email, e.getMessage());
+            return false;
+        } catch (Exception e) {
+            log.warn("[AdminUserService] activation invite email unexpected failure for {}: {}",
+                    email, e.getMessage());
+            return false;
+        }
+    }
+
+    /** Local-part fallback for blank name. "ada.lovelace@example.com" → "ada.lovelace". */
+    private static String deriveNameFromEmail(String email) {
+        if (email == null) return "(unnamed)";
+        int at = email.indexOf('@');
+        return at > 0 ? email.substring(0, at) : email;
+    }
+
+    private static String humanizeRole(UserRole r) {
+        return switch (r) {
+            case MANAGER -> "Manager";
+            case ERM -> "ERM";
+            case TRAINER -> "Trainer";
+            case EVALUATOR -> "Evaluator";
+            case REPORTING_MANAGER -> "Reporting Manager";
+            case SUPER_ADMIN -> "Super Admin";
+            case INTERN -> "Intern";
+        };
+    }
+
+    /** Minimal HTML escaper for inserted free-text. */
+    private static String escapeHtml(String s) {
+        if (s == null) return "";
+        return s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+                .replace("\"", "&quot;").replace("'", "&#39;");
+    }
+
+    /** Same as escapeHtml — kept distinct for intent clarity at the call site. */
+    private static String escapeAttr(String s) { return escapeHtml(s); }
 
     @Transactional
     public AdminUserResponse updateRole(UUID id, UpdateUserRoleRequest req, User caller) {

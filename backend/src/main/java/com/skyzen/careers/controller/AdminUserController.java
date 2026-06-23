@@ -1,6 +1,7 @@
 package com.skyzen.careers.controller;
 
 import com.skyzen.careers.dto.admin.AdminUserResponse;
+import com.skyzen.careers.dto.admin.CreateStaffUserResponse;
 import com.skyzen.careers.dto.admin.CreateUserRequest;
 import com.skyzen.careers.dto.admin.UpdateUserRoleRequest;
 import com.skyzen.careers.dto.admin.UpdateUserStatusRequest;
@@ -44,9 +45,9 @@ public class AdminUserController {
 
     @PostMapping
     @PreAuthorize("hasRole('SUPER_ADMIN')")
-    public ResponseEntity<AdminUserResponse> create(@Valid @RequestBody CreateUserRequest req,
-                                                    @AuthenticationPrincipal User caller) {
-        AdminUserResponse created = adminUserService.create(req, caller);
+    public ResponseEntity<CreateStaffUserResponse> create(@Valid @RequestBody CreateUserRequest req,
+                                                          @AuthenticationPrincipal User caller) {
+        CreateStaffUserResponse created = adminUserService.create(req, caller);
         return ResponseEntity.created(URI.create("/api/v1/admin/users/" + created.getId()))
                 .body(created);
     }

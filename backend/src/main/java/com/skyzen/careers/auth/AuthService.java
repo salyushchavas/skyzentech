@@ -295,6 +295,17 @@ public class AuthService {
 
     public AuthResponse login(LoginRequest req, HttpServletRequest httpRequest) {
         Optional<User> userOpt = userRepository.findByEmail(req.email());
+        // Explicit unactivated-account gate. Admin-invite rows live in
+        // the DB with password_hash IS NULL until the user redeems the
+        // activation link; without this branch BCryptPasswordEncoder
+        // would just return false and we'd surface "Invalid credentials",
+        // which is misleading and hides the real fix (open the email).
+        if (userOpt.isPresent() && userOpt.get().getPasswordHash() == null) {
+            log.warn("Login blocked for unactivated user: {}", req.email());
+            throw new AuthException(HttpStatus.UNAUTHORIZED,
+                    "Account not activated. Use the activation link emailed to you "
+                            + "by your admin. If it's lost or expired, ask the admin to re-issue it.");
+        }
         if (userOpt.isEmpty() || !passwordEncoder.matches(req.password(), userOpt.get().getPasswordHash())) {
             log.warn("Failed login attempt for email: {}", req.email());
             throw new AuthException(HttpStatus.UNAUTHORIZED, "Invalid credentials");

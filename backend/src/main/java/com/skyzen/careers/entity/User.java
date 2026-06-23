@@ -25,7 +25,15 @@ public class User {
     @Column(nullable = false, unique = true)
     private String email;
 
-    @Column(nullable = false)
+    /**
+     * Bcrypt hash of the user's password. NULLABLE — a row with a null
+     * hash is an unactivated staff account created by SUPER_ADMIN via
+     * the activation-link flow ({@code POST /api/v1/admin/users} +
+     * {@code POST /auth/activate}). Login refuses these rows with a
+     * "Account not activated" error until the user redeems their
+     * activation link and sets a password.
+     */
+    @Column
     private String passwordHash;
 
     @Column(nullable = false)
