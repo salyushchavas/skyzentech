@@ -1,13 +1,16 @@
 'use client';
 
-import { LogOut, Mail } from 'lucide-react';
+import Link from 'next/link';
+import { LogOut, Mail, Shield } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { useMailAuth } from '../_providers/MailAuthProvider';
 
 // Simple mail-branded header. Text + lucide icon only — no external brand asset,
-// no Spire logo. Shows the signed-in account + sign-out when authenticated.
+// no Spire logo. Shows the signed-in account + sign-out when authenticated, plus
+// an Admin link for ADMIN/SUPER_ADMIN accounts.
 export default function MailHeader() {
   const { account, logout } = useMailAuth();
+  const isAdmin = account?.role === 'ADMIN' || account?.role === 'SUPER_ADMIN';
 
   return (
     <header className="border-b border-slate-200 bg-white">
@@ -20,6 +23,15 @@ export default function MailHeader() {
         </div>
         {account && (
           <div className="flex items-center gap-3">
+            {isAdmin && (
+              <Link
+                href="/mail/admin"
+                className="flex items-center gap-1.5 text-sm font-medium text-slate-600 transition-colors hover:text-brand-700"
+              >
+                <Shield className="h-4 w-4" />
+                <span className="hidden sm:inline">Admin</span>
+              </Link>
+            )}
             <span className="hidden text-sm text-slate-600 sm:inline">
               {account.email}
             </span>
