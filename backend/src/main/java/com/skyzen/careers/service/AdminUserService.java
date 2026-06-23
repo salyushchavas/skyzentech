@@ -238,10 +238,27 @@ public class AdminUserService {
         String safeName = (fullName == null || fullName.isBlank()) ? "there" : fullName;
         String expiryLabel = ACTIVATION_EXPIRY_FMT.format(expiresAt);
         String subject = "Activate your Skyzen Tech " + roleLabel + " account";
-        String body = ""
-                + "<h2 style=\"margin:0 0 12px;\">You've been added to Skyzen Tech</h2>"
-                + "<p>Hi " + escapeHtml(safeName) + ",</p>"
-                + "<p>A Skyzen administrator created a <strong>" + escapeHtml(roleLabel)
+
+        // Plain-text alternative for mail clients that don't render HTML
+        // (also what spam-scoring sees). The HTML version is what most
+        // recipients will see; sendBrandedHtml drops it inside the
+        // shared branded wrapper without escaping our markup.
+        String plain = ""
+                + "Hi " + safeName + ",\n\n"
+                + "A Skyzen administrator created a " + roleLabel + " account for you. "
+                + "Open the link below to set your password and sign in.\n\n"
+                + activationUrl + "\n\n"
+                + "This link expires " + expiryLabel + " and can only be used once.\n\n"
+                + "If you weren't expecting this invite, you can ignore this email.\n\n"
+                + "— The Skyzen Tech team\n";
+
+        String html = ""
+                + "<h2 style=\"margin:0 0 12px;font-size:20px;color:#0f172a;\">"
+                + "You've been added to Skyzen Tech</h2>"
+                + "<p style=\"margin:0 0 12px;font-size:15px;color:#1f2937;\">"
+                + "Hi " + escapeHtml(safeName) + ",</p>"
+                + "<p style=\"margin:0 0 12px;font-size:15px;color:#1f2937;\">"
+                + "A Skyzen administrator created a <strong>" + escapeHtml(roleLabel)
                 + "</strong> account for you. Click the button below to set your password and "
                 + "sign in. This link expires <strong>" + escapeHtml(expiryLabel)
                 + "</strong> and can only be used once.</p>"
@@ -250,14 +267,17 @@ public class AdminUserService {
                 + "style=\"display:inline-block;padding:12px 24px;background:#fb9b47;"
                 + "color:#fff;text-decoration:none;border-radius:6px;font-weight:600;\">"
                 + "Activate your account</a></p>"
-                + "<p style=\"color:#6b7280;font-size:13px;\">If the button doesn't work, "
-                + "paste this URL into your browser:<br>"
-                + "<span style=\"word-break:break-all;\">" + escapeHtml(activationUrl)
-                + "</span></p>"
-                + "<p style=\"color:#6b7280;font-size:13px;\">If you weren't expecting this "
-                + "invite, you can ignore this email.</p>";
+                + "<p style=\"color:#6b7280;font-size:13px;margin:0 0 8px;\">"
+                + "If the button doesn't work, paste this URL into your browser:</p>"
+                + "<p style=\"color:#ff7c20;font-size:13px;word-break:break-all;margin:0 0 16px;\">"
+                + escapeHtml(activationUrl) + "</p>"
+                + "<p style=\"color:#6b7280;font-size:13px;margin:0;\">"
+                + "If you weren't expecting this invite, you can ignore this email.</p>";
+
         try {
-            emailProvider.sendRendered(email, subject, body);
+            // Use sendBrandedHtml (NOT sendRendered) — sendRendered
+            // escape()s the body and the recipient sees raw <h2>... tags.
+            emailProvider.sendBrandedHtml(email, subject, plain, html);
             return true;
         } catch (EmailDeliveryException e) {
             log.warn("[AdminUserService] activation invite email failed for {} (admin can "

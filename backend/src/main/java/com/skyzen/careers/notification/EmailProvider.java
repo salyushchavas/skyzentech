@@ -26,8 +26,22 @@ public interface EmailProvider {
      * Subject + body come from {@link com.skyzen.careers.erm.CommunicationTemplateService}
      * after variable substitution. SMTP implementation wraps the body in the
      * shared branded template; log implementation just records.
+     *
+     * <p>The body is treated as plain text and HTML-escaped before injection
+     * into the branded wrapper — pass HTML markup only via
+     * {@link #sendBrandedHtml(String, String, String, String)}.</p>
      */
     void sendRendered(String email, String subject, String body);
+
+    /**
+     * Generic send seam for pre-built HTML bodies (e.g. the admin staff
+     * activation invite, which has interactive markup the
+     * {@link #sendRendered} escape path mangles). The caller is
+     * responsible for HTML-escaping any user-supplied text it splices
+     * into the body. {@code plainBody} is the text/plain alternative
+     * for clients that can't render HTML — pass a sensible fallback.
+     */
+    void sendBrandedHtml(String email, String subject, String plainBody, String htmlBody);
 
     // ── Auth flow (existing) ────────────────────────────────────────────────
 

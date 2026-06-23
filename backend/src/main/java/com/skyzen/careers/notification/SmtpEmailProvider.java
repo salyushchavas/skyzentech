@@ -112,6 +112,18 @@ public class SmtpEmailProvider implements EmailProvider {
     }
 
     @Override
+    public void sendBrandedHtml(String email, String subject,
+                                String plainBody, String htmlBody) {
+        if (email == null || email.isBlank()) return;
+        String safeSubject = subject != null ? subject : "Skyzen Tech update";
+        String plain = plainBody != null ? plainBody : "";
+        // Caller has already built valid HTML; do NOT escape. Caller is
+        // responsible for escape()ing any free-text it spliced in.
+        String html = wrapHtml(escape(safeSubject), htmlBody != null ? htmlBody : "");
+        send(email, safeSubject, plain, html);
+    }
+
+    @Override
     public void sendVerificationCode(String email, String code, Instant expiresAt) {
         String expiryLabel = expiresAt != null ? EXPIRY_FORMAT.format(expiresAt) : "soon";
         String plain = ""

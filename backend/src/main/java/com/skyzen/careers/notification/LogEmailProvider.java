@@ -26,6 +26,17 @@ public class LogEmailProvider implements EmailProvider {
     }
 
     @Override
+    public void sendBrandedHtml(String email, String subject,
+                                String plainBody, String htmlBody) {
+        // Log the plain-text fallback; the HTML body is bulky and
+        // identical-in-intent.
+        log.info("[LOG EMAIL] To: {} | Subject: {} | PlainBody: {}",
+                email, subject,
+                plainBody == null ? "(empty)"
+                        : plainBody.length() > 200 ? plainBody.substring(0, 200) + "…" : plainBody);
+    }
+
+    @Override
     public void sendVerificationCode(String email, String code, Instant expiresAt) {
         log.info("[LOG EMAIL] Verification code for {}: {} (expires {})",
                 email, code, expiresAt);
