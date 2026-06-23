@@ -1,6 +1,7 @@
 package com.skyzen.careers.controller;
 
 import com.skyzen.careers.github.GitHubService;
+import com.skyzen.careers.integration.s3.S3StorageService;
 import com.skyzen.careers.integration.zoom.ZoomService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -34,6 +35,7 @@ public class AdminHealthController {
 
     private final GitHubService gitHubService;
     private final ZoomService zoomService;
+    private final S3StorageService s3StorageService;
 
     @GetMapping("/github")
     @PreAuthorize("hasRole('SUPER_ADMIN')")
@@ -91,7 +93,61 @@ public class AdminHealthController {
         return body;
     }
 
+    /**
+     * Live S3 probe — calls {@code HeadObject} for a sentinel key
+     * against the configured bucket using the resolved credentials.
+     * {@code authenticated=true} means the call round-tripped without
+     * an auth failure (HeadObject returns null on missing-key, which is
+     * the success path; we only care that creds + bucket are valid).
+     * The startup probe runs {@code HeadBucket} already; this endpoint
+     * is the post-deploy "are env vars wired up" check.
+     */
+    @GetMapping("/s3")
+    @PreAuthorize("hasRole('SUPER_ADMIN')")
+    public Map<String, Object> s3() {
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("enabled", s3StorageService.isReady());
+        body.put("credentialsPresent", s3StorageService.hasCredentials());
+        body.put("forceDisabled", s3StorageService.isForceDisabled());
+        body.put("bucket", s3StorageService.getBucket());
+        body.put("region", s3StorageService.getRegion());
+        if (s3StorageService.getEndpointOverride() != null) {
+            body.put("endpointOverride", s3StorageService.getEndpointOverride());
+        }
+        if (!s3StorageService.getBrandKeyPrefix().isEmpty()) {
+            body.put("brandKeyPrefix", s3StorageService.getBrandKeyPrefix());
+        }
+        if (!s3StorageService.isReady()) {
+            body.put("authenticated", false);
+            if (s3StorageService.isForceDisabled()) {
+                body.put("error",
+                        "S3 is force-disabled (AWS_S3_ENABLED=false). Unset the var "
+                                + "or set it to true to use the configured credentials.");
+            } else {
+                body.put("error",
+                        "S3 credentials missing — set AWS_S3_BUCKET, AWS_REGION, "
+                                + "AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY on the "
+                                + "deployment. Documents + resumes continue to use the volume.");
+            }
+            return body;
+        }
+        try {
+            // headObject returns null when the object doesn't exist; that's
+            // the success path here — we only verify the call round-tripped
+            // without an auth/bucket failure.
+            s3StorageService.headObject("__healthcheck__/probe");
+            body.put("authenticated", true);
+            body.put("startupProbedBucket", s3StorageService.getAuthenticatedBucket());
+        } catch (Exception e) {
+            body.put("authenticated", false);
+            body.put("error", e.getMessage());
+            String last = s3StorageService.getLastProbeError();
+            if (last != null) body.put("lastStartupProbeError", last);
+        }
+        return body;
+    }
+
     // The legacy DocuSign health probe was removed when signing moved
     // to the in-house IDMS flow (signing is local — no external endpoint
-    // to probe). GitHub + Zoom probes above remain.
+    // to probe). GitHub + Zoom + S3 probes above remain.
 }
