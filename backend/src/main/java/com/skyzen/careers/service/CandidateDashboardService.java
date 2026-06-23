@@ -701,7 +701,7 @@ public class CandidateDashboardService {
             out.add(subStep("ONBOARDING_TASKS",
                     "Onboarding tasks (" + done + " of " + total + ")",
                     done >= total ? "done" : "current", "you",
-                    "/careers/intern/onboarding",
+                    "/careers/intern/documents",
                     done >= total
                             ? "All tasks complete"
                             : "Policy acks, GitHub access, supervisor intro"));
@@ -1064,7 +1064,7 @@ public class CandidateDashboardService {
                     .title("Complete onboarding (" + doneTasks + " of " + totalTasks + ")")
                     .subtitle(null)
                     .ctaLabel("Continue onboarding")
-                    .ctaHref("/careers/intern/onboarding")
+                    .ctaHref("/careers/intern/documents")
                     .build();
         }
 
@@ -1140,7 +1140,7 @@ public class CandidateDashboardService {
                             .title("Onboarding complete")
                             .subtitle("Awaiting HR activation — typically same-day.")
                             .ctaLabel("View onboarding")
-                            .ctaHref("/careers/intern/onboarding")
+                            .ctaHref("/careers/intern/documents")
                             .isWaiting(true)
                             .waitingFor("HR activation")
                             .build();
@@ -1154,7 +1154,7 @@ public class CandidateDashboardService {
                         .title("Onboarding compliance in progress")
                         .subtitle("HR is finalizing your I-9 / E-Verify steps.")
                         .ctaLabel("View onboarding")
-                        .ctaHref("/careers/intern/onboarding")
+                        .ctaHref("/careers/intern/documents")
                         .isWaiting(true)
                         .waitingFor("HR completing post-offer compliance")
                         .build();
@@ -2206,7 +2206,7 @@ public class CandidateDashboardService {
         }
         out.add(step("ONBOARDING_TASKS", "Onboarding tasks",
                 tasksStatus, null, null, tasksDesc,
-                tasksAction, tasksAction ? "/careers/intern/onboarding" : null));
+                tasksAction, tasksAction ? "/careers/intern/documents" : null));
 
         // HR_ACTIVATION
         if (engagement == null) {

@@ -546,7 +546,7 @@ public class InternDashboardService {
             case ONBOARDING_ASSIGNED -> action(
                     "Complete onboarding documents",
                     "W-4, I-9, ACH, emergency contact, handbook acknowledgment.",
-                    "Open onboarding", "/careers/intern/onboarding",
+                    "Open onboarding", "/careers/intern/documents",
                     false, null);
             case ONBOARDING_ACCEPTED -> waiting(
                     "Awaiting start date activation",

@@ -116,7 +116,7 @@ public class InternRightPanelService {
             switch (caller.getLifecycleStatus()) {
                 case ONBOARDING_ASSIGNED -> reminders.add(reminder("WARN",
                         "Complete your onboarding documents.",
-                        "/careers/intern/onboarding"));
+                        "/careers/intern/documents"));
                 case OFFER_SENT -> reminders.add(reminder("URGENT",
                         "Sign your offer letter.",
                         "/careers/intern/offer"));

@@ -172,7 +172,7 @@ public class CandidateNavService {
         // Engagement-gated cluster — onboarding + compliance.
         if (hasEngagement) {
             items.add(item("onboarding", "Onboarding",
-                    "/careers/intern/onboarding", group(intern, "primary"),
+                    "/careers/intern/documents", group(intern, "primary"),
                     countBadge((int) pendingTaskCount), seen));
             items.add(item("i9", "I-9 Form",
                     "/careers/intern/i9", group(intern, "primary"), null, seen));

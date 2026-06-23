@@ -369,7 +369,7 @@ public class NotificationService {
                 "Onboarding started",
                 "Your engagement with " + nz(entityName) + " is now active. "
                         + "Complete onboarding items to begin.",
-                INTERN_DASH + "/onboarding",
+                INTERN_DASH + "/documents",
                 EnumSet.of(StaffRole.ERM),
                 "Engagement active: " + nz(name),
                 nz(name) + " moved to ACTIVE for " + nz(jobTitle) + ".");
@@ -400,7 +400,7 @@ public class NotificationService {
                 NotificationEventType.I9_SECTION1_REMINDER,
                 "Complete your I-9 Section 1",
                 "Your I-9 Section 1 is due. Open the I-9 page to complete it.",
-                INTERN_DASH + "/onboarding",
+                INTERN_DASH + "/documents",
                 null, null, null);
     }
 
@@ -454,7 +454,7 @@ public class NotificationService {
                 NotificationEventType.I983_PLAN_NEEDED,
                 "Draft your I-983 Training Plan",
                 "Start your I-983 training plan to keep your STEM OPT on track.",
-                INTERN_DASH + "/onboarding",
+                INTERN_DASH + "/documents",
                 null, null, null);
     }
 
@@ -505,7 +505,7 @@ public class NotificationService {
                 NotificationEventType.EVERIFY_CASE_OPENED,
                 "E-Verify case opened",
                 "Your E-Verify case is open. We'll let you know if any action is needed.",
-                INTERN_DASH + "/onboarding",
+                INTERN_DASH + "/documents",
                 null, null, null);
     }
 
@@ -530,7 +530,7 @@ public class NotificationService {
                 "E-Verify: action required",
                 "Your E-Verify case received a Tentative Nonconfirmation. "
                         + "Open onboarding for next steps.",
-                INTERN_DASH + "/onboarding",
+                INTERN_DASH + "/documents",
                 null, null, null);
     }
 
@@ -554,7 +554,7 @@ public class NotificationService {
                 NotificationEventType.EVERIFY_CLEARED,
                 "E-Verify: employment authorized",
                 "Your E-Verify case cleared with Employment Authorized.",
-                INTERN_DASH + "/onboarding",
+                INTERN_DASH + "/documents",
                 null, null, null);
     }
 
@@ -588,7 +588,7 @@ public class NotificationService {
                 "Work authorization expires in " + daysUntilExpiry + " days",
                 "Your " + nz(authType) + " expires " + expirationDate
                         + ". Coordinate with your ERM on next steps.",
-                INTERN_DASH + "/onboarding",
+                INTERN_DASH + "/documents",
                 null, null, null);
     }
 
@@ -630,7 +630,7 @@ public class NotificationService {
                         ? "Overdue by " + overdueFinal + " day(s). "
                         : "Due " + task.getDueDate() + ". ")
                         + "Open onboarding to complete it.",
-                INTERN_DASH + "/onboarding",
+                INTERN_DASH + "/documents",
                 null, null, null);
     }
 
