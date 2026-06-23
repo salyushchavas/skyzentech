@@ -83,19 +83,15 @@ public class SeedDemoDataExecutor {
             int statusUpdatedDaysAgo,
             String recruiterNotes) {}
 
-    // 10 demo candidates ----------------------------------------------------
-    private static final List<DemoCandidate> CANDIDATES = List.of(
-            new DemoCandidate("Priya", "Sharma", "priya.sharma@example.com"),
-            new DemoCandidate("Marcus", "Chen", "marcus.chen@example.com"),
-            new DemoCandidate("Aisha", "Patel", "aisha.patel@example.com"),
-            new DemoCandidate("Jamal", "Williams", "jamal.williams@example.com"),
-            new DemoCandidate("Lin", "Zhou", "lin.zhou@example.com"),
-            new DemoCandidate("Devon", "King", "devon.king@example.com"),
-            new DemoCandidate("Sarah", "Kim", "sarah.kim@example.com"),
-            new DemoCandidate("Tom", "Garcia", "tom.garcia@example.com"),
-            new DemoCandidate("Olivia", "Brown", "olivia.brown@example.com"),
-            new DemoCandidate("Rachel", "Lee", "rachel.lee@example.com")
-    );
+    // Demo candidates — INTENTIONALLY EMPTY. The seeder used to create 10
+    // applicants (priya.sharma, marcus.chen, aisha.patel, jamal.williams,
+    // lin.zhou, devon.king, sarah.kim, tom.garcia, olivia.brown,
+    // rachel.lee — all @example.com, role INTERN). Disabled because the
+    // @Profile("!prod") guard wasn't enough — the accounts ended up in
+    // production anyway (env mis-configuration or pre-guard seeding).
+    // To re-enable for local demo, repopulate this list AND the
+    // APPLICATIONS list below.
+    private static final List<DemoCandidate> CANDIDATES = List.of();
 
     /*
      * Status mapping (spec name -> backend enum value):
@@ -106,42 +102,11 @@ public class SeedDemoDataExecutor {
      * The other spec statuses (APPLIED / SHORTLISTED / INTERVIEW_SCHEDULED /
      * REJECTED) are identical to backend values.
      */
-    private static final List<DemoApp> APPLICATIONS = List.of(
-            // APPLIED — 3
-            new DemoApp("priya.sharma@example.com",   "backend-developer-intern", ApplicationStatus.APPLIED, 1, 1, null),
-            new DemoApp("sarah.kim@example.com",      "backend-developer-intern", ApplicationStatus.APPLIED, 2, 2, null),
-            new DemoApp("tom.garcia@example.com",     "frontend-developer-intern", ApplicationStatus.APPLIED, 3, 3, null),
-
-            // SHORTLISTED — 2
-            new DemoApp("aisha.patel@example.com",    "cloud-engineer-intern",    ApplicationStatus.SHORTLISTED, 5, 2,
-                    "Solid AWS background. Shortlisted for ERM interview."),
-            new DemoApp("olivia.brown@example.com",   "cloud-engineer-intern",    ApplicationStatus.SHORTLISTED, 6, 3,
-                    "Strong DevOps fundamentals. Moving to interview round."),
-
-            // INTERVIEW_SCHEDULED — 2
-            new DemoApp("marcus.chen@example.com",    "frontend-developer-intern", ApplicationStatus.INTERVIEW_SCHEDULED, 8, 1,
-                    "Excellent React portfolio. Technical interview scheduled for tomorrow."),
-            new DemoApp("jamal.williams@example.com", "backend-developer-intern", ApplicationStatus.INTERVIEW_SCHEDULED, 9, 2,
-                    "Good cultural fit. Strong Node.js fundamentals."),
-
-            // INTERVIEWED — 1
-            new DemoApp("devon.king@example.com",     "backend-developer-intern", ApplicationStatus.INTERVIEWED, 10, 1,
-                    "Strong technical interview. Team debrief tomorrow."),
-
-            // OFFERED — 2 (spec calls these "OFFER_EXTENDED")
-            new DemoApp("priya.sharma@example.com",   "frontend-developer-intern", ApplicationStatus.OFFERED, 12, 1,
-                    "Top performer. Offer extended with 7-day window."),
-            new DemoApp("marcus.chen@example.com",    "backend-developer-intern", ApplicationStatus.OFFERED, 11, 2,
-                    "Offer for backend role; candidate also interviewing for frontend."),
-
-            // ACCEPTED — 1 (spec calls this "HIRED")
-            new DemoApp("lin.zhou@example.com",       "frontend-developer-intern", ApplicationStatus.ACCEPTED, 21, 5,
-                    "Offer accepted. Starting Mon Jun 2."),
-
-            // REJECTED — 1 (archived column)
-            new DemoApp("rachel.lee@example.com",     "frontend-developer-intern", ApplicationStatus.REJECTED, 15, 4,
-                    "Technical bar not met. Recommended to reapply in 6 months.")
-    );
+    // Applications — INTENTIONALLY EMPTY. Paired with the disabled
+    // CANDIDATES list above. The seeder's seed() method is a no-op
+    // when CANDIDATES.isEmpty() (the candidate-build loop is the first
+    // step). See CANDIDATES comment above for re-enable instructions.
+    private static final List<DemoApp> APPLICATIONS = List.of();
 
     @Transactional
     public void seed() {

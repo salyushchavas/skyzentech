@@ -64,8 +64,11 @@ public class TestRoleUserSeeder implements ApplicationRunner {
             UserRole role
     ) {}
 
+    // INTERN entry removed — was: test-intern@skyzen.test / Intern@1234.
+    // The seeder no longer creates any INTERN-role accounts. Staff roles
+    // (TRAINER / REPORTING_MANAGER / MANAGER / ERM / SUPER_ADMIN) still
+    // get seeded when this seeder is enabled.
     private static final List<TestRoleUser> TEST_USERS = List.of(
-            new TestRoleUser("test-intern@skyzen.test",   "Intern@1234",  "Test Intern",   UserRole.INTERN),
             new TestRoleUser("test-trainer@skyzen.test",  "Trainer@1234", "Test Trainer",  UserRole.TRAINER),
             new TestRoleUser("test-rm@skyzen.test",       "Rm@1234",      "Test RM",       UserRole.REPORTING_MANAGER),
             new TestRoleUser("test-manager@skyzen.test",  "Manager@1234", "Test Manager",  UserRole.MANAGER),

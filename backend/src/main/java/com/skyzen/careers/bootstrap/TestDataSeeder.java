@@ -705,47 +705,14 @@ public class TestDataSeeder implements CommandLineRunner {
             String dsoPhone
     ) {}
 
-    // Phase 8.3.3 — fresh identities under the `.demo` segment so the
-    // seeder can never collide with the prior failed aarav/priya/kavya
-    // .test rows that already hold those emails in the DB.
-    private static final List<InternSpec> INTERN_SPECS = List.of(
-            new InternSpec(
-                    "rohan.demo@skyzen.test",
-                    "Rohan Mehta",
-                    "+1-555-0201",
-                    3,
-                    WorkAuthTrack.OTHER,
-                    "US_CITIZEN",
-                    "Sample University",
-                    "BS Computer Science",
-                    "Java, Spring Boot, React, PostgreSQL",
-                    "Excited to join a fast-moving full-stack team and ship features end-to-end.",
-                    null, null, null),
-            new InternSpec(
-                    "anjali.demo@skyzen.test",
-                    "Anjali Iyer",
-                    "+1-555-0202",
-                    8,
-                    WorkAuthTrack.OPT,
-                    "F1_OPT",
-                    "Carnegie Mellon University",
-                    "MS Data Science",
-                    "Python, scikit-learn, TensorFlow, SQL, AWS",
-                    "Looking forward to applying my ML coursework on real production data pipelines.",
-                    null, null, null),
-            new InternSpec(
-                    "vikram.demo@skyzen.test",
-                    "Vikram Nair",
-                    "+1-555-0203",
-                    14,
-                    WorkAuthTrack.STEM_OPT,
-                    "F1_STEM_OPT",
-                    "University of Illinois Urbana-Champaign",
-                    "MS Computer Engineering",
-                    "Java, Kafka, Spark, Airflow, Snowflake",
-                    "Eager to contribute to data engineering infrastructure work.",
-                    "Dr. Sample DSO",
-                    "dso@illinois.test",
-                    "+1-217-555-0100")
-    );
+    // Intern specs — INTENTIONALLY EMPTY. The seeder used to create three
+    // demo interns (rohan.demo / anjali.demo / vikram.demo @skyzen.test) +
+    // their full pipeline chain (applicant → interview → offer SIGNED →
+    // employee id → reporting structure). Disabled because the SEED_TEST_DATA
+    // env-var gate wasn't enough — accounts ended up in prod (either the
+    // env var was set, or the rows date back to before the gate existed).
+    // The supporting fixtures (StaffingEntity / JobPosting / staff users)
+    // still get created when SEED_TEST_DATA=true; only intern creation is
+    // off. Repopulate this list to re-enable in dev.
+    private static final List<InternSpec> INTERN_SPECS = List.of();
 }

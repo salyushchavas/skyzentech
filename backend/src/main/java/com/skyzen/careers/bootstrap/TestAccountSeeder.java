@@ -141,6 +141,14 @@ public class TestAccountSeeder implements CommandLineRunner {
     @Override
     public void run(String... args) {
         if (!enabled) return; // Silent no-op in production / default config.
+        // Hard-disabled: this seeder's whole point is the test-intern@
+        // skyzen.test account + its Engagement / Project / I-983 chain.
+        // The env-var gate (app.seed.test-accounts-enabled) wasn't enough
+        // to keep these accounts out of production. Returning early here
+        // is the belt-and-suspenders fix. To re-enable in dev, remove
+        // these two lines (the body below is intact).
+        log.info("{} disabled at source (demo intern + chain). Re-enable by removing the source-level early return.", LOG_TAG);
+        if (true) return;
         log.info("{} Seeding test accounts (app.seed.test-accounts-enabled=true)", LOG_TAG);
         try {
             User evaluator = findOrCreateUser(EVAL_EMAIL,    "Test Evaluator",         EVAL_PASSWORD,   UserRole.TRAINER);
