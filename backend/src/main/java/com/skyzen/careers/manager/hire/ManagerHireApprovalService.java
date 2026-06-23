@@ -2,6 +2,7 @@ package com.skyzen.careers.manager.hire;
 
 import com.skyzen.careers.entity.Application;
 import com.skyzen.careers.entity.Interview;
+import com.skyzen.careers.entity.Resume;
 import com.skyzen.careers.entity.User;
 import com.skyzen.careers.enums.ApplicationStatus;
 import com.skyzen.careers.enums.InterviewStatus;
@@ -149,6 +150,21 @@ public class ManagerHireApprovalService {
             scorecardSubmittedByName = userRepository.findById(iv.getFeedbackSubmittedBy())
                     .map(User::getFullName).orElse(null);
         }
+        // Resume on the application (null when the candidate applied
+        // without one — Application.resume is optional). The downloadUrl
+        // points at the shared resume endpoint; ResumeController gates
+        // MANAGER + the row-level "linked to any application I can see"
+        // check covers the access rule.
+        ManagerHireApprovalDtos.ResumeView resume = null;
+        if (app != null && app.getResume() != null) {
+            Resume r = app.getResume();
+            resume = new ManagerHireApprovalDtos.ResumeView(
+                    r.getId(),
+                    r.getFileName(),
+                    r.getFileSize(),
+                    r.getContentType(),
+                    "/api/v1/resumes/" + r.getId() + "/download");
+        }
         return new ManagerHireApprovalDtos.HireApprovalDetail(
                 iv.getId(),
                 app != null ? app.getId() : null,
@@ -169,7 +185,8 @@ public class ManagerHireApprovalService {
                 iv.getManagerHireDecision(),
                 iv.getManagerHireDecisionAt(),
                 iv.getManagerHireDecisionNote(),
-                null);
+                null,
+                resume);
     }
 
     @Transactional

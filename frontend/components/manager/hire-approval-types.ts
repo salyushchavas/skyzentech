@@ -48,6 +48,19 @@ export type HireApprovalDetail = {
   /** Future-phase placeholder. Null today; the detail page renders a
    *  "Recording will appear here once the integration lands" card. */
   zoomRecordingUrl: string | null;
+  /** Resume on the application this interview was for. Null when the
+   *  candidate applied without one. Shape parity with the ERM-side
+   *  ResumeView so the shared ResumePreview component takes it
+   *  directly. */
+  resume: HireApprovalResume | null;
+};
+
+export type HireApprovalResume = {
+  documentId: string;
+  fileName: string;
+  fileSize: number | null;
+  mimeType: string | null;
+  downloadUrl: string;
 };
 
 export type HireApprovalDecisionRequest = {

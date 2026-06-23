@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import api from '@/lib/api';
+import ResumePreview from '@/components/erm/applications/ResumePreview';
 import type { HireApprovalDetail } from '@/components/manager/hire-approval-types';
 
 export default function HireApprovalDetailPage() {
@@ -147,13 +148,19 @@ export default function HireApprovalDetailPage() {
             </section>
           )}
 
+          <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+            <h2 className="mb-3 text-sm font-semibold text-slate-900">Resume</h2>
+            <ResumePreview resume={d.resume} />
+          </section>
+
           <section className="rounded-lg border border-dashed border-slate-300 bg-slate-50 p-5">
             <h2 className="text-sm font-semibold text-slate-700">
-              Zoom recording
+              Interview recording
             </h2>
             <p className="mt-2 text-xs text-slate-500">
-              The interview recording will appear here once the Zoom-recording
-              integration lands. For now, decide from the scorecard above.
+              The Zoom interview recording will appear here once the
+              recording integration ships (Phase 2). For now, decide from
+              the scorecard and resume above.
             </p>
           </section>
         </main>

@@ -64,7 +64,22 @@ public final class ManagerHireApprovalDtos {
             /** Placeholder for the future Zoom-recording integration.
              *  Always null today — the frontend renders a "Recording
              *  will appear here once the integration lands" card. */
-            String zoomRecordingUrl
+            String zoomRecordingUrl,
+            /** Resume on the application this interview was for. Null when
+             *  the candidate applied without one (rare). Drives the
+             *  inline-PDF preview on the manager hire-decision page; the
+             *  download URL points at {@code GET /api/v1/resumes/{id}/download},
+             *  which is RBAC-gated to MANAGER + the row-level
+             *  "linked to an application visible to me" check. */
+            ResumeView resume
+    ) {}
+
+    public record ResumeView(
+            UUID documentId,
+            String fileName,
+            Long fileSize,
+            String mimeType,
+            String downloadUrl
     ) {}
 
     public record HireApprovalDecisionRequest(

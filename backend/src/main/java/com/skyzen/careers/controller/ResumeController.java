@@ -50,9 +50,14 @@ public class ResumeController {
      * I can see" check for staff). The two layers together: @PreAuthorize
      * rejects unauth + wrong-role principals up front; the in-handler check
      * enforces ownership / scope.
+     *
+     * <p>MANAGER + SUPER_ADMIN are included because the Manager Hire
+     * Approvals screen renders the candidate's resume inline alongside
+     * the ERM-submitted scorecard. The row-level check still gates the
+     * actual file by "linked to an application visible to me".</p>
      */
     @GetMapping("/{id}/download")
-    @PreAuthorize("hasAnyRole('INTERN', 'ERM')")
+    @PreAuthorize("hasAnyRole('INTERN', 'ERM', 'MANAGER', 'SUPER_ADMIN')")
     public ResponseEntity<FileSystemResource> download(@PathVariable UUID id,
                                                        @AuthenticationPrincipal User user) {
         Resume resume = resumeService.loadEntity(id);
@@ -89,9 +94,14 @@ public class ResumeController {
     }
 
     private void ensureCanDownload(Resume resume, User caller) {
-        boolean privileged = caller.getRoles().contains(UserRole.ERM)
-                || caller.getRoles().contains(UserRole.ERM)
-                || caller.getRoles().contains(UserRole.ERM);
+        // Staff roles that may view a candidate's resume when the row is
+        // linked to an application they can see. Prior copy-paste artifact
+        // had UserRole.ERM listed three times — fixed here while widening
+        // to MANAGER + SUPER_ADMIN for the Manager Hire Approvals path.
+        boolean privileged = caller.getRoles() != null && (
+                caller.getRoles().contains(UserRole.ERM)
+                        || caller.getRoles().contains(UserRole.MANAGER)
+                        || caller.getRoles().contains(UserRole.SUPER_ADMIN));
 
         boolean isOwner = resume.getCandidate() != null
                 && resume.getCandidate().getUser() != null
