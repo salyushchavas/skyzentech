@@ -10,6 +10,7 @@ import DashboardLayout from '@/components/dashboard/DashboardLayout';
 import PageHeader from '@/components/ui/PageHeader';
 import StagePill from '@/components/erm/applications/StagePill';
 import DecisionModal from '@/components/erm/applications/DecisionModal';
+import ResumePreview from '@/components/erm/applications/ResumePreview';
 import type {
   ApplicationDetail,
   DecisionKind,
@@ -196,26 +197,7 @@ export default function ApplicationDetailPage() {
             )}
             {tab === 'resume' && (
               <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
-                {detail.resume ? (
-                  <>
-                    <p className="text-sm text-slate-700">
-                      <b>{detail.resume.fileName}</b> ·{' '}
-                      {fmtBytes(detail.resume.fileSize)}
-                    </p>
-                    <a
-                      href={detail.resume.downloadUrl}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="mt-3 inline-block rounded-md bg-brand-700 px-3 py-1.5 text-xs font-semibold text-white hover:bg-brand-800"
-                    >
-                      Download resume
-                    </a>
-                  </>
-                ) : (
-                  <p className="text-sm text-slate-500">
-                    No resume on this application.
-                  </p>
-                )}
+                <ResumePreview resume={detail.resume} />
               </section>
             )}
             {tab === 'answers' && (
@@ -477,9 +459,3 @@ function ActionBtn({
   );
 }
 
-function fmtBytes(n: number | null): string {
-  if (n == null) return '—';
-  if (n < 1024) return n + ' B';
-  if (n < 1024 * 1024) return (n / 1024).toFixed(1) + ' KB';
-  return (n / 1024 / 1024).toFixed(1) + ' MB';
-}
