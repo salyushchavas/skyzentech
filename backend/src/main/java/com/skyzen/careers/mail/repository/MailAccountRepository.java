@@ -27,6 +27,9 @@ public interface MailAccountRepository extends JpaRepository<MailAccount, UUID> 
     // ── Admin provisioning (S3) ──────────────────────────────────────────
     boolean existsByLocalPartAndDomain_Id(String localPart, UUID domainId);
 
+    /** Same-domain recipient resolution for walled send (S5). */
+    Optional<MailAccount> findByLocalPartAndDomain_Id(String localPart, UUID domainId);
+
     List<MailAccount> findByDomain_IdOrderByLocalPartAsc(UUID domainId);
 
     List<MailAccount> findAllByOrderByLocalPartAsc();
