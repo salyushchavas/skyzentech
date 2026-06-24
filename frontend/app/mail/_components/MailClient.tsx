@@ -2,8 +2,9 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import toast from 'react-hot-toast';
-import { Search } from 'lucide-react';
+import { ChevronLeft, Search } from 'lucide-react';
 import { ensureNotificationPermission, notifyNewMail, openMailEventStream } from '@/lib/mail-events';
+import { cn } from '@/lib/cn';
 import { Input } from '@/components/ui/Input';
 import { useMailAuth } from '../_providers/MailAuthProvider';
 import ComposeDialog from './ComposeDialog';
@@ -223,15 +224,24 @@ export default function MailClient() {
   }
 
   return (
-    <div className="flex h-[calc(100vh-9rem)] overflow-hidden rounded-xl border border-slate-200 bg-white">
+    <div className="flex h-[calc(100vh-7rem)] overflow-hidden rounded-xl border border-slate-200 bg-white shadow-ds-md">
+      {/* Folder rail — desktop/tablet only (graceful narrow degradation). */}
       <FolderRail
         counts={counts}
         selected={searchActive ? '' : folder}
         onSelect={selectFolder}
         onCompose={() => openCompose(emptyDraft())}
       />
-      <div className="flex w-80 shrink-0 flex-col border-r border-slate-200">
-        <form onSubmit={onSearchSubmit} className="border-b border-slate-200 p-2">
+
+      {/* Message list — full width on narrow, fixed column on md+. Hidden on
+          narrow once a message is open so the reading pane takes over. */}
+      <div
+        className={cn(
+          'w-full flex-col border-r border-slate-200 md:w-96 md:shrink-0',
+          detail || detailLoading ? 'hidden md:flex' : 'flex',
+        )}
+      >
+        <form onSubmit={onSearchSubmit} className="border-b border-slate-200 bg-slate-50/60 p-2.5">
           <Input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
@@ -252,17 +262,39 @@ export default function MailClient() {
           />
         </div>
       </div>
-      <ReadingPane
-        detail={detail}
-        loading={detailLoading}
-        onReply={() => detail && openCompose(buildReply(detail))}
-        onReplyAll={() => detail && openCompose(buildReplyAll(detail, selfEmail))}
-        onForward={() => detail && openCompose(buildForward(detail))}
-        onEditDraft={() => detail && openCompose(buildFromDraft(detail))}
-        onFlag={onFlag}
-        onMove={onMove}
-        onDelete={onDelete}
-      />
+
+      {/* Reading pane — full view on narrow when a message is open. */}
+      <div
+        className={cn(
+          'flex-1 flex-col',
+          detail || detailLoading ? 'flex' : 'hidden md:flex',
+        )}
+      >
+        {(detail || detailLoading) && (
+          <button
+            type="button"
+            onClick={() => {
+              setSelectedEntryId(null);
+              setDetail(null);
+            }}
+            className="flex items-center gap-1 border-b border-slate-200 px-3 py-2 text-sm font-medium text-slate-600 hover:text-brand-700 md:hidden"
+          >
+            <ChevronLeft className="h-4 w-4" /> Back
+          </button>
+        )}
+        <ReadingPane
+          detail={detail}
+          loading={detailLoading}
+          onReply={() => detail && openCompose(buildReply(detail))}
+          onReplyAll={() => detail && openCompose(buildReplyAll(detail, selfEmail))}
+          onForward={() => detail && openCompose(buildForward(detail))}
+          onEditDraft={() => detail && openCompose(buildFromDraft(detail))}
+          onFlag={onFlag}
+          onMove={onMove}
+          onDelete={onDelete}
+        />
+      </div>
+
       <ComposeDialog
         open={compose.open}
         initial={compose.initial}

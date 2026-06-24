@@ -168,14 +168,19 @@ export default function ComposeDialog({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <button type="button" aria-label="Close" onClick={onClose} className="absolute inset-0 bg-black/40" />
+    <div className="fixed inset-0 z-50 flex items-end justify-center p-0 sm:items-center sm:p-4">
+      <button
+        type="button"
+        aria-label="Close"
+        onClick={onClose}
+        className="absolute inset-0 animate-fade-in bg-slate-900/50"
+      />
       <div
         role="dialog"
         aria-modal="true"
-        className="relative flex w-full max-w-2xl flex-col rounded-xl bg-white shadow-xl"
+        className="relative flex max-h-[92vh] w-full max-w-2xl animate-modal-in flex-col overflow-hidden rounded-t-2xl bg-white shadow-ds-lg sm:rounded-2xl"
       >
-        <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3">
+        <div className="flex items-center justify-between border-b border-slate-200 px-5 py-4">
           <h2 className="text-base font-semibold text-slate-900">
             {draftEntryId ? 'Edit draft' : 'New message'}
           </h2>
@@ -183,7 +188,7 @@ export default function ComposeDialog({
             <X className="h-4 w-4" />
           </button>
         </div>
-        <div className="space-y-2 p-4">
+        <div className="space-y-3 overflow-y-auto p-5">
           <div className="flex items-center gap-2">
             <div className="flex-1">
               <Input value={to} onChange={(e) => setTo(e.target.value)} placeholder="To (comma-separated)" />
@@ -208,7 +213,7 @@ export default function ComposeDialog({
             rows={12}
           />
         </div>
-        <div className="border-t border-slate-200 px-4 py-3">
+        <div className="border-t border-slate-200 px-5 py-4">
           {attachments.length > 0 && (
             <div className="mb-2 flex flex-wrap gap-2">
               {attachments.map((a) => (
