@@ -8,7 +8,7 @@ import com.skyzen.careers.exception.ForbiddenException;
 import com.skyzen.careers.repository.ApplicationRepository;
 import com.skyzen.careers.service.ResumeService;
 import lombok.RequiredArgsConstructor;
-import org.springframework.core.io.FileSystemResource;
+import org.springframework.core.io.Resource;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -58,14 +58,17 @@ public class ResumeController {
      */
     @GetMapping("/{id}/download")
     @PreAuthorize("hasAnyRole('INTERN', 'ERM', 'MANAGER', 'SUPER_ADMIN')")
-    public ResponseEntity<FileSystemResource> download(@PathVariable UUID id,
-                                                       @AuthenticationPrincipal User user) {
+    public ResponseEntity<Resource> download(@PathVariable UUID id,
+                                              @AuthenticationPrincipal User user) {
         Resume resume = resumeService.loadEntity(id);
         ensureCanDownload(resume, user);
         // GAP E6 — sensitive PII event. Audit BEFORE serving the file so a
         // serve-time IO failure can't dissolve the audit record (audit-first).
         resumeService.recordDownloadAudit(resume, user);
-        FileSystemResource resource = resumeService.loadFile(resume);
+        // Phase B — loadFile now returns Resource (interface) so the
+        // dual-resolver can return either a FileSystemResource (volume)
+        // or a ByteArrayResource (S3) transparently.
+        Resource resource = resumeService.loadFile(resume);
 
         String contentType = resume.getContentType() != null
                 ? resume.getContentType() : MediaType.APPLICATION_OCTET_STREAM_VALUE;

@@ -9,6 +9,7 @@ import com.skyzen.careers.exception.BadRequestException;
 import com.skyzen.careers.exception.ConflictException;
 import com.skyzen.careers.exception.ForbiddenException;
 import com.skyzen.careers.exception.ResourceNotFoundException;
+import com.skyzen.careers.integration.s3.S3StorageService;
 import com.skyzen.careers.repository.ApplicationRepository;
 import com.skyzen.careers.repository.AuditLogRepository;
 import com.skyzen.careers.repository.CandidateRepository;
@@ -17,7 +18,9 @@ import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.io.ByteArrayResource;
 import org.springframework.core.io.FileSystemResource;
+import org.springframework.core.io.Resource;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
@@ -47,6 +50,13 @@ public class ResumeService {
     private final CandidateRepository candidateRepository;
     private final ApplicationRepository applicationRepository;
     private final AuditLogRepository auditLogRepository;
+    /**
+     * Phase B dual-resolve hook. {@link #loadFile} prefers S3 when the row
+     * carries an S3-shaped {@code filePath} (anything not starting with "/");
+     * else falls back to the existing volume-based lookup via
+     * {@code storedFileName}. Writes are unchanged in Phase B.
+     */
+    private final S3StorageService s3StorageService;
 
     @Value("${app.resume.storage-path:./uploads/resumes}")
     private String storagePath;
@@ -223,11 +233,33 @@ public class ResumeService {
                 .orElseThrow(() -> new ResourceNotFoundException("Resume not found: " + resumeId));
     }
 
-    public FileSystemResource loadFile(Resume resume) {
-        // Resolve from the CURRENT storage path config + the stored filename, not
-        // the absolute filePath captured at upload time. This survives Railway-style
-        // FS path changes between deploys, and keeps the lookup consistent with
-        // resume.storedFileName as the canonical identifier on disk.
+    public Resource loadFile(Resume resume) {
+        // Phase B dual-resolve. Discriminator on Resume.filePath:
+        //   null / starts with "/" → volume path (current behavior;
+        //     resolve via storedFileName + storageDir so a Railway FS
+        //     path change between deploys doesn't matter);
+        //   anything else → S3 object key written by the Phase B
+        //     migration (e.g. "resumes/<userId>/<storedFileName>") →
+        //     fetch bytes and return a ByteArrayResource.
+        // Writes still land on the volume in Phase B, so freshly
+        // uploaded rows hit the volume branch.
+        String fp = resume.getFilePath();
+        if (fp != null && !fp.isBlank() && !fp.startsWith("/")) {
+            try {
+                byte[] bytes = s3StorageService.getObject(fp);
+                return new ByteArrayResource(bytes) {
+                    @Override
+                    public String getFilename() {
+                        return resume.getFileName();
+                    }
+                };
+            } catch (Exception e) {
+                log.warn("Resume {} S3 fetch failed for key {}: {} — "
+                        + "falling back to volume", resume.getId(), fp, e.getMessage());
+                // fall through to the volume path; volume copy is the
+                // intact backup until Phase C deletes it.
+            }
+        }
         if (resume.getStoredFileName() == null || resume.getStoredFileName().isBlank()) {
             log.warn("Resume {} has no storedFileName — cannot serve file", resume.getId());
             throw new ResourceNotFoundException("Resume file not available");

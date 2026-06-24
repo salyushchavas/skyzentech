@@ -27,4 +27,17 @@ public interface ResumeRepository extends JpaRepository<Resume, UUID> {
             "join fetch c.user u " +
             "where r.id = :id")
     Optional<Resume> findByIdWithCandidateUser(@Param("id") UUID id);
+
+    /**
+     * Phase B (volume → S3) migration finders. Discriminator on
+     * {@code file_path}: leading "/" = volume; anything else = S3 key.
+     * Fetch-joins candidate.user so the runner can build the per-user
+     * S3 key without lazy-load surprises.
+     */
+    @Query("select r from Resume r join fetch r.candidate c join fetch c.user u "
+            + "where r.filePath like :prefix")
+    List<Resume> findByFilePathLikeWithCandidateUser(@Param("prefix") String prefix);
+
+    @Query("select count(r) from Resume r where r.filePath like :prefix")
+    long countByFilePathLike(@Param("prefix") String prefix);
 }

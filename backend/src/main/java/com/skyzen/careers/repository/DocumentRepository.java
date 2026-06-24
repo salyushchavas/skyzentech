@@ -14,4 +14,13 @@ public interface DocumentRepository extends JpaRepository<Document, UUID> {
 
     /** Phase 4 vault listing — non-soft-deleted, newest first. */
     List<Document> findByOwnerUserIdAndDeletedAtIsNullOrderByCreatedAtDesc(UUID ownerUserId);
+
+    /**
+     * Phase B (volume → S3) migration finders. Discriminator on
+     * {@code storage_key} shape: rows with a leading "/" still live on
+     * the volume; the migration runner reads them and copies the bytes
+     * to S3, then rewrites the column to the S3 key shape.
+     */
+    List<Document> findByStorageKeyStartingWith(String prefix);
+    long countByStorageKeyStartingWith(String prefix);
 }

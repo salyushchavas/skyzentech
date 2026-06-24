@@ -7,6 +7,7 @@ import com.skyzen.careers.entity.User;
 import com.skyzen.careers.enums.UserRole;
 import com.skyzen.careers.exception.ForbiddenException;
 import com.skyzen.careers.exception.ResourceNotFoundException;
+import com.skyzen.careers.integration.s3.S3StorageService;
 import com.skyzen.careers.repository.AuditLogRepository;
 import com.skyzen.careers.repository.DocumentRepository;
 import com.skyzen.careers.security.PiiEncryptionService;
@@ -67,6 +68,15 @@ public class DocumentVaultService {
     private final AuditLogRepository auditLogRepository;
     private final PiiEncryptionService piiEncryption;
     private final ObjectMapper objectMapper;
+    /**
+     * Phase B (volume → S3) dual-resolve hook. Reads check the
+     * {@code storage_key} shape: a leading "/" means the bytes live on
+     * the volume (current behavior); anything else is an S3 object key
+     * and the bytes come from {@link S3StorageService#getObject}.
+     * Writes are unchanged in Phase B — every new upload still lands on
+     * the volume. Phase C will cut writes over.
+     */
+    private final S3StorageService s3StorageService;
 
     @Value("${app.documents.storage-path:./uploads/documents}")
     private String storageRoot;
@@ -153,7 +163,11 @@ public class DocumentVaultService {
         // PII categories never visible to non-staff non-owner; Trainer / Evaluator
         // never see encrypted-content documents at all.
         try {
-            byte[] raw = Files.readAllBytes(Paths.get(doc.getStorageKey()));
+            // Dual-resolve. "/..." = volume (legacy + Phase B pre-migration);
+            // anything else = S3 object key written by the Phase B migration.
+            // Ciphertext rows are stored verbatim in both locations, so the
+            // downstream decrypt-on-read branch works identically.
+            byte[] raw = readBytesByStorageKey(doc.getStorageKey());
             byte[] result;
             if (doc.getEncryptionMetadataJson() != null) {
                 String b64 = new String(raw, java.nio.charset.StandardCharsets.UTF_8);
@@ -214,6 +228,23 @@ public class DocumentVaultService {
     }
 
     // ── Internals ──────────────────────────────────────────────────────────
+
+    /**
+     * Phase B read-side dual-resolver. The {@code storage_key} discriminator
+     * is the leading character: "/" = absolute volume path (FileSystem); any
+     * other shape = S3 object key (e.g. {@code documents/<userId>/<uuid>.bin}).
+     * Bytes are returned VERBATIM — caller still applies decrypt-on-read
+     * when {@code encryption_metadata_json} is non-null, regardless of source.
+     */
+    private byte[] readBytesByStorageKey(String storageKey) throws Exception {
+        if (storageKey == null || storageKey.isBlank()) {
+            throw new ResourceNotFoundException("Document has no storage key");
+        }
+        if (storageKey.startsWith("/")) {
+            return Files.readAllBytes(Paths.get(storageKey));
+        }
+        return s3StorageService.getObject(storageKey);
+    }
 
     private void writeAudit(Document doc, User caller, String action) {
         try {
