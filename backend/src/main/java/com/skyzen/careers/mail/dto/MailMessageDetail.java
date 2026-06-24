@@ -33,6 +33,7 @@ public record MailMessageDetail(
         String draftTo,
         String draftCc,
         String draftBcc,
-        Instant createdAt
+        Instant createdAt,
+        List<MailAttachmentResponse> attachments
 ) {
 }

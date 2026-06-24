@@ -288,6 +288,14 @@ export interface MailMessageDetail {
   draftCc?: string | null;
   draftBcc?: string | null;
   createdAt: string;
+  attachments?: MailAttachmentResponse[];
+}
+
+export interface MailAttachmentResponse {
+  id: string;
+  filename: string;
+  contentType?: string | null;
+  sizeBytes: number;
 }
 
 export interface MailFolderCount {
@@ -417,4 +425,45 @@ export async function searchMessages(
     params: { q, page, size },
   });
   return res.data;
+}
+
+// ── Attachments (S7a) ─────────────────────────────────────────────────
+// Upload streams the raw File body (NOT multipart) on the mailApi instance so
+// it inherits the Bearer + refresh + epoch guard; the backend bounds it to 25 MB.
+// Download hits the walled proxy as a Bearer-authed blob — never a raw S3 URL.
+
+export async function uploadAttachment(
+  draftEntryId: string,
+  file: File,
+  onProgress?: (percent: number) => void,
+): Promise<MailAttachmentResponse> {
+  const res = await mailApi.post<MailAttachmentResponse>('/api/mail/attachments', file, {
+    params: {
+      draftId: draftEntryId,
+      filename: file.name,
+      contentType: file.type || 'application/octet-stream',
+    },
+    headers: { 'Content-Type': 'application/octet-stream' },
+    onUploadProgress: (e) => {
+      if (onProgress && e.total) onProgress(Math.round((e.loaded / e.total) * 100));
+    },
+  });
+  return res.data;
+}
+
+export async function deleteAttachment(id: string): Promise<void> {
+  await mailApi.delete(`/api/mail/attachments/${id}`);
+}
+
+/** Download via the authed proxy → object URL → click → revoke. No raw S3 link. */
+export async function downloadAttachment(att: MailAttachmentResponse): Promise<void> {
+  const res = await mailApi.get(`/api/mail/attachments/${att.id}`, { responseType: 'blob' });
+  const url = URL.createObjectURL(res.data as Blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = att.filename || 'attachment';
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
