@@ -53,4 +53,18 @@ public class ManagerHireApprovalController {
             @AuthenticationPrincipal User caller) {
         return service.reject(interviewId, req == null ? null : req.note(), caller);
     }
+
+    /**
+     * Park the hire decision (revisitable pause — no lifecycle advance,
+     * no offer letter, no rejection email). The row stays visible in
+     * the queue and can later transition to approve or reject.
+     */
+    @PostMapping("/{interviewId}/hold")
+    @PreAuthorize("hasAnyRole('MANAGER', 'SUPER_ADMIN')")
+    public ManagerHireApprovalDtos.HireApprovalDetail hold(
+            @PathVariable UUID interviewId,
+            @RequestBody(required = false) ManagerHireApprovalDtos.HireApprovalDecisionRequest req,
+            @AuthenticationPrincipal User caller) {
+        return service.hold(interviewId, req == null ? null : req.note(), caller);
+    }
 }

@@ -59,9 +59,12 @@ public class ManagerHireApprovalService {
             String search, int page, int pageSize) {
         int p = Math.max(0, page);
         int ps = Math.min(100, Math.max(1, pageSize));
+        // Include HOLD rows in the queue so the manager can revisit them.
+        // HOLD is a pause, not a final decision — the row stays visible
+        // until APPROVED or REJECTED.
         StringBuilder where = new StringBuilder(
                 " WHERE iv.status = 'COMPLETED' "
-                        + "   AND iv.manager_hire_decision = 'PENDING' ");
+                        + "   AND iv.manager_hire_decision IN ('PENDING','HOLD') ");
         List<Object> params = new ArrayList<>();
         if (search != null && !search.isBlank()) {
             where.append(" AND LOWER(u.full_name) LIKE ? ");
@@ -86,7 +89,8 @@ public class ManagerHireApprovalService {
                             + "       jp.title AS job_title, c.skillset, "
                             + "       iv.feedback_submitted_at, "
                             + "       iv.technical_score, iv.communication_score, "
-                            + "       iv.cultural_fit_score, iv.overall_recommendation "
+                            + "       iv.cultural_fit_score, iv.overall_recommendation, "
+                            + "       iv.manager_hire_decision "
                             + "  FROM interviews iv "
                             + "  JOIN applications a ON a.id = iv.application_id "
                             + "  JOIN candidates c ON c.id = a.candidate_id "
@@ -112,7 +116,8 @@ public class ManagerHireApprovalService {
                         intVal(r.get("technical_score")),
                         intVal(r.get("communication_score")),
                         intVal(r.get("cultural_fit_score")),
-                        (String) r.get("overall_recommendation")));
+                        (String) r.get("overall_recommendation"),
+                        (String) r.get("manager_hire_decision")));
             }
         } catch (Exception e) {
             log.warn("[ManagerHireApproval] queue query failed: {}", e.getMessage());
@@ -201,6 +206,50 @@ public class ManagerHireApprovalService {
         return decide(interviewId, "REJECTED", note, caller);
     }
 
+    /**
+     * Park the hire decision without advancing the lifecycle. HOLD is a
+     * pause, not a final outcome — the row stays in the manager queue
+     * (via the PENDING/HOLD filter) and can later transition to
+     * APPROVED or REJECTED. Unlike {@link #decide}, this:
+     * <ul>
+     *   <li>does NOT touch {@code Interview.decision} (no SELECTED/REJECTED
+     *       echo, no offer-send unlock);</li>
+     *   <li>does NOT change {@code Application.status} (the candidate
+     *       stays in their current pipeline state);</li>
+     *   <li>does NOT publish {@link ManagerHireDecisionEvent} (no offer
+     *       letter, no rejection email);</li>
+     *   <li>is idempotent — toggling HOLD while already on HOLD just
+     *       refreshes the timestamp/note.</li>
+     * </ul>
+     */
+    @Transactional
+    public ManagerHireApprovalDtos.HireApprovalDetail hold(
+            UUID interviewId, String note, User caller) {
+        if (caller == null) throw new BadRequestException("caller required");
+        Interview iv = interviewRepository.findById(interviewId)
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "Interview not found: " + interviewId));
+        if (iv.getStatus() != InterviewStatus.COMPLETED) {
+            throw new ConflictException(
+                    "Interview must be COMPLETED before a manager decision "
+                            + "(current: " + iv.getStatus() + ")");
+        }
+        String prev = iv.getManagerHireDecision();
+        if ("APPROVED".equalsIgnoreCase(prev) || "REJECTED".equalsIgnoreCase(prev)) {
+            throw new ConflictException(
+                    "Hire decision already recorded: " + prev
+                            + " — HOLD is only valid from PENDING/HOLD.");
+        }
+        iv.setManagerHireDecision("HOLD");
+        iv.setManagerHireDecisionAt(Instant.now());
+        iv.setManagerHireDecisionById(caller.getId());
+        if (note != null && !note.isBlank()) {
+            iv.setManagerHireDecisionNote(note.trim());
+        }
+        interviewRepository.save(iv);
+        return getDetail(interviewId);
+    }
+
     private ManagerHireApprovalDtos.HireApprovalDetail decide(
             UUID interviewId, String decision, String note, User caller) {
         if (caller == null) throw new BadRequestException("caller required");
@@ -213,6 +262,8 @@ public class ManagerHireApprovalService {
                             + "(current: " + iv.getStatus() + ")");
         }
         String prev = iv.getManagerHireDecision();
+        // Only block when a FINAL decision (APPROVED/REJECTED) is already
+        // recorded. PENDING and HOLD are non-final and can transition.
         if ("APPROVED".equalsIgnoreCase(prev) || "REJECTED".equalsIgnoreCase(prev)) {
             throw new ConflictException(
                     "Hire decision already recorded: " + prev);

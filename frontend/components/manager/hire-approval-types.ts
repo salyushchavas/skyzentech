@@ -15,6 +15,8 @@ export type HireApprovalRow = {
   communicationScore: number | null;
   culturalFitScore: number | null;
   overallRecommendation: string | null;
+  /** PENDING | HOLD — queue filters out APPROVED/REJECTED. */
+  managerHireDecision: 'PENDING' | 'HOLD' | null;
 };
 
 export type HireApprovalListPage = {
@@ -42,7 +44,7 @@ export type HireApprovalDetail = {
   overallRecommendation: string | null;
   internalNotes: string | null;
   applicantVisibleNotes: string | null;
-  managerHireDecision: 'PENDING' | 'APPROVED' | 'REJECTED' | null;
+  managerHireDecision: 'PENDING' | 'APPROVED' | 'REJECTED' | 'HOLD' | null;
   managerHireDecisionAt: string | null;
   managerHireDecisionNote: string | null;
   /** Future-phase placeholder. Null today; the detail page renders a
