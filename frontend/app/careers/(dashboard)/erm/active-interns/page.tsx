@@ -3,6 +3,8 @@
 import { Suspense, useCallback, useEffect, useState } from 'react';
 import { UserPlus } from 'lucide-react';
 import api from '@/lib/api';
+import ProtectedRoute from '@/components/ProtectedRoute';
+import DashboardLayout from '@/components/dashboard/DashboardLayout';
 import PeriodPicker, {
   formatPeriod,
   usePeriodFromUrl,
@@ -40,9 +42,13 @@ interface ManagerOption {
 
 export default function ErmActiveInternsPage() {
   return (
-    <Suspense fallback={<div className="p-6 text-sm text-slate-500">Loading…</div>}>
-      <ErmActiveInternsInner />
-    </Suspense>
+    <ProtectedRoute requiredRoles={['ERM', 'SUPER_ADMIN']}>
+      <DashboardLayout>
+        <Suspense fallback={<div className="p-6 text-sm text-slate-500">Loading…</div>}>
+          <ErmActiveInternsInner />
+        </Suspense>
+      </DashboardLayout>
+    </ProtectedRoute>
   );
 }
 

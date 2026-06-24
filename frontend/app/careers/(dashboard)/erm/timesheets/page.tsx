@@ -2,6 +2,8 @@
 
 import { Suspense, useCallback, useEffect, useState } from 'react';
 import api from '@/lib/api';
+import ProtectedRoute from '@/components/ProtectedRoute';
+import DashboardLayout from '@/components/dashboard/DashboardLayout';
 import PeriodPicker, {
   formatPeriod,
   usePeriodFromUrl,
@@ -22,9 +24,13 @@ interface RollupResponse {
 
 export default function ErmTimesheetsPage() {
   return (
-    <Suspense fallback={<div className="p-6 text-sm text-slate-500">Loading…</div>}>
-      <ErmTimesheetsInner />
-    </Suspense>
+    <ProtectedRoute requiredRoles={['ERM', 'SUPER_ADMIN']}>
+      <DashboardLayout>
+        <Suspense fallback={<div className="p-6 text-sm text-slate-500">Loading…</div>}>
+          <ErmTimesheetsInner />
+        </Suspense>
+      </DashboardLayout>
+    </ProtectedRoute>
   );
 }
 
