@@ -3,6 +3,7 @@ package com.skyzen.careers.bootstrap;
 import com.skyzen.careers.entity.Document;
 import com.skyzen.careers.entity.Resume;
 import com.skyzen.careers.integration.s3.S3StorageService;
+import com.skyzen.careers.intern.DocumentVaultService;
 import com.skyzen.careers.repository.DocumentRepository;
 import com.skyzen.careers.repository.ResumeRepository;
 import lombok.RequiredArgsConstructor;
@@ -110,14 +111,13 @@ public class VolumeToS3MigrationRunner implements CommandLineRunner {
 
     private Counts migrateDocuments() {
         Counts c = new Counts();
-        // Pull just the volume-path rows; rows already on S3 (storage_key
-        // doesn't start with "/") are skipped at the SQL level so we never
-        // touch them. countByStorageKeyStartingWith gives the "to do" count
-        // for the summary line; totalAll is the table size for context.
+        // Pull all volume-path rows (absolute AND relative — the v1
+        // finder only matched "/%" and silently skipped "./uploads/..."
+        // rows produced by the default app.documents.storage-path).
         long totalAll = documentRepository.count();
         List<Document> toMigrate;
         try {
-            toMigrate = documentRepository.findByStorageKeyStartingWith("/");
+            toMigrate = documentRepository.findVolumeStored();
         } catch (Exception e) {
             log.warn("[VolumeToS3] document fetch failed (non-fatal): {}",
                     e.getMessage());
@@ -159,8 +159,8 @@ public class VolumeToS3MigrationRunner implements CommandLineRunner {
             log.warn("[VolumeToS3] document {} has no storage_key — skip", documentId);
             return MigrateResult.SKIPPED;
         }
-        if (!currentKey.startsWith("/")) {
-            // Already migrated.
+        if (!DocumentVaultService.looksLikeFilesystemPath(currentKey)) {
+            // Already migrated (S3 key shape).
             return MigrateResult.SKIPPED;
         }
         Path src = Paths.get(currentKey);
@@ -231,8 +231,9 @@ public class VolumeToS3MigrationRunner implements CommandLineRunner {
         long totalAll = resumeRepository.count();
         List<Resume> toMigrate;
         try {
-            // JPA `LIKE` parameter — leading slash means "volume path".
-            toMigrate = resumeRepository.findByFilePathLikeWithCandidateUser("/%");
+            // Picks up absolute + relative volume paths (the v1 finder
+            // only matched "/%" and silently skipped "./uploads/...").
+            toMigrate = resumeRepository.findVolumeStoredWithCandidateUser();
         } catch (Exception e) {
             log.warn("[VolumeToS3] resume fetch failed (non-fatal): {}",
                     e.getMessage());
@@ -268,7 +269,8 @@ public class VolumeToS3MigrationRunner implements CommandLineRunner {
             log.warn("[VolumeToS3] resume {} has no filePath — skip", resumeId);
             return MigrateResult.SKIPPED;
         }
-        if (!fp.startsWith("/")) {
+        if (!DocumentVaultService.looksLikeFilesystemPath(fp)) {
+            // Already migrated (S3 key shape).
             return MigrateResult.SKIPPED;
         }
         Path src = Paths.get(fp);

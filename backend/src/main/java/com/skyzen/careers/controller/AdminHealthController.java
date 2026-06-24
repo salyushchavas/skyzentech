@@ -176,9 +176,26 @@ public class AdminHealthController {
         body.put("storageKey", key);
         body.put("storageKeyLeadingChar",
                 key == null || key.isEmpty() ? null : String.valueOf(key.charAt(0)));
+        body.put("looksLikeFilesystemPath",
+                com.skyzen.careers.intern.DocumentVaultService.looksLikeFilesystemPath(key));
         body.put("sensitivity", d.getSensitivity());
         body.put("hasEncryptionMetadata", d.getEncryptionMetadataJson() != null);
         body.put("dbFileSize", d.getFileSize());
+        // Volume-side existence probe (only meaningful when the key is a
+        // filesystem path; null for S3 keys).
+        if (key != null && com.skyzen.careers.intern.DocumentVaultService
+                .looksLikeFilesystemPath(key)) {
+            try {
+                java.nio.file.Path p = java.nio.file.Paths.get(key);
+                body.put("volumeAbsolutePath", p.toAbsolutePath().toString());
+                body.put("volumeFileExists", java.nio.file.Files.exists(p));
+                if (java.nio.file.Files.exists(p)) {
+                    body.put("volumeFileSize", java.nio.file.Files.size(p));
+                }
+            } catch (Exception ex) {
+                body.put("volumeExistsCheckError", ex.getMessage());
+            }
+        }
         // HeadObject probe
         try {
             HeadObjectResponse head = s3StorageService.headObject(key);

@@ -235,16 +235,22 @@ public class ResumeService {
 
     public Resource loadFile(Resume resume) {
         // Phase B dual-resolve. Discriminator on Resume.filePath:
-        //   null / starts with "/" → volume path (current behavior;
-        //     resolve via storedFileName + storageDir so a Railway FS
-        //     path change between deploys doesn't matter);
+        //   null / looks like a filesystem path (absolute "/", relative
+        //     "./" / "../", Windows drive) → volume path (current
+        //     behavior; resolve via storedFileName + storageDir so a
+        //     Railway FS path change between deploys doesn't matter);
         //   anything else → S3 object key written by the Phase B
         //     migration (e.g. "resumes/<userId>/<storedFileName>") →
         //     fetch bytes and return a ByteArrayResource.
+        // The earlier version only recognized "/" as a volume path,
+        // which mis-routed relative-path rows (produced by the default
+        // app.resume.storage-path=./uploads/resumes) to S3 → 404.
         // Writes still land on the volume in Phase B, so freshly
         // uploaded rows hit the volume branch.
         String fp = resume.getFilePath();
-        if (fp != null && !fp.isBlank() && !fp.startsWith("/")) {
+        boolean looksLikeS3Key = fp != null && !fp.isBlank()
+                && !com.skyzen.careers.intern.DocumentVaultService.looksLikeFilesystemPath(fp);
+        if (looksLikeS3Key) {
             try {
                 byte[] bytes = s3StorageService.getObject(fp);
                 return new ByteArrayResource(bytes) {

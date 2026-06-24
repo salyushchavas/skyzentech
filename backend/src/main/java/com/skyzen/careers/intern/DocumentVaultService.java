@@ -230,20 +230,55 @@ public class DocumentVaultService {
     // ── Internals ──────────────────────────────────────────────────────────
 
     /**
-     * Phase B read-side dual-resolver. The {@code storage_key} discriminator
-     * is the leading character: "/" = absolute volume path (FileSystem); any
-     * other shape = S3 object key (e.g. {@code documents/<userId>/<uuid>.bin}).
-     * Bytes are returned VERBATIM — caller still applies decrypt-on-read
-     * when {@code encryption_metadata_json} is non-null, regardless of source.
+     * Phase B read-side dual-resolver. Discriminates the {@code storage_key}
+     * shape:
+     * <ul>
+     *   <li><b>Filesystem path</b> — leading {@code "/"} (absolute on Linux),
+     *       {@code "./"} / {@code "../"} (relative — produced by the default
+     *       {@code app.documents.storage-path=./uploads/documents} when the
+     *       {@code DOCUMENTS_STORAGE_PATH} env var is unset), {@code "\\"}
+     *       (Windows absolute), or {@code "<drive>:"} (Windows drive). Read
+     *       via {@link Files#readAllBytes}.</li>
+     *   <li><b>S3 object key</b> — any other shape (e.g. {@code
+     *       documents/<userId>/<uuid>.bin} or {@code
+     *       <brand>/documents/...}). Fetched via {@link
+     *       S3StorageService#getObject}.</li>
+     * </ul>
+     * Earlier versions only recognized the absolute {@code "/"} case, which
+     * mis-routed relative-path rows (the common default) to S3 → 404
+     * {@code NoSuchKeyException}. Bytes are returned VERBATIM — caller still
+     * applies decrypt-on-read when {@code encryption_metadata_json} is
+     * non-null, regardless of source.
      */
     private byte[] readBytesByStorageKey(String storageKey) throws Exception {
         if (storageKey == null || storageKey.isBlank()) {
             throw new ResourceNotFoundException("Document has no storage key");
         }
-        if (storageKey.startsWith("/")) {
+        if (looksLikeFilesystemPath(storageKey)) {
             return Files.readAllBytes(Paths.get(storageKey));
         }
         return s3StorageService.getObject(storageKey);
+    }
+
+    /**
+     * True when the storage key looks like a filesystem path rather than
+     * an S3 object key. Conservative: any S3 key that began with one of
+     * these markers would be malformed (S3 keys don't start with
+     * {@code "/"} in any reasonable layout), so false positives are
+     * effectively impossible for the layouts this app produces
+     * ({@code documents/...}, {@code resumes/...}, or
+     * {@code <brand>/documents/...}). Public so {@link
+     * com.skyzen.careers.service.ResumeService} and the Phase B
+     * migration runner can share the same discriminator.
+     */
+    public static boolean looksLikeFilesystemPath(String s) {
+        if (s == null || s.isEmpty()) return false;
+        if (s.startsWith("/") || s.startsWith("\\")) return true;       // absolute (POSIX / Windows UNC)
+        if (s.startsWith("./") || s.startsWith("../")) return true;     // relative
+        if (s.startsWith(".\\") || s.startsWith("..\\")) return true;   // relative (Windows)
+        // Windows drive letter: <letter>:[/\]
+        if (s.length() >= 2 && s.charAt(1) == ':') return true;
+        return false;
     }
 
     private void writeAudit(Document doc, User caller, String action) {
