@@ -18,6 +18,7 @@ import com.skyzen.careers.mail.entity.MailMailboxEntry;
 import com.skyzen.careers.mail.entity.MailMessage;
 import com.skyzen.careers.mail.entity.MailMessageRecipient;
 import com.skyzen.careers.mail.entity.MailRecipientType;
+import com.skyzen.careers.mail.event.MailDeliveredEvent;
 import com.skyzen.careers.mail.exception.MailApiException;
 import com.skyzen.careers.mail.repository.MailAccountRepository;
 import com.skyzen.careers.mail.repository.MailAttachmentRepository;
@@ -26,6 +27,7 @@ import com.skyzen.careers.mail.repository.MailMessageRecipientRepository;
 import com.skyzen.careers.mail.repository.MailMessageRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -70,6 +72,7 @@ public class MailMessageService {
     private final MailAccountRepository accountRepository;
     private final MailAttachmentRepository attachmentRepository;
     private final MailRuleEngine ruleEngine;
+    private final ApplicationEventPublisher eventPublisher;
 
     @Value("${app.webmail.messages.max-subject-length:500}")
     private int maxSubject;
@@ -495,6 +498,8 @@ public class MailMessageService {
                         .folder(d.folder()).isRead(d.read())
                         .isStarred(d.starred()).isImportant(d.important())
                         .build());
+                // Notify the recipient's live sessions AFTER this tx commits.
+                eventPublisher.publishEvent(new MailDeliveredEvent(a.getId(), d.folder()));
             }
         }
     }
