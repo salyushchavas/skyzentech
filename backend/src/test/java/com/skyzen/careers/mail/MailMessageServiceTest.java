@@ -15,6 +15,7 @@ import com.skyzen.careers.mail.entity.MailRole;
 import com.skyzen.careers.mail.exception.MailApiException;
 import com.skyzen.careers.mail.repository.MailAccountRepository;
 import com.skyzen.careers.mail.repository.MailAttachmentRepository;
+import com.skyzen.careers.mail.repository.MailCustomFolderRepository;
 import com.skyzen.careers.mail.repository.MailMailboxEntryRepository;
 import com.skyzen.careers.mail.repository.MailMessageRecipientRepository;
 import com.skyzen.careers.mail.repository.MailMessageRepository;
@@ -56,6 +57,7 @@ class MailMessageServiceTest {
     private MailMailboxEntryRepository entryRepo;
     private MailAccountRepository accountRepo;
     private MailAttachmentRepository attachmentRepo;
+    private MailCustomFolderRepository customFolderRepo;
     private MailRuleEngine ruleEngine;
     private ApplicationEventPublisher eventPublisher;
     private MailMessageService service;
@@ -77,8 +79,9 @@ class MailMessageServiceTest {
         // Default: no rules → INBOX/unread, so existing delivery assertions hold.
         when(ruleEngine.resolveDelivery(any(), any())).thenReturn(MailRuleEngine.DeliveryDecision.inbox());
         eventPublisher = mock(ApplicationEventPublisher.class);
+        customFolderRepo = mock(MailCustomFolderRepository.class);
         service = new MailMessageService(messageRepo, recipientRepo, entryRepo, accountRepo, attachmentRepo,
-                ruleEngine, eventPublisher);
+                customFolderRepo, ruleEngine, eventPublisher);
         ReflectionTestUtils.setField(service, "maxSubject", 500);
         ReflectionTestUtils.setField(service, "maxBody", 100000);
         ReflectionTestUtils.setField(service, "maxRecipients", 100);

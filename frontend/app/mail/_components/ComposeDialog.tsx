@@ -178,7 +178,7 @@ export default function ComposeDialog({
       <div
         role="dialog"
         aria-modal="true"
-        className="relative flex max-h-[92vh] w-full max-w-2xl animate-modal-in flex-col overflow-hidden rounded-t-2xl bg-white shadow-ds-lg sm:rounded-2xl"
+        className="relative flex h-[100dvh] w-full max-w-full animate-modal-in flex-col overflow-hidden rounded-none bg-white shadow-ds-lg sm:h-auto sm:max-h-[92vh] sm:max-w-2xl sm:rounded-2xl"
       >
         <div className="flex items-center justify-between border-b border-slate-200 px-5 py-4">
           <h2 className="text-base font-semibold text-slate-900">

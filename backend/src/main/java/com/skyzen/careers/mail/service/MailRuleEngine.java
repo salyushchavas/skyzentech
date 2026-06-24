@@ -7,6 +7,7 @@ import com.skyzen.careers.mail.dto.MailRuleCondition;
 import com.skyzen.careers.mail.entity.MailFolder;
 import com.skyzen.careers.mail.entity.MailRule;
 import com.skyzen.careers.mail.entity.MailRuleMatchMode;
+import com.skyzen.careers.mail.repository.MailCustomFolderRepository;
 import com.skyzen.careers.mail.repository.MailRuleRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -37,6 +38,7 @@ public class MailRuleEngine {
     };
 
     private final MailRuleRepository ruleRepository;
+    private final MailCustomFolderRepository customFolderRepository;
     private final ObjectMapper objectMapper;
 
     /** The visible facts of a message, built once per delivery. */
@@ -49,10 +51,15 @@ public class MailRuleEngine {
     ) {
     }
 
-    /** The resolved initial mailbox-entry state for one recipient. */
-    public record DeliveryDecision(MailFolder folder, boolean read, boolean starred, boolean important) {
+    /**
+     * The resolved initial mailbox-entry state for one recipient. When
+     * {@code customFolderId} is non-null the entry lands in that custom folder
+     * (the {@code folder} enum is then ignored for placement).
+     */
+    public record DeliveryDecision(
+            MailFolder folder, UUID customFolderId, boolean read, boolean starred, boolean important) {
         public static DeliveryDecision inbox() {
-            return new DeliveryDecision(MailFolder.INBOX, false, false, false);
+            return new DeliveryDecision(MailFolder.INBOX, null, false, false, false);
         }
     }
 
@@ -64,6 +71,7 @@ public class MailRuleEngine {
                 return DeliveryDecision.inbox();
             }
             MailFolder folder = MailFolder.INBOX;
+            UUID customFolderId = null;
             boolean read = false;
             boolean starred = false;
             boolean important = false;
@@ -82,11 +90,28 @@ public class MailRuleEngine {
                             case STAR -> starred = true;
                             case MARK_IMPORTANT -> important = true;
                             // DELETE is an intentional user action → Trash, not a dropped message.
-                            case DELETE -> folder = MailFolder.TRASH;
+                            case DELETE -> {
+                                folder = MailFolder.TRASH;
+                                customFolderId = null;
+                            }
                             case MOVE_TO_FOLDER -> {
-                                MailFolder target = parseFolder(action.targetFolder());
-                                if (target != null) {
-                                    folder = target;
+                                String customTarget = action.targetCustomFolderId();
+                                if (customTarget != null && !customTarget.isBlank()) {
+                                    UUID cf = parseUuid(customTarget);
+                                    // FAIL-OPEN: a deleted/foreign target is tolerated — fall
+                                    // through to the current placement (INBOX by default).
+                                    if (cf != null && customFolderRepository.existsByIdAndAccountId(cf, accountId)) {
+                                        customFolderId = cf;
+                                    } else {
+                                        log.warn("mail rule {} custom target {} missing/foreign — falling through",
+                                                rule.getId(), customTarget);
+                                    }
+                                } else {
+                                    MailFolder target = parseFolder(action.targetFolder());
+                                    if (target != null) {
+                                        folder = target;
+                                        customFolderId = null;
+                                    }
                                 }
                             }
                         }
@@ -98,7 +123,7 @@ public class MailRuleEngine {
                     log.warn("mail rule {} skipped (eval error): {}", rule.getId(), perRule.toString());
                 }
             }
-            return new DeliveryDecision(folder, read, starred, important);
+            return new DeliveryDecision(folder, customFolderId, read, starred, important);
         } catch (Exception e) {
             log.warn("mail rule engine failed for account {} — defaulting to INBOX: {}", accountId, e.toString());
             return DeliveryDecision.inbox();
@@ -176,6 +201,14 @@ public class MailRuleEngine {
         }
         try {
             return MailFolder.valueOf(s.trim().toUpperCase(Locale.ROOT));
+        } catch (RuntimeException e) {
+            return null;
+        }
+    }
+
+    private static UUID parseUuid(String s) {
+        try {
+            return UUID.fromString(s.trim());
         } catch (RuntimeException e) {
             return null;
         }

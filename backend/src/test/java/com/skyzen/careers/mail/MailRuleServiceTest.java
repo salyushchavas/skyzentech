@@ -17,6 +17,7 @@ import com.skyzen.careers.mail.entity.MailRuleMatchMode;
 import com.skyzen.careers.mail.entity.MailRole;
 import com.skyzen.careers.mail.exception.MailApiException;
 import com.skyzen.careers.mail.repository.MailAccountRepository;
+import com.skyzen.careers.mail.repository.MailCustomFolderRepository;
 import com.skyzen.careers.mail.repository.MailRuleRepository;
 import com.skyzen.careers.mail.service.MailRuleService;
 import org.junit.jupiter.api.BeforeEach;
@@ -40,6 +41,7 @@ class MailRuleServiceTest {
 
     private MailRuleRepository ruleRepo;
     private MailAccountRepository accountRepo;
+    private MailCustomFolderRepository customFolderRepo;
     private MailRuleService service;
     private MailAccount alice;
 
@@ -47,7 +49,8 @@ class MailRuleServiceTest {
     void setUp() {
         ruleRepo = mock(MailRuleRepository.class);
         accountRepo = mock(MailAccountRepository.class);
-        service = new MailRuleService(ruleRepo, accountRepo, new ObjectMapper());
+        customFolderRepo = mock(MailCustomFolderRepository.class);
+        service = new MailRuleService(ruleRepo, accountRepo, customFolderRepo, new ObjectMapper());
         MailDomain dom = MailDomain.builder().id(UUID.randomUUID()).name("a.com").active(true).build();
         alice = MailAccount.builder().id(UUID.randomUUID()).domain(dom).localPart("alice")
                 .role(MailRole.USER).status(MailAccountStatus.ACTIVE).passwordHash("x").build();
@@ -73,7 +76,7 @@ class MailRuleServiceTest {
     }
 
     private static MailRuleAction act(MailRuleActionType t, String folder) {
-        return new MailRuleAction(t, folder);
+        return new MailRuleAction(t, folder, null);
     }
 
     @Test

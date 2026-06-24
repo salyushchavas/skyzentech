@@ -9,6 +9,7 @@ import com.skyzen.careers.mail.dto.MailRuleOperator;
 import com.skyzen.careers.mail.entity.MailFolder;
 import com.skyzen.careers.mail.entity.MailRule;
 import com.skyzen.careers.mail.entity.MailRuleMatchMode;
+import com.skyzen.careers.mail.repository.MailCustomFolderRepository;
 import com.skyzen.careers.mail.repository.MailRuleRepository;
 import com.skyzen.careers.mail.service.MailRuleEngine;
 import com.skyzen.careers.mail.service.MailRuleEngine.DeliveryDecision;
@@ -21,6 +22,7 @@ import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -30,13 +32,15 @@ class MailRuleEngineTest {
 
     private final ObjectMapper mapper = new ObjectMapper();
     private MailRuleRepository repo;
+    private MailCustomFolderRepository customFolderRepo;
     private MailRuleEngine engine;
     private final UUID acct = UUID.randomUUID();
 
     @BeforeEach
     void setUp() {
         repo = mock(MailRuleRepository.class);
-        engine = new MailRuleEngine(repo, mapper);
+        customFolderRepo = mock(MailCustomFolderRepository.class);
+        engine = new MailRuleEngine(repo, customFolderRepo, mapper);
     }
 
     private MailRule rule(int priority, boolean stop, MailRuleMatchMode mode,
@@ -67,7 +71,11 @@ class MailRuleEngineTest {
     }
 
     private static MailRuleAction act(MailRuleActionType t, String folder) {
-        return new MailRuleAction(t, folder);
+        return new MailRuleAction(t, folder, null);
+    }
+
+    private static MailRuleAction actCustom(MailRuleActionType t, String customFolderId) {
+        return new MailRuleAction(t, null, customFolderId);
     }
 
     @Test
@@ -185,5 +193,29 @@ class MailRuleEngineTest {
         DeliveryDecision d = engine.resolveDelivery(acct, ctx(false));
         assertEquals(MailFolder.INBOX, d.folder());
         assertFalse(d.read() || d.starred() || d.important());
+    }
+
+    @Test
+    void moveToCustomFolder_validTarget_setsCustomFolderId() {
+        UUID cf = UUID.randomUUID();
+        when(customFolderRepo.existsByIdAndAccountId(cf, acct)).thenReturn(true);
+        stub(rule(100, false, MailRuleMatchMode.ALL,
+                List.of(cond(MailRuleField.FROM, MailRuleOperator.CONTAINS, "boss")),
+                List.of(actCustom(MailRuleActionType.MOVE_TO_FOLDER, cf.toString()))));
+        DeliveryDecision d = engine.resolveDelivery(acct, ctx(false));
+        assertEquals(cf, d.customFolderId());
+    }
+
+    @Test
+    void moveToCustomFolder_danglingTarget_failsOpenToInbox() {
+        UUID cf = UUID.randomUUID();
+        // Target was deleted (or foreign) → existence check fails.
+        when(customFolderRepo.existsByIdAndAccountId(cf, acct)).thenReturn(false);
+        stub(rule(100, false, MailRuleMatchMode.ALL,
+                List.of(cond(MailRuleField.FROM, MailRuleOperator.CONTAINS, "boss")),
+                List.of(actCustom(MailRuleActionType.MOVE_TO_FOLDER, cf.toString()))));
+        DeliveryDecision d = engine.resolveDelivery(acct, ctx(false));
+        assertNull(d.customFolderId(), "dangling custom target must not be applied");
+        assertEquals(MailFolder.INBOX, d.folder(), "falls through to INBOX, not dropped");
     }
 }

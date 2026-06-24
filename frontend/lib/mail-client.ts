@@ -289,6 +289,15 @@ export interface MailMessageDetail {
   draftBcc?: string | null;
   createdAt: string;
   attachments?: MailAttachmentResponse[];
+  /** Non-null when this entry lives in a custom folder (placement precedence). */
+  customFolderId?: string | null;
+}
+
+export interface MailCustomFolder {
+  id: string;
+  name: string;
+  total: number;
+  unread: number;
 }
 
 export interface MailAttachmentResponse {
@@ -401,6 +410,17 @@ export async function moveMessage(entryId: string, folder: string): Promise<Mail
   return res.data;
 }
 
+export async function moveMessageToCustomFolder(
+  entryId: string,
+  customFolderId: string,
+): Promise<MailMessageDetail> {
+  const res = await mailApi.patch<MailMessageDetail>(
+    `/api/mail/messages/${entryId}/folder`,
+    { customFolderId },
+  );
+  return res.data;
+}
+
 export async function setMessageFlags(
   entryId: string,
   flags: { isRead?: boolean; isStarred?: boolean; isImportant?: boolean },
@@ -484,6 +504,7 @@ export interface MailRuleCondition {
 export interface MailRuleAction {
   type: MailRuleActionType;
   targetFolder?: string | null;
+  targetCustomFolderId?: string | null;
 }
 
 export interface MailRuleResponse {
@@ -526,4 +547,36 @@ export async function updateRule(id: string, req: MailRuleRequest): Promise<Mail
 
 export async function deleteRule(id: string): Promise<void> {
   await mailApi.delete(`/api/mail/rules/${id}`);
+}
+
+// ── Custom folders (S9) ───────────────────────────────────────────────
+
+export async function listCustomFolders(): Promise<MailCustomFolder[]> {
+  const res = await mailApi.get<MailCustomFolder[]>('/api/mail/folders');
+  return res.data;
+}
+
+export async function createCustomFolder(name: string): Promise<MailCustomFolder> {
+  const res = await mailApi.post<MailCustomFolder>('/api/mail/folders', { name });
+  return res.data;
+}
+
+export async function renameCustomFolder(id: string, name: string): Promise<MailCustomFolder> {
+  const res = await mailApi.put<MailCustomFolder>(`/api/mail/folders/${id}`, { name });
+  return res.data;
+}
+
+export async function deleteCustomFolder(id: string): Promise<void> {
+  await mailApi.delete(`/api/mail/folders/${id}`);
+}
+
+export async function listCustomFolderMessages(
+  id: string,
+  page = 0,
+  size = 25,
+): Promise<MailPageResult<MailMessageSummary>> {
+  const res = await mailApi.get<MailPageResult<MailMessageSummary>>(`/api/mail/folders/${id}/messages`, {
+    params: { page, size },
+  });
+  return res.data;
 }

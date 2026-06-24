@@ -16,6 +16,7 @@ import com.skyzen.careers.mail.entity.MailRule;
 import com.skyzen.careers.mail.entity.MailRuleMatchMode;
 import com.skyzen.careers.mail.exception.MailApiException;
 import com.skyzen.careers.mail.repository.MailAccountRepository;
+import com.skyzen.careers.mail.repository.MailCustomFolderRepository;
 import com.skyzen.careers.mail.repository.MailRuleRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -47,6 +48,7 @@ public class MailRuleService {
 
     private final MailRuleRepository ruleRepository;
     private final MailAccountRepository accountRepository;
+    private final MailCustomFolderRepository customFolderRepository;
     private final ObjectMapper objectMapper;
 
     @Transactional(readOnly = true)
@@ -70,7 +72,7 @@ public class MailRuleService {
             throw badRequest("Rule limit reached (" + MAX_RULES + ")", "MAIL_RULE_LIMIT");
         }
         List<MailRuleCondition> conditions = validateConditions(req.conditions());
-        List<MailRuleAction> actions = validateActions(req.actions());
+        List<MailRuleAction> actions = validateActions(req.actions(), actor.getId());
         MailRule rule = MailRule.builder()
                 .accountId(actor.getId())
                 .name(validateName(req.name()))
@@ -89,7 +91,7 @@ public class MailRuleService {
         MailAccount actor = loadActor(principal);
         MailRule rule = load(actor.getId(), id);
         List<MailRuleCondition> conditions = validateConditions(req.conditions());
-        List<MailRuleAction> actions = validateActions(req.actions());
+        List<MailRuleAction> actions = validateActions(req.actions(), actor.getId());
         rule.setName(validateName(req.name()));
         rule.setPriority(req.priority() != null ? req.priority() : rule.getPriority());
         rule.setEnabled(req.enabled() == null || req.enabled());
@@ -153,7 +155,7 @@ public class MailRuleService {
         return out;
     }
 
-    private List<MailRuleAction> validateActions(List<MailRuleAction> in) {
+    private List<MailRuleAction> validateActions(List<MailRuleAction> in, UUID actorId) {
         if (in == null || in.isEmpty()) {
             throw badRequest("At least one action is required", "MAIL_RULE_NO_ACTIONS");
         }
@@ -166,14 +168,23 @@ public class MailRuleService {
                 throw badRequest("Action type is required", "MAIL_RULE_BAD_ACTION");
             }
             if (a.type() == MailRuleActionType.MOVE_TO_FOLDER) {
-                MailFolder target = parseFolder(a.targetFolder());
-                if (target == null || !MOVE_TARGETS.contains(target)) {
-                    throw badRequest("MOVE_TO_FOLDER needs a target of INBOX, ARCHIVE, or TRASH",
-                            "MAIL_RULE_BAD_ACTION");
+                String customId = a.targetCustomFolderId();
+                if (customId != null && !customId.isBlank()) {
+                    UUID cf = parseUuid(customId);
+                    if (cf == null || !customFolderRepository.existsByIdAndAccountId(cf, actorId)) {
+                        throw badRequest("Unknown custom folder", "MAIL_RULE_BAD_ACTION");
+                    }
+                    out.add(new MailRuleAction(a.type(), null, cf.toString()));
+                } else {
+                    MailFolder target = parseFolder(a.targetFolder());
+                    if (target == null || !MOVE_TARGETS.contains(target)) {
+                        throw badRequest("MOVE_TO_FOLDER needs a system target (INBOX, ARCHIVE, TRASH) or a custom folder",
+                                "MAIL_RULE_BAD_ACTION");
+                    }
+                    out.add(new MailRuleAction(a.type(), target.name(), null));
                 }
-                out.add(new MailRuleAction(a.type(), target.name()));
             } else {
-                out.add(new MailRuleAction(a.type(), null));
+                out.add(new MailRuleAction(a.type(), null, null));
             }
         }
         return out;
@@ -185,6 +196,14 @@ public class MailRuleService {
         }
         try {
             return MailFolder.valueOf(s.trim().toUpperCase(java.util.Locale.ROOT));
+        } catch (RuntimeException e) {
+            return null;
+        }
+    }
+
+    private static UUID parseUuid(String s) {
+        try {
+            return UUID.fromString(s.trim());
         } catch (RuntimeException e) {
             return null;
         }

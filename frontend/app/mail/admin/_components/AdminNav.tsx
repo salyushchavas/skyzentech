@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Globe, Inbox } from 'lucide-react';
+import { ArrowLeft, Globe, Inbox } from 'lucide-react';
 import { useMailAuth } from '../../_providers/MailAuthProvider';
 
 // Admin sub-nav. Domains is SUPER_ADMIN-only (the backend rejects ADMINs with
@@ -19,6 +19,13 @@ export default function AdminNav() {
 
   return (
     <div className="flex items-center gap-1 border-b border-slate-200">
+      <Link
+        href="/mail"
+        className="mr-2 flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-100 hover:text-brand-700"
+      >
+        <ArrowLeft className="h-4 w-4" />
+        <span className="hidden sm:inline">Back to Mail</span>
+      </Link>
       {tabs.map((t) => {
         const active = pathname === t.href;
         const Icon = t.icon;
