@@ -168,7 +168,17 @@ public final class ErmOfferDtos {
              *  User.lifecycleStatus is ONBOARDING_ACCEPTED AND a SIGNED offer
              *  exists. Never true before document verification completes, so
              *  the override can never skip onboarding. */
-            boolean canActivateNow
+            boolean canActivateNow,
+            /** ERM Pass 2 — ERM-set committed activation switch (distinct
+             *  from the offer's {@code tentativeStartDate}). Null when ERM
+             *  hasn't committed yet. Once set + {@code <= today}, the
+             *  next scheduled scan (or a synchronous activation hook)
+             *  flips the intern to ACTIVE_INTERN. */
+            LocalDate joiningDate,
+            /** True when the lifecycle is at ONBOARDING_ACCEPTED (docs
+             *  accepted). The UI uses this to enable the joining-date
+             *  control — ERM commits the date only after docs pass. */
+            boolean docsAccepted
     ) {}
 
     public record UserStub(

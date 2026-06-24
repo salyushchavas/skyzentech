@@ -21,15 +21,21 @@ import java.util.List;
 /**
  * Activation job — every 10 minutes, scans users whose
  * {@code lifecycle_status = ONBOARDING_ACCEPTED} and flips any with a
- * SIGNED offer to {@code ACTIVE_INTERN}.
+ * SIGNED offer AND an ERM-set {@code joining_date <= today} to
+ * {@code ACTIVE_INTERN}.
  *
- * <p>Phase 8.9.1 dropped the {@code startDate <= today} gate: an intern
- * activates the moment onboarding is accepted on top of a signed offer.
- * The tentative start date remains on the offer (used for I-9 timing /
- * scheduling) but no longer blocks the lifecycle flip. The scheduled scan
- * is now mostly a safety net — the doc-completion trigger in
- * {@code DocumentPacketService} fires the single-user activation
- * synchronously when the last onboarding doc is accepted.</p>
+ * <p>ERM Pass 2 reinstated the date gate, but pivoted from the offer's
+ * {@code tentative_start_date} (a soft intention) to a separate
+ * {@code intern_lifecycles.joining_date} that the ERM commits to on the
+ * new-hire detail screen after onboarding docs are accepted. Doc
+ * acceptance alone NO LONGER activates the intern — that flow only
+ * advances them to {@code ONBOARDING_ACCEPTED}; the scheduled scan (or
+ * the synchronous tryActivateIfReady hook fired at packet completion)
+ * does the final flip once joining_date arrives.</p>
+ *
+ * <p>The manual {@link #activateNow} override remains the documented
+ * early-start escape hatch: it bypasses both the offer + joining-date
+ * checks but still requires {@code ONBOARDING_ACCEPTED}.</p>
  *
  * <p>{@code @EnableScheduling} is already on the application class.</p>
  */
@@ -78,15 +84,25 @@ public class InternActivationJob {
     }
 
     /**
-     * Phase 8.9.1 — single-user activation. Rule simplified: an intern
-     * activates as soon as they have a SIGNED (or legacy ACCEPTED) offer
-     * AND onboarding is ACCEPTED. The tentative start date no longer gates
-     * activation — it stays on the offer as a field used for I-9 timing
-     * and scheduling but does not block the lifecycle flip.
+     * ERM Pass 2 — single-user activation. Requires:
+     * <ol>
+     *   <li>lifecycle = {@code ONBOARDING_ACCEPTED} (docs accepted);</li>
+     *   <li>a SIGNED (or legacy ACCEPTED) offer;</li>
+     *   <li>{@code intern_lifecycles.joining_date} set by ERM AND
+     *       {@code <= today}.</li>
+     * </ol>
      *
-     * <p>Returns {@code true} iff the user was flipped. Safe to call from
-     * event handlers (e.g. the document-packet completion trigger) —
-     * failure is silent so it never blocks the calling transaction.</p>
+     * <p>Doc acceptance now only walks the lifecycle to
+     * {@code ONBOARDING_ACCEPTED}; this method is what flips them to
+     * {@code ACTIVE_INTERN}. The synchronous call from
+     * {@code DocumentPacketService.checkPacketCompletion()} still fires
+     * but returns {@code false} until the ERM has set a joining_date
+     * that has arrived — at which point the next scheduled scan (or a
+     * manual ERM action) does the flip.</p>
+     *
+     * <p>Returns {@code true} iff the user was flipped. Safe to call
+     * from event handlers — failure is silent so it never blocks the
+     * calling transaction.</p>
      */
     @Transactional
     public boolean tryActivateIfReady(User user) {
@@ -107,14 +123,24 @@ public class InternActivationJob {
             return false;
         }
         if (!hasSignedOffer) return false;
+
+        // joining_date gate — ERM-set, distinct from offer.tentativeStartDate.
+        // Null = ERM hasn't committed; future = wait; today/past = activate now.
+        InternLifecycle lc = internLifecycleRepository.findByUserId(user.getId()).orElse(null);
+        if (lc == null) return false;
+        java.time.LocalDate joiningDate = lc.getJoiningDate();
+        if (joiningDate == null) return false;
+        if (joiningDate.isAfter(java.time.LocalDate.now())) return false;
+
         return activateOneWithActor(user, null);
     }
 
     /**
-     * ERM manual override. Bypasses the start-date gate (documented exception
-     * for legitimate early starts) but still requires {@code ONBOARDING_ACCEPTED}
-     * — the same atomic re-check in {@link #activateOneWithActor} guarantees
-     * we never skip document verification.
+     * ERM manual override. Bypasses the offer + joining_date gates
+     * (documented exception for legitimate early starts) but still
+     * requires {@code ONBOARDING_ACCEPTED} — the same atomic re-check
+     * in {@link #activateOneWithActor} guarantees we never skip
+     * document verification.
      */
     @Transactional
     public boolean activateNow(User user, java.util.UUID actorId) {

@@ -189,7 +189,11 @@ public class ErmNewHireService {
                 intern != null
                         && intern.getLifecycleStatus()
                                 == com.skyzen.careers.enums.InternLifecycleStatus.ONBOARDING_ACCEPTED
-                        && signedOffer != null);
+                        && signedOffer != null,
+                lc.getJoiningDate(),
+                intern != null
+                        && intern.getLifecycleStatus()
+                                == com.skyzen.careers.enums.InternLifecycleStatus.ONBOARDING_ACCEPTED);
     }
 
     // ── Assign reporting structure (legacy — kept for one-off corrections) ─

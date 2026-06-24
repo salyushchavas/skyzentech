@@ -166,6 +166,12 @@ export type DocumentTaskDetail = {
   internUserId: string | null;
   internName: string | null;
   history: ReviewEventEntry[];
+  /** Pass 2 verify-after-download gate. Null until any ERM has fetched
+   *  the file at least once; once set, the "Mark verified" decision
+   *  unlocks. Server is authoritative — the verify endpoint also
+   *  rejects an ACCEPT call when this is null. */
+  lastDownloadedAt: string | null;
+  downloadCount: number | null;
 };
 
 export type ReasonCodeOption = {

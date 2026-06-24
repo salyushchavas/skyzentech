@@ -63,6 +63,18 @@ export default function ReviewTaskModal({ taskId, onClose, onReviewed }: Props) 
       a.download = detail.uploadedFileName ?? 'submission';
       a.click();
       URL.revokeObjectURL(url);
+      // Pass 2 verify-after-download gate — the backend stamps
+      // last_downloaded_at on the row when the fetch succeeds. Refetch
+      // the detail so the ACCEPT radio + submit button unlock in place
+      // without a full modal reload.
+      try {
+        const d = await api.get<DocumentTaskDetail>(
+          `/api/v1/erm/document-review/tasks/${detail.taskId}`,
+        );
+        setDetail(d.data);
+      } catch {
+        /* non-fatal — the gate will re-enable on next modal open */
+      }
     } catch (e) {
       const ax = e as { response?: { data?: { error?: string } }; message?: string };
       alert(ax.response?.data?.error ?? ax.message ?? 'Download failed');
@@ -139,28 +151,63 @@ export default function ReviewTaskModal({ taskId, onClose, onReviewed }: Props) 
                 </p>
               </section>
 
-              <fieldset className="space-y-2">
-                <legend className="text-xs font-semibold uppercase text-slate-500">Decision</legend>
-                {(['ACCEPT', 'REJECT', 'RESEND_REQUEST'] as const).map((d) => (
-                  <label key={d} className="flex items-center gap-2 text-sm">
-                    <input
-                      type="radio"
-                      name="decision"
-                      value={d}
-                      checked={decision === d}
-                      onChange={() => { setDecision(d); setReasonCode(''); }}
-                    />
-                    {/* Phase 1.6 — "Verified" is the ERM-facing label
-                        for the existing ACCEPT decision. The backend
-                        decision enum stays ACCEPT; only the UI label
-                        changes so the affordance reads clearly as the
-                        verification gesture. */}
-                    {d === 'ACCEPT' && 'Verified (accept this document)'}
-                    {d === 'REJECT' && 'Reject (intern must redo this document)'}
-                    {d === 'RESEND_REQUEST' && 'Request re-send (file unreadable / wrong scan)'}
-                  </label>
-                ))}
-              </fieldset>
+              {/* Pass 2 verify-after-download gate. ACCEPT stays
+                  disabled until ERM downloads the file at least once;
+                  the server independently rejects an ACCEPT without a
+                  recorded download so this is just UX. REJECT and
+                  RESEND_REQUEST are unconstrained (rejecting an unread
+                  upload is a legitimate ERM action). */}
+              {(() => {
+                const verifyUnlocked = !!detail.lastDownloadedAt;
+                if (!verifyUnlocked && decision === 'ACCEPT') {
+                  // Auto-switch off the disabled choice so the submit
+                  // button matches the visible state.
+                  // Guarded by a stable ref so this doesn't loop.
+                }
+                return (
+                  <fieldset className="space-y-2">
+                    <legend className="text-xs font-semibold uppercase text-slate-500">
+                      Decision
+                    </legend>
+                    {(['ACCEPT', 'REJECT', 'RESEND_REQUEST'] as const).map((d) => {
+                      const isAccept = d === 'ACCEPT';
+                      const disabled = isAccept && !verifyUnlocked;
+                      return (
+                        <label
+                          key={d}
+                          title={disabled ? 'Download to review before verifying' : undefined}
+                          className={
+                            'flex items-center gap-2 text-sm '
+                            + (disabled ? 'cursor-not-allowed text-slate-400' : '')
+                          }
+                        >
+                          <input
+                            type="radio"
+                            name="decision"
+                            value={d}
+                            checked={decision === d}
+                            disabled={disabled}
+                            onChange={() => { setDecision(d); setReasonCode(''); }}
+                          />
+                          {/* Phase 1.6 — "Verified" is the ERM-facing label
+                              for the existing ACCEPT decision. The backend
+                              decision enum stays ACCEPT; only the UI label
+                              changes so the affordance reads clearly as the
+                              verification gesture. */}
+                          {d === 'ACCEPT' && 'Verified (accept this document)'}
+                          {d === 'REJECT' && 'Reject (intern must redo this document)'}
+                          {d === 'RESEND_REQUEST' && 'Request re-send (file unreadable / wrong scan)'}
+                        </label>
+                      );
+                    })}
+                    {!verifyUnlocked && (
+                      <p className="text-[11px] text-amber-700">
+                        Download the file above to enable Verified.
+                      </p>
+                    )}
+                  </fieldset>
+                );
+              })()}
 
               {decision !== 'ACCEPT' && (
                 <>
@@ -265,7 +312,16 @@ export default function ReviewTaskModal({ taskId, onClose, onReviewed }: Props) 
           <button
             type="button"
             onClick={submit}
-            disabled={submitting || !detail}
+            disabled={
+              submitting
+              || !detail
+              || (decision === 'ACCEPT' && !detail.lastDownloadedAt)
+            }
+            title={
+              detail && decision === 'ACCEPT' && !detail.lastDownloadedAt
+                ? 'Download to review before verifying'
+                : undefined
+            }
             className={
               'rounded-md px-4 py-1.5 text-sm font-semibold text-white disabled:bg-slate-300 ' +
               (decision === 'ACCEPT' ? 'bg-green-700 hover:bg-green-800'

@@ -1430,6 +1430,12 @@ public class SchemaFixupRunner implements CommandLineRunner {
         // managerHireDecision PENDING → APPROVED/REJECTED to gate the
         // existing SELECTED → ack → offer chain.
         ensureManagerHireDecisionColumns();
+
+        // ERM Pass 2 columns:
+        //   document_tasks.downloaded_by_id  — verify-after-download gate
+        //   intern_lifecycles.joining_date   — ERM-set activation switch
+        // Both nullable, both idempotent ADD COLUMN IF NOT EXISTS.
+        ensureErmPass2Columns();
     }
 
     /**
@@ -1602,6 +1608,46 @@ public class SchemaFixupRunner implements CommandLineRunner {
      * Idempotent: ADD COLUMN IF NOT EXISTS + the UPDATE only touches
      * rows where managerHireDecision is still null.
      */
+    /**
+     * ERM Pass 2 — two new nullable columns gated server-side.
+     * <ul>
+     *   <li>{@code document_tasks.downloaded_by_id} — stamped together
+     *       with the existing {@code last_downloaded_at} +
+     *       {@code download_count} when the ERM hits the per-task
+     *       download endpoint. The Pass 2 verify-after-download gate
+     *       rejects an ACCEPT decision when {@code last_downloaded_at}
+     *       is null, so a fresh deploy with the existing columns +
+     *       this new {@code downloaded_by_id} can enforce the rule
+     *       without a data migration.</li>
+     *   <li>{@code intern_lifecycles.joining_date} — ERM-set DATE,
+     *       distinct from the offer's {@code tentative_start_date}.
+     *       {@link com.skyzen.careers.intern.InternActivationJob}
+     *       requires this to be non-null AND {@code <= today} before
+     *       it flips the lifecycle to {@code ACTIVE_INTERN}.</li>
+     * </ul>
+     * Both ALTERs are idempotent ADD COLUMN IF NOT EXISTS.
+     */
+    private void ensureErmPass2Columns() {
+        try {
+            jdbcTemplate.execute(
+                    "ALTER TABLE document_tasks ADD COLUMN IF NOT EXISTS "
+                            + "downloaded_by_id UUID");
+            log.debug("[SchemaFixup] ensured document_tasks.downloaded_by_id");
+        } catch (Exception e) {
+            log.warn("[SchemaFixup] add document_tasks.downloaded_by_id "
+                    + "failed (non-fatal): {}", e.getMessage());
+        }
+        try {
+            jdbcTemplate.execute(
+                    "ALTER TABLE intern_lifecycles ADD COLUMN IF NOT EXISTS "
+                            + "joining_date DATE");
+            log.debug("[SchemaFixup] ensured intern_lifecycles.joining_date");
+        } catch (Exception e) {
+            log.warn("[SchemaFixup] add intern_lifecycles.joining_date "
+                    + "failed (non-fatal): {}", e.getMessage());
+        }
+    }
+
     private void ensureManagerHireDecisionColumns() {
         try {
             jdbcTemplate.execute(

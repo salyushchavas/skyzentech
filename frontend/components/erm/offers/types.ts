@@ -155,4 +155,12 @@ export interface NewHireDetail {
    *  ONBOARDING_ACCEPTED with a signed offer; gates the "Activate now"
    *  ERM override so it can never skip document verification. */
   canActivateNow: boolean;
+  /** ERM Pass 2 — committed activation switch (distinct from the offer's
+   *  tentativeStartDate). Null until ERM sets it. Once set + ≤ today,
+   *  the next scheduled scan flips the intern to ACTIVE_INTERN. */
+  joiningDate: string | null;
+  /** True when lifecycle = ONBOARDING_ACCEPTED. The new-hire UI uses
+   *  this to enable the "Set joining date" control — ERM commits the
+   *  date only after docs are accepted. */
+  docsAccepted: boolean;
 }

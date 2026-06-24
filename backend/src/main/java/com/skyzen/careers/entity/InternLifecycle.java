@@ -77,6 +77,19 @@ public class InternLifecycle {
     @Column(name = "tentative_start_date")
     private java.time.LocalDate tentativeStartDate;
 
+    /**
+     * ERM-set activation switch (Pass 2). Distinct from
+     * {@link #tentativeStartDate} (which is the offer letter's
+     * intention): joining_date is the committed activation switch the
+     * ERM sets after onboarding docs are accepted. {@link
+     * com.skyzen.careers.intern.InternActivationJob#tryActivateIfReady}
+     * requires this to be non-null AND {@code <= today} before flipping
+     * the lifecycle to ACTIVE_INTERN. Null means "ERM hasn't committed
+     * yet — keep waiting".
+     */
+    @Column(name = "joining_date")
+    private java.time.LocalDate joiningDate;
+
     /** True when trainer_id + evaluator_id + manager_id are all populated. */
     @Column(name = "reporting_structure_complete", nullable = false)
     @Builder.Default

@@ -170,7 +170,14 @@ public final class DocumentDtos {
             UUID internLifecycleId,
             UUID internUserId,
             String internName,
-            List<ReviewEventEntry> history
+            List<ReviewEventEntry> history,
+            /** Pass 2 verify-after-download gate. Null until any ERM
+             *  hits {@code GET /document-review/tasks/{id}/file}; once
+             *  set, the UI enables the "Mark verified" decision and the
+             *  server permits ACCEPT. Stays set across reviews (downloads
+             *  are accumulative). */
+            Instant lastDownloadedAt,
+            Integer downloadCount
     ) {}
 
     public record ReviewTaskRequest(
