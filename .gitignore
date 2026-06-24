@@ -20,6 +20,9 @@ frontend/.env.production
 ~$*
 credentials*
 secrets*
+# ...but these are UI components, not secret files — keep them tracked.
+!**/CredentialsModal.tsx
+!**/CredentialsModal.*.tsx
 
 # === Java / Maven (for backend) ==============================================
 backend/target/
