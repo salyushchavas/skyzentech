@@ -239,3 +239,182 @@ export function mailErrorMessage(err: unknown, fallback = 'Something went wrong'
   };
   return e?.userMessage ?? e?.response?.data?.message ?? e?.response?.data?.error ?? fallback;
 }
+
+// ── Mail core (S6 client) ─────────────────────────────────────────────
+// Shapes match the S5 DTOs exactly. NOTE: paged responses use the custom
+// MailPage shape { items, page, size, total } — NOT Spring's Page. Nullable
+// fields (subject, bodyHtml, inReplyTo, draft*, displayName) are omitted by the
+// backend (@JsonInclude NON_NULL) so they are optional here.
+
+export interface MailParticipant {
+  accountId: string;
+  email: string;
+  displayName?: string | null;
+}
+
+export interface MailMessageSummary {
+  entryId: string;
+  messageId: string;
+  threadId?: string | null;
+  folder: string;
+  subject?: string | null;
+  from?: MailParticipant | null;
+  to?: MailParticipant[] | null;
+  isRead: boolean;
+  isStarred: boolean;
+  isImportant: boolean;
+  hasAttachments: boolean;
+  createdAt: string;
+}
+
+export interface MailMessageDetail {
+  entryId: string;
+  messageId: string;
+  threadId?: string | null;
+  inReplyTo?: string | null;
+  folder: string;
+  subject?: string | null;
+  bodyText?: string | null;
+  bodyHtml?: string | null;
+  from?: MailParticipant | null;
+  to?: MailParticipant[] | null;
+  cc?: MailParticipant[] | null;
+  bcc?: MailParticipant[] | null;
+  isRead: boolean;
+  isStarred: boolean;
+  isImportant: boolean;
+  hasAttachments: boolean;
+  draftTo?: string | null;
+  draftCc?: string | null;
+  draftBcc?: string | null;
+  createdAt: string;
+}
+
+export interface MailFolderCount {
+  folder: string;
+  total: number;
+  unread: number;
+}
+
+export interface MailThreadResponse {
+  threadId: string;
+  messages: MailMessageDetail[];
+}
+
+export interface MailPageResult<T> {
+  items: T[];
+  page: number;
+  size: number;
+  total: number;
+}
+
+/** Send/draft payload — recipients are arrays of bare local parts or addresses. */
+export interface ComposePayload {
+  to: string[];
+  cc?: string[];
+  bcc?: string[];
+  subject?: string;
+  bodyText?: string;
+  bodyHtml?: string;
+  inReplyTo?: string;
+}
+
+export async function listFolder(
+  folder: string,
+  page = 0,
+  size = 25,
+): Promise<MailPageResult<MailMessageSummary>> {
+  const res = await mailApi.get<MailPageResult<MailMessageSummary>>(
+    `/api/mail/folders/${folder}`,
+    { params: { page, size } },
+  );
+  return res.data;
+}
+
+export async function listStarred(
+  page = 0,
+  size = 25,
+): Promise<MailPageResult<MailMessageSummary>> {
+  const res = await mailApi.get<MailPageResult<MailMessageSummary>>('/api/mail/starred', {
+    params: { page, size },
+  });
+  return res.data;
+}
+
+export async function folderCounts(): Promise<MailFolderCount[]> {
+  const res = await mailApi.get<MailFolderCount[]>('/api/mail/folder-counts');
+  return res.data;
+}
+
+export async function getMessage(entryId: string): Promise<MailMessageDetail> {
+  const res = await mailApi.get<MailMessageDetail>(`/api/mail/messages/${entryId}`);
+  return res.data;
+}
+
+export async function getThread(threadId: string): Promise<MailThreadResponse> {
+  const res = await mailApi.get<MailThreadResponse>(`/api/mail/threads/${threadId}`);
+  return res.data;
+}
+
+export async function sendMessage(payload: ComposePayload): Promise<MailMessageDetail> {
+  const res = await mailApi.post<MailMessageDetail>('/api/mail/messages', payload);
+  return res.data;
+}
+
+export async function saveDraft(payload: ComposePayload): Promise<MailMessageDetail> {
+  const res = await mailApi.post<MailMessageDetail>('/api/mail/drafts', payload);
+  return res.data;
+}
+
+export async function updateDraft(
+  entryId: string,
+  payload: ComposePayload,
+): Promise<MailMessageDetail> {
+  const res = await mailApi.put<MailMessageDetail>(`/api/mail/drafts/${entryId}`, payload);
+  return res.data;
+}
+
+export async function sendDraft(
+  entryId: string,
+  payload?: ComposePayload,
+): Promise<MailMessageDetail> {
+  const res = await mailApi.post<MailMessageDetail>(
+    `/api/mail/drafts/${entryId}/send`,
+    payload ?? {},
+  );
+  return res.data;
+}
+
+export async function moveMessage(entryId: string, folder: string): Promise<MailMessageDetail> {
+  const res = await mailApi.patch<MailMessageDetail>(
+    `/api/mail/messages/${entryId}/folder`,
+    { folder },
+  );
+  return res.data;
+}
+
+export async function setMessageFlags(
+  entryId: string,
+  flags: { isRead?: boolean; isStarred?: boolean; isImportant?: boolean },
+): Promise<MailMessageDetail> {
+  const res = await mailApi.patch<MailMessageDetail>(
+    `/api/mail/messages/${entryId}/flags`,
+    flags,
+  );
+  return res.data;
+}
+
+export async function deleteMessage(entryId: string): Promise<void> {
+  await mailApi.delete(`/api/mail/messages/${entryId}`);
+}
+
+export async function searchMessages(
+  q: string,
+  page = 0,
+  size = 25,
+): Promise<MailPageResult<MailMessageSummary>> {
+  const res = await mailApi.get<MailPageResult<MailMessageSummary>>('/api/mail/search', {
+    params: { q, page, size },
+  });
+  return res.data;
+}
