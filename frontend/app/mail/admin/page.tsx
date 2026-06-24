@@ -59,6 +59,7 @@ export default function MailboxesPage() {
   const [credential, setCredential] = useState<MailCredentialResponse | null>(null);
   const [credentialTitle, setCredentialTitle] = useState('Mailbox created');
   const [confirm, setConfirm] = useState<ConfirmState | null>(null);
+  const [roleBusy, setRoleBusy] = useState<Set<string>>(() => new Set());
 
   // Domains list (SUPER_ADMIN only — drives the filter + the create picker).
   useEffect(() => {
@@ -125,13 +126,19 @@ export default function MailboxesPage() {
   }
 
   async function onRoleChange(mb: MailMailboxResponse, newRole: string) {
-    if (newRole === mb.role) return;
+    if (newRole === mb.role || roleBusy.has(mb.accountId)) return;
+    setRoleBusy((s) => new Set(s).add(mb.accountId));
     try {
       await setMailboxRole(mb.accountId, newRole);
       toast.success(`Updated role for ${mb.email}`);
     } catch (e) {
       toast.error(mailErrorMessage(e));
     } finally {
+      setRoleBusy((s) => {
+        const n = new Set(s);
+        n.delete(mb.accountId);
+        return n;
+      });
       reload(); // refetch so the select reflects the true server state
     }
   }
@@ -237,7 +244,15 @@ export default function MailboxesPage() {
               </tr>
             ) : (
               mailboxes.map((mb) => {
-                const roleLocked = !isSuper && mb.role === 'SUPER_ADMIN';
+                const targetIsSuper = mb.role === 'SUPER_ADMIN';
+                // Mirror the backend rules so the UI doesn't offer actions that
+                // will 403: an ADMIN may reset only USER mailboxes, and may not
+                // manage (suspend/reactivate/role) a SUPER_ADMIN. SUPER_ADMIN
+                // actors can do everything (the backend still guards the
+                // last-super-admin case with 409).
+                const roleLocked = !isSuper && targetIsSuper;
+                const manageLocked = !isSuper && targetIsSuper;
+                const resetLocked = !isSuper && mb.role !== 'USER';
                 const roleOptions = isSuper ? SUPER_ROLES : ADMIN_ROLES;
                 const suspended = mb.status === 'SUSPENDED';
                 return (
@@ -248,7 +263,7 @@ export default function MailboxesPage() {
                     <td className="px-4 py-2">
                       <select
                         value={mb.role}
-                        disabled={roleLocked}
+                        disabled={roleLocked || roleBusy.has(mb.accountId)}
                         onChange={(e) => void onRoleChange(mb, e.target.value)}
                         className="rounded-md border border-slate-300 bg-white px-2 py-1 text-xs focus:border-brand-700 focus:outline-none focus:ring-1 focus:ring-brand-500 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-400"
                       >
@@ -272,6 +287,8 @@ export default function MailboxesPage() {
                           variant="ghost"
                           size="sm"
                           leftIcon={<KeyRound className="h-4 w-4" />}
+                          disabled={resetLocked}
+                          title={resetLocked ? 'Admins can only reset USER mailboxes' : undefined}
                           onClick={() => setConfirm({ kind: 'reset', mb })}
                         >
                           Reset
@@ -281,6 +298,8 @@ export default function MailboxesPage() {
                             variant="ghost"
                             size="sm"
                             leftIcon={<CheckCircle2 className="h-4 w-4" />}
+                            disabled={manageLocked}
+                            title={manageLocked ? 'Admins cannot manage super-admins' : undefined}
                             onClick={() => setConfirm({ kind: 'reactivate', mb })}
                           >
                             Reactivate
@@ -290,6 +309,8 @@ export default function MailboxesPage() {
                             variant="ghost"
                             size="sm"
                             leftIcon={<Ban className="h-4 w-4" />}
+                            disabled={manageLocked}
+                            title={manageLocked ? 'Admins cannot manage super-admins' : undefined}
                             onClick={() => setConfirm({ kind: 'suspend', mb })}
                           >
                             Suspend

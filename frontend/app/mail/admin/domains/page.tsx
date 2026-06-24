@@ -108,11 +108,12 @@ export default function DomainsPage() {
     try {
       await deleteDomain(toDelete.id);
       toast.success(`Deleted ${toDelete.name}`);
+      setToDelete(null); // close only on success
       reload();
     } catch (err) {
       toast.error(mailErrorMessage(err));
-    } finally {
-      setToDelete(null);
+      // keep the dialog open so the user can retry or cancel (e.g. 409 if the
+      // domain is no longer empty)
     }
   }
 

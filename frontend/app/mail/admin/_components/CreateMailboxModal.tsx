@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, type FormEvent } from 'react';
+import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { UserPlus } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
@@ -41,9 +41,15 @@ export default function CreateMailboxModal({
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Reset the form whenever the modal (re)opens; default the domain for supers.
+  // Reset the form on every open<->close transition (default the domain for
+  // supers). Guarding on an actual transition — not just the deps — means a
+  // prop-reference change (e.g. a new `domains` array) can't wipe the form
+  // mid-typing, and a manually-typed password never lingers in state once the
+  // modal closes.
+  const prevOpen = useRef(open);
   useEffect(() => {
-    if (!open) return;
+    if (prevOpen.current === open) return;
+    prevOpen.current = open;
     setLocalPart('');
     setDisplayName('');
     setAutoGenerate(true);
