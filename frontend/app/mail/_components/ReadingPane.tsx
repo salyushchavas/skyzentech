@@ -2,40 +2,35 @@
 
 import {
   AlertCircle,
-  CornerUpLeft,
-  CornerUpRight,
   Download,
   Forward,
+  Loader2,
   Mail,
   MailOpen,
   Paperclip,
   Pencil,
+  Reply,
+  ReplyAll,
   Star,
   Trash2,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
-import { Button } from '@/components/ui/Button';
+import { cn } from '@/lib/cn';
 import {
   downloadAttachment,
   mailErrorMessage,
   type MailMessageDetail,
   type MailParticipant,
 } from '@/lib/mail-client';
+import { fullDateTime } from '@/lib/mail-format';
+import MailAvatar from './MailAvatar';
+
+const MOVE_TARGETS = ['INBOX', 'ARCHIVE', 'SENT', 'DRAFTS', 'TRASH'];
 
 function fmtSize(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-}
-
-const MOVE_TARGETS = ['INBOX', 'ARCHIVE', 'SENT', 'DRAFTS', 'TRASH'];
-
-function fmtFull(iso: string): string {
-  try {
-    return new Date(iso).toLocaleString();
-  } catch {
-    return '';
-  }
 }
 
 function one(p?: MailParticipant | null): string {
@@ -45,6 +40,40 @@ function one(p?: MailParticipant | null): string {
 
 function names(list?: MailParticipant[] | null): string {
   return (list ?? []).map(one).join(', ');
+}
+
+/** Quiet icon button for the action toolbar. */
+function ToolBtn({
+  title,
+  onClick,
+  active,
+  danger,
+  children,
+}: {
+  title: string;
+  onClick: () => void;
+  active?: boolean;
+  danger?: boolean;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      title={title}
+      aria-label={title}
+      onClick={onClick}
+      className={cn(
+        'rounded-full p-2 transition-colors',
+        danger
+          ? 'text-slate-500 hover:bg-red-50 hover:text-red-600'
+          : active
+            ? 'bg-brand-50 text-brand-700'
+            : 'text-slate-500 hover:bg-slate-100 hover:text-slate-700',
+      )}
+    >
+      {children}
+    </button>
+  );
 }
 
 export default function ReadingPane({
@@ -69,136 +98,190 @@ export default function ReadingPane({
   onDelete: () => void;
 }) {
   if (loading) {
-    return <div className="flex flex-1 items-center justify-center text-sm text-slate-500">Loading…</div>;
-  }
-  if (!detail) {
     return (
-      <div className="flex flex-1 items-center justify-center text-sm text-slate-400">
-        Select a message to read
+      <div className="flex flex-1 items-center justify-center bg-white text-sm text-slate-400">
+        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+        Loading…
       </div>
     );
   }
+  if (!detail) {
+    return (
+      <div className="flex flex-1 flex-col items-center justify-center bg-white px-6 text-center">
+        <span className="mb-4 inline-flex h-16 w-16 items-center justify-center rounded-full bg-brand-50">
+          <Mail className="h-8 w-8 text-brand-300" strokeWidth={1.5} />
+        </span>
+        <p className="text-base font-medium text-slate-700">Select a message to read</p>
+        <p className="mt-1 max-w-xs text-sm text-slate-400">
+          Choose a conversation from the list and it opens here.
+        </p>
+      </div>
+    );
+  }
+
   const isDraft = detail.folder === 'DRAFTS';
+  const senderName = detail.from?.displayName || detail.from?.email || '(unknown)';
   // Body is rendered as ESCAPED PLAIN TEXT (React escapes string children); we
   // never dangerouslySetInnerHTML server HTML. A sanitized HTML view can arrive
-  // with the attachments/rules phase once a sanitizer dep is added.
+  // later once a sanitizer dep is added.
   const body = detail.bodyText ?? detail.bodyHtml ?? '';
 
   return (
-    <div className="flex flex-1 flex-col overflow-hidden">
-      <div className="flex flex-wrap items-center gap-1 border-b border-slate-200 p-2">
+    <div className="flex flex-1 flex-col overflow-hidden bg-white">
+      {/* Action toolbar */}
+      <div className="flex items-center gap-1 border-b border-slate-200 px-3 py-2">
         {isDraft ? (
-          <Button size="sm" variant="secondary" leftIcon={<Pencil className="h-4 w-4" />} onClick={onEditDraft}>
+          <button
+            type="button"
+            onClick={onEditDraft}
+            className="flex items-center gap-1.5 rounded-full bg-brand-50 px-3 py-1.5 text-sm font-medium text-brand-700 transition-colors hover:bg-brand-100"
+          >
+            <Pencil className="h-4 w-4" />
             Edit draft
-          </Button>
+          </button>
         ) : (
           <>
-            <Button size="sm" variant="ghost" leftIcon={<CornerUpLeft className="h-4 w-4" />} onClick={onReply}>
-              Reply
-            </Button>
-            <Button size="sm" variant="ghost" leftIcon={<CornerUpRight className="h-4 w-4" />} onClick={onReplyAll}>
-              Reply all
-            </Button>
-            <Button size="sm" variant="ghost" leftIcon={<Forward className="h-4 w-4" />} onClick={onForward}>
-              Forward
-            </Button>
+            <ToolBtn title="Reply" onClick={onReply}>
+              <Reply className="h-[18px] w-[18px]" />
+            </ToolBtn>
+            <ToolBtn title="Reply all" onClick={onReplyAll}>
+              <ReplyAll className="h-[18px] w-[18px]" />
+            </ToolBtn>
+            <ToolBtn title="Forward" onClick={onForward}>
+              <Forward className="h-[18px] w-[18px]" />
+            </ToolBtn>
           </>
         )}
-        <span className="mx-1 h-4 w-px bg-slate-200" />
-        <button
-          type="button"
+
+        <span className="mx-1 h-5 w-px bg-slate-200" />
+
+        <ToolBtn
           title={detail.isStarred ? 'Unstar' : 'Star'}
+          active={detail.isStarred}
           onClick={() => onFlag({ isStarred: !detail.isStarred })}
-          className="rounded p-1.5 hover:bg-slate-100"
         >
-          <Star className={'h-4 w-4 ' + (detail.isStarred ? 'fill-amber-400 text-amber-400' : 'text-slate-500')} />
-        </button>
-        <button
-          type="button"
+          <Star
+            className={cn('h-[18px] w-[18px]', detail.isStarred && 'fill-amber-400 text-amber-400')}
+          />
+        </ToolBtn>
+        <ToolBtn
           title={detail.isImportant ? 'Mark not important' : 'Mark important'}
+          active={detail.isImportant}
           onClick={() => onFlag({ isImportant: !detail.isImportant })}
-          className="rounded p-1.5 hover:bg-slate-100"
         >
-          <AlertCircle className={'h-4 w-4 ' + (detail.isImportant ? 'text-brand-700' : 'text-slate-500')} />
-        </button>
-        <button
-          type="button"
+          <AlertCircle className="h-[18px] w-[18px]" />
+        </ToolBtn>
+        <ToolBtn
           title={detail.isRead ? 'Mark unread' : 'Mark read'}
           onClick={() => onFlag({ isRead: !detail.isRead })}
-          className="rounded p-1.5 hover:bg-slate-100"
         >
           {detail.isRead ? (
-            <Mail className="h-4 w-4 text-slate-500" />
+            <Mail className="h-[18px] w-[18px]" />
           ) : (
-            <MailOpen className="h-4 w-4 text-slate-500" />
+            <MailOpen className="h-[18px] w-[18px]" />
           )}
-        </button>
-        <select
-          aria-label="Move to folder"
-          value=""
-          onChange={(e) => {
-            if (e.target.value) onMove(e.target.value);
-          }}
-          className="ml-1 rounded-md border border-slate-300 px-2 py-1 text-xs focus:border-brand-700 focus:outline-none focus:ring-1 focus:ring-brand-500"
-        >
-          <option value="">Move to…</option>
-          {MOVE_TARGETS.filter((f) => f !== detail.folder).map((f) => (
-            <option key={f} value={f}>
-              {f}
-            </option>
-          ))}
-        </select>
-        <button
-          type="button"
-          title={detail.folder === 'TRASH' ? 'Delete permanently' : 'Move to Trash'}
-          onClick={onDelete}
-          className="rounded p-1.5 text-red-600 hover:bg-red-50"
-        >
-          <Trash2 className="h-4 w-4" />
-        </button>
-      </div>
+        </ToolBtn>
 
-      <div className="border-b border-slate-200 p-4">
-        <h2 className="text-lg font-semibold text-slate-900">{detail.subject || '(no subject)'}</h2>
-        <div className="mt-1 text-sm text-slate-600">
-          From: <span className="font-medium text-slate-800">{one(detail.from)}</span>
-        </div>
-        {detail.to && detail.to.length > 0 && (
-          <div className="text-sm text-slate-600">To: {names(detail.to)}</div>
-        )}
-        {detail.cc && detail.cc.length > 0 && (
-          <div className="text-sm text-slate-600">Cc: {names(detail.cc)}</div>
-        )}
-        {detail.bcc && detail.bcc.length > 0 && (
-          <div className="text-sm text-slate-600">Bcc: {names(detail.bcc)}</div>
-        )}
-        <div className="mt-1 text-xs text-slate-400">{fmtFull(detail.createdAt)}</div>
-      </div>
-
-      <div className="flex-1 overflow-y-auto p-4">
-        <div className="whitespace-pre-wrap break-words text-sm text-slate-800">{body}</div>
-        {detail.attachments && detail.attachments.length > 0 && (
-          <div className="mt-4 space-y-1.5">
-            <div className="text-xs font-medium uppercase tracking-wide text-slate-500">
-              Attachments
-            </div>
-            {detail.attachments.map((a) => (
-              <button
-                key={a.id}
-                type="button"
-                onClick={() =>
-                  void downloadAttachment(a).catch((e) =>
-                    toast.error(mailErrorMessage(e, 'Download failed')),
-                  )
-                }
-                className="flex w-full items-center gap-2 rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-100"
-              >
-                <Paperclip className="h-4 w-4 shrink-0 text-slate-400" />
-                <span className="flex-1 truncate">{a.filename}</span>
-                <span className="text-xs text-slate-400">{fmtSize(a.sizeBytes)}</span>
-                <Download className="h-4 w-4 shrink-0 text-brand-700" />
-              </button>
+        <span className="ml-auto flex items-center gap-1">
+          <select
+            aria-label="Move to folder"
+            value=""
+            onChange={(e) => {
+              if (e.target.value) onMove(e.target.value);
+            }}
+            className="rounded-md border border-slate-300 bg-white px-2 py-1.5 text-xs text-slate-600 transition-colors hover:border-slate-400 focus:border-brand-700 focus:outline-none focus:ring-1 focus:ring-brand-500"
+          >
+            <option value="">Move to…</option>
+            {MOVE_TARGETS.filter((f) => f !== detail.folder).map((f) => (
+              <option key={f} value={f}>
+                {f}
+              </option>
             ))}
+          </select>
+          <ToolBtn
+            title={detail.folder === 'TRASH' ? 'Delete permanently' : 'Move to Trash'}
+            danger
+            onClick={onDelete}
+          >
+            <Trash2 className="h-[18px] w-[18px]" />
+          </ToolBtn>
+        </span>
+      </div>
+
+      {/* Message header */}
+      <div className="border-b border-slate-200 px-6 py-5">
+        <h1 className="text-xl font-semibold leading-snug text-slate-900">
+          {detail.subject || '(no subject)'}
+        </h1>
+        <div className="mt-4 flex items-start gap-3">
+          <MailAvatar name={senderName} size="lg" />
+          <div className="min-w-0 flex-1">
+            <div className="flex items-baseline justify-between gap-3">
+              <span className="truncate font-semibold text-slate-900">
+                {detail.from?.displayName || detail.from?.email || '(unknown)'}
+              </span>
+              <span className="shrink-0 text-xs text-slate-400">{fullDateTime(detail.createdAt)}</span>
+            </div>
+            {detail.from?.email && detail.from?.displayName && (
+              <div className="truncate text-sm text-slate-500">{detail.from.email}</div>
+            )}
+            <div className="mt-1.5 space-y-0.5 text-xs text-slate-500">
+              {detail.to && detail.to.length > 0 && (
+                <div className="truncate">
+                  <span className="text-slate-400">To:</span> {names(detail.to)}
+                </div>
+              )}
+              {detail.cc && detail.cc.length > 0 && (
+                <div className="truncate">
+                  <span className="text-slate-400">Cc:</span> {names(detail.cc)}
+                </div>
+              )}
+              {detail.bcc && detail.bcc.length > 0 && (
+                <div className="truncate">
+                  <span className="text-slate-400">Bcc:</span> {names(detail.bcc)}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Body + attachments */}
+      <div className="flex-1 overflow-y-auto px-6 py-6">
+        <div className="mx-auto max-w-3xl whitespace-pre-wrap break-words text-[15px] leading-relaxed text-slate-800">
+          {body}
+        </div>
+        {detail.attachments && detail.attachments.length > 0 && (
+          <div className="mx-auto mt-6 max-w-3xl">
+            <div className="mb-2 flex items-center gap-1.5 text-xs font-medium uppercase tracking-wide text-slate-500">
+              <Paperclip className="h-3.5 w-3.5" />
+              {detail.attachments.length} attachment{detail.attachments.length > 1 ? 's' : ''}
+            </div>
+            <div className="grid gap-2 sm:grid-cols-2">
+              {detail.attachments.map((a) => (
+                <button
+                  key={a.id}
+                  type="button"
+                  onClick={() =>
+                    void downloadAttachment(a).catch((e) =>
+                      toast.error(mailErrorMessage(e, 'Download failed')),
+                    )
+                  }
+                  className="group flex items-center gap-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 text-left transition-colors hover:border-brand-300 hover:bg-brand-50"
+                >
+                  <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-white text-slate-400 ring-1 ring-slate-200 group-hover:text-brand-600">
+                    <Paperclip className="h-4 w-4" />
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-sm font-medium text-slate-700">
+                      {a.filename}
+                    </span>
+                    <span className="block text-xs text-slate-400">{fmtSize(a.sizeBytes)}</span>
+                  </span>
+                  <Download className="h-4 w-4 shrink-0 text-slate-400 group-hover:text-brand-700" />
+                </button>
+              ))}
+            </div>
           </div>
         )}
       </div>
