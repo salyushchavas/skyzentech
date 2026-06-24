@@ -73,8 +73,18 @@ import java.util.UUID;
 @Slf4j
 public class ErmInterviewService {
 
+    /**
+     * Advisory only — surfaced verbatim on the manager hire-approval
+     * screen + ERM decision center as interviewer guidance. The binding
+     * hire decision is the separate {@code manager_hire_decision} field
+     * with its own Hire/Reject/Hold tri-state; nothing here branches on
+     * {@code overallRecommendation}. The legacy four-bucket set
+     * (STRONG_HIRE / HIRE / NO_HIRE / STRONG_NO_HIRE) was collapsed to
+     * mirror the binding decision; legacy rows are remapped one-shot
+     * by SchemaFixupRunner so the validator stays strict.
+     */
     private static final Set<String> VALID_RECOMMENDATIONS = Set.of(
-            "STRONG_HIRE", "HIRE", "NO_HIRE", "STRONG_NO_HIRE");
+            "HIRE", "REJECT", "HOLD");
 
     private static final int APPLICANT_NOTES_MIN = 20;
     private static final int INTERNAL_NOTES_MAX = 5000;

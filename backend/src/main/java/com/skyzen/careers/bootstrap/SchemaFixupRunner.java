@@ -1436,6 +1436,14 @@ public class SchemaFixupRunner implements CommandLineRunner {
         //   intern_lifecycles.joining_date   — ERM-set activation switch
         // Both nullable, both idempotent ADD COLUMN IF NOT EXISTS.
         ensureErmPass2Columns();
+
+        // Scorecard overall_recommendation — collapsed from the legacy
+        // 4-bucket set (STRONG_HIRE / HIRE / NO_HIRE / STRONG_NO_HIRE)
+        // to the 3-bucket Hire/Reject/Hold to mirror the binding manager
+        // decision (still independent — overall_recommendation is purely
+        // advisory). Idempotent one-shot UPDATE; rows already on the new
+        // values are no-ops on subsequent boots.
+        remapOverallRecommendation();
     }
 
     /**
@@ -1645,6 +1653,48 @@ public class SchemaFixupRunner implements CommandLineRunner {
         } catch (Exception e) {
             log.warn("[SchemaFixup] add intern_lifecycles.joining_date "
                     + "failed (non-fatal): {}", e.getMessage());
+        }
+    }
+
+    /**
+     * One-shot remap of {@code interviews.overall_recommendation} from
+     * the legacy four-bucket set to the new {@code HIRE | REJECT | HOLD}
+     * tri-state. Idempotent — subsequent boots find zero matching rows
+     * and the {@code UPDATE} returns 0. No CHECK constraint to rebuild
+     * (the column is a plain {@code VARCHAR(20)}); the application-side
+     * validator in {@code ErmInterviewService} is the source of truth.
+     *
+     * <p>Mapping:</p>
+     * <ul>
+     *   <li>STRONG_HIRE      → HIRE</li>
+     *   <li>NO_HIRE          → REJECT</li>
+     *   <li>STRONG_NO_HIRE   → REJECT</li>
+     * </ul>
+     * HIRE rows stay HIRE; HOLD rows (none today) stay HOLD.
+     */
+    private void remapOverallRecommendation() {
+        try {
+            int hire = jdbcTemplate.update(
+                    "UPDATE interviews SET overall_recommendation = 'HIRE' "
+                            + "WHERE overall_recommendation = 'STRONG_HIRE'");
+            int reject1 = jdbcTemplate.update(
+                    "UPDATE interviews SET overall_recommendation = 'REJECT' "
+                            + "WHERE overall_recommendation = 'NO_HIRE'");
+            int reject2 = jdbcTemplate.update(
+                    "UPDATE interviews SET overall_recommendation = 'REJECT' "
+                            + "WHERE overall_recommendation = 'STRONG_NO_HIRE'");
+            if (hire + reject1 + reject2 > 0) {
+                log.info("[SchemaFixup] overall_recommendation remap: "
+                                + "STRONG_HIRE→HIRE={}, NO_HIRE→REJECT={}, "
+                                + "STRONG_NO_HIRE→REJECT={}",
+                        hire, reject1, reject2);
+            } else {
+                log.debug("[SchemaFixup] overall_recommendation remap: no-op "
+                        + "(no legacy values present).");
+            }
+        } catch (Exception e) {
+            log.warn("[SchemaFixup] overall_recommendation remap failed "
+                    + "(non-fatal): {}", e.getMessage());
         }
     }
 
