@@ -2,10 +2,11 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import toast from 'react-hot-toast';
-import { ChevronLeft, Search } from 'lucide-react';
+import { ChevronLeft, Menu, Search } from 'lucide-react';
 import { ensureNotificationPermission, notifyNewMail, openMailEventStream } from '@/lib/mail-events';
 import { cn } from '@/lib/cn';
 import { Input } from '@/components/ui/Input';
+import ConfirmDialog from '@/components/ConfirmDialog';
 import { useMailAuth } from '../_providers/MailAuthProvider';
 import ComposeDialog from './ComposeDialog';
 import FolderRail from './FolderRail';
@@ -20,21 +21,29 @@ import {
   type ComposeDraft,
 } from '@/lib/mail-compose';
 import {
+  createCustomFolder,
+  deleteCustomFolder,
   deleteMessage,
   folderCounts,
   getMessage,
+  listCustomFolderMessages,
+  listCustomFolders,
   listFolder,
   listStarred,
   mailErrorMessage,
   moveMessage,
+  moveMessageToCustomFolder,
+  renameCustomFolder,
   searchMessages,
   setMessageFlags,
+  type MailCustomFolder,
   type MailFolderCount,
   type MailMessageDetail,
   type MailMessageSummary,
 } from '@/lib/mail-client';
 
 const PAGE_SIZE = 25;
+const SYSTEM_FOLDERS = new Set(['INBOX', 'STARRED', 'SENT', 'DRAFTS', 'ARCHIVE', 'TRASH']);
 
 export default function MailClient() {
   const { account } = useMailAuth();
@@ -42,6 +51,7 @@ export default function MailClient() {
 
   const [folder, setFolder] = useState('INBOX');
   const [counts, setCounts] = useState<MailFolderCount[]>([]);
+  const [customFolders, setCustomFolders] = useState<MailCustomFolder[]>([]);
   const [items, setItems] = useState<MailMessageSummary[]>([]);
   const [listLoading, setListLoading] = useState(true);
   const [page, setPage] = useState(0);
@@ -51,6 +61,8 @@ export default function MailClient() {
   const [detailLoading, setDetailLoading] = useState(false);
   const [search, setSearch] = useState('');
   const [submittedQuery, setSubmittedQuery] = useState('');
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [confirmDeleteFolder, setConfirmDeleteFolder] = useState<MailCustomFolder | null>(null);
   const [compose, setCompose] = useState<{ open: boolean; initial: ComposeDraft }>({
     open: false,
     initial: emptyDraft(),
@@ -62,13 +74,16 @@ export default function MailClient() {
   const refreshCounts = useCallback(() => {
     folderCounts().then(setCounts).catch(() => {});
   }, []);
+  const loadCustomFolders = useCallback(() => {
+    listCustomFolders().then(setCustomFolders).catch(() => {});
+  }, []);
 
   useEffect(() => {
     refreshCounts();
-  }, [refreshCounts, reloadKey]);
+    loadCustomFolders();
+  }, [refreshCounts, loadCustomFolders, reloadKey]);
 
-  // Latest folder / search state for the long-lived SSE handler (which is opened
-  // once and must not re-subscribe on every folder change).
+  // Latest state for the long-lived SSE handler (opened once).
   const folderRef = useRef(folder);
   const searchActiveRef = useRef(searchActive);
   useEffect(() => {
@@ -76,24 +91,29 @@ export default function MailClient() {
     searchActiveRef.current = searchActive;
   }, [folder, searchActive]);
 
-  // Real-time new-mail stream: resync counts on (re)connect; on a NEW_MAIL push
-  // refresh counts, reload the list if it landed in the folder being viewed, and
-  // surface a browser notification for INBOX arrivals while the tab is hidden.
   useEffect(() => {
     ensureNotificationPermission();
     const close = openMailEventStream({
-      onOpen: () => refreshCounts(),
+      onOpen: () => {
+        refreshCounts();
+        loadCustomFolders();
+      },
       onEvent: (ev) => {
         if (ev.type !== 'NEW_MAIL') return;
         refreshCounts();
-        if (!searchActiveRef.current && ev.folder === folderRef.current) reloadList();
+        loadCustomFolders();
+        const cur = folderRef.current;
+        // Reload when viewing the folder the mail reports, or any custom folder
+        // (a rule may file into a custom folder the event does not name).
+        if (!searchActiveRef.current && (ev.folder === cur || !SYSTEM_FOLDERS.has(cur))) {
+          reloadList();
+        }
         notifyNewMail(ev.folder);
       },
     });
     return close;
-    // Open exactly once; handlers read live state via refs / stable callbacks.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [refreshCounts]);
+  }, [refreshCounts, loadCustomFolders]);
 
   useEffect(() => {
     let cancelled = false;
@@ -104,7 +124,9 @@ export default function MailClient() {
           ? await searchMessages(submittedQuery.trim(), page, PAGE_SIZE)
           : folder === 'STARRED'
             ? await listStarred(page, PAGE_SIZE)
-            : await listFolder(folder, page, PAGE_SIZE);
+            : SYSTEM_FOLDERS.has(folder)
+              ? await listFolder(folder, page, PAGE_SIZE)
+              : await listCustomFolderMessages(folder, page, PAGE_SIZE);
         if (!cancelled) {
           setItems(res.items);
           setTotal(res.total);
@@ -135,6 +157,7 @@ export default function MailClient() {
     setPage(0);
     setSelectedEntryId(null);
     setDetail(null);
+    setDrawerOpen(false);
   }
 
   function onSearchSubmit(e: React.FormEvent) {
@@ -152,12 +175,13 @@ export default function MailClient() {
     try {
       const d = await getMessage(entryId);
       if (!d.isRead) {
-        // Mark read on open — optimistic in BOTH detail + list; revert both if
-        // the flag call fails so the UI never diverges from the server.
         setDetail({ ...d, isRead: true });
         setItems((prev) => prev.map((m) => (m.entryId === entryId ? { ...m, isRead: true } : m)));
         setMessageFlags(entryId, { isRead: true })
-          .then(() => refreshCounts())
+          .then(() => {
+            refreshCounts();
+            loadCustomFolders();
+          })
           .catch(() => {
             setDetail((cur) => (cur && cur.entryId === entryId ? { ...cur, isRead: false } : cur));
             setItems((prev) =>
@@ -178,6 +202,11 @@ export default function MailClient() {
     setCompose({ open: true, initial });
   }
 
+  function closeReading() {
+    setSelectedEntryId(null);
+    setDetail(null);
+  }
+
   async function onFlag(flags: { isRead?: boolean; isStarred?: boolean; isImportant?: boolean }) {
     if (!detail) return;
     try {
@@ -185,20 +214,25 @@ export default function MailClient() {
       setDetail(d);
       reloadList();
       refreshCounts();
+      loadCustomFolders();
     } catch (e) {
       toast.error(mailErrorMessage(e));
     }
   }
 
-  async function onMove(targetFolder: string) {
+  async function onMove(target: string) {
     if (!detail) return;
     try {
-      await moveMessage(detail.entryId, targetFolder);
-      toast.success(`Moved to ${targetFolder}`);
-      setDetail(null);
-      setSelectedEntryId(null);
+      if (target.startsWith('custom:')) {
+        await moveMessageToCustomFolder(detail.entryId, target.slice('custom:'.length));
+      } else {
+        await moveMessage(detail.entryId, target);
+      }
+      toast.success('Moved');
+      closeReading();
       reloadList();
       refreshCounts();
+      loadCustomFolders();
     } catch (e) {
       toast.error(mailErrorMessage(e));
     }
@@ -207,48 +241,118 @@ export default function MailClient() {
   async function onDelete() {
     if (!detail) return;
     try {
-      if (detail.folder === 'TRASH') {
+      if (detail.folder === 'TRASH' && !detail.customFolderId) {
         await deleteMessage(detail.entryId);
         toast.success('Deleted');
       } else {
         await moveMessage(detail.entryId, 'TRASH');
         toast.success('Moved to Trash');
       }
-      setDetail(null);
-      setSelectedEntryId(null);
+      closeReading();
       reloadList();
       refreshCounts();
+      loadCustomFolders();
     } catch (e) {
       toast.error(mailErrorMessage(e));
     }
   }
 
-  return (
-    <div className="flex h-[calc(100vh-7rem)] overflow-hidden rounded-xl border border-slate-200 bg-white shadow-ds-md">
-      {/* Folder rail — desktop/tablet only (graceful narrow degradation). */}
-      <FolderRail
-        counts={counts}
-        selected={searchActive ? '' : folder}
-        onSelect={selectFolder}
-        onCompose={() => openCompose(emptyDraft())}
-      />
+  async function onCreateFolder(name: string) {
+    try {
+      await createCustomFolder(name);
+      loadCustomFolders();
+      toast.success('Folder created');
+    } catch (e) {
+      toast.error(mailErrorMessage(e, 'Could not create folder'));
+    }
+  }
 
-      {/* Message list — full width on narrow, fixed column on md+. Hidden on
-          narrow once a message is open so the reading pane takes over. */}
+  async function onRenameFolder(id: string, name: string) {
+    try {
+      await renameCustomFolder(id, name);
+      loadCustomFolders();
+    } catch (e) {
+      toast.error(mailErrorMessage(e, 'Could not rename folder'));
+    }
+  }
+
+  async function onConfirmDeleteFolder() {
+    const f = confirmDeleteFolder;
+    if (!f) return;
+    try {
+      await deleteCustomFolder(f.id);
+      toast.success('Folder deleted — its messages moved to Trash');
+      if (folder === f.id) selectFolder('INBOX');
+      else {
+        loadCustomFolders();
+        refreshCounts();
+        reloadList();
+      }
+    } catch (e) {
+      toast.error(mailErrorMessage(e, 'Could not delete folder'));
+    } finally {
+      setConfirmDeleteFolder(null);
+    }
+  }
+
+  const railProps = {
+    counts,
+    selected: searchActive ? '' : folder,
+    onSelect: selectFolder,
+    onCompose: () => openCompose(emptyDraft()),
+    customFolders,
+    onCreateFolder,
+    onRenameFolder,
+    onDeleteFolder: (f: MailCustomFolder) => setConfirmDeleteFolder(f),
+  };
+
+  const readingOpen = detail !== null || detailLoading;
+
+  return (
+    <div className="fixed inset-x-0 bottom-0 top-16 z-10 flex overflow-hidden bg-white">
+      {/* Desktop / tablet rail */}
+      <FolderRail {...railProps} className="hidden h-full md:flex" />
+
+      {/* Mobile folder drawer */}
+      {drawerOpen && (
+        <div className="fixed inset-0 z-40 md:hidden">
+          <button
+            type="button"
+            aria-label="Close menu"
+            onClick={() => setDrawerOpen(false)}
+            className="absolute inset-0 animate-fade-in bg-slate-900/40"
+          />
+          <div className="absolute inset-y-0 left-0 w-64 animate-fade-in bg-white shadow-xl">
+            <FolderRail {...railProps} className="flex h-full" />
+          </div>
+        </div>
+      )}
+
+      {/* Message list — full width on mobile; hidden once a message opens. */}
       <div
         className={cn(
           'w-full flex-col border-r border-slate-200 md:w-96 md:shrink-0',
-          detail || detailLoading ? 'hidden md:flex' : 'flex',
+          readingOpen ? 'hidden md:flex' : 'flex',
         )}
       >
-        <form onSubmit={onSearchSubmit} className="border-b border-slate-200 bg-slate-50/60 p-2.5">
-          <Input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search subject or people…"
-            leftIcon={<Search className="h-4 w-4" />}
-          />
-        </form>
+        <div className="flex items-center gap-2 border-b border-slate-200 bg-slate-50/60 p-2.5">
+          <button
+            type="button"
+            aria-label="Open folders"
+            onClick={() => setDrawerOpen(true)}
+            className="shrink-0 rounded-md p-2 text-slate-500 hover:bg-slate-200/60 hover:text-slate-700 md:hidden"
+          >
+            <Menu className="h-5 w-5" />
+          </button>
+          <form onSubmit={onSearchSubmit} className="min-w-0 flex-1">
+            <Input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search subject or people…"
+              leftIcon={<Search className="h-4 w-4" />}
+            />
+          </form>
+        </div>
         <div className="flex-1 overflow-hidden">
           <MessageList
             items={items}
@@ -263,20 +367,12 @@ export default function MailClient() {
         </div>
       </div>
 
-      {/* Reading pane — full view on narrow when a message is open. */}
-      <div
-        className={cn(
-          'flex-1 flex-col',
-          detail || detailLoading ? 'flex' : 'hidden md:flex',
-        )}
-      >
-        {(detail || detailLoading) && (
+      {/* Reading pane — full view on mobile when a message is open. */}
+      <div className={cn('flex-1 flex-col', readingOpen ? 'flex' : 'hidden md:flex')}>
+        {readingOpen && (
           <button
             type="button"
-            onClick={() => {
-              setSelectedEntryId(null);
-              setDetail(null);
-            }}
+            onClick={closeReading}
             className="flex items-center gap-1 border-b border-slate-200 px-3 py-2 text-sm font-medium text-slate-600 hover:text-brand-700 md:hidden"
           >
             <ChevronLeft className="h-4 w-4" /> Back
@@ -285,6 +381,7 @@ export default function MailClient() {
         <ReadingPane
           detail={detail}
           loading={detailLoading}
+          customFolders={customFolders}
           onReply={() => detail && openCompose(buildReply(detail))}
           onReplyAll={() => detail && openCompose(buildReplyAll(detail, selfEmail))}
           onForward={() => detail && openCompose(buildForward(detail))}
@@ -302,7 +399,22 @@ export default function MailClient() {
         onSent={() => {
           reloadList();
           refreshCounts();
+          loadCustomFolders();
         }}
+      />
+
+      <ConfirmDialog
+        open={!!confirmDeleteFolder}
+        onClose={() => setConfirmDeleteFolder(null)}
+        onConfirm={onConfirmDeleteFolder}
+        title="Delete folder?"
+        description={
+          confirmDeleteFolder
+            ? `"${confirmDeleteFolder.name}" will be removed and its messages moved to Trash.`
+            : undefined
+        }
+        confirmLabel="Delete folder"
+        variant="danger"
       />
     </div>
   );

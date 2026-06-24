@@ -10,9 +10,11 @@ import ConfirmDialog from '@/components/ConfirmDialog';
 import {
   createRule,
   deleteRule,
+  listCustomFolders,
   listRules,
   mailErrorMessage,
   updateRule,
+  type MailCustomFolder,
   type MailRuleAction,
   type MailRuleActionType,
   type MailRuleCondition,
@@ -48,7 +50,8 @@ const ACTION_TYPES: MailRuleActionType[] = ['MOVE_TO_FOLDER', 'MARK_READ', 'STAR
 const MOVE_TARGETS = ['INBOX', 'ARCHIVE', 'TRASH'];
 
 type EditCondition = { field: MailRuleField; operator: MailRuleOperator; value: string };
-type EditAction = { type: MailRuleActionType; targetFolder: string };
+// `target` is a system folder name (e.g. ARCHIVE) OR a custom folder as "custom:<id>".
+type EditAction = { type: MailRuleActionType; target: string };
 type EditState = {
   id?: string;
   name: string;
@@ -71,7 +74,7 @@ function newRule(): EditState {
     matchMode: 'ALL',
     stopProcessing: false,
     conditions: [{ field: 'FROM', operator: 'CONTAINS', value: '' }],
-    actions: [{ type: 'MOVE_TO_FOLDER', targetFolder: 'ARCHIVE' }],
+    actions: [{ type: 'MOVE_TO_FOLDER', target: 'ARCHIVE' }],
   };
 }
 
@@ -90,7 +93,9 @@ function fromResponse(r: MailRuleResponse): EditState {
     })),
     actions: r.actions.map((a) => ({
       type: a.type,
-      targetFolder: a.targetFolder ?? 'ARCHIVE',
+      target: a.targetCustomFolderId
+        ? `custom:${a.targetCustomFolderId}`
+        : a.targetFolder ?? 'ARCHIVE',
     })),
   };
 }
@@ -101,9 +106,12 @@ function toRequest(e: EditState): MailRuleRequest {
       ? { field: c.field, operator: 'IS_TRUE' }
       : { field: c.field, operator: c.operator, value: c.value.trim() },
   );
-  const actions: MailRuleAction[] = e.actions.map((a) =>
-    a.type === 'MOVE_TO_FOLDER' ? { type: a.type, targetFolder: a.targetFolder } : { type: a.type },
-  );
+  const actions: MailRuleAction[] = e.actions.map((a) => {
+    if (a.type !== 'MOVE_TO_FOLDER') return { type: a.type };
+    return a.target.startsWith('custom:')
+      ? { type: a.type, targetCustomFolderId: a.target.slice('custom:'.length) }
+      : { type: a.type, targetFolder: a.target };
+  });
   return {
     name: e.name.trim(),
     priority: e.priority,
@@ -120,13 +128,20 @@ function summarize(c: MailRuleCondition): string {
   return `${FIELD_LABEL[c.field]} ${OP_LABEL[c.operator]} "${c.value ?? ''}"`;
 }
 
-function summarizeAction(a: MailRuleAction): string {
-  if (a.type === 'MOVE_TO_FOLDER') return `Move to ${a.targetFolder ?? '?'}`;
+function summarizeAction(a: MailRuleAction, customFolders: MailCustomFolder[]): string {
+  if (a.type === 'MOVE_TO_FOLDER') {
+    if (a.targetCustomFolderId) {
+      const f = customFolders.find((c) => c.id === a.targetCustomFolderId);
+      return `Move to ${f ? f.name : 'folder'}`;
+    }
+    return `Move to ${a.targetFolder ?? '?'}`;
+  }
   return ACTION_LABEL[a.type];
 }
 
 export default function RulesSettings() {
   const [rules, setRules] = useState<MailRuleResponse[]>([]);
+  const [customFolders, setCustomFolders] = useState<MailCustomFolder[]>([]);
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState<EditState | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<MailRuleResponse | null>(null);
@@ -134,7 +149,9 @@ export default function RulesSettings() {
   async function reload() {
     setLoading(true);
     try {
-      setRules(await listRules());
+      const [r, f] = await Promise.all([listRules(), listCustomFolders().catch(() => [])]);
+      setRules(r);
+      setCustomFolders(f);
     } catch (e) {
       toast.error(mailErrorMessage(e, 'Failed to load rules'));
     } finally {
@@ -223,7 +240,7 @@ export default function RulesSettings() {
                   <span className="text-slate-500">Then:</span>
                   {r.actions.map((a, i) => (
                     <span key={i} className="rounded border border-orange-200 bg-orange-50 px-1.5 py-0.5 text-brand-700">
-                      {summarizeAction(a)}
+                      {summarizeAction(a, customFolders)}
                     </span>
                   ))}
                   {r.stopProcessing && <span className="text-slate-400">· stop</span>}
@@ -264,6 +281,7 @@ export default function RulesSettings() {
       {editing && (
         <RuleEditorModal
           initial={editing}
+          customFolders={customFolders}
           onClose={() => setEditing(null)}
           onSaved={() => {
             setEditing(null);
@@ -287,10 +305,12 @@ export default function RulesSettings() {
 
 function RuleEditorModal({
   initial,
+  customFolders,
   onClose,
   onSaved,
 }: {
   initial: EditState;
+  customFolders: MailCustomFolder[];
   onClose: () => void;
   onSaved: () => void;
 }) {
@@ -316,13 +336,13 @@ function RuleEditorModal({
   }
 
   function onActionTypeChange(i: number, type: MailRuleActionType) {
-    // Keep targetFolder coherent: only MOVE_TO_FOLDER carries one (default ARCHIVE
-    // when switching in), every other type clears it so no stale value lingers.
+    // Keep target coherent: only MOVE_TO_FOLDER carries one (default ARCHIVE when
+    // switching in), every other type clears it so no stale value lingers.
     setEdit((e) => ({
       ...e,
       actions: e.actions.map((cur, idx) =>
         idx === i
-          ? { type, targetFolder: type === 'MOVE_TO_FOLDER' ? cur.targetFolder || 'ARCHIVE' : '' }
+          ? { type, target: type === 'MOVE_TO_FOLDER' ? cur.target || 'ARCHIVE' : '' }
           : cur,
       ),
     }));
@@ -511,15 +531,26 @@ function RuleEditorModal({
                 </select>
                 {a.type === 'MOVE_TO_FOLDER' && (
                   <select
-                    value={a.targetFolder}
-                    onChange={(e) => setAction(i, { targetFolder: e.target.value })}
+                    value={a.target}
+                    onChange={(e) => setAction(i, { target: e.target.value })}
                     className={SELECT_CLASS}
                   >
-                    {MOVE_TARGETS.map((f) => (
-                      <option key={f} value={f}>
-                        {f}
-                      </option>
-                    ))}
+                    <optgroup label="System">
+                      {MOVE_TARGETS.map((f) => (
+                        <option key={f} value={f}>
+                          {f}
+                        </option>
+                      ))}
+                    </optgroup>
+                    {customFolders.length > 0 && (
+                      <optgroup label="Folders">
+                        {customFolders.map((c) => (
+                          <option key={c.id} value={`custom:${c.id}`}>
+                            {c.name}
+                          </option>
+                        ))}
+                      </optgroup>
+                    )}
                   </select>
                 )}
                 {edit.actions.length > 1 && (
@@ -538,7 +569,7 @@ function RuleEditorModal({
               variant="ghost"
               size="sm"
               leftIcon={<Plus className="h-4 w-4" />}
-              onClick={() => patch({ actions: [...edit.actions, { type: 'STAR', targetFolder: '' }] })}
+              onClick={() => patch({ actions: [...edit.actions, { type: 'STAR', target: '' }] })}
             >
               Add action
             </Button>

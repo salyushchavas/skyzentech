@@ -34,7 +34,8 @@ import java.util.UUID;
         indexes = {
                 @Index(name = "idx_mail_entry_account_folder", columnList = "account_id, folder"),
                 @Index(name = "idx_mail_entry_account_message", columnList = "account_id, message_id"),
-                @Index(name = "idx_mail_entry_message", columnList = "message_id")
+                @Index(name = "idx_mail_entry_message", columnList = "message_id"),
+                @Index(name = "idx_mail_entry_account_custom_folder", columnList = "account_id, custom_folder_id")
         })
 @Getter
 @Setter
@@ -56,6 +57,15 @@ public class MailMailboxEntry {
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 16)
     private MailFolder folder;
+
+    /**
+     * When non-null, this entry lives in the referenced custom folder and its
+     * {@link #folder} enum is IGNORED for placement (precedence: custom over
+     * system). When null, placement falls back to {@link #folder} (default
+     * behaviour). NOT a JPA association — a plain FK id, like account/message.
+     */
+    @Column(name = "custom_folder_id")
+    private UUID customFolderId;
 
     @Column(name = "is_read", nullable = false)
     @Builder.Default

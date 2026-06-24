@@ -22,6 +22,7 @@ import com.skyzen.careers.mail.event.MailDeliveredEvent;
 import com.skyzen.careers.mail.exception.MailApiException;
 import com.skyzen.careers.mail.repository.MailAccountRepository;
 import com.skyzen.careers.mail.repository.MailAttachmentRepository;
+import com.skyzen.careers.mail.repository.MailCustomFolderRepository;
 import com.skyzen.careers.mail.repository.MailMailboxEntryRepository;
 import com.skyzen.careers.mail.repository.MailMessageRecipientRepository;
 import com.skyzen.careers.mail.repository.MailMessageRepository;
@@ -71,6 +72,7 @@ public class MailMessageService {
     private final MailMailboxEntryRepository entryRepository;
     private final MailAccountRepository accountRepository;
     private final MailAttachmentRepository attachmentRepository;
+    private final MailCustomFolderRepository customFolderRepository;
     private final MailRuleEngine ruleEngine;
     private final ApplicationEventPublisher eventPublisher;
 
@@ -206,8 +208,22 @@ public class MailMessageService {
         UUID callerId = loadActor(principal).getId();
         int sz = clampSize(size);
         Pageable pageable = PageRequest.of(Math.max(page, 0), sz, Sort.by(Sort.Direction.DESC, "createdAt"));
+        // System folder shows only entries NOT in a custom folder (precedence).
         Page<MailMailboxEntry> p = entryRepository
-                .findByAccountIdAndFolderAndDeletedAtIsNull(callerId, folder, pageable);
+                .findByAccountIdAndFolderAndCustomFolderIdIsNullAndDeletedAtIsNull(callerId, folder, pageable);
+        return new MailPage<>(buildSummaries(p.getContent()), Math.max(page, 0), sz, p.getTotalElements());
+    }
+
+    @Transactional(readOnly = true)
+    public MailPage<MailMessageSummary> listCustomFolder(MailPrincipal principal, UUID folderId, int page, int size) {
+        UUID callerId = loadActor(principal).getId();
+        if (!customFolderRepository.existsByIdAndAccountId(folderId, callerId)) {
+            throw notFound("Folder not found"); // walled — foreign/unknown folder
+        }
+        int sz = clampSize(size);
+        Pageable pageable = PageRequest.of(Math.max(page, 0), sz, Sort.by(Sort.Direction.DESC, "createdAt"));
+        Page<MailMailboxEntry> p = entryRepository
+                .findByAccountIdAndCustomFolderIdAndDeletedAtIsNull(callerId, folderId, pageable);
         return new MailPage<>(buildSummaries(p.getContent()), Math.max(page, 0), sz, p.getTotalElements());
     }
 
@@ -226,8 +242,11 @@ public class MailMessageService {
         UUID callerId = loadActor(principal).getId();
         List<MailFolderCount> out = new ArrayList<>();
         for (MailFolder f : MailFolder.values()) {
-            long total = entryRepository.countByAccountIdAndFolderAndDeletedAtIsNull(callerId, f);
-            long unread = entryRepository.countByAccountIdAndFolderAndDeletedAtIsNullAndIsReadFalse(callerId, f);
+            // System-folder counts exclude entries that live in a custom folder.
+            long total = entryRepository
+                    .countByAccountIdAndFolderAndCustomFolderIdIsNullAndDeletedAtIsNull(callerId, f);
+            long unread = entryRepository
+                    .countByAccountIdAndFolderAndCustomFolderIdIsNullAndDeletedAtIsNullAndIsReadFalse(callerId, f);
             out.add(new MailFolderCount(f.name(), total, unread));
         }
         return out;
@@ -317,6 +336,22 @@ public class MailMessageService {
         UUID callerId = loadActor(principal).getId();
         MailMailboxEntry entry = liveEntry(callerId, entryId);
         entry.setFolder(folder);
+        entry.setCustomFolderId(null); // moving to a system folder clears custom placement
+        entryRepository.save(entry);
+        MailMessage msg = messageRepository.findById(entry.getMessageId())
+                .orElseThrow(() -> notFound("Message not found"));
+        return toDetail(entry, msg, callerId);
+    }
+
+    @Transactional
+    public MailMessageDetail moveToCustomFolder(MailPrincipal principal, UUID entryId, UUID folderId) {
+        UUID callerId = loadActor(principal).getId();
+        if (!customFolderRepository.existsByIdAndAccountId(folderId, callerId)) {
+            throw notFound("Folder not found"); // walled — can only file into your own folder
+        }
+        MailMailboxEntry entry = liveEntry(callerId, entryId);
+        // Custom placement takes precedence; the system enum is left as-is (ignored).
+        entry.setCustomFolderId(folderId);
         entryRepository.save(entry);
         MailMessage msg = messageRepository.findById(entry.getMessageId())
                 .orElseThrow(() -> notFound("Message not found"));
@@ -495,7 +530,8 @@ public class MailMessageService {
                 MailRuleEngine.DeliveryDecision d = ruleEngine.resolveDelivery(a.getId(), ctx);
                 entryRepository.save(MailMailboxEntry.builder()
                         .accountId(a.getId()).messageId(msg.getId())
-                        .folder(d.folder()).isRead(d.read())
+                        .folder(d.folder()).customFolderId(d.customFolderId())
+                        .isRead(d.read())
                         .isStarred(d.starred()).isImportant(d.important())
                         .build());
                 // Notify the recipient's live sessions AFTER this tx commits.
@@ -589,7 +625,8 @@ public class MailMessageService {
                 Boolean.TRUE.equals(entry.getIsRead()), Boolean.TRUE.equals(entry.getIsStarred()),
                 Boolean.TRUE.equals(entry.getIsImportant()), Boolean.TRUE.equals(msg.getHasAttachments()),
                 isDraft ? msg.getDraftTo() : null, isDraft ? msg.getDraftCc() : null,
-                isDraft ? msg.getDraftBcc() : null, msg.getCreatedAt(), attachments);
+                isDraft ? msg.getDraftBcc() : null, msg.getCreatedAt(), attachments,
+                entry.getCustomFolderId() != null ? entry.getCustomFolderId().toString() : null);
     }
 
     private Map<UUID, MailAccount> resolveAccountsFor(Set<UUID> senderIds,

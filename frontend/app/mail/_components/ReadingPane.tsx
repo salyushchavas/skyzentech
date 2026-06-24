@@ -19,6 +19,7 @@ import { cn } from '@/lib/cn';
 import {
   downloadAttachment,
   mailErrorMessage,
+  type MailCustomFolder,
   type MailMessageDetail,
   type MailParticipant,
 } from '@/lib/mail-client';
@@ -79,6 +80,7 @@ function ToolBtn({
 export default function ReadingPane({
   detail,
   loading,
+  customFolders,
   onReply,
   onReplyAll,
   onForward,
@@ -89,12 +91,13 @@ export default function ReadingPane({
 }: {
   detail: MailMessageDetail | null;
   loading: boolean;
+  customFolders: MailCustomFolder[];
   onReply: () => void;
   onReplyAll: () => void;
   onForward: () => void;
   onEditDraft: () => void;
   onFlag: (flags: { isRead?: boolean; isStarred?: boolean; isImportant?: boolean }) => void;
-  onMove: (folder: string) => void;
+  onMove: (target: string) => void;
   onDelete: () => void;
 }) {
   if (loading) {
@@ -192,11 +195,24 @@ export default function ReadingPane({
             className="rounded-md border border-slate-300 bg-white px-2 py-1.5 text-xs text-slate-600 transition-colors hover:border-slate-400 focus:border-brand-700 focus:outline-none focus:ring-1 focus:ring-brand-500"
           >
             <option value="">Move to…</option>
-            {MOVE_TARGETS.filter((f) => f !== detail.folder).map((f) => (
-              <option key={f} value={f}>
-                {f}
-              </option>
-            ))}
+            <optgroup label="System">
+              {MOVE_TARGETS.filter((f) => (detail.customFolderId ? true : f !== detail.folder)).map((f) => (
+                <option key={f} value={f}>
+                  {f}
+                </option>
+              ))}
+            </optgroup>
+            {customFolders.length > 0 && (
+              <optgroup label="Folders">
+                {customFolders
+                  .filter((c) => c.id !== detail.customFolderId)
+                  .map((c) => (
+                    <option key={c.id} value={`custom:${c.id}`}>
+                      {c.name}
+                    </option>
+                  ))}
+              </optgroup>
+            )}
           </select>
           <ToolBtn
             title={detail.folder === 'TRASH' ? 'Delete permanently' : 'Move to Trash'}

@@ -34,6 +34,8 @@ public record MailMessageDetail(
         String draftCc,
         String draftBcc,
         Instant createdAt,
-        List<MailAttachmentResponse> attachments
+        List<MailAttachmentResponse> attachments,
+        /** Non-null when this entry lives in a custom folder (placement precedence). */
+        String customFolderId
 ) {
 }

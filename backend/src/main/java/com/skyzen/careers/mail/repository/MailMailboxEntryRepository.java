@@ -16,15 +16,31 @@ public interface MailMailboxEntryRepository extends JpaRepository<MailMailboxEnt
     /** Walled fetch — only the caller's own entry. */
     Optional<MailMailboxEntry> findByIdAndAccountId(UUID id, UUID accountId);
 
-    Page<MailMailboxEntry> findByAccountIdAndFolderAndDeletedAtIsNull(
+    // ── System-folder placement (precedence: custom_folder_id MUST be null, else
+    //    the entry lives in its custom folder, not its system enum) ────────────
+    Page<MailMailboxEntry> findByAccountIdAndFolderAndCustomFolderIdIsNullAndDeletedAtIsNull(
             UUID accountId, MailFolder folder, Pageable pageable);
+
+    long countByAccountIdAndFolderAndCustomFolderIdIsNullAndDeletedAtIsNull(
+            UUID accountId, MailFolder folder);
+
+    long countByAccountIdAndFolderAndCustomFolderIdIsNullAndDeletedAtIsNullAndIsReadFalse(
+            UUID accountId, MailFolder folder);
+
+    // ── Custom-folder placement ───────────────────────────────────────────────
+    Page<MailMailboxEntry> findByAccountIdAndCustomFolderIdAndDeletedAtIsNull(
+            UUID accountId, UUID customFolderId, Pageable pageable);
+
+    long countByAccountIdAndCustomFolderIdAndDeletedAtIsNull(UUID accountId, UUID customFolderId);
+
+    long countByAccountIdAndCustomFolderIdAndDeletedAtIsNullAndIsReadFalse(
+            UUID accountId, UUID customFolderId);
+
+    /** All of the caller's entries in a custom folder (for delete-folder → Trash). */
+    List<MailMailboxEntry> findByAccountIdAndCustomFolderId(UUID accountId, UUID customFolderId);
 
     Page<MailMailboxEntry> findByAccountIdAndIsStarredTrueAndDeletedAtIsNull(
             UUID accountId, Pageable pageable);
-
-    long countByAccountIdAndFolderAndDeletedAtIsNull(UUID accountId, MailFolder folder);
-
-    long countByAccountIdAndFolderAndDeletedAtIsNullAndIsReadFalse(UUID accountId, MailFolder folder);
 
     Optional<MailMailboxEntry> findByAccountIdAndMessageIdAndFolder(
             UUID accountId, UUID messageId, MailFolder folder);
