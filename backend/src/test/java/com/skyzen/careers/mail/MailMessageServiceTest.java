@@ -21,6 +21,7 @@ import com.skyzen.careers.mail.repository.MailMessageRepository;
 import com.skyzen.careers.mail.service.MailMessageService;
 import com.skyzen.careers.mail.service.MailRuleEngine;
 import org.junit.jupiter.api.BeforeEach;
+import org.springframework.context.ApplicationEventPublisher;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.http.HttpStatus;
@@ -56,6 +57,7 @@ class MailMessageServiceTest {
     private MailAccountRepository accountRepo;
     private MailAttachmentRepository attachmentRepo;
     private MailRuleEngine ruleEngine;
+    private ApplicationEventPublisher eventPublisher;
     private MailMessageService service;
 
     private MailDomain domA;
@@ -74,7 +76,9 @@ class MailMessageServiceTest {
         ruleEngine = mock(MailRuleEngine.class);
         // Default: no rules → INBOX/unread, so existing delivery assertions hold.
         when(ruleEngine.resolveDelivery(any(), any())).thenReturn(MailRuleEngine.DeliveryDecision.inbox());
-        service = new MailMessageService(messageRepo, recipientRepo, entryRepo, accountRepo, attachmentRepo, ruleEngine);
+        eventPublisher = mock(ApplicationEventPublisher.class);
+        service = new MailMessageService(messageRepo, recipientRepo, entryRepo, accountRepo, attachmentRepo,
+                ruleEngine, eventPublisher);
         ReflectionTestUtils.setField(service, "maxSubject", 500);
         ReflectionTestUtils.setField(service, "maxBody", 100000);
         ReflectionTestUtils.setField(service, "maxRecipients", 100);

@@ -64,6 +64,15 @@ export function invalidateMailSession(): void {
   clearMailAuth();
 }
 
+/**
+ * Public refresh entrypoint for non-axios callers (the SSE stream, which uses
+ * fetch so it can send the Bearer header). Shares the same single-flight refresh
+ * + sessionEpoch guard as the axios interceptor.
+ */
+export function refreshMailToken(): Promise<string | null> {
+  return tryRefreshAccessToken();
+}
+
 async function tryRefreshAccessToken(): Promise<string | null> {
   const refresh = getMailRefreshToken();
   if (!refresh) return null;

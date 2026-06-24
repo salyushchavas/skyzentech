@@ -1,8 +1,9 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import toast from 'react-hot-toast';
 import { Search } from 'lucide-react';
+import { ensureNotificationPermission, notifyNewMail, openMailEventStream } from '@/lib/mail-events';
 import { Input } from '@/components/ui/Input';
 import { useMailAuth } from '../_providers/MailAuthProvider';
 import ComposeDialog from './ComposeDialog';
@@ -64,6 +65,34 @@ export default function MailClient() {
   useEffect(() => {
     refreshCounts();
   }, [refreshCounts, reloadKey]);
+
+  // Latest folder / search state for the long-lived SSE handler (which is opened
+  // once and must not re-subscribe on every folder change).
+  const folderRef = useRef(folder);
+  const searchActiveRef = useRef(searchActive);
+  useEffect(() => {
+    folderRef.current = folder;
+    searchActiveRef.current = searchActive;
+  }, [folder, searchActive]);
+
+  // Real-time new-mail stream: resync counts on (re)connect; on a NEW_MAIL push
+  // refresh counts, reload the list if it landed in the folder being viewed, and
+  // surface a browser notification for INBOX arrivals while the tab is hidden.
+  useEffect(() => {
+    ensureNotificationPermission();
+    const close = openMailEventStream({
+      onOpen: () => refreshCounts(),
+      onEvent: (ev) => {
+        if (ev.type !== 'NEW_MAIL') return;
+        refreshCounts();
+        if (!searchActiveRef.current && ev.folder === folderRef.current) reloadList();
+        notifyNewMail(ev.folder);
+      },
+    });
+    return close;
+    // Open exactly once; handlers read live state via refs / stable callbacks.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [refreshCounts]);
 
   useEffect(() => {
     let cancelled = false;
