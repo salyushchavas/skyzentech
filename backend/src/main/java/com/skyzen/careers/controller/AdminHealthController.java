@@ -1,22 +1,17 @@
 package com.skyzen.careers.controller;
 
-import com.skyzen.careers.entity.Document;
 import com.skyzen.careers.github.GitHubService;
 import com.skyzen.careers.integration.s3.S3StorageService;
 import com.skyzen.careers.integration.zoom.ZoomService;
-import com.skyzen.careers.repository.DocumentRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
-import software.amazon.awssdk.services.s3.model.HeadObjectResponse;
 
 import java.time.Instant;
 import java.util.LinkedHashMap;
 import java.util.Map;
-import java.util.UUID;
 
 /**
  * SUPER_ADMIN-only health probes for outbound integrations. Useful right
@@ -41,7 +36,6 @@ public class AdminHealthController {
     private final GitHubService gitHubService;
     private final ZoomService zoomService;
     private final S3StorageService s3StorageService;
-    private final DocumentRepository documentRepository;
 
     @GetMapping("/github")
     @PreAuthorize("hasRole('SUPER_ADMIN')")
@@ -149,83 +143,6 @@ public class AdminHealthController {
             body.put("error", e.getMessage());
             String last = s3StorageService.getLastProbeError();
             if (last != null) body.put("lastStartupProbeError", last);
-        }
-        return body;
-    }
-
-    /**
-     * TEMP — verify-after-migration probe. Given a {@code documentId},
-     * reads the {@code storage_key} from the {@code documents} row and
-     * exercises both {@code HeadObject} and {@code GetObject} against
-     * it, surfacing each outcome (success + bytes count, or the
-     * exception class + message) so we can disambiguate: IAM denial
-     * vs key mismatch vs read-handling bug, without combing logs. To
-     * be removed in the very next commit once the cause is pinned.
-     */
-    @GetMapping("/s3-getobject-probe")
-    @PreAuthorize("hasRole('SUPER_ADMIN')")
-    public Map<String, Object> s3GetObjectProbe(@RequestParam UUID documentId) {
-        Map<String, Object> body = new LinkedHashMap<>();
-        body.put("documentId", documentId);
-        Document d = documentRepository.findById(documentId).orElse(null);
-        if (d == null) {
-            body.put("error", "documents row not found");
-            return body;
-        }
-        String key = d.getStorageKey();
-        body.put("storageKey", key);
-        body.put("storageKeyLeadingChar",
-                key == null || key.isEmpty() ? null : String.valueOf(key.charAt(0)));
-        body.put("looksLikeFilesystemPath",
-                com.skyzen.careers.intern.DocumentVaultService.looksLikeFilesystemPath(key));
-        body.put("sensitivity", d.getSensitivity());
-        body.put("hasEncryptionMetadata", d.getEncryptionMetadataJson() != null);
-        body.put("dbFileSize", d.getFileSize());
-        // Volume-side existence probe (only meaningful when the key is a
-        // filesystem path; null for S3 keys).
-        if (key != null && com.skyzen.careers.intern.DocumentVaultService
-                .looksLikeFilesystemPath(key)) {
-            try {
-                java.nio.file.Path p = java.nio.file.Paths.get(key);
-                body.put("volumeAbsolutePath", p.toAbsolutePath().toString());
-                body.put("volumeFileExists", java.nio.file.Files.exists(p));
-                if (java.nio.file.Files.exists(p)) {
-                    body.put("volumeFileSize", java.nio.file.Files.size(p));
-                }
-            } catch (Exception ex) {
-                body.put("volumeExistsCheckError", ex.getMessage());
-            }
-        }
-        // HeadObject probe
-        try {
-            HeadObjectResponse head = s3StorageService.headObject(key);
-            if (head == null) {
-                body.put("headOk", false);
-                body.put("headResult", "null (NoSuchKey — object absent at this exact key)");
-            } else {
-                body.put("headOk", true);
-                body.put("headSize", head.contentLength());
-                body.put("headEtag", head.eTag());
-            }
-        } catch (Exception e) {
-            body.put("headOk", false);
-            body.put("headExceptionClass", e.getClass().getName());
-            body.put("headExceptionMessage", e.getMessage());
-        }
-        // GetObject probe
-        try {
-            byte[] bytes = s3StorageService.getObject(key);
-            body.put("getOk", true);
-            body.put("getBytes", bytes.length);
-        } catch (Exception e) {
-            body.put("getOk", false);
-            body.put("getExceptionClass", e.getClass().getName());
-            body.put("getExceptionMessage", e.getMessage());
-            Throwable cause = e.getCause();
-            if (cause != null) {
-                body.put("getCauseClass", cause.getClass().getName());
-                body.put("getCauseMessage", cause.getMessage());
-            }
         }
         return body;
     }
