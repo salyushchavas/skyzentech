@@ -184,7 +184,12 @@ export default function ComposeDialog({
           <h2 className="text-base font-semibold text-slate-900">
             {draftEntryId ? 'Edit draft' : 'New message'}
           </h2>
-          <button type="button" onClick={onClose} className="rounded p-1 text-slate-400 hover:bg-slate-100">
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Close"
+            className="rounded p-1 text-slate-400 hover:bg-slate-100"
+          >
             <X className="h-4 w-4" />
           </button>
         </div>
