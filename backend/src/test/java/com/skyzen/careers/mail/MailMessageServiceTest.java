@@ -19,6 +19,7 @@ import com.skyzen.careers.mail.repository.MailMailboxEntryRepository;
 import com.skyzen.careers.mail.repository.MailMessageRecipientRepository;
 import com.skyzen.careers.mail.repository.MailMessageRepository;
 import com.skyzen.careers.mail.service.MailMessageService;
+import com.skyzen.careers.mail.service.MailRuleEngine;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -54,6 +55,7 @@ class MailMessageServiceTest {
     private MailMailboxEntryRepository entryRepo;
     private MailAccountRepository accountRepo;
     private MailAttachmentRepository attachmentRepo;
+    private MailRuleEngine ruleEngine;
     private MailMessageService service;
 
     private MailDomain domA;
@@ -69,7 +71,10 @@ class MailMessageServiceTest {
         entryRepo = mock(MailMailboxEntryRepository.class);
         accountRepo = mock(MailAccountRepository.class);
         attachmentRepo = mock(MailAttachmentRepository.class);
-        service = new MailMessageService(messageRepo, recipientRepo, entryRepo, accountRepo, attachmentRepo);
+        ruleEngine = mock(MailRuleEngine.class);
+        // Default: no rules → INBOX/unread, so existing delivery assertions hold.
+        when(ruleEngine.resolveDelivery(any(), any())).thenReturn(MailRuleEngine.DeliveryDecision.inbox());
+        service = new MailMessageService(messageRepo, recipientRepo, entryRepo, accountRepo, attachmentRepo, ruleEngine);
         ReflectionTestUtils.setField(service, "maxSubject", 500);
         ReflectionTestUtils.setField(service, "maxBody", 100000);
         ReflectionTestUtils.setField(service, "maxRecipients", 100);

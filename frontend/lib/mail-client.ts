@@ -467,3 +467,63 @@ export async function downloadAttachment(att: MailAttachmentResponse): Promise<v
   a.remove();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
+
+// ── Inbox rules (S7b) ─────────────────────────────────────────────────
+
+export type MailRuleField = 'FROM' | 'TO' | 'CC' | 'SUBJECT' | 'HAS_ATTACHMENT';
+export type MailRuleOperator = 'CONTAINS' | 'EQUALS' | 'IS_TRUE';
+export type MailRuleActionType = 'MOVE_TO_FOLDER' | 'MARK_READ' | 'STAR' | 'MARK_IMPORTANT' | 'DELETE';
+export type MailRuleMatchMode = 'ALL' | 'ANY';
+
+export interface MailRuleCondition {
+  field: MailRuleField;
+  operator: MailRuleOperator;
+  value?: string | null;
+}
+
+export interface MailRuleAction {
+  type: MailRuleActionType;
+  targetFolder?: string | null;
+}
+
+export interface MailRuleResponse {
+  id: string;
+  name: string;
+  priority: number;
+  enabled: boolean;
+  matchMode: MailRuleMatchMode;
+  stopProcessing: boolean;
+  conditions: MailRuleCondition[];
+  actions: MailRuleAction[];
+  createdAt: string;
+  updatedAt?: string | null;
+}
+
+export interface MailRuleRequest {
+  name: string;
+  priority?: number;
+  enabled?: boolean;
+  matchMode?: MailRuleMatchMode;
+  stopProcessing?: boolean;
+  conditions: MailRuleCondition[];
+  actions: MailRuleAction[];
+}
+
+export async function listRules(): Promise<MailRuleResponse[]> {
+  const res = await mailApi.get<MailRuleResponse[]>('/api/mail/rules');
+  return res.data;
+}
+
+export async function createRule(req: MailRuleRequest): Promise<MailRuleResponse> {
+  const res = await mailApi.post<MailRuleResponse>('/api/mail/rules', req);
+  return res.data;
+}
+
+export async function updateRule(id: string, req: MailRuleRequest): Promise<MailRuleResponse> {
+  const res = await mailApi.put<MailRuleResponse>(`/api/mail/rules/${id}`, req);
+  return res.data;
+}
+
+export async function deleteRule(id: string): Promise<void> {
+  await mailApi.delete(`/api/mail/rules/${id}`);
+}

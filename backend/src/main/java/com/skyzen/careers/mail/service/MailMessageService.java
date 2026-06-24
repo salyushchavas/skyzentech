@@ -69,6 +69,7 @@ public class MailMessageService {
     private final MailMailboxEntryRepository entryRepository;
     private final MailAccountRepository accountRepository;
     private final MailAttachmentRepository attachmentRepository;
+    private final MailRuleEngine ruleEngine;
 
     @Value("${app.webmail.messages.max-subject-length:500}")
     private int maxSubject;
@@ -94,7 +95,7 @@ public class MailMessageService {
             throw badRequest("At least one recipient is required", "MAIL_NO_RECIPIENTS");
         }
         MailMessage msg = newMessage(sender, req.subject(), req.bodyText(), req.bodyHtml(), req.inReplyTo());
-        deliver(msg, r);
+        deliver(msg, r, sender);
         MailMailboxEntry sent = entryRepository.save(MailMailboxEntry.builder()
                 .accountId(sender.getId()).messageId(msg.getId()).folder(MailFolder.SENT)
                 .isRead(true).build());
@@ -188,7 +189,7 @@ public class MailMessageService {
         msg.setDraftBcc(null);
         messageRepository.save(msg);
 
-        deliver(msg, r);
+        deliver(msg, r, sender);
         draftEntry.setFolder(MailFolder.SENT);
         draftEntry.setIsRead(true);
         entryRepository.save(draftEntry);
@@ -471,19 +472,39 @@ public class MailMessageService {
         return out;
     }
 
-    /** Creates recipient rows + one unread INBOX entry per distinct recipient. */
-    private void deliver(MailMessage msg, Resolved r) {
+    /**
+     * Creates recipient rows + one mailbox entry per distinct recipient. The
+     * entry's initial folder/flags come from that recipient's delivery-time rules
+     * (default INBOX/unread). The rule engine is FAIL-OPEN — it never throws — so a
+     * broken rule can never drop or fail a delivery.
+     */
+    private void deliver(MailMessage msg, Resolved r, MailAccount sender) {
         saveRecipientRows(msg.getId(), r.to(), MailRecipientType.TO);
         saveRecipientRows(msg.getId(), r.cc(), MailRecipientType.CC);
         saveRecipientRows(msg.getId(), r.bcc(), MailRecipientType.BCC);
+        // Visible facts for rules; BCC stays private (rules see To/Cc only).
+        MailRuleEngine.RuleContext ctx = new MailRuleEngine.RuleContext(
+                emailOf(sender), emailsOf(r.to()), emailsOf(r.cc()),
+                msg.getSubject(), Boolean.TRUE.equals(msg.getHasAttachments()));
         Set<UUID> seen = new HashSet<>();
         for (MailAccount a : r.all()) {
             if (seen.add(a.getId())) {
+                MailRuleEngine.DeliveryDecision d = ruleEngine.resolveDelivery(a.getId(), ctx);
                 entryRepository.save(MailMailboxEntry.builder()
-                        .accountId(a.getId()).messageId(msg.getId()).folder(MailFolder.INBOX)
-                        .isRead(false).build());
+                        .accountId(a.getId()).messageId(msg.getId())
+                        .folder(d.folder()).isRead(d.read())
+                        .isStarred(d.starred()).isImportant(d.important())
+                        .build());
             }
         }
+    }
+
+    private static String emailOf(MailAccount a) {
+        return a == null ? null : (a.getLocalPart() + "@" + a.getDomain().getName()).toLowerCase(Locale.ROOT);
+    }
+
+    private static List<String> emailsOf(List<MailAccount> accts) {
+        return accts.stream().map(MailMessageService::emailOf).filter(Objects::nonNull).toList();
     }
 
     private void saveRecipientRows(UUID messageId, List<MailAccount> accts, MailRecipientType type) {

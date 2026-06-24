@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { LogOut, Mail, Shield } from 'lucide-react';
+import { LogOut, Mail, Settings, Shield } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { useMailAuth } from '../_providers/MailAuthProvider';
 
@@ -23,6 +23,13 @@ export default function MailHeader() {
         </div>
         {account && (
           <div className="flex items-center gap-3">
+            <Link
+              href="/mail/settings"
+              className="flex items-center gap-1.5 text-sm font-medium text-slate-600 transition-colors hover:text-brand-700"
+            >
+              <Settings className="h-4 w-4" />
+              <span className="hidden sm:inline">Settings</span>
+            </Link>
             {isAdmin && (
               <Link
                 href="/mail/admin"
