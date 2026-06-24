@@ -1,7 +1,7 @@
 // Pure helpers for reply / reply-all / forward prefill. No I/O, no React — easy
 // to reason about and (when a frontend test runner is added) to unit-test.
 
-import type { MailMessageDetail } from './mail-client';
+import type { MailAttachmentResponse, MailMessageDetail } from './mail-client';
 
 /** The editable compose state (recipient fields are comma-joined strings). */
 export interface ComposeDraft {
@@ -14,6 +14,8 @@ export interface ComposeDraft {
   inReplyTo?: string;
   /** draft mailbox-entry id when editing an existing draft. */
   draftEntryId?: string;
+  /** already-uploaded attachments (only when editing an existing draft). */
+  attachments?: MailAttachmentResponse[];
 }
 
 function rePrefix(subject?: string | null): string {
@@ -111,6 +113,7 @@ export function buildFromDraft(d: MailMessageDetail): ComposeDraft {
     bodyText: d.bodyText ?? '',
     inReplyTo: d.inReplyTo ?? undefined,
     draftEntryId: d.entryId,
+    attachments: d.attachments ?? [],
   };
 }
 
