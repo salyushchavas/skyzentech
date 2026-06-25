@@ -69,12 +69,18 @@ public class DocumentVaultService {
     private final PiiEncryptionService piiEncryption;
     private final ObjectMapper objectMapper;
     /**
-     * Phase B (volume → S3) dual-resolve hook. Reads check the
-     * {@code storage_key} shape: a leading "/" means the bytes live on
-     * the volume (current behavior); anything else is an S3 object key
-     * and the bytes come from {@link S3StorageService#getObject}.
-     * Writes are unchanged in Phase B — every new upload still lands on
-     * the volume. Phase C will cut writes over.
+     * Phase B/C (volume → S3) hook. Reads check the {@code storage_key}
+     * shape via {@link #looksLikeFilesystemPath(String)}: filesystem-shaped
+     * keys ({@code "./..."}, {@code "/..."}, etc.) come off the volume;
+     * any other shape is an S3 object key. Writes cut over in Phase C —
+     * when {@link S3StorageService#isReady()} the new upload is pushed
+     * to S3 under {@code documents/<ownerUserId>/<uuid>.bin} (with the
+     * configured brand prefix) and that key is stored in {@code
+     * storage_key}. When S3 is not configured we fall back to writing
+     * the bytes to the filesystem path under {@code app.documents.storage-path}
+     * (which is ephemeral on Railway without a Volume — surviving writes
+     * are evicted on redeploy, and the read path surfaces that as a clean
+     * 404).
      */
     private final S3StorageService s3StorageService;
 
@@ -103,17 +109,15 @@ public class DocumentVaultService {
         }
 
         try {
-            Path dir = Paths.get(storageRoot, ownerUserId.toString());
-            Files.createDirectories(dir);
             UUID storageUuid = UUID.randomUUID();
-            Path target = dir.resolve(storageUuid + ".bin");
 
             String encryptionMetadataJson = null;
             byte[] toWrite = bytes;
             if (PII_SENSITIVITIES.contains(sensitivity)) {
                 // Wrap bytes in our standard base64(IV||ct+tag) envelope and
-                // store the on-disk file as that envelope. encryption_metadata_json
-                // records the algorithm so the reader knows to decrypt.
+                // store the on-disk/S3 object as that envelope.
+                // encryption_metadata_json records the algorithm so the
+                // reader knows to decrypt.
                 String b64 = piiEncryption.encrypt(
                         Base64.getEncoder().encodeToString(bytes));
                 toWrite = b64.getBytes(java.nio.charset.StandardCharsets.UTF_8);
@@ -122,14 +126,34 @@ public class DocumentVaultService {
                 meta.put("encoded_base64_inner", true);
                 encryptionMetadataJson = objectMapper.writeValueAsString(meta);
             }
-            Files.write(target, toWrite);
+
+            // Phase C — when S3 is configured, the bytes go to S3 and the
+            // storage_key holds the object key. The read-side discriminator
+            // (looksLikeFilesystemPath) is structurally false for S3 keys
+            // ("documents/<userId>/<uuid>.bin" or "<brand>/documents/..."),
+            // so future reads route correctly without any extra flag column.
+            // When S3 isn't configured we fall back to the filesystem write
+            // (legacy behavior — ephemeral on Railway without a Volume).
+            String storageKey;
+            if (s3StorageService.isReady()) {
+                storageKey = s3StorageService.key(
+                        "documents", ownerUserId.toString(), storageUuid + ".bin");
+                s3StorageService.putObject(storageKey, toWrite,
+                        "application/octet-stream");
+            } else {
+                Path dir = Paths.get(storageRoot, ownerUserId.toString());
+                Files.createDirectories(dir);
+                Path target = dir.resolve(storageUuid + ".bin");
+                Files.write(target, toWrite);
+                storageKey = target.toString();
+            }
 
             Document doc = Document.builder()
                     .ownerUserId(ownerUserId)
                     .fileName(fileName != null ? fileName : "upload.bin")
                     .fileSize(bytes.length)
                     .mimeType(mimeType != null ? mimeType : "application/octet-stream")
-                    .storageKey(target.toString())
+                    .storageKey(storageKey)
                     .category(category)
                     .sensitivity(sensitivity)
                     .uploadedById(uploadedById)
