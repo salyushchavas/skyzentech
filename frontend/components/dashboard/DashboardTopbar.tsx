@@ -2,6 +2,7 @@
 
 import { Menu } from 'lucide-react';
 import TopBarBell from './TopBarBell';
+import TopBarMailbox from './TopBarMailbox';
 import UserMenuDropdown from './UserMenuDropdown';
 
 interface Props {
@@ -30,6 +31,7 @@ export default function DashboardTopbar({ title, onMenuClick }: Props) {
 
       <div className="flex items-center gap-1">
         <TopBarBell />
+        <TopBarMailbox />
         <UserMenuDropdown />
       </div>
     </header>

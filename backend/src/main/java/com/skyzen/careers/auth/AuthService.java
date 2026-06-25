@@ -15,7 +15,6 @@ import com.skyzen.careers.entity.PasswordResetToken;
 import com.skyzen.careers.entity.User;
 import com.skyzen.careers.enums.InternLifecycleStatus;
 import com.skyzen.careers.enums.UserRole;
-import com.skyzen.careers.enums.MailHandoverState;
 import com.skyzen.careers.intern.InternLifecycleService;
 import com.skyzen.careers.mail.entity.MailAccount;
 import com.skyzen.careers.mail.entity.MailAccountStatus;
@@ -310,33 +309,14 @@ public class AuthService {
     public AuthResponse login(LoginRequest req, HttpServletRequest httpRequest) {
         Optional<User> userOpt = userRepository.findByEmail(req.email());
 
-        // Mail bridge Phase 4 — PENDING_ACTIVATION sub-flow. Runs ONLY
-        // for users whose ERM has assigned a company mailbox but who
-        // haven't activated it yet (i.e. haven't logged into the
-        // mailbox and changed the starting password). The intent: keep
-        // them out of the dashboard until the mailbox handover is
-        // complete, then auto-promote on the first successful login
-        // post-activation.
-        //
-        // Three outcomes:
-        //   (a) Mailbox not ready / missing / SUSPENDED → 403 with a
-        //       clear "set up your company mailbox" message.
-        //   (b) Mailbox EXISTS + still must-change-password (starting
-        //       password unchanged) → 403 HARD LOCK regardless of
-        //       which password was submitted. The intern must log into
-        //       /mail first and set a fresh password.
-        //   (c) Mailbox EXISTS + must-change cleared (i.e. activated)
-        //       → verify the submitted password against the mail
-        //       account hash. On mismatch → 401. On match → apply the
-        //       same active-gate as the normal path, then promote
-        //       (state → ACTIVATED, mailHandoverAt = now) and reuse
-        //       issueSessionResponse for the normal Careers token.
-        // Returns early on (c) success so the sub-flow has its own
-        // session continuation; otherwise throws.
-        if (userOpt.isPresent()
-                && userOpt.get().getMailHandoverState() == MailHandoverState.PENDING_ACTIVATION) {
-            return loginPendingActivation(userOpt.get(), req.password(), httpRequest);
-        }
+        // Mail bridge Phase 5 (revised) — the Phase-4 PENDING_ACTIVATION
+        // hard-lock has been REMOVED. Dashboard login is now byte-identical
+        // for every user (including those handed over to a company
+        // mailbox); the mailbox is a notification inbox reached via /mail
+        // with mail-side credentials. The Phase-3 tryMailCredentialBridge
+        // below stays in place as a dormant fallback (harmless — fires
+        // only on Careers BCrypt failure for users with a linked mail
+        // account, which still gates on the mail hash).
 
         // Explicit unactivated-account gate. Admin-invite rows live in
         // the DB with password_hash IS NULL until the user redeems the
@@ -428,74 +408,6 @@ public class AuthService {
             return false;
         }
         return passwordEncoder.matches(submittedPassword, hash);
-    }
-
-    /**
-     * Mail bridge Phase 4 — PENDING_ACTIVATION login sub-flow. The
-     * user has been assigned a company mailbox but hasn't activated
-     * it. Hard-lock until {@code mailAccount.mustChangePassword ==
-     * false}; on the first post-activation login, verify against the
-     * mail-account hash and promote the user to {@code ACTIVATED}.
-     *
-     * <p>Runs INSIDE {@link #login} (which is itself transactional
-     * via the default class-level posture) so the promote-save is
-     * part of the login transaction. Issues a normal Careers session
-     * via the shared {@link #issueSessionResponse} continuation — no
-     * MAIL JWT, no duplicated token logic.</p>
-     */
-    private AuthResponse loginPendingActivation(User user, String submittedPassword,
-                                                 HttpServletRequest httpRequest) {
-        UUID mailAccountId = user.getMailAccountId();
-        if (mailAccountId == null) {
-            // Inconsistent state — PENDING_ACTIVATION without a linked
-            // mailbox shouldn't be reachable. Fail closed.
-            log.warn("PENDING_ACTIVATION user {} has no mail_account_id — blocking login",
-                    user.getId());
-            throw new AuthException(HttpStatus.FORBIDDEN,
-                    "Your company mailbox isn't ready yet. Contact your admin.");
-        }
-        MailAccount account = mailAccountRepository.findById(mailAccountId).orElse(null);
-        if (account == null || account.getStatus() != MailAccountStatus.ACTIVE) {
-            log.warn("PENDING_ACTIVATION user {}: mailbox {} missing or non-ACTIVE — blocking login",
-                    user.getId(), mailAccountId);
-            throw new AuthException(HttpStatus.FORBIDDEN,
-                    "Your company mailbox isn't ready yet. Contact your admin.");
-        }
-
-        // HARD LOCK: mailbox exists but user hasn't changed the starting
-        // password. Reject regardless of which password was submitted
-        // — the dashboard must not unlock until the mailbox does.
-        if (Boolean.TRUE.equals(account.getMustChangePassword())) {
-            log.info("PENDING_ACTIVATION user {}: mailbox not yet activated (mustChangePassword=true) — hard-lock",
-                    user.getId());
-            throw new AuthException(HttpStatus.FORBIDDEN,
-                    "Set up your company mailbox before signing in. "
-                            + "Log into your mailbox first and change the starting "
-                            + "password; you'll be able to sign in here right after.");
-        }
-
-        // Mailbox activated. Verify the submitted password against its
-        // hash (no Careers password_hash to check — handover nulled it).
-        String hash = account.getPasswordHash();
-        if (hash == null || hash.isBlank()
-                || !passwordEncoder.matches(submittedPassword, hash)) {
-            log.warn("Failed PENDING_ACTIVATION login attempt for user {}", user.getId());
-            throw new AuthException(HttpStatus.UNAUTHORIZED, "Invalid credentials");
-        }
-
-        // Same active-gate as the normal path.
-        if (Boolean.FALSE.equals(user.getActive())) {
-            log.warn("Login blocked for deactivated PENDING_ACTIVATION user: {}", user.getEmail());
-            throw new AuthException(HttpStatus.UNAUTHORIZED, "Invalid credentials");
-        }
-
-        // Promote: ACTIVATED + stamp the handover-completion moment.
-        user.setMailHandoverState(MailHandoverState.ACTIVATED);
-        user.setMailHandoverAt(java.time.Instant.now());
-        userRepository.save(user);
-        log.info("User logged in (auto-promoted to ACTIVATED): {}", user.getEmail());
-
-        return issueSessionResponse(user, httpRequest);
     }
 
     /**

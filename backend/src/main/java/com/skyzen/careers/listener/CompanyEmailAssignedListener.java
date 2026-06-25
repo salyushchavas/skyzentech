@@ -10,20 +10,22 @@ import org.springframework.transaction.event.TransactionPhase;
 import org.springframework.transaction.event.TransactionalEventListener;
 
 /**
- * Mail bridge Phase 4 — fires THE LAST EXTERNAL email of a user's
- * lifecycle: the starting-credentials note to their personal Gmail.
+ * Mail bridge Phase 5 (revised) — fires the assign-time external
+ * credential email to the intern's personal Gmail.
  *
  * <p>Runs at {@code TransactionPhase.AFTER_COMMIT} so a rollback in
  * {@code MailHandoverService.assignCompanyEmail} never leaks
  * credentials for an aborted mailbox. Injects the RAW
  * {@link EmailProvider} via {@code @Qualifier("rawEmailProvider")} —
  * NOT the @Primary {@code BridgingEmailProvider} — so the send
- * unconditionally goes through SMTP. The bridge would otherwise see
- * the user (just promoted to PENDING_ACTIVATION) and redirect
- * external sends to {@code personal_email}, which is correct in
- * general but redundant here since the target is already
- * {@code personal_email} and we don't want to circle back through
- * the bridge for a credential payload.</p>
+ * unconditionally goes through SMTP to the personal Gmail. (Without
+ * this qualifier the bridge would see the user is ACTIVATED + linked
+ * and try to route the credential into the same mailbox the intern
+ * can't sign into yet.)</p>
+ *
+ * <p>Framing is NOTIFICATION-INBOX, not identity. The dashboard
+ * login is unchanged — the mailbox + these credentials are only for
+ * reading internal Skyzen notifications at {@code /mail}.</p>
  *
  * <p>Best-effort: any SMTP failure is caught + logged. The handover
  * transaction has already committed; the ERM can re-issue credentials
@@ -80,15 +82,16 @@ public class CompanyEmailAssignedListener {
         return "Your Skyzen company mailbox is ready.\n\n"
                 + "Mailbox email:    " + ev.getCompanyEmail() + "\n"
                 + "Starting password: " + ev.getStartingPassword() + "\n\n"
-                + "Two steps:\n"
-                + "  1. Log into your mailbox at " + webmailLoginUrl + " — you "
-                + "will be asked to set a new password on first sign-in.\n"
-                + "  2. Once you've set a new password, that same email + "
-                + "password also signs you into the Skyzen dashboard. Personal "
-                + "Gmail will no longer receive Skyzen notifications.\n\n"
-                + "This is the LAST email Skyzen will send to your personal "
-                + "Gmail. Everything from now on lands in your company "
-                + "mailbox.\n\n"
+                + "This mailbox is where Skyzen notifications — onboarding "
+                + "updates, project assignments, evaluations, reminders — "
+                + "will arrive from now on. Sign in at " + webmailLoginUrl
+                + " with the credentials above; you'll be asked to set a "
+                + "new password on first sign-in.\n\n"
+                + "Your Skyzen dashboard login is unchanged — keep using "
+                + "the email and password you already have to sign into "
+                + "the dashboard at the usual place.\n\n"
+                + "A peek of recent messages also appears in the mail icon "
+                + "next to your profile inside the dashboard.\n\n"
                 + "— Skyzen";
     }
 
@@ -102,20 +105,20 @@ public class CompanyEmailAssignedListener {
                 + "<td style=\"padding:4px 0;font-family:monospace;\">"
                 + escapeHtml(ev.getStartingPassword()) + "</td></tr>"
                 + "</table>"
-                + "<ol>"
-                + "<li>Log into your mailbox at "
+                + "<p>This mailbox is where Skyzen notifications &mdash; "
+                + "onboarding updates, project assignments, evaluations, "
+                + "reminders &mdash; will arrive from now on. Sign in at "
                 + "<a href=\"" + escapeHtml(webmailLoginUrl) + "\">"
-                + escapeHtml(webmailLoginUrl) + "</a> — you will be asked to "
-                + "set a new password on first sign-in.</li>"
-                + "<li>Once you've set a new password, that same email + "
-                + "password also signs you into the Skyzen dashboard. Personal "
-                + "Gmail will no longer receive Skyzen notifications.</li>"
-                + "</ol>"
-                + "<p style=\"color:#6b7280;font-size:13px;\">This is the "
-                + "<strong>last</strong> email Skyzen will send to your "
-                + "personal Gmail. Everything from now on lands in your "
-                + "company mailbox.</p>"
-                + "<p>— Skyzen</p>";
+                + escapeHtml(webmailLoginUrl) + "</a> with the credentials "
+                + "above; you'll be asked to set a new password on first "
+                + "sign-in.</p>"
+                + "<p>Your <strong>Skyzen dashboard login is unchanged</strong> "
+                + "&mdash; keep using the email and password you already have "
+                + "to sign into the dashboard at the usual place.</p>"
+                + "<p style=\"color:#6b7280;font-size:13px;\">A peek of "
+                + "recent messages also appears in the mail icon next to your "
+                + "profile inside the dashboard.</p>"
+                + "<p>&mdash; Skyzen</p>";
     }
 
     private static String escapeHtml(String s) {

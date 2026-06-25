@@ -9,6 +9,7 @@ import com.skyzen.careers.exception.ResourceNotFoundException;
 import com.skyzen.careers.mail.dto.MailCredentialResponse;
 import com.skyzen.careers.mail.service.MailAdminService;
 import com.skyzen.careers.mail.service.MailMessageService;
+import com.skyzen.careers.notification.UserNotificationDispatcher;
 import com.skyzen.careers.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -69,6 +70,7 @@ public class MailHandoverService {
     private final UserRepository userRepository;
     private final MailAdminService mailAdminService;
     private final MailMessageService mailMessageService;
+    private final UserNotificationDispatcher userNotificationDispatcher;
     private final ApplicationEventPublisher eventPublisher;
 
     /** Same key {@code MailAdminSeeder} + {@code MailRoleAccountSeeder} use. */
@@ -140,12 +142,18 @@ public class MailHandoverService {
         String companyEmail = cred.email();
         UUID mailAccountId = UUID.fromString(cred.accountId());
 
-        // Mutate the user row in the documented order. Single save.
+        // Phase 5 (revised) — NOTIFY-ONLY handover. We link the mailbox
+        // and archive the personal email so the credential email knows
+        // where to send, but we DO NOT swap users.email and DO NOT
+        // null users.password_hash. The dashboard login remains
+        // byte-identical for this user; the mailbox is purely a
+        // notification inbox reached via /mail with the mail
+        // credentials. State goes straight to ACTIVATED so the Phase-2
+        // BridgingEmailProvider routes notifications internally from
+        // this moment (no intermediate PENDING_ACTIVATION window).
         target.setPersonalEmail(personalEmail);
         target.setMailAccountId(mailAccountId);
-        target.setEmail(companyEmail);
-        target.setPasswordHash(null);                                 // RETIRE the personal password
-        target.setMailHandoverState(MailHandoverState.PENDING_ACTIVATION);
+        target.setMailHandoverState(MailHandoverState.ACTIVATED);
         target.setMailHandoverAt(Instant.now());
         userRepository.save(target);
 
@@ -163,6 +171,28 @@ public class MailHandoverService {
             // are still valid and the user can sign in.
             log.warn("[MailHandover] welcome-message drop failed for {} (non-fatal): {}",
                     companyEmail, e.getMessage());
+        }
+
+        // Phase 5 (revised) — one-time in-dashboard notice. Reuses the
+        // existing in-app notification mechanism the bell renders, so
+        // the intern sees the announcement next time they open the
+        // dashboard (no email needed for this surface).
+        try {
+            userNotificationDispatcher.dispatch(
+                    target.getId(),
+                    "COMPANY_MAILBOX_ASSIGNED",
+                    caller != null ? caller.getId() : null,
+                    "Your company mailbox is live",
+                    "Skyzen notifications will now arrive in your internal "
+                            + "mailbox at " + companyEmail + ". Open it from the "
+                            + "mail icon next to your profile, or sign in directly "
+                            + "at /mail.",
+                    "/mail/login",
+                    /* emailSent */ false);
+        } catch (Exception e) {
+            // Best-effort — never fail the assign for an in-app row write hiccup.
+            log.warn("[MailHandover] in-app notice dispatch failed (non-fatal) for {}: {}",
+                    target.getId(), e.getMessage());
         }
 
         // Fire the AFTER_COMMIT event so the credential email goes out only

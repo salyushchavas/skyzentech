@@ -93,105 +93,64 @@ public class BridgingEmailProvider implements EmailProvider {
 
     @Override
     public void sendRendered(String email, String subject, String body) {
-        Route r = route(email);
-        switch (r.decision()) {
-            case INTERNAL -> {
-                if (deliverInternal(r, subject, body, null)) return;
-                // deliverInternal returned false → fail-safe fallthrough to SMTP
-                raw.sendRendered(email, subject, body);
-            }
-            case REDIRECT_PERSONAL -> raw.sendRendered(r.personalEmail(), subject, body);
-            case PASSTHROUGH -> raw.sendRendered(email, subject, body);
+        String internalAddr = internalRecipientFor(email);
+        if (internalAddr != null) {
+            if (deliverInternal(internalAddr, subject, body, null)) return;
+            // deliverInternal returned false → fail-safe fallthrough to SMTP
         }
+        raw.sendRendered(email, subject, body);
     }
 
     @Override
     public void sendBrandedHtml(String email, String subject, String plainBody, String htmlBody) {
-        Route r = route(email);
-        switch (r.decision()) {
-            case INTERNAL -> {
-                if (deliverInternal(r, subject, plainBody, htmlBody)) return;
-                raw.sendBrandedHtml(email, subject, plainBody, htmlBody);
-            }
-            case REDIRECT_PERSONAL ->
-                    raw.sendBrandedHtml(r.personalEmail(), subject, plainBody, htmlBody);
-            case PASSTHROUGH -> raw.sendBrandedHtml(email, subject, plainBody, htmlBody);
+        String internalAddr = internalRecipientFor(email);
+        if (internalAddr != null) {
+            if (deliverInternal(internalAddr, subject, plainBody, htmlBody)) return;
         }
+        raw.sendBrandedHtml(email, subject, plainBody, htmlBody);
     }
 
     /**
-     * Mail bridge Phase 4 — 3-way routing decision computed once per
-     * send so {@code sendRendered} and {@code sendBrandedHtml} share
-     * the same lookup work.
-     */
-    private enum Decision { INTERNAL, REDIRECT_PERSONAL, PASSTHROUGH }
-
-    private record Route(Decision decision, String recipientAddr, String personalEmail) {
-        static Route passthrough() { return new Route(Decision.PASSTHROUGH, null, null); }
-        static Route internal(String addr) { return new Route(Decision.INTERNAL, addr, null); }
-        static Route redirectPersonal(String addr) {
-            return new Route(Decision.REDIRECT_PERSONAL, null, addr);
-        }
-    }
-
-    /**
-     * Decide where this send should land, based on the recipient User's
-     * mail-handover state:
-     * <ul>
-     *   <li>{@code ACTIVATED} + linked mailbox → {@link Decision#INTERNAL}
-     *       (deliver to the company mailbox).</li>
-     *   <li>{@code PENDING_ACTIVATION} + {@code personalEmail} archived →
-     *       {@link Decision#REDIRECT_PERSONAL} (the user can't read the
-     *       new mailbox yet AND we just nulled the password on the
-     *       Careers row mid-handover — keep emailing the personal Gmail
-     *       so they don't go silent).</li>
-     *   <li>Everything else → {@link Decision#PASSTHROUGH} (original
-     *       SMTP behaviour to the address the caller passed).</li>
-     * </ul>
+     * Mail bridge Phase 5 (revised) — 2-way routing. Returns the
+     * company-mailbox address when the recipient User is
+     * {@code ACTIVATED} and has a healthy linked mail account;
+     * returns {@code null} for everything else (the caller then
+     * delegates to the raw provider, i.e. external SMTP to whatever
+     * address was passed in). The Phase-4 {@code REDIRECT_PERSONAL}
+     * branch is gone — assign-time {@code mail_handover_state} is now
+     * set straight to {@code ACTIVATED}, so internal routing begins at
+     * handover with no intermediate window. PERSONAL users continue
+     * to receive external email unchanged.
      *
-     * <p>Comma-joined blast lists, unknown emails, and any internal
-     * lookup error all fall through to PASSTHROUGH — the bridge
-     * never DROPS a send.</p>
+     * <p>Comma-joined blast lists, unknown emails, missing/malformed
+     * linked mailbox, and any lookup error all return {@code null}
+     * (external passthrough) — the bridge never DROPS a send.</p>
      */
-    private Route route(String recipientEmail) {
-        if (recipientEmail == null || recipientEmail.isBlank()) return Route.passthrough();
-        if (recipientEmail.contains(",")) return Route.passthrough();
+    private String internalRecipientFor(String recipientEmail) {
+        if (recipientEmail == null || recipientEmail.isBlank()) return null;
+        if (recipientEmail.contains(",")) return null;
         try {
             Optional<User> recipientOpt = userRepository.findByEmail(recipientEmail.trim());
-            if (recipientOpt.isEmpty()) return Route.passthrough();
+            if (recipientOpt.isEmpty()) return null;
             User recipient = recipientOpt.get();
-            MailHandoverState state = recipient.getMailHandoverState();
-            if (state == MailHandoverState.ACTIVATED) {
-                UUID mailAccountId = recipient.getMailAccountId();
-                if (mailAccountId == null) return Route.passthrough();
-                MailAccount recipientMailbox = mailAccountRepository.findById(mailAccountId).orElse(null);
-                if (recipientMailbox == null
-                        || recipientMailbox.getDomain() == null
-                        || recipientMailbox.getLocalPart() == null) {
-                    log.warn("[MailBridge] user {} is ACTIVATED but mail_account {} is "
-                            + "missing/malformed — falling back to SMTP",
-                            recipient.getId(), mailAccountId);
-                    return Route.passthrough();
-                }
-                return Route.internal(recipientMailbox.getLocalPart() + "@"
-                        + recipientMailbox.getDomain().getName());
+            if (recipient.getMailHandoverState() != MailHandoverState.ACTIVATED) return null;
+            UUID mailAccountId = recipient.getMailAccountId();
+            if (mailAccountId == null) return null;
+            MailAccount recipientMailbox = mailAccountRepository.findById(mailAccountId).orElse(null);
+            if (recipientMailbox == null
+                    || recipientMailbox.getDomain() == null
+                    || recipientMailbox.getLocalPart() == null) {
+                log.warn("[MailBridge] user {} is ACTIVATED but mail_account {} is "
+                        + "missing/malformed — falling back to SMTP",
+                        recipient.getId(), mailAccountId);
+                return null;
             }
-            if (state == MailHandoverState.PENDING_ACTIVATION) {
-                String personalEmail = recipient.getPersonalEmail();
-                if (personalEmail != null && !personalEmail.isBlank()) {
-                    return Route.redirectPersonal(personalEmail.trim());
-                }
-                // No personal archive → safe fall-through to whatever the
-                // caller passed (which is usually the company address; the
-                // mail won't reach an unactivated user, but the alternative
-                // is dropping the notification entirely).
-                return Route.passthrough();
-            }
-            return Route.passthrough();
+            return recipientMailbox.getLocalPart() + "@"
+                    + recipientMailbox.getDomain().getName();
         } catch (Exception e) {
             log.warn("[MailBridge] routing decision failed for {} (falling back to SMTP): {}",
                     recipientEmail, e.getMessage());
-            return Route.passthrough();
+            return null;
         }
     }
 
@@ -201,7 +160,8 @@ public class BridgingEmailProvider implements EmailProvider {
      * Returns {@code false} on any failure so the caller can fall back
      * to the raw SMTP provider — the bridge never drops a notification.
      */
-    private boolean deliverInternal(Route r, String subject, String bodyText, String bodyHtml) {
+    private boolean deliverInternal(String recipientAddr, String subject,
+                                     String bodyText, String bodyHtml) {
         try {
             String senderLocalPart = NotificationSenderContext.get();
             if (senderLocalPart == null || senderLocalPart.isBlank()) {
@@ -209,11 +169,11 @@ public class BridgingEmailProvider implements EmailProvider {
             }
             String senderAddr = senderLocalPart + "@" + seedDomain;
             mailMessageService.deliverInternalNotification(
-                    senderAddr, r.recipientAddr(), subject, bodyText, bodyHtml);
+                    senderAddr, recipientAddr, subject, bodyText, bodyHtml);
             return true;
         } catch (Exception e) {
             log.warn("[MailBridge] internal delivery failed for {} (falling back to SMTP): {}",
-                    r.recipientAddr(), e.getMessage());
+                    recipientAddr, e.getMessage());
             return false;
         }
     }
