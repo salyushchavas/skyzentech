@@ -11,6 +11,9 @@ import PageHeader from '@/components/ui/PageHeader';
 import AssignReportingStructureModal from '@/components/erm/newhire/AssignReportingStructureModal';
 import UpdateStartDateModal from '@/components/erm/offers/UpdateStartDateModal';
 import AssignPacketModal from '@/components/erm/documents/AssignPacketModal';
+import AssignCompanyEmailDialog from '@/components/erm/mail/AssignCompanyEmailDialog';
+import { Mail } from 'lucide-react';
+import toast from 'react-hot-toast';
 import type { NewHireDetail, UserStub } from '@/components/erm/offers/types';
 
 export default function NewHireDetailPage() {
@@ -19,7 +22,7 @@ export default function NewHireDetailPage() {
   const [data, setData] = useState<NewHireDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
-  const [modal, setModal] = useState<'reporting' | 'startdate' | 'packet' | 'manager' | 'joining' | null>(null);
+  const [modal, setModal] = useState<'reporting' | 'startdate' | 'packet' | 'manager' | 'joining' | 'companyEmail' | null>(null);
   const [activating, setActivating] = useState(false);
   const [activateErr, setActivateErr] = useState<string | null>(null);
 
@@ -222,6 +225,13 @@ export default function NewHireDetailPage() {
                 {data.tentativeStartDate ?? 'Not set'}
               </p>
             </section>
+
+            {/* Mail bridge Phase 5 — company-email handover. Branches on
+                mailHandoverState; renders nothing pre-EMPLOYEE_ID_CREATED. */}
+            <CompanyEmailSection
+              data={data}
+              onOpenAssign={() => setModal('companyEmail')}
+            />
           </main>
 
           <aside className="space-y-4">
@@ -288,6 +298,23 @@ export default function NewHireDetailPage() {
             currentDate={data.joiningDate}
             onClose={() => setModal(null)}
             onApplied={() => { setModal(null); void load(); }}
+          />
+        )}
+        {modal === 'companyEmail' && (
+          <AssignCompanyEmailDialog
+            open
+            userId={data.internUserId}
+            internName={data.internName ?? null}
+            personalEmail={data.internEmail ?? null}
+            onClose={() => setModal(null)}
+            onAssigned={(addr) => {
+              toast.success(
+                `Company email ${addr} created — starting credentials emailed to `
+                + `${data.internEmail ?? 'the intern’s personal email'}.`,
+              );
+              setModal(null);
+              void load();
+            }}
           />
         )}
       </DashboardLayout>
@@ -562,5 +589,90 @@ function AssignManagerModal({
         </div>
       </div>
     </div>
+  );
+}
+
+/**
+ * Mail bridge Phase 5 — handover section. Branches on
+ * data.mailHandoverState:
+ *   PERSONAL + employeeId          -> action button (opens dialog)
+ *   PERSONAL but no employeeId     -> render nothing (pre-EMPLOYEE_ID_CREATED)
+ *   PENDING_ACTIVATION             -> amber chip "awaiting activation"
+ *   ACTIVATED                      -> green chip "active"
+ * Uses the same card shell + chip palette as the page's other
+ * sections so it slots in without a new design.
+ */
+function CompanyEmailSection({
+  data, onOpenAssign,
+}: {
+  data: NewHireDetail;
+  onOpenAssign: () => void;
+}) {
+  const state = data.mailHandoverState;
+  const hasEmployeeId = !!data.employeeId;
+
+  // Backend hasn't surfaced the field (legacy client) OR pre-handover
+  // intern who hasn't reached EMPLOYEE_ID_CREATED -> render nothing so
+  // the page is unchanged for non-handover users.
+  if (!state) return null;
+  if (state === 'PERSONAL' && !hasEmployeeId) return null;
+
+  return (
+    <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+      <div className="flex items-center justify-between">
+        <h3 className="text-sm font-semibold text-slate-900">Company email</h3>
+        {state === 'PENDING_ACTIVATION' && (
+          <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2.5 py-0.5 text-[11px] font-semibold text-amber-800 ring-1 ring-amber-200">
+            awaiting activation
+          </span>
+        )}
+        {state === 'ACTIVATED' && (
+          <span className="inline-flex items-center gap-1 rounded-full bg-green-50 px-2.5 py-0.5 text-[11px] font-semibold text-green-700 ring-1 ring-green-200">
+            active
+          </span>
+        )}
+      </div>
+
+      {state === 'PERSONAL' && (
+        <div className="mt-3 flex flex-wrap items-center gap-3">
+          <button
+            type="button"
+            onClick={onOpenAssign}
+            className="inline-flex items-center gap-1.5 rounded-md bg-brand-700 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-800"
+          >
+            <Mail className="h-4 w-4" />
+            Assign company email
+          </button>
+          <p className="text-[11px] text-slate-500">
+            Provisions a {`<localpart>@skyzentech.com`} mailbox and emails the
+            starting credentials to the intern&rsquo;s personal Gmail. After
+            they change the password in the mailbox, the same credentials
+            sign them into the dashboard.
+          </p>
+        </div>
+      )}
+
+      {state === 'PENDING_ACTIVATION' && (
+        <p className="mt-2 text-sm text-slate-700">
+          <span className="font-mono">{data.internEmail}</span> &mdash; intern
+          must log into <span className="font-mono">/mail</span> and change
+          the starting password before they can sign into the dashboard.
+          {data.personalEmail && (
+            <>
+              {' '}Credentials emailed to{' '}
+              <span className="font-mono">{data.personalEmail}</span>.
+            </>
+          )}
+        </p>
+      )}
+
+      {state === 'ACTIVATED' && (
+        <p className="mt-2 text-sm text-slate-700">
+          <span className="font-mono">{data.internEmail}</span> &mdash; signs
+          into both the mailbox and the dashboard with the same password.
+          Notifications now land in the company mailbox.
+        </p>
+      )}
+    </section>
   );
 }

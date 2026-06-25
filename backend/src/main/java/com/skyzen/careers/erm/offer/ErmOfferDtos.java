@@ -178,7 +178,18 @@ public final class ErmOfferDtos {
             /** True when the lifecycle is at ONBOARDING_ACCEPTED (docs
              *  accepted). The UI uses this to enable the joining-date
              *  control — ERM commits the date only after docs pass. */
-            boolean docsAccepted
+            boolean docsAccepted,
+            /** Mail bridge Phase 5 — enum name (PERSONAL | PENDING_ACTIVATION |
+             *  ACTIVATED) so the ERM intern-detail page can render the
+             *  handover section without an extra round-trip. Mirrors
+             *  {@code com.skyzen.careers.enums.MailHandoverState}. */
+            String mailHandoverState,
+            /** Mail bridge Phase 5 — the user's original personal Gmail,
+             *  archived during the email swap. Null while still PERSONAL
+             *  (no swap has happened yet). The ERM page uses this to
+             *  confirm "credentials emailed to <personal email>" without
+             *  exposing it from any other endpoint. */
+            String personalEmail
     ) {}
 
     public record UserStub(

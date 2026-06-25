@@ -25,6 +25,16 @@ function LoginInner() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
+  /**
+   * Mail bridge Phase 5 — set when /auth/login returns HTTP 403, which
+   * the Phase-4 backend uses for the PENDING_ACTIVATION hard-lock
+   * ("set up your mailbox first"). Rendered as a separate amber panel
+   * with a "Go to your mailbox" CTA instead of the generic red error
+   * banner. Cleared on any subsequent submit. The submitted server
+   * message is preserved as a sub-line so future 403 reasons (e.g.
+   * "mailbox not ready") surface verbatim.
+   */
+  const [activationLock, setActivationLock] = useState<string | null>(null);
 
   useEffect(() => {
     if (searchParams?.get('reason') === 'idle') {
@@ -35,14 +45,25 @@ function LoginInner() {
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
     setError(null);
+    setActivationLock(null);
     setLoading(true);
     try {
       const user = await login(email, password);
       const returnTo = safeReturnTo();
       router.replace(returnTo ?? getDashboardForUser(user));
     } catch (err: any) {
+      // Mail bridge Phase 5 — Phase-4 backend returns 403 when a
+      // PENDING_ACTIVATION user tries to sign in before activating
+      // their company mailbox. Surface the activation panel (with a
+      // CTA to /mail/login) instead of the generic red error. Normal
+      // 401 "Invalid credentials" path is unchanged.
+      const status = err?.response?.status;
       const msg = err?.response?.data?.error ?? 'Login failed';
-      setError(msg);
+      if (status === 403) {
+        setActivationLock(msg);
+      } else {
+        setError(msg);
+      }
     } finally {
       setLoading(false);
     }
@@ -62,6 +83,24 @@ function LoginInner() {
       {notice && (
         <div className="mb-4 rounded border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
           {notice}
+        </div>
+      )}
+      {/* Mail bridge Phase 5 — activation panel for 403 hard-lock. */}
+      {activationLock && (
+        <div className="mb-4 rounded border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+          <p className="font-semibold">Set up your company mailbox first</p>
+          <p className="mt-1">{activationLock}</p>
+          <p className="mt-2 text-amber-800">
+            Sign in to your mailbox, change the starting password to one of
+            your choosing, then come back here and sign in with the new
+            password.
+          </p>
+          <Link
+            href="/mail/login"
+            className="mt-3 inline-flex items-center justify-center rounded-md bg-amber-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-amber-700"
+          >
+            Go to your mailbox →
+          </Link>
         </div>
       )}
       {error && (

@@ -193,7 +193,14 @@ public class ErmNewHireService {
                 lc.getJoiningDate(),
                 intern != null
                         && intern.getLifecycleStatus()
-                                == com.skyzen.careers.enums.InternLifecycleStatus.ONBOARDING_ACCEPTED);
+                                == com.skyzen.careers.enums.InternLifecycleStatus.ONBOARDING_ACCEPTED,
+                // Mail bridge Phase 5 — surface the handover state +
+                // archived personal email so the ERM page can render the
+                // "Assign company email" section (PERSONAL + employeeId)
+                // or the status chip (PENDING_ACTIVATION / ACTIVATED).
+                intern != null && intern.getMailHandoverState() != null
+                        ? intern.getMailHandoverState().name() : null,
+                intern != null ? intern.getPersonalEmail() : null);
     }
 
     // ── Assign reporting structure (legacy — kept for one-off corrections) ─

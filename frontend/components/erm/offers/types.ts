@@ -163,4 +163,13 @@ export interface NewHireDetail {
    *  this to enable the "Set joining date" control — ERM commits the
    *  date only after docs are accepted. */
   docsAccepted: boolean;
+  /** Mail bridge Phase 5 — enum name from the backend. Drives the
+   *  "Assign company email" section: PERSONAL+employeeId shows the
+   *  button; PENDING_ACTIVATION shows an "awaiting activation" chip;
+   *  ACTIVATED shows an "active" chip. Null when the backend doesn't
+   *  surface it (legacy/old clients). */
+  mailHandoverState: 'PERSONAL' | 'PENDING_ACTIVATION' | 'ACTIVATED' | null;
+  /** Mail bridge Phase 5 — archived personal Gmail captured during
+   *  the email swap. Null pre-swap. */
+  personalEmail: string | null;
 }

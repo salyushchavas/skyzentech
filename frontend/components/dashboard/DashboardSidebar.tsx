@@ -200,6 +200,21 @@ export default function DashboardSidebar({ onNavigate }: Props) {
       </div>
 
       <div className="space-y-1 border-t border-slate-200 px-3 py-3">
+        {/* Mail bridge Phase 5 — role-agnostic "Mailbox" link. Visible
+            to every authenticated user; the mail app's own auth gate
+            handles whether the user actually has a mailbox. We don't
+            role-gate here because the User type carried by useAuth()
+            doesn't surface mailHandoverState today — adding that to
+            the /auth/me payload is a follow-up. */}
+        {user && (
+          <Link
+            href="/mail/login"
+            onClick={onNavigate}
+            className="block rounded-md px-3 py-2 text-xs font-medium text-slate-600 transition-colors hover:bg-slate-50 hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2"
+          >
+            ✉ Mailbox
+          </Link>
+        )}
         {user && <SignOutButton variant="sidebar" onAfter={onNavigate} />}
         <Link
           href="/"
