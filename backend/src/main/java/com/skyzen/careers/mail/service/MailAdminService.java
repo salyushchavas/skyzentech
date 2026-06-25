@@ -104,6 +104,59 @@ public class MailAdminService {
                 account.getId().toString(), email(account), plaintext, requireChange);
     }
 
+    /**
+     * Mail bridge Phase 4 — ADDITIVE principal-free provisioning entry
+     * point. Same body as {@link #createMailbox} minus the {@code
+     * MailPrincipal} / RBAC step + the actor-keyed audit row (RBAC for
+     * this path is enforced Careers-side at the ERM controller; the
+     * audit trail lives on the Careers user's {@code mail_handover_at}
+     * + {@code AuditLog} chain instead).
+     *
+     * <p>Joins the caller's transaction (no {@code REQUIRES_NEW}) so a
+     * rollback in {@code MailHandoverService} unwinds the mailbox row
+     * along with the user-side mutations — credentials are never emailed
+     * for an aborted handover.</p>
+     *
+     * <p>Throws the same {@link MailApiException} codes as
+     * {@code createMailbox} ({@code MAIL_INVALID_LOCAL_PART},
+     * {@code MAIL_ADDRESS_TAKEN}, {@code MAIL_WEAK_PASSWORD}) so the ERM
+     * UI can map them to clean messages.</p>
+     */
+    @Transactional
+    public MailCredentialResponse provisionMailboxInternal(String domainName,
+                                                            String localPartIn,
+                                                            String displayName,
+                                                            String plaintextPassword,
+                                                            boolean requireChangeOnFirstLogin) {
+        if (domainName == null || domainName.isBlank()) {
+            throw badRequest("Domain name is required", "MAIL_INVALID_DOMAIN");
+        }
+        MailDomain domain = domainRepository.findByName(domainName.trim().toLowerCase(Locale.ROOT))
+                .orElseThrow(() -> notFound("Domain not found"));
+        String localPart = localPartIn == null ? "" : localPartIn.trim().toLowerCase(Locale.ROOT);
+        if (!LOCAL_PART.matcher(localPart).matches()) {
+            throw badRequest("Invalid local part", "MAIL_INVALID_LOCAL_PART");
+        }
+        if (accountRepository.existsByLocalPartAndDomain_Id(localPart, domain.getId())) {
+            throw new MailApiException(HttpStatus.CONFLICT,
+                    "A mailbox with that address already exists", "MAIL_ADDRESS_TAKEN");
+        }
+        String plaintext = resolvePassword(plaintextPassword);
+        MailAccount account = MailAccount.builder()
+                .domain(domain)
+                .localPart(localPart)
+                .displayName(blankToNull(displayName))
+                .passwordHash(passwordEncoder.encode(plaintext))
+                .role(MailRole.USER)
+                .status(MailAccountStatus.ACTIVE)
+                .mustChangePassword(requireChangeOnFirstLogin)
+                .requireChangeOnFirstLogin(requireChangeOnFirstLogin)
+                .build();
+        account = accountRepository.save(account);
+        return new MailCredentialResponse(
+                account.getId().toString(), email(account), plaintext, requireChangeOnFirstLogin);
+    }
+
     @Transactional
     public MailCredentialResponse resetPassword(MailPrincipal principal, UUID accountId, String password) {
         MailAccount actor = loadActor(principal);
