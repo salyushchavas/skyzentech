@@ -132,12 +132,18 @@ public class MailHandoverService {
                 : (target.getEmployeeId() != null ? target.getEmployeeId() : "Skyzen Employee");
 
         // Provision the mailbox (joins this transaction — rollback safe).
+        // Phase 6 — the ERM-assigned password is the intern's PERMANENT
+        // mailbox password. No first-login change prompt; the intern
+        // signs into /mail with these credentials and lands directly
+        // in the inbox. provisionMailboxInternal maps this single
+        // argument onto BOTH mustChangePassword + requireChangeOnFirstLogin
+        // on the new MailAccount row, so passing false flips both.
         MailCredentialResponse cred = mailAdminService.provisionMailboxInternal(
                 seedDomain,
                 localPartIn.trim().toLowerCase(java.util.Locale.ROOT),
                 displayName,
                 startingPassword,
-                /* requireChangeOnFirstLogin */ true);
+                /* requireChangeOnFirstLogin */ false);
 
         String companyEmail = cred.email();
         UUID mailAccountId = UUID.fromString(cred.accountId());
