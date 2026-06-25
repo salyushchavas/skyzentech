@@ -76,8 +76,31 @@ export default function ReviewTaskModal({ taskId, onClose, onReviewed }: Props) 
         /* non-fatal — the gate will re-enable on next modal open */
       }
     } catch (e) {
-      const ax = e as { response?: { data?: { error?: string } }; message?: string };
-      alert(ax.response?.data?.error ?? ax.message ?? 'Download failed');
+      // responseType:'blob' makes axios deliver the error body as a Blob too,
+      // so ax.response.data.error is undefined and we'd otherwise alert the
+      // generic "Request failed with status code 404". Read the blob as text
+      // and parse out the backend's actionable message (e.g. the "file no
+      // longer available — owner needs to re-upload" wording from the
+      // DocumentVaultService eviction handler).
+      const ax = e as {
+        response?: { data?: unknown };
+        message?: string;
+      };
+      let msg: string | undefined;
+      const raw = ax.response?.data;
+      if (raw instanceof Blob) {
+        try {
+          const text = await raw.text();
+          const parsed = JSON.parse(text) as { error?: string; message?: string };
+          msg = parsed.error ?? parsed.message;
+        } catch {
+          /* not JSON — fall through */
+        }
+      } else if (raw && typeof raw === 'object') {
+        const o = raw as { error?: string; message?: string };
+        msg = o.error ?? o.message;
+      }
+      alert(msg ?? ax.message ?? 'Download failed');
     }
   }
 
