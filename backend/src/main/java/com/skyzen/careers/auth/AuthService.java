@@ -16,6 +16,9 @@ import com.skyzen.careers.entity.User;
 import com.skyzen.careers.enums.InternLifecycleStatus;
 import com.skyzen.careers.enums.UserRole;
 import com.skyzen.careers.intern.InternLifecycleService;
+import com.skyzen.careers.mail.entity.MailAccount;
+import com.skyzen.careers.mail.entity.MailAccountStatus;
+import com.skyzen.careers.mail.repository.MailAccountRepository;
 import com.skyzen.careers.notification.EmailDeliveryException;
 import com.skyzen.careers.notification.NotificationStub;
 import com.skyzen.careers.repository.AuditLogRepository;
@@ -68,6 +71,16 @@ public class AuthService {
     private final SessionTokenService sessionTokenService;
     private final UserSessionRepository userSessionRepository;
     private final InternLifecycleService internLifecycleService;
+    /**
+     * Mail bridge Phase 3 — DORMANT. Used only by
+     * {@link #tryMailCredentialBridge} on the failure path of
+     * {@link #login}, to retry the submitted password against the linked
+     * {@code mail_accounts} row's BCrypt hash. Nothing flips
+     * {@code mail_account_id} on a User yet, so the helper short-circuits
+     * to {@code false} for every existing row and login behaviour is
+     * byte-identical to pre-phase.
+     */
+    private final MailAccountRepository mailAccountRepository;
 
     /**
      * GAP E3 — dev-only escape hatch for the password-reset token. When
@@ -301,26 +314,90 @@ public class AuthService {
         // would just return false and we'd surface "Invalid credentials",
         // which is misleading and hides the real fix (open the email).
         if (userOpt.isPresent() && userOpt.get().getPasswordHash() == null) {
-            log.warn("Login blocked for unactivated user: {}", req.email());
-            throw new AuthException(HttpStatus.UNAUTHORIZED,
-                    "Account not activated. Use the activation link emailed to you "
-                            + "by your admin. If it's lost or expired, ask the admin to re-issue it.");
-        }
-        if (userOpt.isEmpty() || !passwordEncoder.matches(req.password(), userOpt.get().getPasswordHash())) {
-            log.warn("Failed login attempt for email: {}", req.email());
-            throw new AuthException(HttpStatus.UNAUTHORIZED, "Invalid credentials");
+            // Mail bridge Phase 3 (DORMANT) — a handed-over user may have
+            // a null Careers password by design and authenticate purely
+            // via their mail-account credential. tryMailCredentialBridge
+            // short-circuits to false when mail_account_id is null (every
+            // user today), so the original "Account not activated"
+            // behaviour is preserved byte-for-byte. On a true return the
+            // bridge falls through to the SAME active-gate +
+            // issueSessionResponse path the normal success uses.
+            if (!tryMailCredentialBridge(userOpt.get(), req.password())) {
+                log.warn("Login blocked for unactivated user: {}", req.email());
+                throw new AuthException(HttpStatus.UNAUTHORIZED,
+                        "Account not activated. Use the activation link emailed to you "
+                                + "by your admin. If it's lost or expired, ask the admin to re-issue it.");
+            }
+        } else if (userOpt.isEmpty()
+                || !passwordEncoder.matches(req.password(), userOpt.get().getPasswordHash())) {
+            // Mail bridge Phase 3 (DORMANT) — the standard Careers BCrypt
+            // check has FAILED. If the user exists AND has a linked mail
+            // account, retry the submitted password against the mail
+            // account's stored hash. tryMailCredentialBridge short-circuits
+            // to false when mail_account_id is null (every user today),
+            // so the original "Invalid credentials" behaviour is
+            // preserved. Unknown email still throws — userOpt.isEmpty()
+            // is checked first so we never call the bridge for a
+            // nonexistent account.
+            if (userOpt.isEmpty()
+                    || !tryMailCredentialBridge(userOpt.get(), req.password())) {
+                log.warn("Failed login attempt for email: {}", req.email());
+                throw new AuthException(HttpStatus.UNAUTHORIZED, "Invalid credentials");
+            }
         }
         User user = userOpt.get();
         // Reject deactivated accounts at the login boundary. We use 401 rather
         // than 403 so a deactivated account behaves the same as a wrong-password
         // attempt — clients don't get an oracle that distinguishes "real account"
-        // from "real account, just locked".
+        // from "real account, just locked". Applies to bridge logins too: a
+        // deactivated user cannot bridge in.
         if (Boolean.FALSE.equals(user.getActive())) {
             log.warn("Login blocked for deactivated user: {}", user.getEmail());
             throw new AuthException(HttpStatus.UNAUTHORIZED, "Invalid credentials");
         }
         log.info("User logged in: {}", user.getEmail());
         return issueSessionResponse(user, httpRequest);
+    }
+
+    /**
+     * Mail bridge Phase 3 — DORMANT fallback for the Careers login
+     * failure path. Returns {@code true} iff the user has a linked mail
+     * account ({@code mail_account_id != null}) that is
+     * {@link MailAccountStatus#ACTIVE} and whose stored BCrypt hash
+     * matches the submitted password.
+     *
+     * <p>Issues no token, mutates no row, never widens access: the
+     * caller (only {@link #login}) still applies the active-gate +
+     * normal session issuance after a {@code true} return. A successful
+     * mail-credential match still mints a normal CAREERS JWT for the
+     * SAME Careers User row; no MAIL JWT is read or produced here, and
+     * no JWT secret is shared.</p>
+     *
+     * <p>Gated on {@code mail_account_id != null}; nothing in the
+     * codebase sets this column yet, so every existing user gets an
+     * immediate {@code return false} and login behaviour is
+     * byte-identical to pre-phase.</p>
+     */
+    private boolean tryMailCredentialBridge(User user, String submittedPassword) {
+        if (user == null || submittedPassword == null || submittedPassword.isEmpty()) {
+            return false;
+        }
+        UUID mailAccountId = user.getMailAccountId();
+        if (mailAccountId == null) {
+            return false;
+        }
+        MailAccount account = mailAccountRepository.findById(mailAccountId).orElse(null);
+        if (account == null) {
+            return false;
+        }
+        if (account.getStatus() != MailAccountStatus.ACTIVE) {
+            return false;
+        }
+        String hash = account.getPasswordHash();
+        if (hash == null || hash.isBlank()) {
+            return false;
+        }
+        return passwordEncoder.matches(submittedPassword, hash);
     }
 
     /**
