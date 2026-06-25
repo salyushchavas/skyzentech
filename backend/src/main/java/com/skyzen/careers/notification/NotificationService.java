@@ -1110,12 +1110,23 @@ public class NotificationService {
             }
         }
 
+        // Mail bridge Phase 2 — publish the sender role into a thread-scoped
+        // context immediately before the send executes so BridgingEmailProvider
+        // can stamp the right "from" address (erm@ / trainer@ / ...) on the
+        // internal-mail copy when the recipient is ACTIVATED. ALWAYS cleared
+        // in finally — a Tomcat-pooled thread must never carry a stale value
+        // into the next request. No behaviour change here: the wrapper falls
+        // back to the raw SMTP provider for every recipient who isn't
+        // ACTIVATED (which is everyone today).
+        NotificationSenderContext.set(NotificationSenderRoles.forEvent(eventType));
         try {
             sendFn.run();
         } catch (Exception e) {
             log.warn("Notification {} for {} ({}) failed (non-fatal): {}",
                     eventType, targetId, recipient, e.getMessage());
             return;
+        } finally {
+            NotificationSenderContext.clear();
         }
 
         // Best-effort ledger + audit. A race that double-sends still only

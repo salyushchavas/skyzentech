@@ -383,6 +383,67 @@ public class MailMessageService {
         }
     }
 
+    // ── Mail bridge (Phase 2) — principal-free internal injection ─────────
+
+    /**
+     * Inject an internal notification into a recipient's mailbox WITHOUT a
+     * {@link MailPrincipal} (so it can be called from Careers-side services
+     * like {@code BridgingEmailProvider} that route Phase-2 notifications
+     * through the internal mail layer).
+     *
+     * <p>Sender + recipient are both looked up by full email and both must
+     * be ACTIVE accounts on the same seeded domain (cross-domain or
+     * unknown addresses fail the existing {@link #resolveRecipients}
+     * same-domain wall). The reused private flow ({@link #newMessage},
+     * {@link #resolveRecipients}, {@link #deliver}) means the message
+     * picks up the rule engine + mailbox-entry creation + SSE event for
+     * free — identical to a normal user-driven send.</p>
+     *
+     * <p>Either {@code bodyText} or {@code bodyHtml} (or both) may be
+     * passed; the existing content validators apply. Returns the saved
+     * {@link MailMessage} id for trace logging by the caller.</p>
+     *
+     * <p>Throws {@link MailApiException} on any of: unknown sender,
+     * non-ACTIVE sender, unknown / cross-domain recipient, content
+     * validation failure. Callers should catch + fall back to SMTP.</p>
+     */
+    @Transactional
+    public UUID deliverInternalNotification(String fromEmail, String toEmail,
+                                            String subject, String bodyText,
+                                            String bodyHtml) {
+        if (fromEmail == null || fromEmail.isBlank()) {
+            throw badRequest("fromEmail is required", "MAIL_FROM_REQUIRED");
+        }
+        if (toEmail == null || toEmail.isBlank()) {
+            throw badRequest("toEmail is required", "MAIL_TO_REQUIRED");
+        }
+        MailAccount sender = resolveActiveAccount(fromEmail);
+        validateContent(subject, bodyText, bodyHtml);
+        Resolved r = resolveRecipients(sender,
+                java.util.List.of(toEmail), java.util.List.of(), java.util.List.of());
+        if (r.count() == 0) {
+            throw badRequest("Recipient is required", "MAIL_NO_RECIPIENTS");
+        }
+        MailMessage msg = newMessage(sender, subject, bodyText, bodyHtml, null);
+        deliver(msg, r, sender);
+        return msg.getId();
+    }
+
+    /** Look up an ACTIVE {@link MailAccount} by full email address. */
+    private MailAccount resolveActiveAccount(String email) {
+        String normalized = email.trim().toLowerCase(java.util.Locale.ROOT);
+        int at = normalized.indexOf('@');
+        if (at <= 0 || at == normalized.length() - 1) {
+            throw badRequest("Invalid email: " + email, "MAIL_BAD_ADDRESS");
+        }
+        String localPart = normalized.substring(0, at);
+        String domainName = normalized.substring(at + 1);
+        return accountRepository.findActiveByLocalPartAndDomainName(localPart, domainName)
+                .orElseThrow(() -> new MailApiException(HttpStatus.UNPROCESSABLE_ENTITY,
+                        "Unknown or inactive mail account: " + email,
+                        "MAIL_ACCOUNT_NOT_FOUND"));
+    }
+
     // ── Walling / actor ──────────────────────────────────────────────────
 
     private MailAccount loadActor(MailPrincipal principal) {
