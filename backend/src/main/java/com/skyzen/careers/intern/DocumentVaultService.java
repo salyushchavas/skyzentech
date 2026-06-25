@@ -255,9 +255,33 @@ public class DocumentVaultService {
             throw new ResourceNotFoundException("Document has no storage key");
         }
         if (looksLikeFilesystemPath(storageKey)) {
-            return Files.readAllBytes(Paths.get(storageKey));
+            try {
+                return Files.readAllBytes(Paths.get(storageKey));
+            } catch (java.nio.file.NoSuchFileException nsf) {
+                // Railway containers have ephemeral filesystems unless a
+                // persistent Volume is mounted at the storage root. A redeploy
+                // evicts every file previously written under `./uploads/...`.
+                // Surface this as a clean 404 with an actionable message
+                // rather than a cryptic 500 — the ERM needs to know the
+                // bytes are gone (re-upload required), not that the server
+                // exploded.
+                log.warn("[DocumentVault] file evicted from volume — key={} "
+                        + "(ephemeral storage was wiped by a redeploy)", storageKey);
+                throw new ResourceNotFoundException(
+                        "Document file is no longer available — the original "
+                                + "upload was stored on ephemeral disk and was "
+                                + "lost on a server restart. The owner needs to "
+                                + "re-upload the document.");
+            }
         }
-        return s3StorageService.getObject(storageKey);
+        try {
+            return s3StorageService.getObject(storageKey);
+        } catch (software.amazon.awssdk.services.s3.model.NoSuchKeyException nsk) {
+            log.warn("[DocumentVault] S3 object missing — key={}", storageKey);
+            throw new ResourceNotFoundException(
+                    "Document file is no longer available in storage. The "
+                            + "owner needs to re-upload the document.");
+        }
     }
 
     /**
