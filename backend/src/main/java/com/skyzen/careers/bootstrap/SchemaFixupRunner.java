@@ -1437,6 +1437,12 @@ public class SchemaFixupRunner implements CommandLineRunner {
         // Both nullable, both idempotent ADD COLUMN IF NOT EXISTS.
         ensureErmPass2Columns();
 
+        // Mail bridge Phase 1 — additive columns on users to track the
+        // intern → employee mailbox handover. Nothing reads or writes
+        // these yet; the column floor lets later phases ship without a
+        // separate schema patch. All idempotent ADD COLUMN IF NOT EXISTS.
+        ensureMailBridgeColumns();
+
         // Scorecard overall_recommendation — collapsed from the legacy
         // 4-bucket set (STRONG_HIRE / HIRE / NO_HIRE / STRONG_NO_HIRE)
         // to the 3-bucket Hire/Reject/Hold to mirror the binding manager
@@ -1652,6 +1658,66 @@ public class SchemaFixupRunner implements CommandLineRunner {
             log.debug("[SchemaFixup] ensured intern_lifecycles.joining_date");
         } catch (Exception e) {
             log.warn("[SchemaFixup] add intern_lifecycles.joining_date "
+                    + "failed (non-fatal): {}", e.getMessage());
+        }
+    }
+
+    /**
+     * Mail bridge Phase 1 — additive columns on {@code users} for the
+     * intern → employee mailbox handover. Nothing reads or writes these
+     * yet; the column floor lets the dispatcher land in a later phase
+     * without a separate schema patch. All four are idempotent
+     * {@code ADD COLUMN IF NOT EXISTS}.
+     *
+     * <ul>
+     *   <li>{@code mail_account_id UUID} — one-way link to
+     *       {@code mail_accounts.id}; no FK constraint.</li>
+     *   <li>{@code mail_handover_state VARCHAR(24) NOT NULL DEFAULT 'PERSONAL'}
+     *       — mirrors {@link com.skyzen.careers.enums.MailHandoverState}.
+     *       The DEFAULT lets existing rows backfill cleanly when the column
+     *       is first added (same trick as {@code users.active} +
+     *       {@code users.email_verified}).</li>
+     *   <li>{@code mail_handover_at TIMESTAMPTZ} — flip timestamp.</li>
+     *   <li>{@code personal_email VARCHAR(255)} — archive of the original
+     *       Gmail once login email is swapped to the company address.</li>
+     * </ul>
+     */
+    private void ensureMailBridgeColumns() {
+        try {
+            jdbcTemplate.execute(
+                    "ALTER TABLE users ADD COLUMN IF NOT EXISTS "
+                            + "mail_account_id UUID");
+            log.debug("[SchemaFixup] ensured users.mail_account_id");
+        } catch (Exception e) {
+            log.warn("[SchemaFixup] add users.mail_account_id "
+                    + "failed (non-fatal): {}", e.getMessage());
+        }
+        try {
+            jdbcTemplate.execute(
+                    "ALTER TABLE users ADD COLUMN IF NOT EXISTS "
+                            + "mail_handover_state VARCHAR(24) NOT NULL "
+                            + "DEFAULT 'PERSONAL'");
+            log.debug("[SchemaFixup] ensured users.mail_handover_state");
+        } catch (Exception e) {
+            log.warn("[SchemaFixup] add users.mail_handover_state "
+                    + "failed (non-fatal): {}", e.getMessage());
+        }
+        try {
+            jdbcTemplate.execute(
+                    "ALTER TABLE users ADD COLUMN IF NOT EXISTS "
+                            + "mail_handover_at TIMESTAMPTZ");
+            log.debug("[SchemaFixup] ensured users.mail_handover_at");
+        } catch (Exception e) {
+            log.warn("[SchemaFixup] add users.mail_handover_at "
+                    + "failed (non-fatal): {}", e.getMessage());
+        }
+        try {
+            jdbcTemplate.execute(
+                    "ALTER TABLE users ADD COLUMN IF NOT EXISTS "
+                            + "personal_email VARCHAR(255)");
+            log.debug("[SchemaFixup] ensured users.personal_email");
+        } catch (Exception e) {
+            log.warn("[SchemaFixup] add users.personal_email "
                     + "failed (non-fatal): {}", e.getMessage());
         }
     }
