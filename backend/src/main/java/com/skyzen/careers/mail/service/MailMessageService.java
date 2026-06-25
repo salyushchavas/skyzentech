@@ -27,6 +27,7 @@ import com.skyzen.careers.mail.repository.MailMailboxEntryRepository;
 import com.skyzen.careers.mail.repository.MailMessageRecipientRepository;
 import com.skyzen.careers.mail.repository.MailMessageRepository;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
@@ -65,6 +66,7 @@ import java.util.stream.Collectors;
  */
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class MailMessageService {
 
     private final MailMessageRepository messageRepository;
@@ -417,16 +419,34 @@ public class MailMessageService {
         if (toEmail == null || toEmail.isBlank()) {
             throw badRequest("toEmail is required", "MAIL_TO_REQUIRED");
         }
-        MailAccount sender = resolveActiveAccount(fromEmail);
-        validateContent(subject, bodyText, bodyHtml);
-        Resolved r = resolveRecipients(sender,
-                java.util.List.of(toEmail), java.util.List.of(), java.util.List.of());
-        if (r.count() == 0) {
-            throw badRequest("Recipient is required", "MAIL_NO_RECIPIENTS");
+        // Diagnostic: separately catch sender-resolution so the log line
+        // names the inactive/unknown sender mailbox specifically (the most
+        // common cause of an internal-bridge bail since the seeded role
+        // mailboxes have to match the bridge's "<role>@<seedDomain>"
+        // address verbatim). Re-throw unchanged — no behaviour change.
+        MailAccount sender;
+        try {
+            sender = resolveActiveAccount(fromEmail);
+        } catch (RuntimeException e) {
+            log.warn("[MailBridge] deliverInternalNotification sender resolution "
+                    + "failed from={}: {}", fromEmail, e.getMessage());
+            throw e;
         }
-        MailMessage msg = newMessage(sender, subject, bodyText, bodyHtml, null);
-        deliver(msg, r, sender);
-        return msg.getId();
+        try {
+            validateContent(subject, bodyText, bodyHtml);
+            Resolved r = resolveRecipients(sender,
+                    java.util.List.of(toEmail), java.util.List.of(), java.util.List.of());
+            if (r.count() == 0) {
+                throw badRequest("Recipient is required", "MAIL_NO_RECIPIENTS");
+            }
+            MailMessage msg = newMessage(sender, subject, bodyText, bodyHtml, null);
+            deliver(msg, r, sender);
+            return msg.getId();
+        } catch (RuntimeException e) {
+            log.warn("[MailBridge] deliverInternalNotification failed from={} to={}: {}",
+                    fromEmail, toEmail, e.getMessage());
+            throw e;
+        }
     }
 
     /** Look up an ACTIVE {@link MailAccount} by full email address. */

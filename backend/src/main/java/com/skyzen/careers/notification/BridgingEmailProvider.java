@@ -95,8 +95,12 @@ public class BridgingEmailProvider implements EmailProvider {
     public void sendRendered(String email, String subject, String body) {
         String internalAddr = internalRecipientFor(email);
         if (internalAddr != null) {
-            if (deliverInternal(internalAddr, subject, body, null)) return;
-            // deliverInternal returned false → fail-safe fallthrough to SMTP
+            String senderAddr = resolveSenderAddr();
+            if (deliverInternal(senderAddr, internalAddr, subject, body, null)) return;
+            // Diagnostic: deliverInternal returned false (its catch logged the
+            // underlying cause); caller-side visibility for the SMTP fallback.
+            log.warn("[MailBridge] internal delivery returned false for {} (from={}) "
+                    + "→ falling back to SMTP", internalAddr, senderAddr);
         }
         raw.sendRendered(email, subject, body);
     }
@@ -105,9 +109,27 @@ public class BridgingEmailProvider implements EmailProvider {
     public void sendBrandedHtml(String email, String subject, String plainBody, String htmlBody) {
         String internalAddr = internalRecipientFor(email);
         if (internalAddr != null) {
-            if (deliverInternal(internalAddr, subject, plainBody, htmlBody)) return;
+            String senderAddr = resolveSenderAddr();
+            if (deliverInternal(senderAddr, internalAddr, subject, plainBody, htmlBody)) return;
+            log.warn("[MailBridge] internal delivery returned false for {} (from={}) "
+                    + "→ falling back to SMTP", internalAddr, senderAddr);
         }
         raw.sendBrandedHtml(email, subject, plainBody, htmlBody);
+    }
+
+    /**
+     * Pulled out of {@link #deliverInternal} so the caller can log the resolved
+     * sender address alongside the recipient when the internal path bails.
+     * Same value as before — context local-part if set,
+     * {@link NotificationSenderRoles#DEFAULT_LOCAL_PART} otherwise — at
+     * {@code seedDomain}.
+     */
+    private String resolveSenderAddr() {
+        String senderLocalPart = NotificationSenderContext.get();
+        if (senderLocalPart == null || senderLocalPart.isBlank()) {
+            senderLocalPart = NotificationSenderRoles.DEFAULT_LOCAL_PART;
+        }
+        return senderLocalPart + "@" + seedDomain;
     }
 
     /**
@@ -130,12 +152,26 @@ public class BridgingEmailProvider implements EmailProvider {
         if (recipientEmail == null || recipientEmail.isBlank()) return null;
         if (recipientEmail.contains(",")) return null;
         try {
-            Optional<User> recipientOpt = userRepository.findByEmail(recipientEmail.trim());
-            if (recipientOpt.isEmpty()) return null;
+            String lookupKey = recipientEmail.trim();
+            Optional<User> recipientOpt = userRepository.findByEmail(lookupKey);
+            if (recipientOpt.isEmpty()) {
+                log.info("[MailBridge] route-miss: findByEmail empty for [{}] "
+                        + "(len={}) → external SMTP", lookupKey, lookupKey.length());
+                return null;
+            }
             User recipient = recipientOpt.get();
-            if (recipient.getMailHandoverState() != MailHandoverState.ACTIVATED) return null;
+            if (recipient.getMailHandoverState() != MailHandoverState.ACTIVATED) {
+                log.info("[MailBridge] route-miss: user {} state={} (not ACTIVATED) "
+                        + "→ external SMTP",
+                        recipient.getId(), recipient.getMailHandoverState());
+                return null;
+            }
             UUID mailAccountId = recipient.getMailAccountId();
-            if (mailAccountId == null) return null;
+            if (mailAccountId == null) {
+                log.info("[MailBridge] route-miss: user {} is ACTIVATED but "
+                        + "mail_account_id is null → external SMTP", recipient.getId());
+                return null;
+            }
             MailAccount recipientMailbox = mailAccountRepository.findById(mailAccountId).orElse(null);
             if (recipientMailbox == null
                     || recipientMailbox.getDomain() == null
@@ -160,20 +196,15 @@ public class BridgingEmailProvider implements EmailProvider {
      * Returns {@code false} on any failure so the caller can fall back
      * to the raw SMTP provider — the bridge never drops a notification.
      */
-    private boolean deliverInternal(String recipientAddr, String subject,
+    private boolean deliverInternal(String senderAddr, String recipientAddr, String subject,
                                      String bodyText, String bodyHtml) {
         try {
-            String senderLocalPart = NotificationSenderContext.get();
-            if (senderLocalPart == null || senderLocalPart.isBlank()) {
-                senderLocalPart = NotificationSenderRoles.DEFAULT_LOCAL_PART;
-            }
-            String senderAddr = senderLocalPart + "@" + seedDomain;
             mailMessageService.deliverInternalNotification(
                     senderAddr, recipientAddr, subject, bodyText, bodyHtml);
             return true;
         } catch (Exception e) {
-            log.warn("[MailBridge] internal delivery failed for {} (falling back to SMTP): {}",
-                    recipientAddr, e.getMessage());
+            log.warn("[MailBridge] internal delivery failed from={} to={} (falling back to SMTP): {}",
+                    senderAddr, recipientAddr, e.getMessage());
             return false;
         }
     }
