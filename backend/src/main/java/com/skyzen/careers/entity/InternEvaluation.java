@@ -72,8 +72,13 @@ public class InternEvaluation {
     @Column(name = "timezone", length = 50)
     private String timezone;
 
-    @Column(name = "zoom_meeting_id")
-    private Long zoomMeetingId;
+    /**
+     * Meeting provider id — String since Phase 2 of the WebEx migration
+     * (column name kept for back-compat; type widened from BIGINT to
+     * VARCHAR(64) by SchemaFixupRunner).
+     */
+    @Column(name = "zoom_meeting_id", length = 64)
+    private String zoomMeetingId;
 
     @Column(name = "zoom_join_url", columnDefinition = "TEXT")
     private String zoomJoinUrl;

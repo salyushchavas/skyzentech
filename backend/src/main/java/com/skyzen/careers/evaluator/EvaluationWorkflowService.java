@@ -12,9 +12,9 @@ import com.skyzen.careers.exception.BadRequestException;
 import com.skyzen.careers.exception.ConflictException;
 import com.skyzen.careers.exception.ForbiddenException;
 import com.skyzen.careers.exception.ResourceNotFoundException;
-import com.skyzen.careers.integration.zoom.ZoomMeetingRequest;
-import com.skyzen.careers.integration.zoom.ZoomMeetingResponse;
-import com.skyzen.careers.integration.zoom.ZoomService;
+import com.skyzen.careers.integration.meeting.MeetingProvider;
+import com.skyzen.careers.integration.meeting.MeetingRequest;
+import com.skyzen.careers.integration.meeting.MeetingResponse;
 import com.skyzen.careers.repository.AuditLogRepository;
 import com.skyzen.careers.repository.EvaluationAmendmentRepository;
 import com.skyzen.careers.repository.ExitRecordRepository;
@@ -57,7 +57,7 @@ public class EvaluationWorkflowService {
     private final EvaluationAmendmentRepository amendmentRepo;
     private final AuditLogRepository auditRepo;
     private final ExitRecordRepository exitRecordRepo;
-    private final ZoomService zoomService;
+    private final MeetingProvider meetingProvider;
     private final EvaluationNotificationFanout fanout;
     private final ObjectMapper objectMapper;
     private final JdbcTemplate jdbc;
@@ -108,18 +108,18 @@ public class EvaluationWorkflowService {
 
         // Best-effort Zoom — failure leaves the evaluation row in SCHEDULED
         // status without a join URL; Evaluator can paste a manual link later.
-        if (zoomService.isReady()) {
+        if (meetingProvider.isReady()) {
             try {
                 String topic = req.topic() != null && !req.topic().isBlank()
                         ? req.topic()
                         : "Monthly Evaluation — " + month.toString();
-                ZoomMeetingResponse z = zoomService.createMeeting(
-                        new ZoomMeetingRequest(
+                MeetingResponse z = meetingProvider.createMeeting(
+                        new MeetingRequest(
                                 caller.getZoomEmail() != null && !caller.getZoomEmail().isBlank()
                                         ? caller.getZoomEmail() : "me",
                                 topic, req.scheduledFor(), duration,
                                 ev.getTimezone(), req.agenda()));
-                ev.setZoomMeetingId(z.meetingId());
+                ev.setZoomMeetingId(z.providerMeetingId());
                 ev.setZoomJoinUrl(z.joinUrl());
                 ev.setZoomStartUrl(z.startUrl());
                 ev.setZoomPassword(z.password());
@@ -214,18 +214,18 @@ public class EvaluationWorkflowService {
                 .version(1)
                 .build();
 
-        if (zoomService.isReady()) {
+        if (meetingProvider.isReady()) {
             try {
                 String topic = req.topic() != null && !req.topic().isBlank()
                         ? req.topic()
                         : "Final Evaluation — End of Internship";
-                ZoomMeetingResponse z = zoomService.createMeeting(
-                        new ZoomMeetingRequest(
+                MeetingResponse z = meetingProvider.createMeeting(
+                        new MeetingRequest(
                                 caller.getZoomEmail() != null && !caller.getZoomEmail().isBlank()
                                         ? caller.getZoomEmail() : "me",
                                 topic, req.scheduledFor(), duration,
                                 ev.getTimezone(), req.agenda()));
-                ev.setZoomMeetingId(z.meetingId());
+                ev.setZoomMeetingId(z.providerMeetingId());
                 ev.setZoomJoinUrl(z.joinUrl());
                 ev.setZoomStartUrl(z.startUrl());
                 ev.setZoomPassword(z.password());

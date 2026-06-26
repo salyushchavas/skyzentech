@@ -19,7 +19,7 @@ interface WeeklyMeeting {
   timezone?: string;
   topic: string;
   agenda?: string | null;
-  zoomMeetingId?: number | null;
+  zoomMeetingId?: string | null;
   zoomJoinUrl?: string | null;
   /** Applicant-safe DTO never includes zoomStartUrl — present in TS as
    *  optional for forward compat with staff endpoints only. */

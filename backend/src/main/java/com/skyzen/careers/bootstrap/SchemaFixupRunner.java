@@ -1036,7 +1036,7 @@ public class SchemaFixupRunner implements CommandLineRunner {
                             + "  timezone VARCHAR(50) NOT NULL DEFAULT 'UTC',"
                             + "  topic VARCHAR(200) NOT NULL,"
                             + "  agenda TEXT,"
-                            + "  zoom_meeting_id BIGINT,"
+                            + "  zoom_meeting_id VARCHAR(64),"
                             + "  zoom_join_url TEXT,"
                             + "  zoom_start_url TEXT,"
                             + "  zoom_password VARCHAR(40),"
@@ -1059,22 +1059,38 @@ public class SchemaFixupRunner implements CommandLineRunner {
             log.warn("weekly_meetings table ensure failed (non-fatal): {}", e.getMessage(), e);
         }
 
-        // weekly_meetings.zoom_meeting_id — pre-Hibernate schema drift fix.
-        // Some older production rows have this column as numeric/text type
-        // (likely numeric(19,0) from a long-ago JPA default) which
-        // Hibernate's ddl-auto=update cannot auto-cast to BIGINT —
-        // surfaces as PSQLException "column cannot be cast automatically
-        // to type bigint" on every boot. Non-fatal for Hibernate (logs +
-        // continues) but the column type never gets fixed without this
-        // explicit USING cast. Idempotent: when already BIGINT, Postgres
-        // detects no-op.
+        // weekly_meetings.zoom_meeting_id — was BIGINT; Phase 2 of the WebEx
+        // migration widens it to VARCHAR(64) so a single column carries either
+        // Zoom's numeric id (stored as a decimal string) or WebEx's opaque
+        // alphanumeric id. Hibernate's ddl-auto=update can't safely cast
+        // BIGINT -> VARCHAR on its own — needs an explicit USING cast. Same
+        // idempotent pattern as the previous BIGINT cast: a no-op on tables
+        // already VARCHAR.
         try {
             jdbcTemplate.execute(
                     "ALTER TABLE weekly_meetings ALTER COLUMN zoom_meeting_id "
-                            + "TYPE BIGINT USING zoom_meeting_id::bigint");
-            log.info("Ensured weekly_meetings.zoom_meeting_id is BIGINT.");
+                            + "TYPE VARCHAR(64) USING zoom_meeting_id::text");
+            log.info("Ensured weekly_meetings.zoom_meeting_id is VARCHAR(64).");
         } catch (Exception e) {
-            log.warn("weekly_meetings.zoom_meeting_id BIGINT cast failed (non-fatal): {}",
+            log.warn("weekly_meetings.zoom_meeting_id VARCHAR cast failed (non-fatal): {}",
+                    e.getMessage());
+        }
+        try {
+            jdbcTemplate.execute(
+                    "ALTER TABLE interviews ALTER COLUMN zoom_meeting_id "
+                            + "TYPE VARCHAR(64) USING zoom_meeting_id::text");
+            log.info("Ensured interviews.zoom_meeting_id is VARCHAR(64).");
+        } catch (Exception e) {
+            log.warn("interviews.zoom_meeting_id VARCHAR cast failed (non-fatal): {}",
+                    e.getMessage());
+        }
+        try {
+            jdbcTemplate.execute(
+                    "ALTER TABLE intern_evaluations ALTER COLUMN zoom_meeting_id "
+                            + "TYPE VARCHAR(64) USING zoom_meeting_id::text");
+            log.info("Ensured intern_evaluations.zoom_meeting_id is VARCHAR(64).");
+        } catch (Exception e) {
+            log.warn("intern_evaluations.zoom_meeting_id VARCHAR cast failed (non-fatal): {}",
                     e.getMessage());
         }
 
@@ -1200,7 +1216,7 @@ public class SchemaFixupRunner implements CommandLineRunner {
                             + "  scheduled_for TIMESTAMP,"
                             + "  duration_minutes INTEGER,"
                             + "  timezone VARCHAR(50),"
-                            + "  zoom_meeting_id BIGINT,"
+                            + "  zoom_meeting_id VARCHAR(64),"
                             + "  zoom_join_url TEXT,"
                             + "  zoom_start_url TEXT,"
                             + "  zoom_password VARCHAR(40),"
@@ -1347,9 +1363,12 @@ public class SchemaFixupRunner implements CommandLineRunner {
                     "ALTER TABLE interviews ADD COLUMN IF NOT EXISTS internal_notes TEXT");
             jdbcTemplate.execute(
                     "ALTER TABLE interviews ADD COLUMN IF NOT EXISTS prep_instructions TEXT");
-            // zoom_meeting_id added in Phase 0 — kept here defensively.
+            // zoom_meeting_id added in Phase 0; widened to VARCHAR(64) in
+            // WebEx-migration Phase 2 (the ALTER TYPE block above is the
+            // converter for existing BIGINT columns; this defensive
+            // ADD-IF-NOT-EXISTS now uses VARCHAR so a fresh DB matches).
             jdbcTemplate.execute(
-                    "ALTER TABLE interviews ADD COLUMN IF NOT EXISTS zoom_meeting_id BIGINT");
+                    "ALTER TABLE interviews ADD COLUMN IF NOT EXISTS zoom_meeting_id VARCHAR(64)");
             // applicant_visible_notes added in Phase 0 — defensive.
             jdbcTemplate.execute(
                     "ALTER TABLE interviews ADD COLUMN IF NOT EXISTS applicant_visible_notes TEXT");

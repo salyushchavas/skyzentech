@@ -82,7 +82,7 @@ public final class EvaluationWorkflowDtos {
             String timezone,
             String zoomJoinUrl,
             String zoomStartUrl,
-            Long zoomMeetingId,
+            String zoomMeetingId,            // Phase 2 — String since meeting providers differ on id shape
             Integer technicalSkillsScore,
             Integer communicationScore,
             Integer professionalismScore,

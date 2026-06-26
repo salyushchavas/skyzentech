@@ -60,7 +60,7 @@ public class InterviewService {
     private final ApplicationService applicationService;
     private final NotificationService notificationService;
     private final ApplicationEventPublisher eventPublisher;
-    private final com.skyzen.careers.integration.zoom.ZoomService zoomService;
+    private final com.skyzen.careers.integration.meeting.MeetingProvider meetingProvider;
     private final com.skyzen.careers.intern.InternLifecycleService internLifecycleService;
 
     // ── Commands ────────────────────────────────────────────────────────────
@@ -109,7 +109,7 @@ public class InterviewService {
         // the integration is disabled) the interview persists without Zoom
         // fields and the caller can populate them manually. The HTTP response
         // header X-Zoom-Status=degraded is set by the controller in that case.
-        if (zoomService.isReady()) {
+        if (meetingProvider.isReady()) {
             try {
                 String hostId = interviewer.getZoomEmail() != null
                         && !interviewer.getZoomEmail().isBlank()
@@ -118,16 +118,16 @@ public class InterviewService {
                 String topic = "Skyzen interview — "
                         + (application.getJobPosting() != null
                                 ? application.getJobPosting().getTitle() : "Application");
-                com.skyzen.careers.integration.zoom.ZoomMeetingResponse meeting =
-                        zoomService.createMeeting(
-                                new com.skyzen.careers.integration.zoom.ZoomMeetingRequest(
+                com.skyzen.careers.integration.meeting.MeetingResponse meeting =
+                        meetingProvider.createMeeting(
+                                new com.skyzen.careers.integration.meeting.MeetingRequest(
                                         hostId,
                                         topic,
                                         req.getScheduledAt(),
                                         interview.getDurationMinutes(),
                                         interview.getTimezone(),
                                         req.getPrepInstructions()));
-                interview.setZoomMeetingId(meeting.meetingId());
+                interview.setZoomMeetingId(meeting.providerMeetingId());
                 interview.setZoomJoinUrl(meeting.joinUrl());
                 interview.setZoomStartUrl(meeting.startUrl());
                 interview.setZoomPassword(meeting.password());
@@ -137,7 +137,7 @@ public class InterviewService {
                     interview.setMeetingUrl(meeting.joinUrl());
                 }
                 log.info("[Zoom] meeting created id={} for interview application={}",
-                        meeting.meetingId(), application.getId());
+                        meeting.providerMeetingId(), application.getId());
             } catch (Exception e) {
                 log.warn("[Zoom] createMeeting failed for application={} — interview "
                         + "persists without Zoom fields: {}",
@@ -293,10 +293,10 @@ public class InterviewService {
         }
         Map<String, Object> before = snapshot(interview);
 
-        Long zoomId = interview.getZoomMeetingId();
-        if (zoomId != null && zoomService.isReady()) {
+        String zoomId = interview.getZoomMeetingId();
+        if (zoomId != null && meetingProvider.isReady()) {
             try {
-                zoomService.deleteMeeting(zoomId);
+                meetingProvider.deleteMeeting(zoomId);
             } catch (Exception e) {
                 log.warn("[Zoom] deleteMeeting failed (non-fatal) for interview {}: {}",
                         interview.getId(), e.getMessage());
@@ -339,16 +339,16 @@ public class InterviewService {
             interview.setTimezone(req.getTimezone());
         }
 
-        Long zoomId = interview.getZoomMeetingId();
-        if (zoomId != null && zoomService.isReady()) {
+        String zoomId = interview.getZoomMeetingId();
+        if (zoomId != null && meetingProvider.isReady()) {
             try {
                 String topic = "Skyzen interview — "
                         + (interview.getApplication() != null
                                 && interview.getApplication().getJobPosting() != null
                                 ? interview.getApplication().getJobPosting().getTitle()
                                 : "Application");
-                zoomService.updateMeeting(zoomId,
-                        new com.skyzen.careers.integration.zoom.ZoomMeetingRequest(
+                meetingProvider.updateMeeting(zoomId,
+                        new com.skyzen.careers.integration.meeting.MeetingRequest(
                                 null,
                                 topic,
                                 interview.getScheduledAt(),
@@ -404,10 +404,10 @@ public class InterviewService {
         // ErmInterviewService.changeInterviewer. Previously, swapping the
         // interviewer left the Zoom meeting orphaned on the OLD host.
         if (interviewerChanged) {
-            Long oldZoomId = interview.getZoomMeetingId();
-            if (oldZoomId != null && zoomService.isReady()) {
+            String oldZoomId = interview.getZoomMeetingId();
+            if (oldZoomId != null && meetingProvider.isReady()) {
                 try {
-                    zoomService.deleteMeeting(oldZoomId);
+                    meetingProvider.deleteMeeting(oldZoomId);
                 } catch (Exception e) {
                     log.warn("[Zoom] deleteMeeting failed on interviewer swap for {} (non-fatal): {}",
                             interview.getId(), e.getMessage());
@@ -417,7 +417,7 @@ public class InterviewService {
             interview.setZoomJoinUrl(null);
             interview.setZoomStartUrl(null);
             interview.setZoomPassword(null);
-            if (zoomService.isReady()) {
+            if (meetingProvider.isReady()) {
                 try {
                     User newInterviewer = interview.getInterviewer();
                     String hostId = newInterviewer.getZoomEmail() != null
@@ -428,14 +428,14 @@ public class InterviewService {
                                     && interview.getApplication().getJobPosting() != null
                                     ? interview.getApplication().getJobPosting().getTitle()
                                     : "Application");
-                    com.skyzen.careers.integration.zoom.ZoomMeetingResponse meeting =
-                            zoomService.createMeeting(
-                                    new com.skyzen.careers.integration.zoom.ZoomMeetingRequest(
+                    com.skyzen.careers.integration.meeting.MeetingResponse meeting =
+                            meetingProvider.createMeeting(
+                                    new com.skyzen.careers.integration.meeting.MeetingRequest(
                                             hostId, topic, interview.getScheduledAt(),
                                             interview.getDurationMinutes(),
                                             interview.getTimezone(),
                                             interview.getPrepInstructions()));
-                    interview.setZoomMeetingId(meeting.meetingId());
+                    interview.setZoomMeetingId(meeting.providerMeetingId());
                     interview.setZoomJoinUrl(meeting.joinUrl());
                     interview.setZoomStartUrl(meeting.startUrl());
                     interview.setZoomPassword(meeting.password());

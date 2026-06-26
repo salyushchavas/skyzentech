@@ -33,7 +33,7 @@ interface InternEvaluation {
   scheduledFor?: string | null;
   durationMinutes?: number | null;
   timezone?: string | null;
-  zoomMeetingId?: number | null;
+  zoomMeetingId?: string | null;
   zoomJoinUrl?: string | null;
   /** Applicant-safe DTO never carries zoomStartUrl. */
   zoomStartUrl?: never;

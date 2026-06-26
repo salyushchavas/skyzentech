@@ -16,7 +16,7 @@ type Meeting = {
   timezone: string | null;
   topic: string;
   agenda: string | null;
-  zoomMeetingId: number | null;
+  zoomMeetingId: string | null;
   zoomJoinUrl: string | null;
   zoomStartUrl: string | null;
   zoomPassword: string | null;
