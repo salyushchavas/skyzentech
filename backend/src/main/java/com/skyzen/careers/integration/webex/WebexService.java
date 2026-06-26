@@ -112,7 +112,7 @@ public class WebexService implements MeetingProvider {
             @Value("${webex.org-id:}") String orgId,
             @Value("${webex.refresh-token:}") String seedRefreshToken,
             @Value("${webex.default-host-email:}") String defaultHostEmail,
-            @Value("${webex.session-type-id:3}") int sessionTypeId,
+            @Value("${webex.session-type-id:0}") int sessionTypeId,
             @Value("${webex.enabled:true}") boolean enabled,
             WebexCredentialsRepository credentialsRepository,
             PiiEncryptionService piiEncryption
@@ -560,12 +560,14 @@ public class WebexService implements MeetingProvider {
         if (req.agenda() != null && !req.agenda().isBlank()) {
             body.put("agenda", req.agenda());
         }
-        // sessionTypeId is required by WebEx when the resolved host doesn't
-        // have a default session type configured in Control Hub — which is
-        // the common case for a Service-App-admin host. Omitting it 400s
-        // with "Session type not found by Session type ID". Standard
-        // "Webex Meeting" type is 3 in most orgs; operators can override
-        // via WEBEX_SESSION_TYPE_ID env (or set 0 to opt out entirely).
+        // sessionTypeId is account-specific — a value that's valid for one
+        // org may not exist in another's Control Hub config. Default
+        // behaviour is to OMIT the field so WebEx applies the host's
+        // account-default session type, which is the most portable choice.
+        // Operators whose host has no default (and hence get
+        // "Session type not found by Session type ID" 400s on bare creates)
+        // can set WEBEX_SESSION_TYPE_ID to a positive integer to force a
+        // specific type they've verified exists in their org.
         if (sessionTypeId != null) {
             body.put("sessionTypeId", sessionTypeId);
         }
