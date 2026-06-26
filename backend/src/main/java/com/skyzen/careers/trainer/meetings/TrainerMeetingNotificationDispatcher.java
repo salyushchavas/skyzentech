@@ -6,6 +6,7 @@ import com.skyzen.careers.entity.WeeklyMeeting;
 import com.skyzen.careers.erm.CommunicationTemplateService;
 import com.skyzen.careers.intern.OrgTeamResolver;
 import com.skyzen.careers.notification.EmailProvider;
+import com.skyzen.careers.notification.MeetingEmailHtmlBuilder;
 import com.skyzen.careers.notification.UserNotificationDispatcher;
 import com.skyzen.careers.repository.InternLifecycleRepository;
 import com.skyzen.careers.repository.UserRepository;
@@ -149,9 +150,16 @@ public class TrainerMeetingNotificationDispatcher {
                     templateService.render(key, "EMAIL", vars);
             if (opt.isEmpty()) return;
             var rendered = opt.get();
-            emailProvider.sendRendered(recipient.getEmail(),
-                    rendered.subject() != null ? rendered.subject() : key,
-                    rendered.body() != null ? rendered.body() : "");
+            String subject = rendered.subject() != null ? rendered.subject() : key;
+            String plain = rendered.body() != null ? rendered.body() : "";
+            // Build an HTML twin with a styled Join button so the meeting
+            // link is a clickable button in HTML mail clients + the internal
+            // mail viewer. Plain text stays as the template rendered it for
+            // text-only clients.
+            Object joinUrlVar = vars.get("zoomJoinUrl");
+            String joinUrl = joinUrlVar == null ? null : joinUrlVar.toString();
+            String html = MeetingEmailHtmlBuilder.build(plain, joinUrl);
+            emailProvider.sendBrandedHtml(recipient.getEmail(), subject, plain, html);
         } catch (Exception e) {
             log.warn("[TrainerMeetingNotify] {} render failed: {}", key, e.getMessage());
         }

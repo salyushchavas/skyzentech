@@ -13,6 +13,7 @@ import com.skyzen.careers.event.InterviewRescheduledEvent;
 import com.skyzen.careers.event.InterviewScheduledEvent;
 import com.skyzen.careers.event.ManagerHireDecisionEvent;
 import com.skyzen.careers.notification.EmailProvider;
+import com.skyzen.careers.notification.MeetingEmailHtmlBuilder;
 import com.skyzen.careers.notification.UserNotificationDispatcher;
 import com.skyzen.careers.repository.ApplicationRepository;
 import com.skyzen.careers.repository.InterviewRepository;
@@ -337,7 +338,14 @@ public class InterviewEmailListener {
                     templateKey, e.getMessage());
         }
         try {
-            emailProvider.sendRendered(applicant.getEmail(), subject, body);
+            // Build an HTML twin with a styled Join button — the join URL
+            // (when present in vars) renders as a clickable button in HTML
+            // clients + the internal mail viewer. The plain body keeps
+            // the URL as text for text-only clients.
+            Object joinUrlVar = vars.get("zoomJoinUrl");
+            String joinUrl = joinUrlVar == null ? null : joinUrlVar.toString();
+            String html = MeetingEmailHtmlBuilder.build(body, joinUrl);
+            emailProvider.sendBrandedHtml(applicant.getEmail(), subject, body, html);
         } catch (Exception e) {
             log.warn("[InterviewEmail] email send failed (non-fatal) for {}: {}",
                     applicant.getEmail(), e.getMessage());

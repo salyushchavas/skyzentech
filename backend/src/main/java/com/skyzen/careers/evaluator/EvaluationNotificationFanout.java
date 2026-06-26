@@ -7,6 +7,7 @@ import com.skyzen.careers.entity.User;
 import com.skyzen.careers.erm.CommunicationTemplateService;
 import com.skyzen.careers.intern.OrgTeamResolver;
 import com.skyzen.careers.notification.EmailProvider;
+import com.skyzen.careers.notification.MeetingEmailHtmlBuilder;
 import com.skyzen.careers.notification.UserNotificationDispatcher;
 import com.skyzen.careers.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
@@ -191,9 +192,15 @@ public class EvaluationNotificationFanout {
             Optional<CommunicationTemplateService.Rendered> r =
                     templateService.render(key, "EMAIL", vars);
             if (r.isEmpty()) return;
-            emailProvider.sendRendered(recipient.getEmail(),
-                    r.get().subject() != null ? r.get().subject() : key,
-                    r.get().body() != null ? r.get().body() : "");
+            String subject = r.get().subject() != null ? r.get().subject() : key;
+            String plain = r.get().body() != null ? r.get().body() : "";
+            // HTML twin with a styled Join button for evaluation meetings
+            // that carry a join URL. No-op when the template doesn't put
+            // a zoomJoinUrl in vars (e.g. text-only "evaluation finalized").
+            Object joinUrlVar = vars.get("zoomJoinUrl");
+            String joinUrl = joinUrlVar == null ? null : joinUrlVar.toString();
+            String html = MeetingEmailHtmlBuilder.build(plain, joinUrl);
+            emailProvider.sendBrandedHtml(recipient.getEmail(), subject, plain, html);
         } catch (Exception e) {
             log.warn("[EvaluatorFanout] {} render failed: {}", key, e.getMessage());
         }

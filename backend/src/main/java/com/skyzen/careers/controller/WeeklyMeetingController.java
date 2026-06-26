@@ -5,6 +5,7 @@ import com.skyzen.careers.entity.WeeklyMeeting;
 import com.skyzen.careers.enums.UserRole;
 import com.skyzen.careers.exception.BadRequestException;
 import com.skyzen.careers.intern.WeeklyMeetingService;
+import com.skyzen.careers.trainer.meetings.TrainerMeetingNotificationDispatcher;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -28,6 +29,7 @@ import java.util.UUID;
 public class WeeklyMeetingController {
 
     private final WeeklyMeetingService meetingService;
+    private final TrainerMeetingNotificationDispatcher meetingNotifier;
 
     // ── Trainer ─────────────────────────────────────────────────────────────
 
@@ -44,6 +46,15 @@ public class WeeklyMeetingController {
         String recurrence = (String) body.get("recurrence");
         WeeklyMeeting m = meetingService.schedule(lifecycleId, scheduledFor,
                 duration, timezone, topic, agenda, recurrence, actor);
+        // Parity with TrainerWeeklyMeetingController — fan out the
+        // WEEKLY_MEETING_SCHEDULED notification so the intern gets the
+        // email + in-app cue. Best-effort; a notify hiccup never blocks
+        // the create response (the meeting is already saved).
+        try {
+            meetingNotifier.dispatchScheduled(m, actor, null);
+        } catch (Exception e) {
+            // dispatcher logs at warn internally; nothing else to do here.
+        }
         return toStaffDto(m);
     }
 
@@ -54,7 +65,13 @@ public class WeeklyMeetingController {
                                            @AuthenticationPrincipal User actor) {
         Instant newScheduledFor = Instant.parse(requireString(body, "scheduledFor"));
         Integer duration = (Integer) body.get("durationMinutes");
-        return toStaffDto(meetingService.reschedule(id, newScheduledFor, duration, actor));
+        WeeklyMeeting m = meetingService.reschedule(id, newScheduledFor, duration, actor);
+        try {
+            meetingNotifier.dispatchScheduled(m, actor, "Time updated");
+        } catch (Exception e) {
+            // dispatcher logs at warn internally; never block the response.
+        }
+        return toStaffDto(m);
     }
 
     @PostMapping("/{id}/complete")

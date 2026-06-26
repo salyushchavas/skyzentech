@@ -766,6 +766,26 @@ public class WebexService implements MeetingProvider {
      *       field on the create body, and WebEx hosts under the Service
      *       App's authorizing admin user.</li>
      * </ul>
+     *
+     * <h2>Per-scheduler host (future)</h2>
+     * <p>WebEx hosts under {@code hostEmail} only when that user is a
+     * <b>licensed Meetings user on the managed site</b>. Today only
+     * {@code techteam@skyzentech.com} holds a Business Plan license on
+     * {@code charminfosystems-780.my.webex.com}, so consumers' per-user
+     * {@code users.zoom_email} values (when set) reach this method as the
+     * {@code requested} arg, and any value here that ISN'T techteam@ will
+     * fail at WebEx with "user is not licensed" — i.e. they all need to
+     * fall back to the configured {@code WEBEX_DEFAULT_HOST_EMAIL}.
+     * That's why the operator path right now is: leave per-user
+     * {@code zoom_email} unset (or set to {@code "me"}) for every
+     * scheduler so the create routes through {@code defaultHostEmail}.</p>
+     *
+     * <p>When more licenses are provisioned (one per scheduler), the per-
+     * scheduler {@code requested} branch above already handles it — the
+     * resolver returns that email and WebEx hosts under that user. The
+     * code is already structured for this future case; no further change
+     * needed beyond licensing the additional users and populating
+     * {@code users.zoom_email}.</p>
      */
     private String resolveWebexHostEmail(String requested) {
         if (requested != null && !requested.isBlank()
