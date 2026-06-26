@@ -582,24 +582,28 @@ public class WebexService implements MeetingProvider {
     }
 
     /**
-     * Join-a-Meeting API — POST /v1/meetings/join with
-     * {@code createStartLinkAsWebLink=true}. Per WebEx docs this is the
-     * documented path for a Service App to obtain a real one-click host
-     * start link: when the request specifies {@code hostEmail} and the
-     * flag is set, the {@code webLink} in the response is actually the
-     * HOST start link (clicking it on a browser starts the meeting as
-     * the host without requiring the user to first sign in to
-     * webex.com). Without the flag, the response's webLink is just the
-     * attendee join URL.
+     * Join-a-Meeting API — POST /v1/meetings/join. The intent was to
+     * obtain a per-meeting host start link by passing
+     * {@code createStartLinkAsWebLink=true} + {@code hostEmail}. Live
+     * verification (commit 48faafe1 against this Business Plan account)
+     * showed the endpoint returns HTTP 200 with a full Cisco Webex
+     * Meetings landing-page HTML body, not the documented JSON shape
+     * with {@code webLink} / {@code expiration} fields. The
+     * {@code createStartLinkAsWebLink} flag isn't a supported parameter
+     * for this account/plan tier — the endpoint behaves as a "render
+     * the meeting page" route, not a token-generating API.
      *
-     * <p>Returns the host start URL (or {@code null} when WebEx omits it
-     * for this account). Also captures the {@code expiration} value when
-     * present so callers can decide whether to cache or refresh on
-     * demand.</p>
+     * <p>The method remains as a diagnostic probe (called from the
+     * test-create endpoint) so operators can re-verify if Cisco changes
+     * the endpoint's behaviour, or to see what HTML comes back if the
+     * licensing tier changes. Production createMeeting does NOT call
+     * this — the staff DTO's {@code zoomStartUrl} stays null and the
+     * UI shows the "sign in to webex.com as the host first" hint
+     * alongside the join URL, which is the only working path for
+     * Service-App-admin scope without a host-user bearer token.</p>
      *
-     * @return raw JsonNode response so callers can read {@code webLink}
-     *         (the host start URL with the flag set), {@code expiration},
-     *         {@code expirationTime}, etc.
+     * @return raw JsonNode when the response is JSON; throws otherwise
+     *         with the response body truncated for the diagnostic.
      */
     public JsonNode fetchHostStartLink(String providerMeetingId, String hostEmail)
             throws Exception {
