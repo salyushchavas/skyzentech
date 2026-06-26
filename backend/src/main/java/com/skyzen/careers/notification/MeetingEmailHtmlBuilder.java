@@ -29,8 +29,9 @@ public final class MeetingEmailHtmlBuilder {
     private MeetingEmailHtmlBuilder() {}
 
     /**
-     * Render an HTML body fragment (NOT a full HTML document — the email
-     * provider wraps it in the standard brand chrome).
+     * Render an HTML body fragment with a "Join Meeting" button (the
+     * participant-facing variant). For host-facing emails that should
+     * carry the start link, use {@link #buildWithHostStart}.
      *
      * @param plainBody  the rendered template body (plain text, already
      *                   substituted). Pass {@code null} for an empty body.
@@ -40,6 +41,19 @@ public final class MeetingEmailHtmlBuilder {
      * @return safe HTML fragment for {@code sendBrandedHtml}.
      */
     public static String build(String plainBody, String joinUrl) {
+        return buildWithHostStart(plainBody, joinUrl, null);
+    }
+
+    /**
+     * Render an HTML body fragment with up to two buttons — a "Join
+     * Meeting" button (when {@code joinUrl} is non-blank) AND a "Start
+     * Meeting (Host)" button (when {@code startUrl} is non-blank). For
+     * scheduler emails pass only {@code startUrl}; for participant emails
+     * pass only {@code joinUrl}; pass both when the recipient should see
+     * both options (rare).
+     */
+    public static String buildWithHostStart(String plainBody, String joinUrl,
+                                             String startUrl) {
         StringBuilder html = new StringBuilder();
         html.append("<div style=\"margin:0;font-size:15px;line-height:1.55;color:")
                 .append(TEXT_BODY).append(";\">");
@@ -47,20 +61,24 @@ public final class MeetingEmailHtmlBuilder {
             html.append(escapeWithBreaks(plainBody));
         }
         html.append("</div>");
-        if (joinUrl != null && !joinUrl.isBlank()) {
-            String href = escape(joinUrl.trim());
-            html.append("<div style=\"margin:24px 0 8px;\">")
-                    .append("<a href=\"").append(href).append("\" target=\"_blank\" ")
-                    .append("style=\"display:inline-block;padding:12px 28px;")
-                    .append("background:linear-gradient(135deg,").append(ACCENT_FROM)
-                    .append(" 0%,").append(ACCENT_TO).append(" 100%);")
-                    .append("color:#ffffff;font-size:15px;font-weight:600;")
-                    .append("text-decoration:none;border-radius:8px;")
-                    .append("box-shadow:0 2px 6px rgba(255,124,32,0.25);\">")
-                    .append("Join Meeting</a>")
-                    .append("</div>");
-        }
+        appendButton(html, joinUrl, "Join Meeting");
+        appendButton(html, startUrl, "Start Meeting (Host)");
         return html.toString();
+    }
+
+    private static void appendButton(StringBuilder html, String url, String label) {
+        if (url == null || url.isBlank()) return;
+        String href = escape(url.trim());
+        html.append("<div style=\"margin:24px 0 8px;\">")
+                .append("<a href=\"").append(href).append("\" target=\"_blank\" ")
+                .append("style=\"display:inline-block;padding:12px 28px;")
+                .append("background:linear-gradient(135deg,").append(ACCENT_FROM)
+                .append(" 0%,").append(ACCENT_TO).append(" 100%);")
+                .append("color:#ffffff;font-size:15px;font-weight:600;")
+                .append("text-decoration:none;border-radius:8px;")
+                .append("box-shadow:0 2px 6px rgba(255,124,32,0.25);\">")
+                .append(escape(label)).append("</a>")
+                .append("</div>");
     }
 
     /** Escape HTML-special chars AND convert newlines to {@code <br>}. */

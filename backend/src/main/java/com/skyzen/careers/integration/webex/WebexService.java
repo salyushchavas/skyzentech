@@ -447,12 +447,63 @@ public class WebexService implements MeetingProvider {
                     .POST(HttpRequest.BodyPublishers.ofString(
                             objectMapper.writeValueAsString(body), StandardCharsets.UTF_8))
                     .build());
-            return parseMeetingResponse(resp, "createMeeting");
+            MeetingResponse created = parseMeetingResponse(resp, "createMeeting");
+            // Mirror Zoom's two-link model — the scheduler (ERM/trainer)
+            // needs the START link, the participant the JOIN link. WebEx's
+            // POST /v1/meetings response sometimes omits startLink/hostLink
+            // (varies by API version + admin context), in which case the
+            // host-side staff DTO renders nothing for "Start Meeting (Host)".
+            // Fall back to GET /v1/meetings/{id}?hostEmail=... — the admin
+            // GET with hostEmail returns the host-perspective record that
+            // includes startLink for the resolved host.
+            if (created != null && (created.startUrl() == null
+                    || created.startUrl().isBlank())) {
+                String hostForFetch = resolveWebexHostEmail(req.hostEmail());
+                if (hostForFetch != null && created.providerMeetingId() != null) {
+                    try {
+                        MeetingResponse withStart = fetchMeetingWithHost(
+                                created.providerMeetingId(), hostForFetch);
+                        if (withStart != null && withStart.startUrl() != null
+                                && !withStart.startUrl().isBlank()) {
+                            return new MeetingResponse(
+                                    created.providerName(),
+                                    created.providerMeetingId(),
+                                    created.joinUrl(),
+                                    withStart.startUrl(),
+                                    created.password(),
+                                    created.hostEmail());
+                        }
+                    } catch (Exception fetchErr) {
+                        log.warn("[WebEx] startLink follow-up fetch failed for meeting {} "
+                                        + "(non-fatal; scheduler will see no host link): {}",
+                                created.providerMeetingId(), fetchErr.getMessage());
+                    }
+                }
+            }
+            return created;
         } catch (RuntimeException e) {
             throw e;
         } catch (Exception e) {
             throw new RuntimeException("WebEx createMeeting failed: " + e.getMessage(), e);
         }
+    }
+
+    /**
+     * GET /v1/meetings/{id}?hostEmail=&lt;email&gt; — fetches the meeting
+     * record from the host's perspective so the response includes
+     * {@code startLink} / {@code hostLink}. Used as the follow-up to
+     * {@link #createMeeting} when the create response itself omits the
+     * host link.
+     */
+    private MeetingResponse fetchMeetingWithHost(String providerMeetingId, String hostEmail)
+            throws Exception {
+        HttpResponse<String> resp = sendAuthorized(HttpRequest.newBuilder()
+                .uri(URI.create(API_BASE + "/meetings/" + encode(providerMeetingId)
+                        + "?hostEmail=" + encode(hostEmail)))
+                .timeout(Duration.ofSeconds(15))
+                .GET()
+                .build());
+        return parseMeetingResponse(resp, "getMeeting(hostEmail)");
     }
 
     @Override

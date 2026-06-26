@@ -306,6 +306,13 @@ public class AdminHealthController {
             body.put("ok", true);
             body.put("meetingId", created.path("id").asText(null));
             body.put("webLink", created.path("webLink").asText(null));
+            // Surface both possible host-link field names so we can see
+            // which one WebEx populates on POST /v1/meetings (varies by
+            // API version + account). If both are null, the create response
+            // doesn't carry the host link and WebexService falls back to
+            // GET /v1/meetings/{id}?hostEmail=... to fetch it.
+            body.put("startLink", created.path("startLink").asText(null));
+            body.put("hostLink", created.path("hostLink").asText(null));
             body.put("hostEmailReturned", created.path("hostEmail").asText(null));
             body.put("siteUrlReturned", created.path("siteUrl").asText(null));
             body.put("note", "Test meeting created + auto-deleted. The "
