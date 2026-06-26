@@ -494,17 +494,32 @@ public class WebexService implements MeetingProvider {
     private ObjectNode buildMeetingPayload(MeetingRequest req) {
         ObjectNode body = objectMapper.createObjectNode();
         body.put("title", req.topic());
-        // WebEx wants ISO-8601 instants. Convert from UTC to the meeting's
-        // timezone string the same way Zoom does (start_time + timezone).
-        if (req.startTime() != null) {
-            String start = DateTimeFormatter.ISO_INSTANT.format(req.startTime());
-            String end = DateTimeFormatter.ISO_INSTANT.format(
-                    req.startTime().plusSeconds(clampDuration(req.durationMinutes()) * 60L));
-            body.put("start", start);
-            body.put("end", end);
-        }
+        // WebEx requires the start/end timestamps to be in the same offset
+        // as the declared timezone field — sending "...Z" while timezone
+        // says "Asia/Kolkata" 400s with
+        //   "timezone 'Asia/Kolkata' and timezone offset in '...Z' do not match"
+        // We resolve the IANA zone first, then format start/end as
+        // ISO_OFFSET_DATE_TIME against that zone so the strings carry the
+        // matching offset (e.g. 2026-06-26T21:30:00+05:30). When the zone
+        // string is invalid we fall back to UTC + the explicit "+00:00"
+        // offset rather than the bare Z form to keep WebEx happy.
         String tz = (req.timezone() == null || req.timezone().isBlank())
                 ? "UTC" : req.timezone();
+        java.time.ZoneId zone;
+        try {
+            zone = java.time.ZoneId.of(tz);
+        } catch (java.time.DateTimeException e) {
+            log.warn("[WebEx] unknown timezone '{}' — falling back to UTC", tz);
+            tz = "UTC";
+            zone = java.time.ZoneOffset.UTC;
+        }
+        if (req.startTime() != null) {
+            java.time.ZonedDateTime startZdt = req.startTime().atZone(zone);
+            java.time.ZonedDateTime endZdt = startZdt.plusMinutes(
+                    clampDuration(req.durationMinutes()));
+            body.put("start", startZdt.format(DateTimeFormatter.ISO_OFFSET_DATE_TIME));
+            body.put("end", endZdt.format(DateTimeFormatter.ISO_OFFSET_DATE_TIME));
+        }
         body.put("timezone", tz);
         // Host email normalization — drop the Zoom-only "me" sentinel that
         // some consumers pass when no per-user zoom_email is set, fall back
