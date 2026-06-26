@@ -222,30 +222,49 @@ public class WebexService implements MeetingProvider {
 
     // ── Probe ────────────────────────────────────────────────────────────────
 
-    /** Calls {@code GET /people/me} to verify the access token works. */
+    /**
+     * Calls {@code GET /meetings?max=1} to verify the access token works AND
+     * the granted scopes cover the meeting surface we actually use. The
+     * Service App is provisioned with {@code meeting:admin_schedule_read /
+     * _write}, {@code meeting:admin_recordings_read}, {@code
+     * meeting:admin_transcripts_read} — NOT any {@code spark:people_*} /
+     * identity scopes, so a {@code /people/me} probe (the previous shape)
+     * 403s "missing required scopes" even when the meeting API works fine.
+     *
+     * <p>The meeting list endpoint is the smallest validator of the live
+     * write path: a 200 (even with an empty {@code items} array) proves the
+     * access token resolved AND has at least {@code meeting:admin_schedule_read}.
+     * Anything 3xx+ propagates the body to the caller so the startup probe
+     * log + the {@code /api/v1/admin/health/webex} endpoint show what went
+     * wrong without leaking the bearer token.</p>
+     */
     @Override
     public String probe() throws Exception {
         ensureReady();
         HttpResponse<String> resp = sendAuthorized(HttpRequest.newBuilder()
-                .uri(URI.create(API_BASE + "/people/me"))
+                .uri(URI.create(API_BASE + "/meetings?max=1"))
                 .timeout(Duration.ofSeconds(10))
                 .GET()
                 .build());
         if (resp.statusCode() >= 300) {
-            throw new RuntimeException("WebEx /people/me failed: status="
+            throw new RuntimeException("WebEx /meetings?max=1 failed: status="
                     + resp.statusCode() + " body=" + truncate(resp.body()));
         }
+        // The list endpoint doesn't return an identity (the Service App is a
+        // machine principal, not a person). Surface a deterministic
+        // "authenticated" string built from what we DO know about this
+        // installation — the org id and the count of meetings visible to the
+        // service principal — so the health endpoint has something stable to
+        // display instead of going blank.
         JsonNode node = objectMapper.readTree(resp.body());
-        String email = firstNonBlank(
-                node.path("emails").path(0).asText(null),
-                node.path("email").asText(null));
-        String name = firstNonBlank(
-                node.path("displayName").asText(null),
-                node.path("nickName").asText(null),
-                email);
-        this.authenticatedEmail = email;
-        this.authenticatedDisplayName = name;
-        return name;
+        int meetingCount = node.path("items").isArray()
+                ? node.path("items").size() : 0;
+        String firstHost = node.path("items").path(0).path("hostEmail").asText(null);
+        this.authenticatedEmail = firstNonBlank(firstHost, null);
+        String identity = "WebEx Service App (org=" + (orgId == null ? "?" : orgId)
+                + ", meetingsVisible=" + meetingCount + ")";
+        this.authenticatedDisplayName = identity;
+        return identity;
     }
 
     // ── Meeting CRUD ─────────────────────────────────────────────────────────

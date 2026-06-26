@@ -150,20 +150,28 @@ public class AdminHealthController {
     }
 
     /**
-     * Live WebEx probe — calls {@code GET /people/me} via the configured
-     * Service App credentials. Unlike Zoom, WebEx requires a persisted
-     * refresh token (the singleton {@code webex_credentials} row, seeded
-     * via {@code WEBEX_REFRESH_TOKEN} env on first boot). This endpoint
-     * reports separately:
+     * Live WebEx probe — calls {@code GET /meetings?max=1} via the configured
+     * Service App credentials. The probe targets a meeting-scope endpoint
+     * (covered by the granted {@code meeting:admin_schedule_read} scope)
+     * instead of {@code /people/me}, because the Service App is provisioned
+     * with meeting + recording + transcript scopes only — no
+     * {@code spark:people_*} identity scopes, so a person-endpoint probe
+     * 403s "missing required scopes" even when the meeting API works fine.
+     *
+     * <p>Unlike Zoom, WebEx requires a persisted refresh token (the singleton
+     * {@code webex_credentials} row, seeded via {@code WEBEX_REFRESH_TOKEN}
+     * env on first boot). This endpoint reports separately:</p>
      * <ul>
      *   <li>{@code credentialsPresent} — client id/secret/org id env vars</li>
      *   <li>{@code refreshTokenAvailable} — seed env present OR persisted row</li>
      *   <li>{@code refreshTokenExpiresAt} — when the persisted refresh
      *       token's 90-day window closes (after which an operator must
      *       re-seed from Control Hub)</li>
-     *   <li>{@code authenticated} — true when {@code /people/me} returns a
-     *       valid identity using the access token (which may have been
-     *       freshly refreshed by this call)</li>
+     *   <li>{@code authenticated} — true when {@code /meetings?max=1}
+     *       returns 200 using the access token (which may have been freshly
+     *       refreshed by this call). The string {@code host} field is a
+     *       deterministic label ({@code "WebEx Service App (org=..., meetingsVisible=N)"})
+     *       since machine principals don't have a person identity.</li>
      * </ul>
      */
     @GetMapping("/webex")
