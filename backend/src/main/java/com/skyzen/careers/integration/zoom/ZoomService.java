@@ -3,6 +3,9 @@ package com.skyzen.careers.integration.zoom;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.skyzen.careers.integration.meeting.MeetingProvider;
+import com.skyzen.careers.integration.meeting.MeetingRequest;
+import com.skyzen.careers.integration.meeting.MeetingResponse;
 import jakarta.annotation.PostConstruct;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
@@ -52,7 +55,9 @@ import java.util.concurrent.locks.ReentrantLock;
  */
 @Service
 @Slf4j
-public class ZoomService {
+public class ZoomService implements MeetingProvider {
+
+    private static final String PROVIDER_NAME = "zoom";
 
     private static final Duration REFRESH_WINDOW = Duration.ofSeconds(60);
     private static final String OAUTH_URL = "https://zoom.us/oauth/token";
@@ -165,7 +170,83 @@ public class ZoomService {
         return node.path("email").asText(null);
     }
 
-    // ── Meeting CRUD ────────────────────────────────────────────────────────
+    // ── MeetingProvider interface adapters ───────────────────────────────────
+    //
+    // Thin wrappers that translate the provider-agnostic {@link MeetingRequest}
+    // / {@link MeetingResponse} contract into the existing Long-based Zoom
+    // methods. The legacy public methods (createMeeting(ZoomMeetingRequest)
+    // etc.) stay UNCHANGED — existing consumers keep compiling and running
+    // unchanged. New consumers (post-WebEx phase) inject MeetingProvider and
+    // use these adapter methods instead.
+
+    @Override
+    public String providerName() { return PROVIDER_NAME; }
+
+    @Override
+    public String probe() throws Exception {
+        return probeUsersMe();
+    }
+
+    @Override
+    public MeetingResponse createMeeting(MeetingRequest req) {
+        ZoomMeetingResponse z = createMeeting(toZoomRequest(req));
+        return toMeetingResponse(z);
+    }
+
+    @Override
+    public MeetingResponse updateMeeting(String providerMeetingId, MeetingRequest req) {
+        long mid = parseProviderId(providerMeetingId);
+        ZoomMeetingResponse z = updateMeeting(mid, toZoomRequest(req));
+        return toMeetingResponse(z);
+    }
+
+    @Override
+    public MeetingResponse getMeeting(String providerMeetingId) {
+        long mid = parseProviderId(providerMeetingId);
+        ZoomMeetingResponse z = getMeeting(mid);
+        return toMeetingResponse(z);
+    }
+
+    @Override
+    public void deleteMeeting(String providerMeetingId) {
+        deleteMeeting(parseProviderId(providerMeetingId));
+    }
+
+    private static ZoomMeetingRequest toZoomRequest(MeetingRequest req) {
+        // Zoom's hostUserId accepts either an email or the literal "me" — the
+        // generic MeetingRequest's hostEmail covers both shapes (consumer
+        // passes "me" when no per-host email is set; otherwise the email).
+        String hostUserId = (req.hostEmail() == null || req.hostEmail().isBlank())
+                ? "me" : req.hostEmail();
+        return new ZoomMeetingRequest(
+                hostUserId, req.topic(), req.startTime(),
+                req.durationMinutes(), req.timezone(), req.agenda());
+    }
+
+    private MeetingResponse toMeetingResponse(ZoomMeetingResponse z) {
+        if (z == null) return null;
+        return new MeetingResponse(
+                PROVIDER_NAME,
+                String.valueOf(z.meetingId()),
+                z.joinUrl(),
+                z.startUrl(),
+                z.password(),
+                z.hostEmail());
+    }
+
+    private static long parseProviderId(String providerMeetingId) {
+        if (providerMeetingId == null || providerMeetingId.isBlank()) {
+            throw new IllegalArgumentException("providerMeetingId is required");
+        }
+        try {
+            return Long.parseLong(providerMeetingId.trim());
+        } catch (NumberFormatException nfe) {
+            throw new IllegalArgumentException(
+                    "Zoom providerMeetingId must be numeric: " + providerMeetingId);
+        }
+    }
+
+    // ── Meeting CRUD (legacy Long-based — unchanged) ─────────────────────────
 
     public ZoomMeetingResponse createMeeting(ZoomMeetingRequest req) {
         ensureReady();

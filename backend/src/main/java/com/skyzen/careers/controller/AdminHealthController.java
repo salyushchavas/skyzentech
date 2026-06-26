@@ -2,6 +2,7 @@ package com.skyzen.careers.controller;
 
 import com.skyzen.careers.github.GitHubService;
 import com.skyzen.careers.integration.s3.S3StorageService;
+import com.skyzen.careers.integration.webex.WebexService;
 import com.skyzen.careers.integration.zoom.ZoomService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -36,6 +37,7 @@ public class AdminHealthController {
     private final GitHubService gitHubService;
     private final ZoomService zoomService;
     private final S3StorageService s3StorageService;
+    private final WebexService webexService;
 
     @GetMapping("/github")
     @PreAuthorize("hasRole('SUPER_ADMIN')")
@@ -147,7 +149,71 @@ public class AdminHealthController {
         return body;
     }
 
+    /**
+     * Live WebEx probe — calls {@code GET /people/me} via the configured
+     * Service App credentials. Unlike Zoom, WebEx requires a persisted
+     * refresh token (the singleton {@code webex_credentials} row, seeded
+     * via {@code WEBEX_REFRESH_TOKEN} env on first boot). This endpoint
+     * reports separately:
+     * <ul>
+     *   <li>{@code credentialsPresent} — client id/secret/org id env vars</li>
+     *   <li>{@code refreshTokenAvailable} — seed env present OR persisted row</li>
+     *   <li>{@code refreshTokenExpiresAt} — when the persisted refresh
+     *       token's 90-day window closes (after which an operator must
+     *       re-seed from Control Hub)</li>
+     *   <li>{@code authenticated} — true when {@code /people/me} returns a
+     *       valid identity using the access token (which may have been
+     *       freshly refreshed by this call)</li>
+     * </ul>
+     */
+    @GetMapping("/webex")
+    @PreAuthorize("hasRole('SUPER_ADMIN')")
+    public Map<String, Object> webex() {
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("enabled", webexService.isReady());
+        body.put("credentialsPresent", webexService.hasCredentials());
+        body.put("forceDisabled", webexService.isForceDisabled());
+        body.put("refreshTokenAvailable", webexService.hasUsableRefreshToken());
+        body.put("refreshTokenExpiresAt", webexService.getRefreshTokenExpiresAt() == null
+                ? null
+                : webexService.getRefreshTokenExpiresAt().toString());
+        if (!webexService.isReady()) {
+            body.put("authenticated", false);
+            if (webexService.isForceDisabled()) {
+                body.put("error",
+                        "WebEx is force-disabled (WEBEX_ENABLED=false). Unset the var "
+                                + "or set it to true to use the configured credentials.");
+            } else {
+                body.put("error",
+                        "WebEx credentials missing — set WEBEX_CLIENT_ID, "
+                                + "WEBEX_CLIENT_SECRET, WEBEX_ORG_ID on Railway from "
+                                + "a Service App authorized by a Full Admin in Control "
+                                + "Hub. On first boot also set WEBEX_REFRESH_TOKEN.");
+            }
+            return body;
+        }
+        if (!webexService.hasUsableRefreshToken()) {
+            body.put("authenticated", false);
+            body.put("error",
+                    "WebEx refresh token missing or expired — set WEBEX_REFRESH_TOKEN "
+                            + "from the Service App authorization flow and redeploy to seed.");
+            return body;
+        }
+        try {
+            String identity = webexService.probe();
+            body.put("authenticated", identity != null);
+            body.put("host", identity);
+            body.put("hostEmail", webexService.getAuthenticatedEmail());
+        } catch (Exception e) {
+            body.put("authenticated", false);
+            body.put("error", e.getMessage());
+            String last = webexService.getLastProbeError();
+            if (last != null) body.put("lastStartupProbeError", last);
+        }
+        return body;
+    }
+
     // The legacy DocuSign health probe was removed when signing moved
     // to the in-house IDMS flow (signing is local — no external endpoint
-    // to probe). GitHub + Zoom + S3 probes above remain.
+    // to probe). GitHub + Zoom + S3 + WebEx probes above remain.
 }
