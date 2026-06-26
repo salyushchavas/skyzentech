@@ -313,6 +313,16 @@ public class AdminHealthController {
             // GET /v1/meetings/{id}?hostEmail=... to fetch it.
             body.put("startLink", created.path("startLink").asText(null));
             body.put("hostLink", created.path("hostLink").asText(null));
+            body.put("startLinkSource", created.path("startLinkSource").asText(null));
+            // Join-a-Meeting probe outcomes (WebexService.fetchHostStartLink).
+            // These appear when WebexService.testCreate calls POST
+            // /v1/meetings/join with createStartLinkAsWebLink=true after
+            // the earlier fallbacks fail.
+            body.put("joinApiHostStartLink", created.path("joinApiHostStartLink").asText(null));
+            body.put("joinApiHostKey", created.path("joinApiHostKey").asText(null));
+            body.put("joinApiExpiration", created.path("joinApiExpiration").asText(null));
+            body.put("joinApiExpirationTime", created.path("joinApiExpirationTime").asText(null));
+            body.put("joinApiError", created.path("joinApiError").asText(null));
             body.put("hostEmailReturned", created.path("hostEmail").asText(null));
             body.put("siteUrlReturned", created.path("siteUrl").asText(null));
             body.put("note", "Test meeting created + auto-deleted. The "
