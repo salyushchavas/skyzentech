@@ -8,6 +8,7 @@ import com.skyzen.careers.integration.zoom.ZoomService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -296,6 +297,64 @@ public class AdminHealthController {
                         + "integer on Railway.");
             }
         } catch (Exception e) {
+            body.put("error", e.getMessage());
+        }
+        return body;
+    }
+
+    /**
+     * Test-create probe — schedules a throwaway WebEx meeting 5 minutes
+     * in the future with the given {@code sessionTypeId} and
+     * {@code userEmail} overrides, then immediately deletes it on success.
+     * Lets operators iterate on candidate Session Type IDs (looked up
+     * manually in Control Hub when the discovery API 404s) without
+     * scheduling real interviews.
+     *
+     * <p>Body / query options (all optional):
+     * <ul>
+     *   <li>{@code sessionTypeId} — integer candidate id; omit to use the
+     *       configured {@code WEBEX_SESSION_TYPE_ID} (or omit-from-payload
+     *       when that's 0/unset).</li>
+     *   <li>{@code userEmail} — host email override; omit to use
+     *       {@code WEBEX_DEFAULT_HOST_EMAIL} (or omit-from-payload when
+     *       that's unset).</li>
+     * </ul>
+     *
+     * <p>Returns {@code {ok: true, meetingId: ..., effectiveSessionTypeId: ...}}
+     * on success (the meeting was created + auto-deleted), or
+     * {@code {ok: false, error: "<WebEx error body>"}} on failure. The
+     * error body carries WebEx's exact rejection so operators see e.g.
+     * "Session type not found" vs "host email invalid" vs whatever.</p>
+     */
+    @PostMapping("/webex/test-create")
+    @PreAuthorize("hasRole('SUPER_ADMIN')")
+    public Map<String, Object> webexTestCreate(
+            @RequestParam(value = "sessionTypeId", required = false) Integer sessionTypeId,
+            @RequestParam(value = "userEmail", required = false) String userEmail) {
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("attemptedSessionTypeId", sessionTypeId);
+        body.put("attemptedUserEmail", userEmail);
+        if (!webexService.isReady()) {
+            body.put("ok", false);
+            body.put("error", "WebEx not ready — check /api/v1/admin/health/webex first.");
+            return body;
+        }
+        if (!webexService.hasUsableRefreshToken()) {
+            body.put("ok", false);
+            body.put("error", "WebEx refresh token missing or expired — re-seed.");
+            return body;
+        }
+        try {
+            JsonNode created = webexService.testCreate(sessionTypeId, userEmail);
+            body.put("ok", true);
+            body.put("meetingId", created.path("id").asText(null));
+            body.put("webLink", created.path("webLink").asText(null));
+            body.put("hostEmailReturned", created.path("hostEmail").asText(null));
+            body.put("note", "Test meeting created + auto-deleted. The "
+                    + "sessionTypeId/userEmail combo above is valid for "
+                    + "production schedules.");
+        } catch (Exception e) {
+            body.put("ok", false);
             body.put("error", e.getMessage());
         }
         return body;

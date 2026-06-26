@@ -244,12 +244,24 @@ public class WebexService implements MeetingProvider {
                         item.path("default").asBoolean(false));
             }
         } catch (Exception e) {
-            // Most common cause when this fails despite auth working: the
-            // Service App wasn't granted meeting:admin_preferences_read.
-            log.warn("[WebEx] session-types discovery for {} failed (non-fatal): {}. "
-                    + "If body says 'missing required scopes', the Service App "
-                    + "needs meeting:admin_preferences_read added in Control Hub.",
-                    label, e.getMessage());
+            // Cause classification:
+            //  - "missing required scopes" → Service App lacks
+            //    meeting:admin_preferences_read in Control Hub.
+            //  - "resource could not be found" (404) → the
+            //    /meetingPreferences/sessionTypes endpoint isn't exposed
+            //    for this account/principal (common for Service App admins
+            //    that aren't themselves licensed Meetings users).
+            String msg = e.getMessage() == null ? "" : e.getMessage();
+            log.warn("[WebEx] session-types discovery for {} failed (non-fatal): {}",
+                    label, msg);
+            if (msg.contains("missing required scopes")) {
+                log.warn("[WebEx]   → grant meeting:admin_preferences_read to the Service App in Control Hub.");
+            } else if (msg.contains("could not be found") || msg.contains("status=404")) {
+                log.warn("[WebEx]   → the /meetingPreferences/sessionTypes API is not exposed for this principal. "
+                        + "Look up the numeric Session Type ID in Control Hub UI: "
+                        + "Site Administration → your site → Common Site Settings → Session Types (or Session Type ID column). "
+                        + "Set WEBEX_SESSION_TYPE_ID=<that integer> and use POST /api/v1/admin/health/webex/test-create?sessionTypeId=<id> to verify.");
+            }
         }
     }
 
@@ -475,6 +487,74 @@ public class WebexService implements MeetingProvider {
                     + " body=" + truncate(resp.body()));
         }
         return objectMapper.readTree(resp.body());
+    }
+
+    /**
+     * Test-create probe — schedules a throwaway meeting 5 minutes in the
+     * future with the given {@code sessionTypeId} + {@code userEmail}
+     * overrides, then immediately deletes it on success. Lets operators
+     * iterate on candidate Session Type IDs from Control Hub without
+     * scheduling real interviews. Returns the WebEx response (parsed JSON)
+     * on success, or throws the underlying exception on failure so the
+     * caller can surface WebEx's exact error body.
+     *
+     * <p>Either / both overrides may be {@code null}: a null
+     * {@code sessionTypeIdOverride} uses the configured
+     * {@code WEBEX_SESSION_TYPE_ID} (or omits the field); a null
+     * {@code userEmailOverride} uses {@link #resolveWebexHostEmail}'s
+     * normal resolution (default host or omit).</p>
+     */
+    public JsonNode testCreate(Integer sessionTypeIdOverride, String userEmailOverride)
+            throws Exception {
+        ensureReady();
+        Instant start = Instant.now().plusSeconds(300); // +5 min, well past WebEx's "now" floor
+        ObjectNode body = objectMapper.createObjectNode();
+        body.put("title", "Skyzen WebEx test-create probe (auto-delete)");
+        String tz = "UTC";
+        java.time.ZonedDateTime startZdt = start.atZone(java.time.ZoneOffset.UTC);
+        java.time.ZonedDateTime endZdt = startZdt.plusMinutes(15);
+        body.put("start", startZdt.format(DateTimeFormatter.ISO_OFFSET_DATE_TIME));
+        body.put("end", endZdt.format(DateTimeFormatter.ISO_OFFSET_DATE_TIME));
+        body.put("timezone", tz);
+        Integer effectiveSessionType = sessionTypeIdOverride != null && sessionTypeIdOverride > 0
+                ? sessionTypeIdOverride
+                : sessionTypeId;
+        if (effectiveSessionType != null) {
+            body.put("sessionTypeId", effectiveSessionType);
+        }
+        String effectiveHost = userEmailOverride != null && !userEmailOverride.isBlank()
+                ? userEmailOverride.trim()
+                : resolveWebexHostEmail(null);
+        if (effectiveHost != null) {
+            body.put("hostEmail", effectiveHost);
+        }
+        body.put("enabledJoinBeforeHost", false);
+        body.put("enableConnectAudioBeforeHost", false);
+
+        HttpResponse<String> resp = sendAuthorized(HttpRequest.newBuilder()
+                .uri(URI.create(API_BASE + "/meetings"))
+                .header("Content-Type", "application/json")
+                .timeout(Duration.ofSeconds(20))
+                .POST(HttpRequest.BodyPublishers.ofString(
+                        objectMapper.writeValueAsString(body), StandardCharsets.UTF_8))
+                .build());
+        if (resp.statusCode() >= 300) {
+            throw new RuntimeException("WebEx test-create failed: status="
+                    + resp.statusCode() + " body=" + truncate(resp.body()));
+        }
+        JsonNode created = objectMapper.readTree(resp.body());
+        // Best-effort cleanup — don't leave the probe meeting on the
+        // calendar. Failure to delete is logged but doesn't fail the probe.
+        String meetingId = created.path("id").asText(null);
+        if (meetingId != null && !meetingId.isBlank()) {
+            try {
+                deleteMeeting(meetingId);
+            } catch (Exception e) {
+                log.warn("[WebEx] test-create probe succeeded but auto-delete failed for {} (non-fatal): {}",
+                        meetingId, e.getMessage());
+            }
+        }
+        return created;
     }
 
     // ── Meeting CRUD ─────────────────────────────────────────────────────────
