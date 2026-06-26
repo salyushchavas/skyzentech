@@ -330,10 +330,12 @@ public class AdminHealthController {
     @PreAuthorize("hasRole('SUPER_ADMIN')")
     public Map<String, Object> webexTestCreate(
             @RequestParam(value = "sessionTypeId", required = false) Integer sessionTypeId,
-            @RequestParam(value = "userEmail", required = false) String userEmail) {
+            @RequestParam(value = "userEmail", required = false) String userEmail,
+            @RequestParam(value = "siteUrl", required = false) String siteUrl) {
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("attemptedSessionTypeId", sessionTypeId);
         body.put("attemptedUserEmail", userEmail);
+        body.put("attemptedSiteUrl", siteUrl);
         if (!webexService.isReady()) {
             body.put("ok", false);
             body.put("error", "WebEx not ready — check /api/v1/admin/health/webex first.");
@@ -345,13 +347,14 @@ public class AdminHealthController {
             return body;
         }
         try {
-            JsonNode created = webexService.testCreate(sessionTypeId, userEmail);
+            JsonNode created = webexService.testCreate(sessionTypeId, userEmail, siteUrl);
             body.put("ok", true);
             body.put("meetingId", created.path("id").asText(null));
             body.put("webLink", created.path("webLink").asText(null));
             body.put("hostEmailReturned", created.path("hostEmail").asText(null));
+            body.put("siteUrlReturned", created.path("siteUrl").asText(null));
             body.put("note", "Test meeting created + auto-deleted. The "
-                    + "sessionTypeId/userEmail combo above is valid for "
+                    + "sessionTypeId/userEmail/siteUrl combo above is valid for "
                     + "production schedules.");
         } catch (Exception e) {
             body.put("ok", false);

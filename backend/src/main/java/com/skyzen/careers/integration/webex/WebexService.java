@@ -83,6 +83,7 @@ public class WebexService implements MeetingProvider {
     private final String orgId;
     private final String seedRefreshToken;
     private final String defaultHostEmail;
+    private final String siteUrl;
     private final Integer sessionTypeId;
     @Getter
     private final boolean enabled;
@@ -112,6 +113,7 @@ public class WebexService implements MeetingProvider {
             @Value("${webex.org-id:}") String orgId,
             @Value("${webex.refresh-token:}") String seedRefreshToken,
             @Value("${webex.default-host-email:}") String defaultHostEmail,
+            @Value("${webex.site-url:}") String siteUrl,
             @Value("${webex.session-type-id:0}") int sessionTypeId,
             @Value("${webex.enabled:true}") boolean enabled,
             WebexCredentialsRepository credentialsRepository,
@@ -123,9 +125,13 @@ public class WebexService implements MeetingProvider {
         this.orgId = trimToNull(orgId);
         this.seedRefreshToken = trimToNull(seedRefreshToken);
         this.defaultHostEmail = trimToNull(defaultHostEmail);
-        // 0 / negative means "don't send sessionTypeId at all" — useful for
-        // orgs whose host has a working default and where any explicit value
-        // collides. Standard "Webex Meeting" is 3 for most installations.
+        this.siteUrl = trimToNull(siteUrl);
+        // 0 / negative means "don't send sessionTypeId at all". For Control
+        // Hub-managed sites (the modern Webex experience) session types are
+        // a classic-site concept that don't apply — leave this 0 and rely
+        // on hostEmail + siteUrl to route. Set to a positive integer only
+        // when the org is on a legacy Site Administration site with a known
+        // session-type catalog.
         this.sessionTypeId = sessionTypeId > 0 ? sessionTypeId : null;
         this.enabled = enabled;
         this.credentialsRepository = credentialsRepository;
@@ -504,8 +510,8 @@ public class WebexService implements MeetingProvider {
      * {@code userEmailOverride} uses {@link #resolveWebexHostEmail}'s
      * normal resolution (default host or omit).</p>
      */
-    public JsonNode testCreate(Integer sessionTypeIdOverride, String userEmailOverride)
-            throws Exception {
+    public JsonNode testCreate(Integer sessionTypeIdOverride, String userEmailOverride,
+                                String siteUrlOverride) throws Exception {
         ensureReady();
         // Truncate to seconds — WebEx rejects fractional-second precision
         // ("'2026-06-26T17:21:12.672682544Z' format is wrong"). Instant.now()
@@ -537,6 +543,14 @@ public class WebexService implements MeetingProvider {
                 : resolveWebexHostEmail(null);
         if (effectiveHost != null) {
             body.put("hostEmail", effectiveHost);
+        }
+        // Per-call siteUrl override beats the configured one, falls back
+        // to the configured WEBEX_SITE_URL, omitted otherwise.
+        String effectiveSite = siteUrlOverride != null && !siteUrlOverride.isBlank()
+                ? siteUrlOverride.trim()
+                : siteUrl;
+        if (effectiveSite != null) {
+            body.put("siteUrl", effectiveSite);
         }
         body.put("enabledJoinBeforeHost", false);
         body.put("enableConnectAudioBeforeHost", false);
@@ -854,6 +868,15 @@ public class WebexService implements MeetingProvider {
         String resolvedHost = resolveWebexHostEmail(req.hostEmail());
         if (resolvedHost != null) {
             body.put("hostEmail", resolvedHost);
+        }
+        // siteUrl — required for orgs whose Service App spans multiple
+        // sites, optional but harmless when there's only one site. For
+        // Control Hub-managed sites (which don't have classic numeric
+        // session types) the {hostEmail, siteUrl} pair is what routes
+        // the create; sessionTypeId is the classic-site alternative and
+        // is omitted by default (see constructor).
+        if (siteUrl != null) {
+            body.put("siteUrl", siteUrl);
         }
         if (req.agenda() != null && !req.agenda().isBlank()) {
             body.put("agenda", req.agenda());
