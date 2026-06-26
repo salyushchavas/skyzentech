@@ -83,6 +83,7 @@ public class WebexService implements MeetingProvider {
     private final String orgId;
     private final String seedRefreshToken;
     private final String defaultHostEmail;
+    private final Integer sessionTypeId;
     @Getter
     private final boolean enabled;
 
@@ -111,6 +112,7 @@ public class WebexService implements MeetingProvider {
             @Value("${webex.org-id:}") String orgId,
             @Value("${webex.refresh-token:}") String seedRefreshToken,
             @Value("${webex.default-host-email:}") String defaultHostEmail,
+            @Value("${webex.session-type-id:3}") int sessionTypeId,
             @Value("${webex.enabled:true}") boolean enabled,
             WebexCredentialsRepository credentialsRepository,
             PiiEncryptionService piiEncryption
@@ -121,6 +123,10 @@ public class WebexService implements MeetingProvider {
         this.orgId = trimToNull(orgId);
         this.seedRefreshToken = trimToNull(seedRefreshToken);
         this.defaultHostEmail = trimToNull(defaultHostEmail);
+        // 0 / negative means "don't send sessionTypeId at all" — useful for
+        // orgs whose host has a working default and where any explicit value
+        // collides. Standard "Webex Meeting" is 3 for most installations.
+        this.sessionTypeId = sessionTypeId > 0 ? sessionTypeId : null;
         this.enabled = enabled;
         this.credentialsRepository = credentialsRepository;
         this.piiEncryption = piiEncryption;
@@ -534,6 +540,15 @@ public class WebexService implements MeetingProvider {
         }
         if (req.agenda() != null && !req.agenda().isBlank()) {
             body.put("agenda", req.agenda());
+        }
+        // sessionTypeId is required by WebEx when the resolved host doesn't
+        // have a default session type configured in Control Hub — which is
+        // the common case for a Service-App-admin host. Omitting it 400s
+        // with "Session type not found by Session type ID". Standard
+        // "Webex Meeting" type is 3 in most orgs; operators can override
+        // via WEBEX_SESSION_TYPE_ID env (or set 0 to opt out entirely).
+        if (sessionTypeId != null) {
+            body.put("sessionTypeId", sessionTypeId);
         }
         body.put("enabledJoinBeforeHost", false);
         body.put("enableConnectAudioBeforeHost", false);
