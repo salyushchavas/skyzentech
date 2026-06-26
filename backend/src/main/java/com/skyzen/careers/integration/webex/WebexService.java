@@ -520,7 +520,26 @@ public class WebexService implements MeetingProvider {
             zone = java.time.ZoneOffset.UTC;
         }
         if (req.startTime() != null) {
-            java.time.ZonedDateTime startZdt = req.startTime().atZone(zone);
+            // Past/near-now guard. WebEx rejects creates whose start lands
+            // at-or-before its server clock with "Parameter 'start' or 'end'
+            // is before current time" — and "current" is evaluated after
+            // network round-trip, so a meeting scheduled for exactly "now"
+            // (or a few seconds back) lands past from WebEx's perspective.
+            // Floor start at now + SAFETY_BUFFER so legitimately-future
+            // intents survive the trip without spurious 400s; log a warn
+            // when we bump so a real "scheduled for the past" UI bug stays
+            // visible. End is recomputed from the (possibly bumped) start so
+            // duration stays correct regardless.
+            java.time.Instant requested = req.startTime();
+            java.time.Instant earliest = Instant.now().plusSeconds(60);
+            java.time.Instant effective = requested.isBefore(earliest)
+                    ? earliest : requested;
+            if (effective != requested) {
+                log.warn("[WebEx] start {} is at-or-before now+60s — bumping to {} "
+                        + "to clear WebEx's 'before current time' rejection",
+                        requested, effective);
+            }
+            java.time.ZonedDateTime startZdt = effective.atZone(zone);
             java.time.ZonedDateTime endZdt = startZdt.plusMinutes(
                     clampDuration(req.durationMinutes()));
             body.put("start", startZdt.format(DateTimeFormatter.ISO_OFFSET_DATE_TIME));
