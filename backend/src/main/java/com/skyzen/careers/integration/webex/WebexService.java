@@ -184,10 +184,69 @@ public class WebexService implements MeetingProvider {
             } catch (Exception e) {
                 lastProbeError = e.getMessage();
                 log.warn("[WebEx] TOKEN VALIDATION FAILED: {}", e.getMessage());
+                return; // session-types probe will fail too if auth failed
+            }
+            // Discover the valid session types for this org and log them so
+            // the operator can pick a numeric id to set on
+            // WEBEX_SESSION_TYPE_ID without having to hit the dedicated
+            // /api/v1/admin/health/webex/session-types diagnostic. Two probes:
+            // the Service App admin's session types, plus (when configured)
+            // the WEBEX_DEFAULT_HOST_EMAIL's session types. Empty list for
+            // either is itself the diagnostic ("this user can't host meetings").
+            logSessionTypesForBoot("Service App admin", null);
+            if (defaultHostEmail != null) {
+                logSessionTypesForBoot("WEBEX_DEFAULT_HOST_EMAIL=" + defaultHostEmail,
+                        defaultHostEmail);
+            } else {
+                log.info("[WebEx] WEBEX_DEFAULT_HOST_EMAIL not set — to see session "
+                        + "types for a specific host, set it OR query GET "
+                        + "/api/v1/admin/health/webex/session-types?userEmail=...");
+            }
+            if (sessionTypeId == null) {
+                log.info("[WebEx] WEBEX_SESSION_TYPE_ID is 0/unset — sessionTypeId "
+                        + "will be omitted from create payloads. If WebEx 400s "
+                        + "with 'Session type not found by Session type ID', pick "
+                        + "an id from the lists above and set WEBEX_SESSION_TYPE_ID.");
+            } else {
+                log.info("[WebEx] using sessionTypeId={} (from WEBEX_SESSION_TYPE_ID) "
+                        + "on every create payload", sessionTypeId);
             }
         }, "webex-startup-probe");
         probe.setDaemon(true);
         probe.start();
+    }
+
+    /**
+     * Helper for {@link #onStartup}. Calls {@link #fetchSessionTypes} and
+     * logs the (id, name) pairs in one line per session type so the operator
+     * has a stable grep target. Failures are logged at warn and the rest of
+     * boot continues — the discovery is informational only.
+     */
+    private void logSessionTypesForBoot(String label, String userEmail) {
+        try {
+            JsonNode resp = fetchSessionTypes(userEmail);
+            JsonNode items = resp.path("items");
+            int n = items.isArray() ? items.size() : 0;
+            log.info("[WebEx] {} — {} session type(s) available:", label, n);
+            if (n == 0) {
+                log.info("[WebEx]   (none — user likely has no Webex Meetings license)");
+                return;
+            }
+            for (JsonNode item : items) {
+                log.info("[WebEx]   id={} name=\"{}\" type={} default={}",
+                        item.path("id").asText(""),
+                        item.path("name").asText(""),
+                        item.path("meetingType").asText(""),
+                        item.path("default").asBoolean(false));
+            }
+        } catch (Exception e) {
+            // Most common cause when this fails despite auth working: the
+            // Service App wasn't granted meeting:admin_preferences_read.
+            log.warn("[WebEx] session-types discovery for {} failed (non-fatal): {}. "
+                    + "If body says 'missing required scopes', the Service App "
+                    + "needs meeting:admin_preferences_read added in Control Hub.",
+                    label, e.getMessage());
+        }
     }
 
     /**
