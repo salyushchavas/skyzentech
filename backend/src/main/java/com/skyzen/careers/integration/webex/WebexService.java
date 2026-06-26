@@ -419,9 +419,42 @@ public class WebexService implements MeetingProvider {
                     + resp.statusCode() + " body=" + truncate(resp.body()));
         }
         JsonNode created = objectMapper.readTree(resp.body());
+        String meetingId = created.path("id").asText(null);
+        // Mirror createMeeting's host-link fallback so the operator sees
+        // whether the GET /v1/meetings/{id}?hostEmail=... probe actually
+        // returns startLink for their account. Merge the fetched startLink
+        // into the response node so the operator sees both fields.
+        if (meetingId != null && effectiveHost != null
+                && created.path("startLink").asText(null) == null
+                && created.path("hostLink").asText(null) == null) {
+            try {
+                HttpResponse<String> fetched = sendAuthorized(HttpRequest.newBuilder()
+                        .uri(URI.create(API_BASE + "/meetings/" + encode(meetingId)
+                                + "?hostEmail=" + encode(effectiveHost)))
+                        .timeout(Duration.ofSeconds(15))
+                        .GET()
+                        .build());
+                if (fetched.statusCode() < 300) {
+                    JsonNode hostView = objectMapper.readTree(fetched.body());
+                    ObjectNode merged = (ObjectNode) created;
+                    String hostStart = firstNonBlank(
+                            hostView.path("startLink").asText(null),
+                            hostView.path("hostLink").asText(null));
+                    if (hostStart != null) {
+                        merged.put("startLink", hostStart);
+                        merged.put("startLinkSource", "GET /v1/meetings/{id}?hostEmail=...");
+                    }
+                } else {
+                    log.warn("[WebEx] test-create host-link fetch failed: status={} body={}",
+                            fetched.statusCode(), truncate(fetched.body()));
+                }
+            } catch (Exception fetchErr) {
+                log.warn("[WebEx] test-create host-link fetch errored (non-fatal): {}",
+                        fetchErr.getMessage());
+            }
+        }
         // Best-effort cleanup — don't leave the probe meeting on the
         // calendar. Failure to delete is logged but doesn't fail the probe.
-        String meetingId = created.path("id").asText(null);
         if (meetingId != null && !meetingId.isBlank()) {
             try {
                 deleteMeeting(meetingId);
