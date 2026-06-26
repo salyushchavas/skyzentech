@@ -14,6 +14,7 @@ import com.skyzen.careers.event.InterviewScheduledEvent;
 import com.skyzen.careers.event.ManagerHireDecisionEvent;
 import com.skyzen.careers.notification.EmailProvider;
 import com.skyzen.careers.notification.MeetingEmailHtmlBuilder;
+import com.skyzen.careers.notification.SchedulerMeetingEmailSender;
 import com.skyzen.careers.notification.UserNotificationDispatcher;
 import com.skyzen.careers.repository.ApplicationRepository;
 import com.skyzen.careers.repository.InterviewRepository;
@@ -54,6 +55,7 @@ public class InterviewEmailListener {
     private final CommunicationTemplateService templateService;
     private final EmailProvider emailProvider;
     private final UserNotificationDispatcher dispatcher;
+    private final SchedulerMeetingEmailSender schedulerEmail;
 
     // ── SCHEDULED ─────────────────────────────────────────────────────────
 
@@ -64,10 +66,46 @@ public class InterviewEmailListener {
             Interview iv = interviewRepository.findById(e.getInterviewId()).orElse(null);
             if (iv == null) return;
             sendScheduled(iv);
+            sendInterviewerHostEmail(iv);
             dispatchManagersOnSchedule(iv);
         } catch (Exception ex) {
             log.warn("[InterviewEmail] scheduled handler failed: {}", ex.getMessage());
         }
+    }
+
+    /**
+     * Email the interviewer (the scheduler) with the meeting details +
+     * the Webex host key so they can claim host control inside Webex
+     * after joining. Best-effort; failures are logged inside the sender.
+     */
+    private void sendInterviewerHostEmail(Interview iv) {
+        if (iv == null || iv.getInterviewer() == null) return;
+        User interviewer = iv.getInterviewer();
+        if (interviewer.getEmail() == null || interviewer.getEmail().isBlank()) return;
+        Application app = iv.getApplication();
+        User applicant = applicantUser(app);
+        String applicantName = applicant != null ? applicant.getFullName() : null;
+        String jobTitle = app != null && app.getJobPosting() != null
+                && app.getJobPosting().getTitle() != null
+                ? app.getJobPosting().getTitle() : "Interview";
+        String participantLabel = applicantName != null && !applicantName.isBlank()
+                ? "with " + applicantName + " (candidate)" : null;
+        schedulerEmail.send(
+                interviewer.getEmail(),
+                firstNameOf(interviewer),
+                "Interview scheduled",
+                jobTitle,
+                participantLabel,
+                iv.getScheduledAt(),
+                iv.getTimezone(),
+                iv.getZoomJoinUrl(),
+                iv.getZoomMeetingId());
+    }
+
+    private static String firstNameOf(User u) {
+        if (u == null || u.getFullName() == null) return "there";
+        String[] parts = u.getFullName().trim().split("\\s+", 2);
+        return parts.length > 0 && !parts[0].isEmpty() ? parts[0] : "there";
     }
 
     private void sendScheduled(Interview iv) {

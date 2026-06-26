@@ -32,6 +32,8 @@ public interface InterviewRepository extends JpaRepository<Interview, UUID>,
 
     boolean existsByApplicationIdAndStatus(UUID applicationId, InterviewStatus status);
 
+    Optional<Interview> findFirstByZoomMeetingId(String zoomMeetingId);
+
     @Query("SELECT i FROM Interview i " +
             "JOIN FETCH i.application a " +
             "JOIN FETCH a.candidate c " +

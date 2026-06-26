@@ -3,10 +3,11 @@
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
-import { ChevronLeft, Save, Send, Star, Video } from 'lucide-react';
+import { ChevronLeft, Save, Send, Star } from 'lucide-react';
 import api from '@/lib/api';
 import type { EvaluatorEvaluationDetail, RecommendationFinal } from '@/components/evaluator/types';
 import { RECOMMENDATIONS, RECOMMENDATIONS_FINAL } from '@/components/evaluator/types';
+import WebexHostStartCard from '@/components/meeting/WebexHostStartCard';
 
 const RUBRIC: { key: 'technical' | 'communication' | 'professionalism' | 'learning'; label: string; tip: string }[] = [
   { key: 'technical',      label: 'Technical Skills',        tip: 'How strong is their technical work this period? Code quality, problem-solving, design choices.' },
@@ -154,15 +155,13 @@ export default function ComposePage() {
             </p>
           </div>
           {data.zoomJoinUrl && (
-            <a
-              href={data.zoomStartUrl ?? data.zoomJoinUrl}
-              target="_blank"
-              rel="noreferrer"
-              className="inline-flex items-center gap-1 rounded-md border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
-            >
-              <Video className="h-3.5 w-3.5" />
-              Start Meeting (Host)
-            </a>
+            <div className="w-full max-w-md">
+              <WebexHostStartCard
+                providerMeetingId={data.zoomMeetingId}
+                joinUrl={data.zoomJoinUrl}
+                startUrl={data.zoomStartUrl}
+              />
+            </div>
           )}
         </div>
         {readOnly && (

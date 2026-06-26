@@ -8,6 +8,7 @@ import com.skyzen.careers.erm.CommunicationTemplateService;
 import com.skyzen.careers.intern.OrgTeamResolver;
 import com.skyzen.careers.notification.EmailProvider;
 import com.skyzen.careers.notification.MeetingEmailHtmlBuilder;
+import com.skyzen.careers.notification.SchedulerMeetingEmailSender;
 import com.skyzen.careers.notification.UserNotificationDispatcher;
 import com.skyzen.careers.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
@@ -37,6 +38,7 @@ public class EvaluationNotificationFanout {
     private final EmailProvider emailProvider;
     private final CommunicationTemplateService templateService;
     private final OrgTeamResolver orgTeamResolver;
+    private final SchedulerMeetingEmailSender schedulerEmail;
 
     @Value("${app.frontend.base-url:https://www.skyzentech.com}")
     private String frontendBaseUrl;
@@ -73,6 +75,24 @@ public class EvaluationNotificationFanout {
                 "Monthly evaluation scheduled for " + safeName(intern),
                 evaluatorName + " · " + date,
                 "/careers/erm/active-interns");
+
+        // Email — evaluator (scheduler), with the Webex host key so they
+        // can claim host control after joining. Best-effort; failures are
+        // logged inside the sender. Skipped when no zoom join url exists
+        // (creation must have failed before this fan-out fired).
+        if (evaluator != null) {
+            String participantLabel = "with " + safeName(intern) + " (intern)";
+            schedulerEmail.send(
+                    evaluator.getEmail(),
+                    firstName(evaluator),
+                    "Evaluation scheduled",
+                    "Monthly evaluation",
+                    participantLabel,
+                    ev.getScheduledFor(),
+                    ev.getTimezone(),
+                    ev.getZoomJoinUrl(),
+                    ev.getZoomMeetingId());
+        }
     }
 
     public void evaluationPublished(InternEvaluation ev, InternLifecycle lc, User evaluator) {

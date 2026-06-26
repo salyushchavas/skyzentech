@@ -4,6 +4,7 @@ import { Suspense, useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import api from '@/lib/api';
+import WebexHostStartCard from '@/components/meeting/WebexHostStartCard';
 import { AlertTriangle, Calendar, CheckCircle2, Clock, Plus, RefreshCw, X, XCircle, AlertOctagon } from 'lucide-react';
 
 type InternRow = { internLifecycleId: string; fullName: string | null; employeeId: string | null };
@@ -321,17 +322,11 @@ function MeetingActionModal({ meeting, interns, onClose, onChanged }: {
         <Row k="Status" v={meeting.status} />
         {(meeting.zoomStartUrl ?? meeting.zoomJoinUrl) && (
           <div className="pt-1">
-            <a
-              href={meeting.zoomStartUrl ?? meeting.zoomJoinUrl ?? '#'}
-              target="_blank"
-              rel="noreferrer noopener"
-              className="inline-flex items-center gap-2 rounded-md bg-gradient-to-br from-accent to-accent-dark px-4 py-2 text-sm font-semibold text-white shadow-sm hover:from-accent-dark hover:to-accent-dark"
-            >
-              Start Meeting (Host)
-            </a>
-            <p className="mt-1.5 text-[11px] text-slate-500">
-              Sign in to webex.com as the host first, then click — you join as host.
-            </p>
+            <WebexHostStartCard
+              providerMeetingId={meeting.zoomMeetingId}
+              joinUrl={meeting.zoomJoinUrl}
+              startUrl={meeting.zoomStartUrl}
+            />
           </div>
         )}
         <ZoomRegenerateBanner meeting={meeting} onRegenerated={onChanged} />

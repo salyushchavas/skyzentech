@@ -54,6 +54,20 @@ public final class MeetingEmailHtmlBuilder {
      */
     public static String buildWithHostStart(String plainBody, String joinUrl,
                                              String startUrl) {
+        return buildWithHostKey(plainBody, joinUrl, startUrl, null);
+    }
+
+    /**
+     * Render an HTML body fragment that may include a Join button, a host
+     * Start button, AND a 6-digit Webex host-key block. The host key is
+     * what the scheduler enters inside the Webex client to claim host
+     * control on a meeting scheduled under our service host
+     * ({@code techteam@skyzentech.com}). It is host-only and MUST never be
+     * included in a participant-facing email — pass {@code null} for the
+     * applicant/intern variant.
+     */
+    public static String buildWithHostKey(String plainBody, String joinUrl,
+                                           String startUrl, String hostKey) {
         StringBuilder html = new StringBuilder();
         html.append("<div style=\"margin:0;font-size:15px;line-height:1.55;color:")
                 .append(TEXT_BODY).append(";\">");
@@ -63,7 +77,28 @@ public final class MeetingEmailHtmlBuilder {
         html.append("</div>");
         appendButton(html, joinUrl, "Join Meeting");
         appendButton(html, startUrl, "Start Meeting (Host)");
+        appendHostKey(html, hostKey);
         return html.toString();
+    }
+
+    private static void appendHostKey(StringBuilder html, String hostKey) {
+        if (hostKey == null || hostKey.isBlank()) return;
+        String safe = escape(hostKey.trim());
+        html.append("<div style=\"margin:20px 0 0;padding:14px 16px;")
+                .append("border:1px solid #e2e8f0;background:#f8fafc;")
+                .append("border-radius:8px;font-size:13px;color:#334155;\">")
+                .append("<div style=\"font-weight:600;color:#0f172a;\">")
+                .append("You&rsquo;re the host &mdash; claim host control with this key</div>")
+                .append("<div style=\"margin-top:6px;font-family:'Courier New',monospace;")
+                .append("font-size:22px;letter-spacing:0.3em;color:#0f172a;\">")
+                .append(safe).append("</div>")
+                .append("<div style=\"margin-top:8px;font-size:12px;line-height:1.5;\">")
+                .append("Join via the button above, open the Webex menu &gt; ")
+                .append("<em>Reclaim host role</em>, and enter the 6-digit key. ")
+                .append("The meeting is scheduled under our service account; ")
+                .append("the key transfers host control to you. ")
+                .append("(Webex rotates this key after the meeting ends.)")
+                .append("</div></div>");
     }
 
     private static void appendButton(StringBuilder html, String url, String label) {

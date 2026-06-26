@@ -7,6 +7,7 @@ import com.skyzen.careers.erm.CommunicationTemplateService;
 import com.skyzen.careers.intern.OrgTeamResolver;
 import com.skyzen.careers.notification.EmailProvider;
 import com.skyzen.careers.notification.MeetingEmailHtmlBuilder;
+import com.skyzen.careers.notification.SchedulerMeetingEmailSender;
 import com.skyzen.careers.notification.UserNotificationDispatcher;
 import com.skyzen.careers.repository.InternLifecycleRepository;
 import com.skyzen.careers.repository.UserRepository;
@@ -42,6 +43,7 @@ public class TrainerMeetingNotificationDispatcher {
     private final EmailProvider emailProvider;
     private final UserNotificationDispatcher inApp;
     private final OrgTeamResolver orgTeamResolver;
+    private final SchedulerMeetingEmailSender schedulerEmail;
 
     public void dispatchScheduled(WeeklyMeeting m, User trainer, String rescheduleNote) {
         fanOut(m, trainer, "WEEKLY_MEETING_SCHEDULED",
@@ -50,6 +52,37 @@ public class TrainerMeetingNotificationDispatcher {
                         ? "A new meeting is on your calendar."
                         : "Your meeting was rescheduled: " + rescheduleNote,
                 false);
+        sendTrainerHostEmail(m, trainer);
+    }
+
+    /**
+     * Email the trainer (the scheduler) with the meeting details + the
+     * Webex host key so they can claim host control after joining.
+     * Best-effort; failures are logged inside the sender.
+     */
+    private void sendTrainerHostEmail(WeeklyMeeting m, User trainer) {
+        if (m == null || trainer == null
+                || trainer.getEmail() == null || trainer.getEmail().isBlank()) {
+            return;
+        }
+        InternLifecycle lc = lifecycleRepository.findById(m.getInternLifecycleId()).orElse(null);
+        String internName = null;
+        if (lc != null && lc.getUserId() != null) {
+            internName = userRepository.findById(lc.getUserId())
+                    .map(User::getFullName).orElse(null);
+        }
+        String participantLabel = internName != null && !internName.isBlank()
+                ? "with " + internName : null;
+        schedulerEmail.send(
+                trainer.getEmail(),
+                firstName(trainer),
+                "Weekly meeting scheduled",
+                nz(m.getTopic()),
+                participantLabel,
+                m.getScheduledFor(),
+                m.getTimezone(),
+                m.getZoomJoinUrl(),
+                m.getZoomMeetingId());
     }
 
     public void dispatchCompleted(WeeklyMeeting m, User trainer) {

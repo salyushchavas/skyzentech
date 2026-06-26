@@ -15,6 +15,7 @@ import RescheduleModal from '@/components/erm/interviews/RescheduleModal';
 import CancelModal from '@/components/erm/interviews/CancelModal';
 import ChangeInterviewerModal from '@/components/erm/interviews/ChangeInterviewerModal';
 import ZoomStatusBanner from '@/components/erm/interviews/ZoomStatusBanner';
+import WebexHostStartCard from '@/components/meeting/WebexHostStartCard';
 import type { InterviewDetail } from '@/components/erm/interviews/types';
 import type { OfferListPage, OfferRow } from '@/components/erm/offers/types';
 import {
@@ -203,13 +204,14 @@ export default function InterviewDetailPage() {
                       Passcode: <span className="font-mono">{data.zoomPassword}</span>
                     </p>
                   )}
-                  {data.zoomStartUrl && (
-                    <p className="mt-1 text-xs text-slate-600 break-all">
-                      Host link (ERM-only):{' '}
-                      <a className="text-brand-700 underline" href={data.zoomStartUrl} target="_blank" rel="noreferrer">
-                        {data.zoomStartUrl}
-                      </a>
-                    </p>
+                  {(data.zoomStartUrl ?? data.zoomJoinUrl) && (
+                    <div className="mt-3">
+                      <WebexHostStartCard
+                        providerMeetingId={data.zoomMeetingId}
+                        joinUrl={data.zoomJoinUrl}
+                        startUrl={data.zoomStartUrl}
+                      />
+                    </div>
                   )}
                   <ZoomStatusBanner interview={data} onUpdated={setData} />
                   {data.prepInstructions && (

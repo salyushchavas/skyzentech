@@ -596,6 +596,46 @@ public class WebexService implements MeetingProvider {
     }
 
     /**
+     * Production convenience wrapper around {@link #fetchMeetingDetailsForHost}.
+     * Resolves the configured default host email ({@code WEBEX_DEFAULT_HOST_EMAIL},
+     * typically {@code techteam@skyzentech.com}) and extracts the
+     * 6-digit {@code hostKey} from the response, or {@code null} when:
+     * <ul>
+     *   <li>no default host email is configured (operator misconfig)</li>
+     *   <li>the GET response omits {@code hostKey} (meeting was created
+     *       without JBH, OR the calling host email isn't actually the
+     *       meeting's host)</li>
+     *   <li>the HTTP call itself fails (logged at warn, not thrown — the
+     *       UI falls back to the documented "sign in to webex.com as
+     *       techteam@" guidance, the host-key path is a niceness)</li>
+     * </ul>
+     *
+     * <p>The host key ROTATES after each scheduled-end time, so callers
+     * MUST fetch fresh on each scheduler-modal-open and NOT cache the
+     * returned value.</p>
+     */
+    public String fetchHostKey(String providerMeetingId) {
+        if (providerMeetingId == null || providerMeetingId.isBlank()) {
+            return null;
+        }
+        String host = resolveWebexHostEmail(null);
+        if (host == null) {
+            log.warn("[WebEx] fetchHostKey({}) — no WEBEX_DEFAULT_HOST_EMAIL "
+                    + "configured; cannot resolve host-only fields", providerMeetingId);
+            return null;
+        }
+        try {
+            JsonNode node = fetchMeetingDetailsForHost(providerMeetingId, host);
+            String hk = node.path("hostKey").asText(null);
+            return (hk == null || hk.isBlank()) ? null : hk;
+        } catch (Exception e) {
+            log.warn("[WebEx] fetchHostKey({}) failed (non-fatal): {}",
+                    providerMeetingId, e.getMessage());
+            return null;
+        }
+    }
+
+    /**
      * Fetch the host key for a meeting via
      * {@code GET /v1/meetings/{id}?hostEmail=<email>}. Per Cisco docs +
      * community guidance, the {@code hostKey} field is only populated
