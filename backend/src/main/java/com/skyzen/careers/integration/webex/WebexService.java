@@ -585,28 +585,38 @@ public class WebexService implements MeetingProvider {
     }
 
     /**
-     * Join-a-Meeting API — POST /v1/meetings/join. The intent was to
-     * obtain a per-meeting host start link by passing
-     * {@code createStartLinkAsWebLink=true} + {@code hostEmail}. Live
-     * verification (commit 48faafe1 against this Business Plan account)
-     * showed the endpoint returns HTTP 200 with a full Cisco Webex
-     * Meetings landing-page HTML body, not the documented JSON shape
-     * with {@code webLink} / {@code expiration} fields. The
-     * {@code createStartLinkAsWebLink} flag isn't a supported parameter
-     * for this account/plan tier — the endpoint behaves as a "render
-     * the meeting page" route, not a token-generating API.
+     * Join-a-Meeting probe — tries multiple candidate URL/method shapes
+     * looking for a host-link-returning endpoint on the Webex REST API.
      *
-     * <p>The method remains as a diagnostic probe (called from the
-     * test-create endpoint) so operators can re-verify if Cisco changes
-     * the endpoint's behaviour, or to see what HTML comes back if the
-     * licensing tier changes. Production createMeeting does NOT call
-     * this — the staff DTO's {@code zoomStartUrl} stays null and the
-     * UI shows the "sign in to webex.com as the host first" hint
-     * alongside the join URL, which is the only working path for
-     * Service-App-admin scope without a host-user bearer token.</p>
+     * <p>Live verification (f184403e) tested four shapes:</p>
+     * <pre>
+     *   POST /v1/meetings/{id}/join            → 404 "resource not found"
+     *   POST /v1/meetings/join                 → 200 Cisco landing-page HTML
+     *   GET  /v1/meetings/{id}/join?hostEmail= → 404 "resource not found"
+     *   GET  /v1/meetings/join?meetingId=…     → 400 "Invalid meeting id: 'join'"
+     * </pre>
      *
-     * @return raw JsonNode when the response is JSON; throws otherwise
-     *         with the response body truncated for the diagnostic.
+     * <p>The fourth attempt is the smoking gun: Cisco's gateway parsed
+     * the URL as {@code /v1/meetings/{meetingId}} with
+     * {@code meetingId="join"} — proving the ONLY {@code /v1/meetings/}
+     * URL pattern is {@code /{id}}, and there is no {@code /join}
+     * subresource at all in this REST API surface. The "Join-a-Meeting"
+     * docs the operator referenced point to a different Webex API tier
+     * (likely the older XML-RPC API or a separate Cisco product
+     * surface), not the v1 REST API at developer.webex.com.</p>
+     *
+     * <p><b>Conclusion</b>: a Service App with admin scope cannot
+     * obtain a per-meeting one-click host startLink via the v1 REST
+     * API. The probe stays as a diagnostic in case Cisco adds the
+     * endpoint, but production {@code createMeeting} does NOT call it
+     * — staff DTO's {@code zoomStartUrl} stays null and the trainer
+     * modal shows "Sign in to webex.com as the host first" alongside
+     * the join URL, which is the only working path for this
+     * authentication model.</p>
+     *
+     * @return raw JsonNode when one of the candidate URLs returns
+     *         JSON; throws otherwise with all four attempts' status +
+     *         body for the diagnostic.
      */
     public JsonNode fetchHostStartLink(String providerMeetingId, String hostEmail)
             throws Exception {
