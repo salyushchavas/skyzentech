@@ -466,26 +466,29 @@ public class WebexService implements MeetingProvider {
             try {
                 JsonNode joinView = fetchHostStartLink(meetingId, effectiveHost);
                 ObjectNode merged = (ObjectNode) created;
-                // The host start URL is in webLink when
-                // createStartLinkAsWebLink=true; surface it under a
-                // distinct key so the operator can tell which API call
-                // produced it.
-                String hostStartViaJoin = joinView.path("webLink").asText(null);
+                // Per the Join-a-Meeting JSON shape: top-level startLink
+                // is the one-click host link, joinLink is the participant
+                // join URL, expirationMinutes is how long the link is
+                // valid. Pull all four and also keep webLink/hostKey
+                // for completeness.
+                String hostStart = joinView.path("startLink").asText(null);
+                String joinLink = joinView.path("joinLink").asText(null);
+                String webLinkFromJoin = joinView.path("webLink").asText(null);
                 String hostKey = joinView.path("hostKey").asText(null);
-                String expiration = joinView.path("expiration").asText(null);
-                String expirationTime = joinView.path("expirationTime").asText(null);
-                merged.put("joinApiHostStartLink", hostStartViaJoin);
+                String expirationMinutes = joinView.path("expirationMinutes").asText(null);
+                merged.put("joinApiStartLink", hostStart);
+                merged.put("joinApiJoinLink", joinLink);
+                merged.put("joinApiWebLink", webLinkFromJoin);
                 merged.put("joinApiHostKey", hostKey);
-                merged.put("joinApiExpiration", expiration);
-                merged.put("joinApiExpirationTime", expirationTime);
-                if (hostStartViaJoin != null) {
+                merged.put("joinApiExpirationMinutes", expirationMinutes);
+                if (hostStart != null) {
                     // Promote into the canonical startLink slot if the
                     // earlier paths returned nothing — this is the value
                     // production createMeeting will surface to the UI.
                     if (merged.path("startLink").asText(null) == null) {
-                        merged.put("startLink", hostStartViaJoin);
+                        merged.put("startLink", hostStart);
                         merged.put("startLinkSource",
-                                "POST /v1/meetings/join (createStartLinkAsWebLink=true)");
+                                "POST /v1/meetings/join (Service App on-behalf-of host)");
                     }
                 }
             } catch (Exception joinErr) {
@@ -614,10 +617,16 @@ public class WebexService implements MeetingProvider {
         if (hostEmail == null || hostEmail.isBlank()) {
             throw new IllegalArgumentException("hostEmail is required for Service-App host link");
         }
+        // Corrected per WebEx docs review: createStartLinkAsWebLink=true
+        // converts startLink into a LOGIN-FLOW webLink (which renders the
+        // Cisco Webex landing page — exactly what we saw on the previous
+        // attempt's HTML body). OMITTING the flag (or sending false)
+        // returns the DIRECT one-click startLink in the JSON response —
+        // which is what we want for the scheduler's "Start as Host"
+        // button.
         ObjectNode body = objectMapper.createObjectNode();
         body.put("meetingId", providerMeetingId);
         body.put("hostEmail", hostEmail.trim());
-        body.put("createStartLinkAsWebLink", true);
         if (siteUrl != null && !siteUrl.isBlank()) {
             body.put("siteUrl", siteUrl);
         }
@@ -634,11 +643,6 @@ public class WebexService implements MeetingProvider {
             throw new RuntimeException("WebEx /meetings/join (host) failed: status="
                     + resp.statusCode() + " body=" + truncate(respBody));
         }
-        // WebEx occasionally returns an HTML error page with a 200/3xx
-        // status when the request shape isn't recognised (e.g. missing
-        // expected params). Detect non-JSON bodies and surface them
-        // verbatim so the diagnostic shows what came back instead of a
-        // Jackson "unexpected character" error stack.
         String trimmed = respBody.stripLeading();
         if (!trimmed.startsWith("{") && !trimmed.startsWith("[")) {
             throw new RuntimeException("WebEx /meetings/join returned non-JSON (status="

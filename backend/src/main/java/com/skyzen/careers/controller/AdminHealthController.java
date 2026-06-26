@@ -314,14 +314,15 @@ public class AdminHealthController {
             body.put("startLink", created.path("startLink").asText(null));
             body.put("hostLink", created.path("hostLink").asText(null));
             body.put("startLinkSource", created.path("startLinkSource").asText(null));
-            // Join-a-Meeting probe outcomes (WebexService.fetchHostStartLink).
-            // These appear when WebexService.testCreate calls POST
-            // /v1/meetings/join with createStartLinkAsWebLink=true after
-            // the earlier fallbacks fail.
-            body.put("joinApiHostStartLink", created.path("joinApiHostStartLink").asText(null));
+            // Join-a-Meeting probe outcomes (WebexService.fetchHostStartLink
+            // calls POST /v1/meetings/join with {meetingId, hostEmail} —
+            // createStartLinkAsWebLink is intentionally OMITTED so we get
+            // the direct one-click startLink, not the login-flow webLink).
+            body.put("joinApiStartLink", created.path("joinApiStartLink").asText(null));
+            body.put("joinApiJoinLink", created.path("joinApiJoinLink").asText(null));
+            body.put("joinApiWebLink", created.path("joinApiWebLink").asText(null));
             body.put("joinApiHostKey", created.path("joinApiHostKey").asText(null));
-            body.put("joinApiExpiration", created.path("joinApiExpiration").asText(null));
-            body.put("joinApiExpirationTime", created.path("joinApiExpirationTime").asText(null));
+            body.put("joinApiExpirationMinutes", created.path("joinApiExpirationMinutes").asText(null));
             body.put("joinApiError", created.path("joinApiError").asText(null));
             body.put("hostEmailReturned", created.path("hostEmail").asText(null));
             body.put("siteUrlReturned", created.path("siteUrl").asText(null));
