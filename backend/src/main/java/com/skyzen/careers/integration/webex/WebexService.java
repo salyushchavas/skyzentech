@@ -202,6 +202,10 @@ public class WebexService implements MeetingProvider {
                         + "types for a specific host, set it OR query GET "
                         + "/api/v1/admin/health/webex/session-types?userEmail=...");
             }
+            // Sites + per-site session types — covers the multi-site case
+            // where the user-scoped /sessionTypes doesn't return what's
+            // useful. Each site has its own list of valid ids.
+            logSitesAndSiteSessionTypesForBoot(defaultHostEmail);
             if (sessionTypeId == null) {
                 log.info("[WebEx] WEBEX_SESSION_TYPE_ID is 0/unset — sessionTypeId "
                         + "will be omitted from create payloads. If WebEx 400s "
@@ -246,6 +250,58 @@ public class WebexService implements MeetingProvider {
                     + "If body says 'missing required scopes', the Service App "
                     + "needs meeting:admin_preferences_read added in Control Hub.",
                     label, e.getMessage());
+        }
+    }
+
+    /**
+     * Fallback diagnostic — when the user-scoped {@link #fetchSessionTypes}
+     * returns empty (or the operator has a multi-site org), enumerate the
+     * resolved user's sites and, for each, log the site-scoped session
+     * types. Same defensive shape: failures non-fatal, names + ids logged
+     * one per line so the operator has a stable grep target.
+     */
+    private void logSitesAndSiteSessionTypesForBoot(String userEmail) {
+        String label = userEmail == null ? "Service App admin"
+                : "WEBEX_DEFAULT_HOST_EMAIL=" + userEmail;
+        JsonNode sitesResp;
+        try {
+            sitesResp = fetchSites(userEmail);
+        } catch (Exception e) {
+            log.warn("[WebEx] sites discovery for {} failed (non-fatal): {}. "
+                    + "If body says 'missing required scopes', the Service App "
+                    + "needs meeting:admin_preferences_read added in Control Hub.",
+                    label, e.getMessage());
+            return;
+        }
+        JsonNode sites = sitesResp.path("sites");
+        if (!sites.isArray() || sites.size() == 0) {
+            log.info("[WebEx] {} — no sites returned by /meetingPreferences/sites", label);
+            return;
+        }
+        log.info("[WebEx] {} — {} site(s) returned by /meetingPreferences/sites:",
+                label, sites.size());
+        for (JsonNode site : sites) {
+            String siteUrl = site.path("siteUrl").asText("");
+            boolean isDefault = site.path("default").asBoolean(false);
+            log.info("[WebEx]   site siteUrl=\"{}\" default={}", siteUrl, isDefault);
+            if (siteUrl.isBlank()) continue;
+            try {
+                JsonNode siteTypes = fetchSiteSessionTypes(siteUrl, userEmail);
+                JsonNode items = siteTypes.path("items");
+                int n = items.isArray() ? items.size() : 0;
+                log.info("[WebEx]     {} site-scoped session type(s) for {}:",
+                        n, siteUrl);
+                for (JsonNode item : items) {
+                    log.info("[WebEx]       id={} name=\"{}\" type={} default={}",
+                            item.path("id").asText(""),
+                            item.path("name").asText(""),
+                            item.path("meetingType").asText(""),
+                            item.path("default").asBoolean(false));
+                }
+            } catch (Exception e) {
+                log.warn("[WebEx]     site-scoped session-types for {} failed "
+                        + "(non-fatal): {}", siteUrl, e.getMessage());
+            }
         }
     }
 
@@ -362,6 +418,61 @@ public class WebexService implements MeetingProvider {
         if (resp.statusCode() >= 300) {
             throw new RuntimeException("WebEx /meetingPreferences/sessionTypes failed: status="
                     + resp.statusCode() + " body=" + truncate(resp.body()));
+        }
+        return objectMapper.readTree(resp.body());
+    }
+
+    /**
+     * Diagnostic — list the WebEx sites the resolved user belongs to.
+     * Some orgs span multiple sites; each site has its own session-type
+     * list. The siteUrl returned here ("acme.webex.com" shape) is what
+     * {@link #fetchSiteSessionTypes} wants as a path segment. With admin
+     * scope, {@code userEmail} queries a specific user; omit it for the
+     * Service App admin.
+     */
+    public JsonNode fetchSites(String userEmail) throws Exception {
+        ensureReady();
+        StringBuilder uri = new StringBuilder(API_BASE + "/meetingPreferences/sites");
+        if (userEmail != null && !userEmail.isBlank()) {
+            uri.append("?userEmail=").append(encode(userEmail.trim()));
+        }
+        HttpResponse<String> resp = sendAuthorized(HttpRequest.newBuilder()
+                .uri(URI.create(uri.toString()))
+                .timeout(Duration.ofSeconds(15))
+                .GET()
+                .build());
+        if (resp.statusCode() >= 300) {
+            throw new RuntimeException("WebEx /meetingPreferences/sites failed: status="
+                    + resp.statusCode() + " body=" + truncate(resp.body()));
+        }
+        return objectMapper.readTree(resp.body());
+    }
+
+    /**
+     * Diagnostic — site-scoped session-types list, used when the
+     * user-scoped {@link #fetchSessionTypes} doesn't return what's needed
+     * (e.g. multi-site orgs where session types live per-site rather than
+     * per-user). Pass the {@code siteUrl} from {@link #fetchSites}.
+     */
+    public JsonNode fetchSiteSessionTypes(String siteUrl, String userEmail) throws Exception {
+        ensureReady();
+        if (siteUrl == null || siteUrl.isBlank()) {
+            throw new IllegalArgumentException("siteUrl is required");
+        }
+        StringBuilder uri = new StringBuilder(API_BASE + "/meetingPreferences/sites/")
+                .append(encode(siteUrl.trim())).append("/sessionTypes");
+        if (userEmail != null && !userEmail.isBlank()) {
+            uri.append("?userEmail=").append(encode(userEmail.trim()));
+        }
+        HttpResponse<String> resp = sendAuthorized(HttpRequest.newBuilder()
+                .uri(URI.create(uri.toString()))
+                .timeout(Duration.ofSeconds(15))
+                .GET()
+                .build());
+        if (resp.statusCode() >= 300) {
+            throw new RuntimeException("WebEx /meetingPreferences/sites/" + siteUrl
+                    + "/sessionTypes failed: status=" + resp.statusCode()
+                    + " body=" + truncate(resp.body()));
         }
         return objectMapper.readTree(resp.body());
     }

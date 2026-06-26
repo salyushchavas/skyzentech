@@ -220,6 +220,31 @@ public class AdminHealthController {
             String last = webexService.getLastProbeError();
             if (last != null) body.put("lastStartupProbeError", last);
         }
+        // Inline session-types discovery so the operator can read valid
+        // sessionTypeIds from this one endpoint without bouncing to
+        // /webex/session-types or tailing boot logs. Always for the
+        // Service App admin (no userEmail) — use the dedicated
+        // /webex/session-types?userEmail=... endpoint to query a specific
+        // host. The inline call is best-effort: failures populate
+        // sessionTypesError without affecting the rest of the response.
+        try {
+            JsonNode types = webexService.fetchSessionTypes(null);
+            body.put("sessionTypes", types.path("items"));
+            int count = types.path("items").isArray() ? types.path("items").size() : 0;
+            body.put("sessionTypesCount", count);
+            if (count == 0) {
+                body.put("sessionTypesHint",
+                        "Empty array — Service App admin has no Webex Meetings license. "
+                                + "License the user OR set WEBEX_DEFAULT_HOST_EMAIL and "
+                                + "re-query /webex/session-types?userEmail=...");
+            } else {
+                body.put("sessionTypesHint",
+                        "Pick the desired id and set WEBEX_SESSION_TYPE_ID on Railway. "
+                                + "Restart, then schedule a meeting to confirm.");
+            }
+        } catch (Exception e) {
+            body.put("sessionTypesError", e.getMessage());
+        }
         return body;
     }
 
