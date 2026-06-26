@@ -319,10 +319,20 @@ function MeetingActionModal({ meeting, interns, onClose, onChanged }: {
         <Row k="When" v={new Date(meeting.scheduledFor).toLocaleString()} />
         <Row k="Duration" v={`${meeting.durationMinutes} min`} />
         <Row k="Status" v={meeting.status} />
-        {meeting.zoomJoinUrl && (
-          <p className="text-xs">
-            Zoom: <a href={meeting.zoomJoinUrl} target="_blank" rel="noreferrer" className="text-brand-700 underline">{meeting.zoomJoinUrl}</a>
-          </p>
+        {(meeting.zoomStartUrl ?? meeting.zoomJoinUrl) && (
+          <div className="pt-1">
+            <a
+              href={meeting.zoomStartUrl ?? meeting.zoomJoinUrl ?? '#'}
+              target="_blank"
+              rel="noreferrer noopener"
+              className="inline-flex items-center gap-2 rounded-md bg-gradient-to-br from-accent to-accent-dark px-4 py-2 text-sm font-semibold text-white shadow-sm hover:from-accent-dark hover:to-accent-dark"
+            >
+              Start Meeting (Host)
+            </a>
+            <p className="mt-1.5 text-[11px] text-slate-500">
+              Sign in to webex.com as the host first, then click — you join as host.
+            </p>
+          </div>
         )}
         <ZoomRegenerateBanner meeting={meeting} onRegenerated={onChanged} />
         {meeting.trainerNotes && (
@@ -581,11 +591,11 @@ function ZoomRegenerateBanner({ meeting, onRegenerated }: {
   }
 
   const title = updateFailed
-    ? 'Zoom meeting update failed on reschedule'
-    : 'Zoom link is missing';
+    ? 'Meeting update failed on reschedule'
+    : 'Meeting link is missing';
   const body = updateFailed
-    ? 'The stored Zoom meeting may now disagree with the new time. Regenerate to recreate it at the current schedule.'
-    : 'The original Zoom call failed when this meeting was created. Regenerate to attach a fresh link.';
+    ? 'The stored meeting may now disagree with the new time. Regenerate to recreate it at the current schedule.'
+    : 'The original meeting create call failed when this was scheduled. Regenerate to attach a fresh link.';
 
   return (
     <div className="rounded-md border border-amber-200 bg-amber-50 p-2.5 text-xs text-amber-900">

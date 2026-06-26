@@ -161,7 +161,7 @@ export default function ComposePage() {
               className="inline-flex items-center gap-1 rounded-md border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
             >
               <Video className="h-3.5 w-3.5" />
-              Open Zoom (host)
+              Start Meeting (Host)
             </a>
           )}
         </div>

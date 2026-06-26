@@ -204,7 +204,7 @@ function UpcomingHero({ meeting }: { meeting: UpcomingEvaluation }) {
             }
           >
             <Video className="h-4 w-4" />
-            Join Zoom
+            Join Meeting
             <ExternalLink className="h-3 w-3" />
           </a>
         )}
