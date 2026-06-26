@@ -67,6 +67,22 @@ public class MailSecurityConfig {
                 .csrf(csrf -> csrf.disable())
                 .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
+                        // SSE fix — /api/mail/events returns an SseEmitter.
+                        // Spring Security 6's AuthorizationFilter defaults to
+                        // filtering ALL dispatcher types, including ASYNC. On
+                        // SSE completion / timeout / error Tomcat re-dispatches
+                        // the request through the filter chain; the
+                        // SecurityContext is empty on the async thread, so the
+                        // re-evaluation throws AccessDeniedException and Tomcat
+                        // can't render it (response is already committed),
+                        // surfacing as ERROR-level "Unable to handle the
+                        // Spring Security Exception because the response is
+                        // already committed" stack traces. Restricting the
+                        // AuthorizationFilter to the initial REQUEST dispatch
+                        // skips the spurious re-check on ASYNC/ERROR/FORWARD/
+                        // INCLUDE without weakening any real authorization
+                        // boundary — the initial request already enforced auth.
+                        .shouldFilterAllDispatcherTypes(false)
                         // CORS preflight — http.cors() above also handles this,
                         // but the explicit permitAll is kept as a belt-and-braces
                         // guarantee (no behaviour change vs. before this fix).
