@@ -448,6 +448,17 @@ public class WebexService implements MeetingProvider {
                                 "ABSENT from POST and GET — falling back to "
                                         + "Join-a-Meeting probe below.");
                     }
+                    // Capture hostKey from the host-perspective GET — per
+                    // Cisco docs this is the field that lets the scheduler
+                    // claim host control after joining when JBH is on.
+                    // Surface enabledJoinBeforeHost + joinBeforeHostMinutes
+                    // too so the operator can verify the meeting was
+                    // actually created in JBH mode.
+                    merged.put("hostKey", hostView.path("hostKey").asText(null));
+                    merged.put("enabledJoinBeforeHost",
+                            hostView.path("enabledJoinBeforeHost").asBoolean(false));
+                    merged.put("joinBeforeHostMinutes",
+                            hostView.path("joinBeforeHostMinutes").asInt(0));
                 } else {
                     log.warn("[WebEx] test-create host-link fetch failed: status={} body={}",
                             fetched.statusCode(), truncate(fetched.body()));
@@ -582,6 +593,49 @@ public class WebexService implements MeetingProvider {
                 .GET()
                 .build());
         return parseMeetingResponse(resp, "getMeeting(hostEmail)");
+    }
+
+    /**
+     * Fetch the host key for a meeting via
+     * {@code GET /v1/meetings/{id}?hostEmail=<email>}. Per Cisco docs +
+     * community guidance, the {@code hostKey} field is only populated
+     * when the calling principal IS authorized to host the meeting —
+     * which means with admin scope we need to pass the actual host's
+     * email as {@code hostEmail}, NOT the calling Service App's
+     * principal. For our setup that's always
+     * {@code WEBEX_DEFAULT_HOST_EMAIL} (techteam@).
+     *
+     * <p>The host key is a 6-digit numeric code that a participant can
+     * enter inside the Webex client to claim the host role — provided
+     * the meeting has {@code enabledJoinBeforeHost=true} (which
+     * {@link #buildMeetingPayload} now sets). The key ROTATES after
+     * each scheduled-end time, so callers must fetch fresh on each
+     * scheduler-modal-open and NOT cache.</p>
+     *
+     * @return the raw JsonNode of the meeting record (so callers can
+     *         read hostKey + any other host-only fields like startLink)
+     */
+    public JsonNode fetchMeetingDetailsForHost(String providerMeetingId, String hostEmail)
+            throws Exception {
+        ensureReady();
+        if (providerMeetingId == null || providerMeetingId.isBlank()) {
+            throw new IllegalArgumentException("providerMeetingId is required");
+        }
+        if (hostEmail == null || hostEmail.isBlank()) {
+            throw new IllegalArgumentException("hostEmail is required to fetch host-only fields");
+        }
+        HttpResponse<String> resp = sendAuthorized(HttpRequest.newBuilder()
+                .uri(URI.create(API_BASE + "/meetings/" + encode(providerMeetingId)
+                        + "?hostEmail=" + encode(hostEmail.trim())))
+                .header("Accept", "application/json")
+                .timeout(Duration.ofSeconds(15))
+                .GET()
+                .build());
+        if (resp.statusCode() >= 300) {
+            throw new RuntimeException("WebEx GET /meetings/{id}?hostEmail= failed: status="
+                    + resp.statusCode() + " body=" + truncate(resp.body()));
+        }
+        return objectMapper.readTree(resp.body());
     }
 
     /**
@@ -977,8 +1031,18 @@ public class WebexService implements MeetingProvider {
         // and (b) the user-scoped /meetingPreferences/sessionTypes lookup
         // 404s for Control Hub-managed sites which don't expose a numeric
         // catalog. The field is intentionally absent from the payload.
-        body.put("enabledJoinBeforeHost", false);
-        body.put("enableConnectAudioBeforeHost", false);
+
+        // Join-Before-Host + host-key claim model — this is how the
+        // scheduler (trainer/ERM) hosts a meeting without holding a
+        // Webex Meetings license themselves: the meeting hosts under
+        // techteam@ (WEBEX_DEFAULT_HOST_EMAIL), JBH lets the scheduler
+        // join before techteam@ does, and they enter the meeting's
+        // hostKey (fetched via GET /v1/meetings/{id}?hostEmail=techteam@)
+        // to claim host control. Without enabledJoinBeforeHost=true the
+        // host-key claim isn't accepted by Webex (per Cisco help docs).
+        body.put("enabledJoinBeforeHost", true);
+        body.put("joinBeforeHostMinutes", 15);
+        body.put("enableConnectAudioBeforeHost", true);
         return body;
     }
 

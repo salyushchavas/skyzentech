@@ -314,6 +314,14 @@ public class AdminHealthController {
             body.put("startLink", created.path("startLink").asText(null));
             body.put("hostLink", created.path("hostLink").asText(null));
             body.put("startLinkSource", created.path("startLinkSource").asText(null));
+            // Host-key claim model — these are the load-bearing fields
+            // for the trainer-hosts-via-host-key flow. With
+            // enabledJoinBeforeHost=true + a non-null hostKey, the
+            // scheduler joins via the participant URL and types the
+            // 6-digit hostKey inside Webex to claim host control.
+            body.put("hostKey", created.path("hostKey").asText(null));
+            body.put("enabledJoinBeforeHost", created.path("enabledJoinBeforeHost").asBoolean(false));
+            body.put("joinBeforeHostMinutes", created.path("joinBeforeHostMinutes").asInt(0));
             // Join-a-Meeting probe outcomes (WebexService.fetchHostStartLink
             // calls POST /v1/meetings/join with {meetingId, hostEmail} —
             // createStartLinkAsWebLink is intentionally OMITTED so we get
