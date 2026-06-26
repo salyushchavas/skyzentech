@@ -276,6 +276,37 @@ public class WebexService implements MeetingProvider {
         return identity;
     }
 
+    /**
+     * Diagnostic — list the session types WebEx considers valid for a given
+     * user. Used by the admin health endpoint when an operator hits
+     * "Session type not found by Session type ID" 400s and needs to discover
+     * which numeric ids exist in their org.
+     *
+     * <p>With admin scope, passing {@code userEmail} returns that user's
+     * session types; omitting it returns the session types of the
+     * authenticated principal (the Service App admin). When the resolved
+     * user has no Meetings license, the {@code items} array is empty —
+     * which is the diagnostic answer "this user can't host meetings; pick
+     * a different host email."</p>
+     */
+    public JsonNode fetchSessionTypes(String userEmail) throws Exception {
+        ensureReady();
+        StringBuilder uri = new StringBuilder(API_BASE + "/meetingPreferences/sessionTypes");
+        if (userEmail != null && !userEmail.isBlank()) {
+            uri.append("?userEmail=").append(encode(userEmail.trim()));
+        }
+        HttpResponse<String> resp = sendAuthorized(HttpRequest.newBuilder()
+                .uri(URI.create(uri.toString()))
+                .timeout(Duration.ofSeconds(15))
+                .GET()
+                .build());
+        if (resp.statusCode() >= 300) {
+            throw new RuntimeException("WebEx /meetingPreferences/sessionTypes failed: status="
+                    + resp.statusCode() + " body=" + truncate(resp.body()));
+        }
+        return objectMapper.readTree(resp.body());
+    }
+
     // ── Meeting CRUD ─────────────────────────────────────────────────────────
 
     @Override

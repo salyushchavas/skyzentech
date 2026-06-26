@@ -1,5 +1,6 @@
 package com.skyzen.careers.controller;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import com.skyzen.careers.github.GitHubService;
 import com.skyzen.careers.integration.s3.S3StorageService;
 import com.skyzen.careers.integration.webex.WebexService;
@@ -8,6 +9,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.time.Instant;
@@ -217,6 +219,59 @@ public class AdminHealthController {
             body.put("error", e.getMessage());
             String last = webexService.getLastProbeError();
             if (last != null) body.put("lastStartupProbeError", last);
+        }
+        return body;
+    }
+
+    /**
+     * Diagnostic — list the WebEx session types valid for a given user.
+     * The operator hits this when WebEx createMeeting 400s with "Session
+     * type not found by Session type ID" and needs to discover which
+     * numeric ids exist in their org so they can set
+     * {@code WEBEX_SESSION_TYPE_ID} to a valid value.
+     *
+     * <p>Pass {@code ?userEmail=<email>} to query a specific host's
+     * session types (admin scope). Omit to query the Service App admin
+     * principal — an empty {@code items} array indicates the admin has
+     * no Meetings license, in which case the operator needs to either
+     * license that user or set {@code WEBEX_DEFAULT_HOST_EMAIL} to a
+     * licensed user.</p>
+     *
+     * <p>Returns the raw {@code GET /v1/meetingPreferences/sessionTypes}
+     * response so the operator sees the full record (id + name + meeting
+     * type code) without us editorializing.</p>
+     */
+    @GetMapping("/webex/session-types")
+    @PreAuthorize("hasRole('SUPER_ADMIN')")
+    public Map<String, Object> webexSessionTypes(
+            @RequestParam(value = "userEmail", required = false) String userEmail) {
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("enabled", webexService.isReady());
+        body.put("queryUserEmail", userEmail);
+        if (!webexService.isReady()) {
+            body.put("error", "WebEx not ready — check /api/v1/admin/health/webex first.");
+            return body;
+        }
+        if (!webexService.hasUsableRefreshToken()) {
+            body.put("error", "WebEx refresh token missing or expired — re-seed.");
+            return body;
+        }
+        try {
+            JsonNode resp = webexService.fetchSessionTypes(userEmail);
+            body.put("items", resp.path("items"));
+            int count = resp.path("items").isArray() ? resp.path("items").size() : 0;
+            body.put("count", count);
+            if (count == 0) {
+                body.put("hint", "Empty items[] means this user has no Webex Meetings "
+                        + "license. Either license the user in Control Hub, or query a "
+                        + "different host via ?userEmail=...");
+            } else {
+                body.put("hint", "Pick the id of your preferred type (commonly the one "
+                        + "named 'Webex Meetings') and set WEBEX_SESSION_TYPE_ID to that "
+                        + "integer on Railway.");
+            }
+        } catch (Exception e) {
+            body.put("error", e.getMessage());
         }
         return body;
     }
