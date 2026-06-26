@@ -632,20 +632,37 @@ public class WebexService implements MeetingProvider {
         }
         String bodyJson = objectMapper.writeValueAsString(body);
 
-        String[] candidates = new String[] {
-                API_BASE + "/meetings/" + encode(providerMeetingId) + "/join",
-                API_BASE + "/meetings/join",
+        // Candidates: {url, method}. GET variants encode params in query
+        // string; POST variants send the JSON body.
+        String[][] candidates = new String[][] {
+                {API_BASE + "/meetings/" + encode(providerMeetingId) + "/join", "POST"},
+                {API_BASE + "/meetings/join", "POST"},
+                {API_BASE + "/meetings/" + encode(providerMeetingId) + "/join"
+                        + "?hostEmail=" + encode(hostEmail.trim())
+                        + (siteUrl != null ? "&siteUrl=" + encode(siteUrl) : ""),
+                        "GET"},
+                {API_BASE + "/meetings/join?meetingId=" + encode(providerMeetingId)
+                        + "&hostEmail=" + encode(hostEmail.trim())
+                        + (siteUrl != null ? "&siteUrl=" + encode(siteUrl) : ""),
+                        "GET"},
         };
         StringBuilder errors = new StringBuilder();
-        for (String url : candidates) {
-            HttpResponse<String> resp = sendAuthorized(HttpRequest.newBuilder()
+        for (String[] candidate : candidates) {
+            String url = candidate[0];
+            String method = candidate[1];
+            HttpRequest.Builder reqBuilder = HttpRequest.newBuilder()
                     .uri(URI.create(url))
-                    .header("Content-Type", "application/json")
                     .header("Accept", "application/json")
-                    .timeout(Duration.ofSeconds(15))
-                    .POST(HttpRequest.BodyPublishers.ofString(
-                            bodyJson, StandardCharsets.UTF_8))
-                    .build());
+                    .timeout(Duration.ofSeconds(15));
+            if ("POST".equals(method)) {
+                reqBuilder = reqBuilder
+                        .header("Content-Type", "application/json")
+                        .POST(HttpRequest.BodyPublishers.ofString(
+                                bodyJson, StandardCharsets.UTF_8));
+            } else {
+                reqBuilder = reqBuilder.GET();
+            }
+            HttpResponse<String> resp = sendAuthorized(reqBuilder.build());
             String respBody = resp.body() == null ? "" : resp.body();
             String trimmed = respBody.stripLeading();
             if (resp.statusCode() < 300
@@ -653,11 +670,11 @@ public class WebexService implements MeetingProvider {
                 JsonNode parsed = objectMapper.readTree(respBody);
                 // Surface which URL worked for the diagnostic.
                 if (parsed.isObject()) {
-                    ((ObjectNode) parsed).put("_probedUrl", url);
+                    ((ObjectNode) parsed).put("_probedUrl", method + " " + url);
                 }
                 return parsed;
             }
-            errors.append("[").append(url).append("] status=")
+            errors.append("[").append(method).append(" ").append(url).append("] status=")
                     .append(resp.statusCode()).append(" body=")
                     .append(truncate(respBody)).append("; ");
         }
