@@ -84,7 +84,6 @@ public class WebexService implements MeetingProvider {
     private final String seedRefreshToken;
     private final String defaultHostEmail;
     private final String siteUrl;
-    private final Integer sessionTypeId;
     @Getter
     private final boolean enabled;
 
@@ -114,7 +113,6 @@ public class WebexService implements MeetingProvider {
             @Value("${webex.refresh-token:}") String seedRefreshToken,
             @Value("${webex.default-host-email:}") String defaultHostEmail,
             @Value("${webex.site-url:}") String siteUrl,
-            @Value("${webex.session-type-id:0}") int sessionTypeId,
             @Value("${webex.enabled:true}") boolean enabled,
             WebexCredentialsRepository credentialsRepository,
             PiiEncryptionService piiEncryption
@@ -126,13 +124,6 @@ public class WebexService implements MeetingProvider {
         this.seedRefreshToken = trimToNull(seedRefreshToken);
         this.defaultHostEmail = trimToNull(defaultHostEmail);
         this.siteUrl = trimToNull(siteUrl);
-        // 0 / negative means "don't send sessionTypeId at all". For Control
-        // Hub-managed sites (the modern Webex experience) session types are
-        // a classic-site concept that don't apply — leave this 0 and rely
-        // on hostEmail + siteUrl to route. Set to a positive integer only
-        // when the org is on a legacy Site Administration site with a known
-        // session-type catalog.
-        this.sessionTypeId = sessionTypeId > 0 ? sessionTypeId : null;
         this.enabled = enabled;
         this.credentialsRepository = credentialsRepository;
         this.piiEncryption = piiEncryption;
@@ -190,36 +181,27 @@ public class WebexService implements MeetingProvider {
             } catch (Exception e) {
                 lastProbeError = e.getMessage();
                 log.warn("[WebEx] TOKEN VALIDATION FAILED: {}", e.getMessage());
-                return; // session-types probe will fail too if auth failed
+                return; // downstream probes will fail too if auth failed
             }
-            // Discover the valid session types for this org and log them so
-            // the operator can pick a numeric id to set on
-            // WEBEX_SESSION_TYPE_ID without having to hit the dedicated
-            // /api/v1/admin/health/webex/session-types diagnostic. Two probes:
-            // the Service App admin's session types, plus (when configured)
-            // the WEBEX_DEFAULT_HOST_EMAIL's session types. Empty list for
-            // either is itself the diagnostic ("this user can't host meetings").
-            logSessionTypesForBoot("Service App admin", null);
+            // Sites discovery — surface the valid siteUrl(s) so the operator
+            // can pick one for WEBEX_SITE_URL. POST /v1/meetings takes
+            // siteUrl, NOT sessionTypeId (sessionTypeId was dropped from
+            // the create payload entirely after the docs confirmed it isn't
+            // a create-meeting parameter). Runs for the Service App admin
+            // and (when configured) WEBEX_DEFAULT_HOST_EMAIL.
+            logSitesForBoot("Service App admin", null);
             if (defaultHostEmail != null) {
-                logSessionTypesForBoot("WEBEX_DEFAULT_HOST_EMAIL=" + defaultHostEmail,
+                logSitesForBoot("WEBEX_DEFAULT_HOST_EMAIL=" + defaultHostEmail,
                         defaultHostEmail);
-            } else {
-                log.info("[WebEx] WEBEX_DEFAULT_HOST_EMAIL not set — to see session "
-                        + "types for a specific host, set it OR query GET "
-                        + "/api/v1/admin/health/webex/session-types?userEmail=...");
             }
-            // Sites + per-site session types — covers the multi-site case
-            // where the user-scoped /sessionTypes doesn't return what's
-            // useful. Each site has its own list of valid ids.
-            logSitesAndSiteSessionTypesForBoot(defaultHostEmail);
-            if (sessionTypeId == null) {
-                log.info("[WebEx] WEBEX_SESSION_TYPE_ID is 0/unset — sessionTypeId "
-                        + "will be omitted from create payloads. If WebEx 400s "
-                        + "with 'Session type not found by Session type ID', pick "
-                        + "an id from the lists above and set WEBEX_SESSION_TYPE_ID.");
+            if (siteUrl != null) {
+                log.info("[WebEx] WEBEX_SITE_URL='{}' will be sent on every create payload",
+                        siteUrl);
             } else {
-                log.info("[WebEx] using sessionTypeId={} (from WEBEX_SESSION_TYPE_ID) "
-                        + "on every create payload", sessionTypeId);
+                log.info("[WebEx] WEBEX_SITE_URL not set — WebEx will route the create "
+                        + "via the host's preferred site (typically fine for single-site "
+                        + "orgs). Set WEBEX_SITE_URL=<value from sites list above> if "
+                        + "the operator wants to pin the site explicitly.");
             }
         }, "webex-startup-probe");
         probe.setDaemon(true);
@@ -227,99 +209,29 @@ public class WebexService implements MeetingProvider {
     }
 
     /**
-     * Helper for {@link #onStartup}. Calls {@link #fetchSessionTypes} and
-     * logs the (id, name) pairs in one line per session type so the operator
-     * has a stable grep target. Failures are logged at warn and the rest of
-     * boot continues — the discovery is informational only.
+     * Helper for {@link #onStartup}. Calls {@link #fetchSites} and logs the
+     * valid {@code siteUrl} values one per line so the operator has a
+     * stable grep target for setting {@code WEBEX_SITE_URL}.
      */
-    private void logSessionTypesForBoot(String label, String userEmail) {
+    private void logSitesForBoot(String label, String userEmail) {
         try {
-            JsonNode resp = fetchSessionTypes(userEmail);
-            JsonNode items = resp.path("items");
-            int n = items.isArray() ? items.size() : 0;
-            log.info("[WebEx] {} — {} session type(s) available:", label, n);
+            JsonNode resp = fetchSites(userEmail);
+            JsonNode sites = resp.path("sites");
+            int n = sites.isArray() ? sites.size() : 0;
+            log.info("[WebEx] {} — {} site(s) returned by /meetingPreferences/sites:",
+                    label, n);
             if (n == 0) {
                 log.info("[WebEx]   (none — user likely has no Webex Meetings license)");
                 return;
             }
-            for (JsonNode item : items) {
-                log.info("[WebEx]   id={} name=\"{}\" type={} default={}",
-                        item.path("id").asText(""),
-                        item.path("name").asText(""),
-                        item.path("meetingType").asText(""),
-                        item.path("default").asBoolean(false));
+            for (JsonNode site : sites) {
+                log.info("[WebEx]   siteUrl=\"{}\" default={}",
+                        site.path("siteUrl").asText(""),
+                        site.path("default").asBoolean(false));
             }
         } catch (Exception e) {
-            // Cause classification:
-            //  - "missing required scopes" → Service App lacks
-            //    meeting:admin_preferences_read in Control Hub.
-            //  - "resource could not be found" (404) → the
-            //    /meetingPreferences/sessionTypes endpoint isn't exposed
-            //    for this account/principal (common for Service App admins
-            //    that aren't themselves licensed Meetings users).
-            String msg = e.getMessage() == null ? "" : e.getMessage();
-            log.warn("[WebEx] session-types discovery for {} failed (non-fatal): {}",
-                    label, msg);
-            if (msg.contains("missing required scopes")) {
-                log.warn("[WebEx]   → grant meeting:admin_preferences_read to the Service App in Control Hub.");
-            } else if (msg.contains("could not be found") || msg.contains("status=404")) {
-                log.warn("[WebEx]   → the /meetingPreferences/sessionTypes API is not exposed for this principal. "
-                        + "Look up the numeric Session Type ID in Control Hub UI: "
-                        + "Site Administration → your site → Common Site Settings → Session Types (or Session Type ID column). "
-                        + "Set WEBEX_SESSION_TYPE_ID=<that integer> and use POST /api/v1/admin/health/webex/test-create?sessionTypeId=<id> to verify.");
-            }
-        }
-    }
-
-    /**
-     * Fallback diagnostic — when the user-scoped {@link #fetchSessionTypes}
-     * returns empty (or the operator has a multi-site org), enumerate the
-     * resolved user's sites and, for each, log the site-scoped session
-     * types. Same defensive shape: failures non-fatal, names + ids logged
-     * one per line so the operator has a stable grep target.
-     */
-    private void logSitesAndSiteSessionTypesForBoot(String userEmail) {
-        String label = userEmail == null ? "Service App admin"
-                : "WEBEX_DEFAULT_HOST_EMAIL=" + userEmail;
-        JsonNode sitesResp;
-        try {
-            sitesResp = fetchSites(userEmail);
-        } catch (Exception e) {
-            log.warn("[WebEx] sites discovery for {} failed (non-fatal): {}. "
-                    + "If body says 'missing required scopes', the Service App "
-                    + "needs meeting:admin_preferences_read added in Control Hub.",
+            log.warn("[WebEx] sites discovery for {} failed (non-fatal): {}",
                     label, e.getMessage());
-            return;
-        }
-        JsonNode sites = sitesResp.path("sites");
-        if (!sites.isArray() || sites.size() == 0) {
-            log.info("[WebEx] {} — no sites returned by /meetingPreferences/sites", label);
-            return;
-        }
-        log.info("[WebEx] {} — {} site(s) returned by /meetingPreferences/sites:",
-                label, sites.size());
-        for (JsonNode site : sites) {
-            String siteUrl = site.path("siteUrl").asText("");
-            boolean isDefault = site.path("default").asBoolean(false);
-            log.info("[WebEx]   site siteUrl=\"{}\" default={}", siteUrl, isDefault);
-            if (siteUrl.isBlank()) continue;
-            try {
-                JsonNode siteTypes = fetchSiteSessionTypes(siteUrl, userEmail);
-                JsonNode items = siteTypes.path("items");
-                int n = items.isArray() ? items.size() : 0;
-                log.info("[WebEx]     {} site-scoped session type(s) for {}:",
-                        n, siteUrl);
-                for (JsonNode item : items) {
-                    log.info("[WebEx]       id={} name=\"{}\" type={} default={}",
-                            item.path("id").asText(""),
-                            item.path("name").asText(""),
-                            item.path("meetingType").asText(""),
-                            item.path("default").asBoolean(false));
-                }
-            } catch (Exception e) {
-                log.warn("[WebEx]     site-scoped session-types for {} failed "
-                        + "(non-fatal): {}", siteUrl, e.getMessage());
-            }
         }
     }
 
@@ -410,43 +322,18 @@ public class WebexService implements MeetingProvider {
     }
 
     /**
-     * Diagnostic — list the session types WebEx considers valid for a given
-     * user. Used by the admin health endpoint when an operator hits
-     * "Session type not found by Session type ID" 400s and needs to discover
-     * which numeric ids exist in their org.
-     *
-     * <p>With admin scope, passing {@code userEmail} returns that user's
-     * session types; omitting it returns the session types of the
-     * authenticated principal (the Service App admin). When the resolved
-     * user has no Meetings license, the {@code items} array is empty —
-     * which is the diagnostic answer "this user can't host meetings; pick
-     * a different host email."</p>
-     */
-    public JsonNode fetchSessionTypes(String userEmail) throws Exception {
-        ensureReady();
-        StringBuilder uri = new StringBuilder(API_BASE + "/meetingPreferences/sessionTypes");
-        if (userEmail != null && !userEmail.isBlank()) {
-            uri.append("?userEmail=").append(encode(userEmail.trim()));
-        }
-        HttpResponse<String> resp = sendAuthorized(HttpRequest.newBuilder()
-                .uri(URI.create(uri.toString()))
-                .timeout(Duration.ofSeconds(15))
-                .GET()
-                .build());
-        if (resp.statusCode() >= 300) {
-            throw new RuntimeException("WebEx /meetingPreferences/sessionTypes failed: status="
-                    + resp.statusCode() + " body=" + truncate(resp.body()));
-        }
-        return objectMapper.readTree(resp.body());
-    }
-
-    /**
      * Diagnostic — list the WebEx sites the resolved user belongs to.
-     * Some orgs span multiple sites; each site has its own session-type
-     * list. The siteUrl returned here ("acme.webex.com" shape) is what
-     * {@link #fetchSiteSessionTypes} wants as a path segment. With admin
-     * scope, {@code userEmail} queries a specific user; omit it for the
-     * Service App admin.
+     * Used by the boot probe + the {@code /api/v1/admin/health/webex}
+     * endpoint so the operator can pick the right value for
+     * {@code WEBEX_SITE_URL}. With admin scope, {@code userEmail} queries
+     * a specific user; omit it for the Service App admin.
+     *
+     * <p>The {@code GET /v1/meetingPreferences/sessionTypes} discovery
+     * call was removed once we confirmed it 404s for Control Hub-managed
+     * sites — those sites don't expose a numeric session-type catalog.
+     * Per the WebEx docs, {@code POST /v1/meetings} doesn't take
+     * {@code sessionTypeId} at all; the correct create payload routes via
+     * {@code siteUrl} + {@code hostEmail}.</p>
      */
     public JsonNode fetchSites(String userEmail) throws Exception {
         ensureReady();
@@ -467,51 +354,22 @@ public class WebexService implements MeetingProvider {
     }
 
     /**
-     * Diagnostic — site-scoped session-types list, used when the
-     * user-scoped {@link #fetchSessionTypes} doesn't return what's needed
-     * (e.g. multi-site orgs where session types live per-site rather than
-     * per-user). Pass the {@code siteUrl} from {@link #fetchSites}.
-     */
-    public JsonNode fetchSiteSessionTypes(String siteUrl, String userEmail) throws Exception {
-        ensureReady();
-        if (siteUrl == null || siteUrl.isBlank()) {
-            throw new IllegalArgumentException("siteUrl is required");
-        }
-        StringBuilder uri = new StringBuilder(API_BASE + "/meetingPreferences/sites/")
-                .append(encode(siteUrl.trim())).append("/sessionTypes");
-        if (userEmail != null && !userEmail.isBlank()) {
-            uri.append("?userEmail=").append(encode(userEmail.trim()));
-        }
-        HttpResponse<String> resp = sendAuthorized(HttpRequest.newBuilder()
-                .uri(URI.create(uri.toString()))
-                .timeout(Duration.ofSeconds(15))
-                .GET()
-                .build());
-        if (resp.statusCode() >= 300) {
-            throw new RuntimeException("WebEx /meetingPreferences/sites/" + siteUrl
-                    + "/sessionTypes failed: status=" + resp.statusCode()
-                    + " body=" + truncate(resp.body()));
-        }
-        return objectMapper.readTree(resp.body());
-    }
-
-    /**
      * Test-create probe — schedules a throwaway meeting 5 minutes in the
-     * future with the given {@code sessionTypeId} + {@code userEmail}
-     * overrides, then immediately deletes it on success. Lets operators
-     * iterate on candidate Session Type IDs from Control Hub without
-     * scheduling real interviews. Returns the WebEx response (parsed JSON)
-     * on success, or throws the underlying exception on failure so the
-     * caller can surface WebEx's exact error body.
+     * future with the given {@code userEmail} + {@code siteUrl} overrides,
+     * then immediately deletes it on success. Lets operators verify the
+     * {hostEmail, siteUrl} combo without scheduling real interviews.
+     * Returns the WebEx response (parsed JSON) on success, or throws the
+     * underlying exception on failure so the caller can surface WebEx's
+     * exact error body.
      *
-     * <p>Either / both overrides may be {@code null}: a null
-     * {@code sessionTypeIdOverride} uses the configured
-     * {@code WEBEX_SESSION_TYPE_ID} (or omits the field); a null
-     * {@code userEmailOverride} uses {@link #resolveWebexHostEmail}'s
-     * normal resolution (default host or omit).</p>
+     * <p>Both overrides may be {@code null}: a null {@code userEmailOverride}
+     * uses {@link #resolveWebexHostEmail}'s normal resolution; a null
+     * {@code siteUrlOverride} uses the configured {@code WEBEX_SITE_URL}.
+     * sessionTypeId is not a {@code POST /v1/meetings} parameter and is
+     * never sent.</p>
      */
-    public JsonNode testCreate(Integer sessionTypeIdOverride, String userEmailOverride,
-                                String siteUrlOverride) throws Exception {
+    public JsonNode testCreate(String userEmailOverride, String siteUrlOverride)
+            throws Exception {
         ensureReady();
         // Truncate to seconds — WebEx rejects fractional-second precision
         // ("'2026-06-26T17:21:12.672682544Z' format is wrong"). Instant.now()
@@ -532,12 +390,6 @@ public class WebexService implements MeetingProvider {
         body.put("start", startZdt.format(DateTimeFormatter.ISO_OFFSET_DATE_TIME));
         body.put("end", endZdt.format(DateTimeFormatter.ISO_OFFSET_DATE_TIME));
         body.put("timezone", tz);
-        Integer effectiveSessionType = sessionTypeIdOverride != null && sessionTypeIdOverride > 0
-                ? sessionTypeIdOverride
-                : sessionTypeId;
-        if (effectiveSessionType != null) {
-            body.put("sessionTypeId", effectiveSessionType);
-        }
         String effectiveHost = userEmailOverride != null && !userEmailOverride.isBlank()
                 ? userEmailOverride.trim()
                 : resolveWebexHostEmail(null);
@@ -881,17 +733,14 @@ public class WebexService implements MeetingProvider {
         if (req.agenda() != null && !req.agenda().isBlank()) {
             body.put("agenda", req.agenda());
         }
-        // sessionTypeId is account-specific — a value that's valid for one
-        // org may not exist in another's Control Hub config. Default
-        // behaviour is to OMIT the field so WebEx applies the host's
-        // account-default session type, which is the most portable choice.
-        // Operators whose host has no default (and hence get
-        // "Session type not found by Session type ID" 400s on bare creates)
-        // can set WEBEX_SESSION_TYPE_ID to a positive integer to force a
-        // specific type they've verified exists in their org.
-        if (sessionTypeId != null) {
-            body.put("sessionTypeId", sessionTypeId);
-        }
+        // sessionTypeId is NOT a parameter on POST /v1/meetings per the
+        // WebEx Meetings API docs. The site is selected via siteUrl above
+        // (or WebEx infers the host's preferred site when omitted). Earlier
+        // attempts to send sessionTypeId 400'd with "Session type not found
+        // by Session type ID" because (a) it's the wrong field for create,
+        // and (b) the user-scoped /meetingPreferences/sessionTypes lookup
+        // 404s for Control Hub-managed sites which don't expose a numeric
+        // catalog. The field is intentionally absent from the payload.
         body.put("enabledJoinBeforeHost", false);
         body.put("enableConnectAudioBeforeHost", false);
         return body;

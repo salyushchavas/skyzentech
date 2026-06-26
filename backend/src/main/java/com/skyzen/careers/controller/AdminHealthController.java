@@ -182,55 +182,52 @@ public class AdminHealthController {
             String last = webexService.getLastProbeError();
             if (last != null) body.put("lastStartupProbeError", last);
         }
-        // Inline session-types discovery so the operator can read valid
-        // sessionTypeIds from this one endpoint without bouncing to
-        // /webex/session-types or tailing boot logs. Always for the
-        // Service App admin (no userEmail) — use the dedicated
-        // /webex/session-types?userEmail=... endpoint to query a specific
-        // host. The inline call is best-effort: failures populate
-        // sessionTypesError without affecting the rest of the response.
+        // Inline sites discovery so the operator can read valid siteUrl
+        // values from this one endpoint without bouncing to /webex/sites
+        // or tailing boot logs. Always for the Service App admin (no
+        // userEmail) — use the dedicated /webex/sites?userEmail=... endpoint
+        // to query a specific host. The inline call is best-effort:
+        // failures populate sitesError without affecting the rest of the
+        // response.
         try {
-            JsonNode types = webexService.fetchSessionTypes(null);
-            body.put("sessionTypes", types.path("items"));
-            int count = types.path("items").isArray() ? types.path("items").size() : 0;
-            body.put("sessionTypesCount", count);
+            JsonNode resp = webexService.fetchSites(null);
+            body.put("sites", resp.path("sites"));
+            int count = resp.path("sites").isArray() ? resp.path("sites").size() : 0;
+            body.put("sitesCount", count);
             if (count == 0) {
-                body.put("sessionTypesHint",
+                body.put("sitesHint",
                         "Empty array — Service App admin has no Webex Meetings license. "
                                 + "License the user OR set WEBEX_DEFAULT_HOST_EMAIL and "
-                                + "re-query /webex/session-types?userEmail=...");
+                                + "re-query /webex/sites?userEmail=...");
             } else {
-                body.put("sessionTypesHint",
-                        "Pick the desired id and set WEBEX_SESSION_TYPE_ID on Railway. "
-                                + "Restart, then schedule a meeting to confirm.");
+                body.put("sitesHint",
+                        "Pick a siteUrl (typically default=true) and set WEBEX_SITE_URL "
+                                + "on Railway. Restart, then test via POST "
+                                + "/webex/test-create?userEmail=<licensed>&siteUrl=<picked>.");
             }
         } catch (Exception e) {
-            body.put("sessionTypesError", e.getMessage());
+            body.put("sitesError", e.getMessage());
         }
         return body;
     }
 
     /**
-     * Diagnostic — list the WebEx session types valid for a given user.
-     * The operator hits this when WebEx createMeeting 400s with "Session
-     * type not found by Session type ID" and needs to discover which
-     * numeric ids exist in their org so they can set
-     * {@code WEBEX_SESSION_TYPE_ID} to a valid value.
+     * Diagnostic — list the WebEx sites valid for a given user. The
+     * operator hits this to discover which {@code siteUrl} value to set
+     * on {@code WEBEX_SITE_URL}. The previous {@code /webex/session-types}
+     * diagnostic was removed when the docs confirmed {@code POST /v1/meetings}
+     * doesn't take {@code sessionTypeId} at all; sites are how Control Hub
+     * meetings are routed.
      *
-     * <p>Pass {@code ?userEmail=<email>} to query a specific host's
-     * session types (admin scope). Omit to query the Service App admin
-     * principal — an empty {@code items} array indicates the admin has
-     * no Meetings license, in which case the operator needs to either
-     * license that user or set {@code WEBEX_DEFAULT_HOST_EMAIL} to a
-     * licensed user.</p>
-     *
-     * <p>Returns the raw {@code GET /v1/meetingPreferences/sessionTypes}
-     * response so the operator sees the full record (id + name + meeting
-     * type code) without us editorializing.</p>
+     * <p>Pass {@code ?userEmail=<email>} to query a specific host's sites
+     * (admin scope). Omit to query the Service App admin principal — an
+     * empty {@code sites} array indicates the admin has no Webex Meetings
+     * license, in which case the operator needs to either license that
+     * user or set {@code WEBEX_DEFAULT_HOST_EMAIL} to a licensed user.</p>
      */
-    @GetMapping("/webex/session-types")
+    @GetMapping("/webex/sites")
     @PreAuthorize("hasRole('SUPER_ADMIN')")
-    public Map<String, Object> webexSessionTypes(
+    public Map<String, Object> webexSites(
             @RequestParam(value = "userEmail", required = false) String userEmail) {
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("enabled", webexService.isReady());
@@ -244,18 +241,17 @@ public class AdminHealthController {
             return body;
         }
         try {
-            JsonNode resp = webexService.fetchSessionTypes(userEmail);
-            body.put("items", resp.path("items"));
-            int count = resp.path("items").isArray() ? resp.path("items").size() : 0;
+            JsonNode resp = webexService.fetchSites(userEmail);
+            body.put("sites", resp.path("sites"));
+            int count = resp.path("sites").isArray() ? resp.path("sites").size() : 0;
             body.put("count", count);
             if (count == 0) {
-                body.put("hint", "Empty items[] means this user has no Webex Meetings "
+                body.put("hint", "Empty sites[] means this user has no Webex Meetings "
                         + "license. Either license the user in Control Hub, or query a "
                         + "different host via ?userEmail=...");
             } else {
-                body.put("hint", "Pick the id of your preferred type (commonly the one "
-                        + "named 'Webex Meetings') and set WEBEX_SESSION_TYPE_ID to that "
-                        + "integer on Railway.");
+                body.put("hint", "Pick a siteUrl (typically the one with default=true) "
+                        + "and set WEBEX_SITE_URL=<that string> on Railway.");
             }
         } catch (Exception e) {
             body.put("error", e.getMessage());
@@ -290,11 +286,9 @@ public class AdminHealthController {
     @PostMapping("/webex/test-create")
     @PreAuthorize("hasRole('SUPER_ADMIN')")
     public Map<String, Object> webexTestCreate(
-            @RequestParam(value = "sessionTypeId", required = false) Integer sessionTypeId,
             @RequestParam(value = "userEmail", required = false) String userEmail,
             @RequestParam(value = "siteUrl", required = false) String siteUrl) {
         Map<String, Object> body = new LinkedHashMap<>();
-        body.put("attemptedSessionTypeId", sessionTypeId);
         body.put("attemptedUserEmail", userEmail);
         body.put("attemptedSiteUrl", siteUrl);
         if (!webexService.isReady()) {
@@ -308,15 +302,16 @@ public class AdminHealthController {
             return body;
         }
         try {
-            JsonNode created = webexService.testCreate(sessionTypeId, userEmail, siteUrl);
+            JsonNode created = webexService.testCreate(userEmail, siteUrl);
             body.put("ok", true);
             body.put("meetingId", created.path("id").asText(null));
             body.put("webLink", created.path("webLink").asText(null));
             body.put("hostEmailReturned", created.path("hostEmail").asText(null));
             body.put("siteUrlReturned", created.path("siteUrl").asText(null));
             body.put("note", "Test meeting created + auto-deleted. The "
-                    + "sessionTypeId/userEmail/siteUrl combo above is valid for "
-                    + "production schedules.");
+                    + "userEmail/siteUrl combo above is valid for production "
+                    + "schedules — set WEBEX_DEFAULT_HOST_EMAIL + WEBEX_SITE_URL "
+                    + "on Railway to make them the default.");
         } catch (Exception e) {
             body.put("ok", false);
             body.put("error", e.getMessage());
