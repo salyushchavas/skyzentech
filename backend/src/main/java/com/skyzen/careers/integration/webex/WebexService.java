@@ -82,6 +82,7 @@ public class WebexService implements MeetingProvider {
     private final String serviceAppId;
     private final String orgId;
     private final String seedRefreshToken;
+    private final String defaultHostEmail;
     @Getter
     private final boolean enabled;
 
@@ -109,6 +110,7 @@ public class WebexService implements MeetingProvider {
             @Value("${webex.service-app-id:}") String serviceAppId,
             @Value("${webex.org-id:}") String orgId,
             @Value("${webex.refresh-token:}") String seedRefreshToken,
+            @Value("${webex.default-host-email:}") String defaultHostEmail,
             @Value("${webex.enabled:true}") boolean enabled,
             WebexCredentialsRepository credentialsRepository,
             PiiEncryptionService piiEncryption
@@ -118,6 +120,7 @@ public class WebexService implements MeetingProvider {
         this.serviceAppId = trimToNull(serviceAppId);
         this.orgId = trimToNull(orgId);
         this.seedRefreshToken = trimToNull(seedRefreshToken);
+        this.defaultHostEmail = trimToNull(defaultHostEmail);
         this.enabled = enabled;
         this.credentialsRepository = credentialsRepository;
         this.piiEncryption = piiEncryption;
@@ -503,8 +506,16 @@ public class WebexService implements MeetingProvider {
         String tz = (req.timezone() == null || req.timezone().isBlank())
                 ? "UTC" : req.timezone();
         body.put("timezone", tz);
-        if (req.hostEmail() != null && !req.hostEmail().isBlank()) {
-            body.put("hostEmail", req.hostEmail());
+        // Host email normalization — drop the Zoom-only "me" sentinel that
+        // some consumers pass when no per-user zoom_email is set, fall back
+        // to WEBEX_DEFAULT_HOST_EMAIL when configured, and omit the field
+        // entirely otherwise (WebEx then hosts the meeting under the
+        // Service App's authorizing admin user, which is a sane default for
+        // the admin-scope grant we operate under). Sending "me" verbatim
+        // 400s with "The 'me' email format is invalid."
+        String resolvedHost = resolveWebexHostEmail(req.hostEmail());
+        if (resolvedHost != null) {
+            body.put("hostEmail", resolvedHost);
         }
         if (req.agenda() != null && !req.agenda().isBlank()) {
             body.put("agenda", req.agenda());
@@ -519,6 +530,41 @@ public class WebexService implements MeetingProvider {
         if (minutes < 10) return 10;
         if (minutes > 1439) return 1439;
         return minutes;
+    }
+
+    /**
+     * Map the generic {@link MeetingRequest#hostEmail()} (which carries the
+     * Zoom-era {@code "me"} sentinel for "no per-user email known") into a
+     * WebEx-valid value:
+     * <ul>
+     *   <li>real-looking email (non-blank, not {@code "me"}, contains {@code @})
+     *       → use as-is.</li>
+     *   <li>otherwise, if {@code WEBEX_DEFAULT_HOST_EMAIL} is configured →
+     *       fall back to that (the org admin or a shared service host).</li>
+     *   <li>otherwise → {@code null} → caller omits the {@code hostEmail}
+     *       field on the create body, and WebEx hosts under the Service
+     *       App's authorizing admin user.</li>
+     * </ul>
+     */
+    private String resolveWebexHostEmail(String requested) {
+        if (requested != null && !requested.isBlank()
+                && !"me".equalsIgnoreCase(requested.trim())
+                && requested.indexOf('@') > 0) {
+            return requested.trim();
+        }
+        if (defaultHostEmail != null) {
+            if (requested != null && "me".equalsIgnoreCase(requested.trim())) {
+                log.debug("[WebEx] requested host \"me\" replaced with configured "
+                        + "WEBEX_DEFAULT_HOST_EMAIL");
+            }
+            return defaultHostEmail;
+        }
+        if (requested != null && "me".equalsIgnoreCase(requested.trim())) {
+            log.debug("[WebEx] requested host \"me\" omitted from create body "
+                    + "(no WEBEX_DEFAULT_HOST_EMAIL); meeting will host under the "
+                    + "Service App's admin user");
+        }
+        return null;
     }
 
     private String decryptOrNull(String ciphertext) {
