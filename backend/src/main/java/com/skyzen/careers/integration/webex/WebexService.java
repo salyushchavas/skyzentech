@@ -614,18 +614,33 @@ public class WebexService implements MeetingProvider {
         body.put("meetingId", providerMeetingId);
         body.put("hostEmail", hostEmail.trim());
         body.put("createStartLinkAsWebLink", true);
+        if (siteUrl != null && !siteUrl.isBlank()) {
+            body.put("siteUrl", siteUrl);
+        }
         HttpResponse<String> resp = sendAuthorized(HttpRequest.newBuilder()
                 .uri(URI.create(API_BASE + "/meetings/join"))
                 .header("Content-Type", "application/json")
+                .header("Accept", "application/json")
                 .timeout(Duration.ofSeconds(15))
                 .POST(HttpRequest.BodyPublishers.ofString(
                         objectMapper.writeValueAsString(body), StandardCharsets.UTF_8))
                 .build());
+        String respBody = resp.body() == null ? "" : resp.body();
         if (resp.statusCode() >= 300) {
             throw new RuntimeException("WebEx /meetings/join (host) failed: status="
-                    + resp.statusCode() + " body=" + truncate(resp.body()));
+                    + resp.statusCode() + " body=" + truncate(respBody));
         }
-        return objectMapper.readTree(resp.body());
+        // WebEx occasionally returns an HTML error page with a 200/3xx
+        // status when the request shape isn't recognised (e.g. missing
+        // expected params). Detect non-JSON bodies and surface them
+        // verbatim so the diagnostic shows what came back instead of a
+        // Jackson "unexpected character" error stack.
+        String trimmed = respBody.stripLeading();
+        if (!trimmed.startsWith("{") && !trimmed.startsWith("[")) {
+            throw new RuntimeException("WebEx /meetings/join returned non-JSON (status="
+                    + resp.statusCode() + "): " + truncate(respBody));
+        }
+        return objectMapper.readTree(respBody);
     }
 
     @Override
