@@ -507,11 +507,21 @@ public class WebexService implements MeetingProvider {
     public JsonNode testCreate(Integer sessionTypeIdOverride, String userEmailOverride)
             throws Exception {
         ensureReady();
-        Instant start = Instant.now().plusSeconds(300); // +5 min, well past WebEx's "now" floor
+        // Truncate to seconds — WebEx rejects fractional-second precision
+        // ("'2026-06-26T17:21:12.672682544Z' format is wrong"). Instant.now()
+        // returns nanoseconds; real consumer scheduling picks minute-precision
+        // instants via a date picker so this never bit production, only the
+        // test-create probe.
+        Instant start = Instant.now().plusSeconds(300)
+                .truncatedTo(java.time.temporal.ChronoUnit.SECONDS);
         ObjectNode body = objectMapper.createObjectNode();
         body.put("title", "Skyzen WebEx test-create probe (auto-delete)");
-        String tz = "UTC";
-        java.time.ZonedDateTime startZdt = start.atZone(java.time.ZoneOffset.UTC);
+        // Use Asia/Kolkata so the offset is +05:30 (matches real consumer
+        // flow); UTC with the literal "Z" suffix and a "UTC" timezone field
+        // is also legal but the offset-zone path is what production hits.
+        java.time.ZoneId zone = java.time.ZoneId.of("Asia/Kolkata");
+        String tz = "Asia/Kolkata";
+        java.time.ZonedDateTime startZdt = start.atZone(zone);
         java.time.ZonedDateTime endZdt = startZdt.plusMinutes(15);
         body.put("start", startZdt.format(DateTimeFormatter.ISO_OFFSET_DATE_TIME));
         body.put("end", endZdt.format(DateTimeFormatter.ISO_OFFSET_DATE_TIME));
@@ -811,8 +821,15 @@ public class WebexService implements MeetingProvider {
             // when we bump so a real "scheduled for the past" UI bug stays
             // visible. End is recomputed from the (possibly bumped) start so
             // duration stays correct regardless.
-            java.time.Instant requested = req.startTime();
-            java.time.Instant earliest = Instant.now().plusSeconds(60);
+            // Truncate to seconds — WebEx rejects fractional-second precision
+            // ("'...Z' format is wrong"). Real consumers usually pick
+            // minute-precision instants via date pickers, but anything that
+            // synthesizes via Instant.now() (e.g. the test-create probe) would
+            // otherwise carry nanos and get rejected.
+            java.time.Instant requested = req.startTime()
+                    .truncatedTo(java.time.temporal.ChronoUnit.SECONDS);
+            java.time.Instant earliest = Instant.now().plusSeconds(60)
+                    .truncatedTo(java.time.temporal.ChronoUnit.SECONDS);
             java.time.Instant effective = requested.isBefore(earliest)
                     ? earliest : requested;
             if (effective != requested) {
