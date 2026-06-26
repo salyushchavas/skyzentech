@@ -617,38 +617,51 @@ public class WebexService implements MeetingProvider {
         if (hostEmail == null || hostEmail.isBlank()) {
             throw new IllegalArgumentException("hostEmail is required for Service-App host link");
         }
-        // Corrected per WebEx docs review: createStartLinkAsWebLink=true
-        // converts startLink into a LOGIN-FLOW webLink (which renders the
-        // Cisco Webex landing page — exactly what we saw on the previous
-        // attempt's HTML body). OMITTING the flag (or sending false)
-        // returns the DIRECT one-click startLink in the JSON response —
-        // which is what we want for the scheduler's "Start as Host"
-        // button.
+        // Try multiple Join-a-Meeting endpoint shapes. WebEx's REST docs
+        // describe the call inconsistently across versions, and Cisco's
+        // gateway returns the Cisco Webex landing-page HTML (200 status)
+        // for any POST that doesn't match a registered route — so a
+        // "returns HTML" outcome means the path/method is wrong, not
+        // that the capability is gone. Try each variant and return the
+        // first JSON response we get.
         ObjectNode body = objectMapper.createObjectNode();
         body.put("meetingId", providerMeetingId);
         body.put("hostEmail", hostEmail.trim());
         if (siteUrl != null && !siteUrl.isBlank()) {
             body.put("siteUrl", siteUrl);
         }
-        HttpResponse<String> resp = sendAuthorized(HttpRequest.newBuilder()
-                .uri(URI.create(API_BASE + "/meetings/join"))
-                .header("Content-Type", "application/json")
-                .header("Accept", "application/json")
-                .timeout(Duration.ofSeconds(15))
-                .POST(HttpRequest.BodyPublishers.ofString(
-                        objectMapper.writeValueAsString(body), StandardCharsets.UTF_8))
-                .build());
-        String respBody = resp.body() == null ? "" : resp.body();
-        if (resp.statusCode() >= 300) {
-            throw new RuntimeException("WebEx /meetings/join (host) failed: status="
-                    + resp.statusCode() + " body=" + truncate(respBody));
+        String bodyJson = objectMapper.writeValueAsString(body);
+
+        String[] candidates = new String[] {
+                API_BASE + "/meetings/" + encode(providerMeetingId) + "/join",
+                API_BASE + "/meetings/join",
+        };
+        StringBuilder errors = new StringBuilder();
+        for (String url : candidates) {
+            HttpResponse<String> resp = sendAuthorized(HttpRequest.newBuilder()
+                    .uri(URI.create(url))
+                    .header("Content-Type", "application/json")
+                    .header("Accept", "application/json")
+                    .timeout(Duration.ofSeconds(15))
+                    .POST(HttpRequest.BodyPublishers.ofString(
+                            bodyJson, StandardCharsets.UTF_8))
+                    .build());
+            String respBody = resp.body() == null ? "" : resp.body();
+            String trimmed = respBody.stripLeading();
+            if (resp.statusCode() < 300
+                    && (trimmed.startsWith("{") || trimmed.startsWith("["))) {
+                JsonNode parsed = objectMapper.readTree(respBody);
+                // Surface which URL worked for the diagnostic.
+                if (parsed.isObject()) {
+                    ((ObjectNode) parsed).put("_probedUrl", url);
+                }
+                return parsed;
+            }
+            errors.append("[").append(url).append("] status=")
+                    .append(resp.statusCode()).append(" body=")
+                    .append(truncate(respBody)).append("; ");
         }
-        String trimmed = respBody.stripLeading();
-        if (!trimmed.startsWith("{") && !trimmed.startsWith("[")) {
-            throw new RuntimeException("WebEx /meetings/join returned non-JSON (status="
-                    + resp.statusCode() + "): " + truncate(respBody));
-        }
-        return objectMapper.readTree(respBody);
+        throw new RuntimeException("WebEx Join-a-Meeting — all candidate URLs failed: " + errors);
     }
 
     @Override
