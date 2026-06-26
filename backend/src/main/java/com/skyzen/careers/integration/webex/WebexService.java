@@ -443,6 +443,19 @@ public class WebexService implements MeetingProvider {
                     if (hostStart != null) {
                         merged.put("startLink", hostStart);
                         merged.put("startLinkSource", "GET /v1/meetings/{id}?hostEmail=...");
+                    } else {
+                        // Live confirmation: this Business Plan account
+                        // doesn't expose startLink via Service App admin
+                        // scope on either POST or the GET fallback. The
+                        // scheduler can still "start as host" by signing
+                        // in to webex.com as the configured host user;
+                        // staff DTO falls back to showing the join URL
+                        // when zoom_start_url is null.
+                        merged.put("startLinkSource",
+                                "ABSENT from both POST and GET — sign in to "
+                                        + "webex.com as the host to start the "
+                                        + "meeting (admin-scope APIs don't "
+                                        + "expose startLink for this account)");
                     }
                 } else {
                     log.warn("[WebEx] test-create host-link fetch failed: status={} body={}",
