@@ -444,18 +444,9 @@ public class WebexService implements MeetingProvider {
                         merged.put("startLink", hostStart);
                         merged.put("startLinkSource", "GET /v1/meetings/{id}?hostEmail=...");
                     } else {
-                        // Live confirmation: this Business Plan account
-                        // doesn't expose startLink via Service App admin
-                        // scope on either POST or the GET fallback. The
-                        // scheduler can still "start as host" by signing
-                        // in to webex.com as the configured host user;
-                        // staff DTO falls back to showing the join URL
-                        // when zoom_start_url is null.
                         merged.put("startLinkSource",
-                                "ABSENT from both POST and GET — sign in to "
-                                        + "webex.com as the host to start the "
-                                        + "meeting (admin-scope APIs don't "
-                                        + "expose startLink for this account)");
+                                "ABSENT from POST and GET — falling back to "
+                                        + "Join-a-Meeting probe below.");
                     }
                 } else {
                     log.warn("[WebEx] test-create host-link fetch failed: status={} body={}",
@@ -464,6 +455,44 @@ public class WebexService implements MeetingProvider {
             } catch (Exception fetchErr) {
                 log.warn("[WebEx] test-create host-link fetch errored (non-fatal): {}",
                         fetchErr.getMessage());
+            }
+        }
+        // Join-a-Meeting probe — the documented path for a real one-click
+        // host start link. POST /v1/meetings/join with
+        // createStartLinkAsWebLink=true returns a webLink that, when
+        // clicked in a browser, starts the meeting AS the host without
+        // requiring the user to first sign in to webex.com.
+        if (meetingId != null && effectiveHost != null) {
+            try {
+                JsonNode joinView = fetchHostStartLink(meetingId, effectiveHost);
+                ObjectNode merged = (ObjectNode) created;
+                // The host start URL is in webLink when
+                // createStartLinkAsWebLink=true; surface it under a
+                // distinct key so the operator can tell which API call
+                // produced it.
+                String hostStartViaJoin = joinView.path("webLink").asText(null);
+                String hostKey = joinView.path("hostKey").asText(null);
+                String expiration = joinView.path("expiration").asText(null);
+                String expirationTime = joinView.path("expirationTime").asText(null);
+                merged.put("joinApiHostStartLink", hostStartViaJoin);
+                merged.put("joinApiHostKey", hostKey);
+                merged.put("joinApiExpiration", expiration);
+                merged.put("joinApiExpirationTime", expirationTime);
+                if (hostStartViaJoin != null) {
+                    // Promote into the canonical startLink slot if the
+                    // earlier paths returned nothing — this is the value
+                    // production createMeeting will surface to the UI.
+                    if (merged.path("startLink").asText(null) == null) {
+                        merged.put("startLink", hostStartViaJoin);
+                        merged.put("startLinkSource",
+                                "POST /v1/meetings/join (createStartLinkAsWebLink=true)");
+                    }
+                }
+            } catch (Exception joinErr) {
+                log.warn("[WebEx] test-create Join-a-Meeting probe errored (non-fatal): {}",
+                        joinErr.getMessage());
+                ObjectNode merged = (ObjectNode) created;
+                merged.put("joinApiError", joinErr.getMessage());
             }
         }
         // Best-effort cleanup — don't leave the probe meeting on the
@@ -550,6 +579,53 @@ public class WebexService implements MeetingProvider {
                 .GET()
                 .build());
         return parseMeetingResponse(resp, "getMeeting(hostEmail)");
+    }
+
+    /**
+     * Join-a-Meeting API — POST /v1/meetings/join with
+     * {@code createStartLinkAsWebLink=true}. Per WebEx docs this is the
+     * documented path for a Service App to obtain a real one-click host
+     * start link: when the request specifies {@code hostEmail} and the
+     * flag is set, the {@code webLink} in the response is actually the
+     * HOST start link (clicking it on a browser starts the meeting as
+     * the host without requiring the user to first sign in to
+     * webex.com). Without the flag, the response's webLink is just the
+     * attendee join URL.
+     *
+     * <p>Returns the host start URL (or {@code null} when WebEx omits it
+     * for this account). Also captures the {@code expiration} value when
+     * present so callers can decide whether to cache or refresh on
+     * demand.</p>
+     *
+     * @return raw JsonNode response so callers can read {@code webLink}
+     *         (the host start URL with the flag set), {@code expiration},
+     *         {@code expirationTime}, etc.
+     */
+    public JsonNode fetchHostStartLink(String providerMeetingId, String hostEmail)
+            throws Exception {
+        ensureReady();
+        if (providerMeetingId == null || providerMeetingId.isBlank()) {
+            throw new IllegalArgumentException("providerMeetingId is required");
+        }
+        if (hostEmail == null || hostEmail.isBlank()) {
+            throw new IllegalArgumentException("hostEmail is required for Service-App host link");
+        }
+        ObjectNode body = objectMapper.createObjectNode();
+        body.put("meetingId", providerMeetingId);
+        body.put("hostEmail", hostEmail.trim());
+        body.put("createStartLinkAsWebLink", true);
+        HttpResponse<String> resp = sendAuthorized(HttpRequest.newBuilder()
+                .uri(URI.create(API_BASE + "/meetings/join"))
+                .header("Content-Type", "application/json")
+                .timeout(Duration.ofSeconds(15))
+                .POST(HttpRequest.BodyPublishers.ofString(
+                        objectMapper.writeValueAsString(body), StandardCharsets.UTF_8))
+                .build());
+        if (resp.statusCode() >= 300) {
+            throw new RuntimeException("WebEx /meetings/join (host) failed: status="
+                    + resp.statusCode() + " body=" + truncate(resp.body()));
+        }
+        return objectMapper.readTree(resp.body());
     }
 
     @Override
