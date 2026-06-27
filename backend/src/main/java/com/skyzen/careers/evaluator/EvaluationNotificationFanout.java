@@ -91,6 +91,7 @@ public class EvaluationNotificationFanout {
                     ev.getScheduledFor(),
                     ev.getTimezone(),
                     ev.getZoomJoinUrl(),
+                    ev.getZoomStartUrl(),
                     ev.getZoomMeetingId());
         }
     }

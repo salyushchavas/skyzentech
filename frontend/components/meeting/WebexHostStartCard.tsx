@@ -1,23 +1,23 @@
 'use client';
 
-import { useCallback, useState } from 'react';
-import { Copy, ExternalLink, Eye, KeyRound, Loader2, RefreshCw, Video } from 'lucide-react';
+import { useCallback, useEffect, useState } from 'react';
+import { ExternalLink, Loader2, RefreshCw, Video } from 'lucide-react';
 import api from '@/lib/api';
 
 /**
- * Scheduler-facing "join + claim host" card. Renders:
- *  1. The webLink as a primary "Start Meeting (Host)" button
- *     (host start link doesn't exist for our Webex tier — see
- *     project-webex-integration-setup memory).
- *  2. A "Reveal host key" affordance that on click fetches
- *     `GET /api/v1/meetings/{providerMeetingId}/host-key` and shows the
- *     6-digit code. Fetch is on-demand because Webex rotates the key
- *     after each scheduled-end — a cached value goes silently stale.
- *  3. A short hint explaining how the host key claims host role inside
- *     the Webex client.
+ * Scheduler-facing "Start Meeting (Host)" card. Renders the Zoom
+ * {@code start_url} (one-click host link, no Zoom sign-in needed) as a
+ * primary button, with a Refresh affordance underneath.
  *
- * Intern/participant surfaces should NOT use this component — they get a
- * plain join button via their own DTOs (no zoomStartUrl, no host key).
+ * <p>Zoom's {@code start_url} is short-lived (~2h after meeting create)
+ * so a stale stored copy stops working before the meeting starts. On
+ * mount this card calls {@code GET /api/v1/meetings/{id}/host-start}
+ * which re-fetches the meeting via the provider and returns the current
+ * {@code start_url}. The stored value passed in by the parent is shown
+ * as a fallback when the fresh fetch is in-flight or fails.</p>
+ *
+ * <p>Intern/participant surfaces should NOT use this component — they
+ * get a plain join button via their own DTOs (no zoomStartUrl).</p>
  */
 export default function WebexHostStartCard({
   providerMeetingId,
@@ -28,133 +28,96 @@ export default function WebexHostStartCard({
   joinUrl: string | null | undefined;
   startUrl?: string | null | undefined;
 }) {
-  const targetUrl = startUrl ?? joinUrl ?? null;
-  const [hostKey, setHostKey] = useState<string | null>(null);
-  const [available, setAvailable] = useState<boolean | null>(null);
+  const [freshStartUrl, setFreshStartUrl] = useState<string | null>(
+    startUrl ?? null,
+  );
+  const [fetchedAt, setFetchedAt] = useState<Date | null>(null);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
-  const [copied, setCopied] = useState(false);
 
-  const fetchKey = useCallback(async () => {
+  const fetchFresh = useCallback(async () => {
     if (!providerMeetingId) return;
     setBusy(true);
     setErr(null);
     try {
-      const res = await api.get<{ hostKey: string | null; available: boolean }>(
-        `/api/v1/meetings/${encodeURIComponent(providerMeetingId)}/host-key`,
-      );
-      setHostKey(res.data?.hostKey ?? null);
-      setAvailable(res.data?.available ?? false);
+      const res = await api.get<{
+        startUrl: string | null;
+        joinUrl: string | null;
+        available: boolean;
+      }>(`/api/v1/meetings/${encodeURIComponent(providerMeetingId)}/host-start`);
+      if (res.data?.startUrl) {
+        setFreshStartUrl(res.data.startUrl);
+      }
+      setFetchedAt(new Date());
     } catch (e) {
       const ax = e as { response?: { data?: { error?: string } }; message?: string };
-      setErr(ax.response?.data?.error ?? ax.message ?? 'Failed to fetch host key');
-      setHostKey(null);
-      setAvailable(false);
+      setErr(ax.response?.data?.error ?? ax.message ?? 'Failed to refresh start URL');
     } finally {
       setBusy(false);
     }
   }, [providerMeetingId]);
 
-  const copy = useCallback(async () => {
-    if (!hostKey) return;
-    try {
-      await navigator.clipboard.writeText(hostKey);
-      setCopied(true);
-      window.setTimeout(() => setCopied(false), 2000);
-    } catch {
-      // clipboard denied — user can still read + type the 6 digits
-    }
-  }, [hostKey]);
+  // Fetch fresh on mount — Zoom start_url expires ~2h after meeting create,
+  // so the stored copy passed in by the parent may be stale by the time
+  // the scheduler opens the modal.
+  useEffect(() => {
+    void fetchFresh();
+  }, [fetchFresh]);
 
-  if (!targetUrl) return null;
+  const hostHref = freshStartUrl ?? startUrl ?? null;
+  const joinHref = joinUrl ?? null;
+
+  if (!hostHref && !joinHref) return null;
 
   return (
     <div className="space-y-2">
-      <a
-        href={targetUrl}
-        target="_blank"
-        rel="noreferrer noopener"
-        className="inline-flex items-center gap-2 rounded-md bg-gradient-to-br from-accent to-accent-dark px-4 py-2 text-sm font-semibold text-white shadow-sm hover:from-accent-dark hover:to-accent-dark"
-      >
-        <Video className="h-4 w-4" />
-        Start Meeting (Host)
-        <ExternalLink className="h-3 w-3" />
-      </a>
+      {hostHref && (
+        <a
+          href={hostHref}
+          target="_blank"
+          rel="noreferrer noopener"
+          className="inline-flex items-center gap-2 rounded-md bg-gradient-to-br from-accent to-accent-dark px-4 py-2 text-sm font-semibold text-white shadow-sm hover:from-accent-dark hover:to-accent-dark"
+        >
+          <Video className="h-4 w-4" />
+          Start Meeting (Host)
+          <ExternalLink className="h-3 w-3" />
+        </a>
+      )}
 
       {providerMeetingId && (
-        <div className="rounded-md border border-slate-200 bg-slate-50 p-3">
-          <div className="flex items-start gap-2">
-            <KeyRound className="mt-0.5 h-4 w-4 shrink-0 text-slate-600" />
-            <div className="flex-1">
-              <p className="text-xs font-semibold text-slate-800">
-                You&rsquo;re the host — claim host control with the host key
-              </p>
-              <p className="mt-0.5 text-[11px] leading-snug text-slate-600">
-                Join via the button above, then open the Webex menu &gt;
-                <span className="italic"> Reclaim host role</span> and enter the
-                6-digit key below. The meeting is scheduled under our service
-                account; this key transfers host control to you.
-              </p>
-
-              {hostKey == null && available == null && !err && (
-                <button
-                  type="button"
-                  onClick={fetchKey}
-                  disabled={busy}
-                  className="mt-2 inline-flex items-center gap-1 rounded-md border border-slate-300 bg-white px-2.5 py-1 text-[11px] font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-60"
-                >
-                  {busy ? (
-                    <>
-                      <Loader2 className="h-3 w-3 animate-spin" /> Fetching&hellip;
-                    </>
-                  ) : (
-                    <>
-                      <Eye className="h-3 w-3" /> Reveal host key
-                    </>
-                  )}
-                </button>
+        <div className="rounded-md border border-slate-200 bg-slate-50 p-2.5 text-[11px] text-slate-600">
+          <div className="flex items-center justify-between gap-2">
+            <span className="leading-snug">
+              One-click host link (Zoom <code>start_url</code>) &mdash; no
+              Zoom sign-in needed. Expires roughly 2 hours after the meeting
+              was created.
+            </span>
+            <button
+              type="button"
+              onClick={fetchFresh}
+              disabled={busy}
+              title="Re-fetch (start link rotates every ~2h)"
+              className="inline-flex shrink-0 items-center gap-1 rounded-md border border-slate-300 bg-white px-2 py-1 text-[11px] font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-60"
+            >
+              {busy ? (
+                <Loader2 className="h-3 w-3 animate-spin" />
+              ) : (
+                <RefreshCw className="h-3 w-3" />
               )}
-
-              {hostKey && (
-                <div className="mt-2 flex items-center gap-2">
-                  <code className="rounded-md border border-slate-300 bg-white px-3 py-1 font-mono text-base tracking-[0.3em] text-slate-900">
-                    {hostKey}
-                  </code>
-                  <button
-                    type="button"
-                    onClick={copy}
-                    className="inline-flex items-center gap-1 rounded-md border border-slate-300 bg-white px-2 py-1 text-[11px] font-medium text-slate-700 hover:bg-slate-50"
-                  >
-                    <Copy className="h-3 w-3" />
-                    {copied ? 'Copied' : 'Copy'}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={fetchKey}
-                    disabled={busy}
-                    title="Re-fetch (host key rotates after each meeting ends)"
-                    className="inline-flex items-center gap-1 rounded-md border border-slate-300 bg-white px-2 py-1 text-[11px] font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-60"
-                  >
-                    <RefreshCw className={'h-3 w-3 ' + (busy ? 'animate-spin' : '')} />
-                  </button>
-                </div>
-              )}
-
-              {available === false && hostKey == null && !err && (
-                <p className="mt-2 rounded-md border border-amber-200 bg-amber-50 p-2 text-[11px] text-amber-800">
-                  Host key isn&rsquo;t available for this meeting. Sign in to
-                  webex.com as the host account first, then click Start Meeting
-                  &mdash; you&rsquo;ll be promoted to host automatically.
-                </p>
-              )}
-
-              {err && (
-                <p className="mt-2 rounded-md border border-red-200 bg-red-50 p-2 text-[11px] text-red-800">
-                  {err}
-                </p>
-              )}
-            </div>
+              {busy ? 'Refreshing' : 'Refresh'}
+            </button>
           </div>
+          {fetchedAt && !err && (
+            <p className="mt-1 text-[10px] text-slate-500">
+              Refreshed {fetchedAt.toLocaleTimeString()}
+            </p>
+          )}
+          {err && (
+            <p className="mt-1 rounded-md border border-amber-200 bg-amber-50 p-1.5 text-[11px] text-amber-800">
+              Couldn&rsquo;t refresh: {err}. Using the stored link &mdash; if
+              it errors in Zoom, click Refresh again.
+            </p>
+          )}
         </div>
       )}
     </div>

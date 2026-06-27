@@ -1,10 +1,12 @@
 package com.skyzen.careers.controller;
 
-import com.skyzen.careers.integration.webex.WebexService;
+import com.skyzen.careers.integration.meeting.MeetingProvider;
+import com.skyzen.careers.integration.meeting.MeetingResponse;
 import com.skyzen.careers.repository.InternEvaluationRepository;
 import com.skyzen.careers.repository.InterviewRepository;
 import com.skyzen.careers.repository.WeeklyMeetingRepository;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -18,54 +20,70 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 
 /**
- * On-demand fetch of a meeting's 6-digit Webex host key — the value the
- * scheduler enters inside Webex to claim host control on a meeting that
- * was scheduled under the service host ({@code techteam@skyzentech.com}).
+ * On-demand fresh fetch of a meeting's host start URL. Zoom's
+ * {@code start_url} is the one-click host link — clicking it opens Zoom
+ * and starts the meeting AS the host without requiring a Zoom sign-in —
+ * but the URL is time-limited (~2h after create) so a stale stored copy
+ * stops working before the meeting starts. This endpoint refetches the
+ * meeting via {@link MeetingProvider#getMeeting} every call so the
+ * scheduler's modal/email always serves a current link.
  *
- * <p>The key is intentionally NOT denormalized onto the per-domain meeting
- * rows (weekly meetings / interviews / evaluations) because Webex rotates
- * it after each scheduled-end time — a stored value goes stale silently.
- * Every fetch hits {@code GET /v1/meetings/{id}?hostEmail=techteam@} so
- * the scheduler's modal always sees the live value.</p>
+ * <p>Staff-only (no INTERN access). To avoid acting as a generic
+ * start-URL proxy for arbitrary provider meeting ids we verify the
+ * supplied id exists in at least one of our three meeting tables
+ * ({@code weekly_meetings}, {@code interviews}, {@code intern_evaluations})
+ * before forwarding to the provider. 404s otherwise.</p>
  *
- * <p>This endpoint is staff-only (no INTERN access). To avoid acting as a
- * generic host-key proxy for arbitrary Webex meeting IDs we verify the
- * supplied provider id exists in at least one of our three meeting
- * tables ({@code weekly_meetings}, {@code interviews},
- * {@code intern_evaluations}) before forwarding to Webex. 404s otherwise.</p>
+ * <p>Returns a small shape: {@code { providerMeetingId, startUrl, joinUrl,
+ * available, fetchedAt }}. {@code available=false} when the provider
+ * returned no start URL (provider misconfig or transient failure) — the
+ * frontend can fall back to the stored copy in that case.</p>
  *
- * <p>Returns a small shape: {@code { providerMeetingId, hostKey, fetchedAt,
- * available }}. {@code available=false} when the key was null (JBH not on,
- * or host-email mismatch) — the frontend uses that to render the
- * "sign in to webex.com as techteam@" fallback guidance.</p>
+ * <p>The controller is mounted at {@code /api/v1/meetings/{providerMeetingId}/host-start};
+ * the old {@code /host-key} path is preserved as a back-compat alias for
+ * any client cached against the Webex-era shape (the body is now
+ * Zoom-shaped regardless).</p>
  */
 @RestController
 @RequestMapping("/api/v1/meetings")
 @RequiredArgsConstructor
+@Slf4j
 public class MeetingHostKeyController {
 
-    private final WebexService webexService;
+    private final MeetingProvider meetingProvider;
     private final WeeklyMeetingRepository weeklyMeetingRepository;
     private final InterviewRepository interviewRepository;
     private final InternEvaluationRepository internEvaluationRepository;
 
-    @GetMapping("/{providerMeetingId}/host-key")
+    @GetMapping({"/{providerMeetingId}/host-start", "/{providerMeetingId}/host-key"})
     @PreAuthorize("hasAnyRole('TRAINER', 'REPORTING_MANAGER', 'MANAGER', 'ERM', 'SUPER_ADMIN')")
-    public ResponseEntity<Map<String, Object>> hostKey(@PathVariable String providerMeetingId) {
+    public ResponseEntity<Map<String, Object>> hostStart(@PathVariable String providerMeetingId) {
         boolean known = weeklyMeetingRepository.findFirstByZoomMeetingId(providerMeetingId).isPresent()
                 || interviewRepository.findFirstByZoomMeetingId(providerMeetingId).isPresent()
                 || internEvaluationRepository.findFirstByZoomMeetingId(providerMeetingId).isPresent();
         if (!known) {
             return ResponseEntity.notFound().build();
         }
-        String hostKey = webexService.fetchHostKey(providerMeetingId);
+        String startUrl = null;
+        String joinUrl = null;
+        try {
+            MeetingResponse fresh = meetingProvider.getMeeting(providerMeetingId);
+            if (fresh != null) {
+                startUrl = fresh.startUrl();
+                joinUrl = fresh.joinUrl();
+            }
+        } catch (Exception e) {
+            log.warn("[MeetingHostStart] fresh fetch for {} failed (non-fatal): {}",
+                    providerMeetingId, e.getMessage());
+        }
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("providerMeetingId", providerMeetingId);
-        body.put("hostKey", hostKey);
-        body.put("available", hostKey != null);
+        body.put("startUrl", startUrl);
+        body.put("joinUrl", joinUrl);
+        body.put("available", startUrl != null && !startUrl.isBlank());
         body.put("fetchedAt", Instant.now().toString());
-        // Host key rotates after each scheduled-end — never let intermediaries
-        // (CDNs, browsers, Next.js fetch cache) reuse the value.
+        // start_url is short-lived (~2h on Zoom) — never let intermediaries
+        // cache the response.
         return ResponseEntity.ok()
                 .header(HttpHeaders.CACHE_CONTROL, "no-store")
                 .body(body);

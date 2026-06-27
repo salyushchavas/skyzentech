@@ -82,6 +82,7 @@ public class TrainerMeetingNotificationDispatcher {
                 m.getScheduledFor(),
                 m.getTimezone(),
                 m.getZoomJoinUrl(),
+                m.getZoomStartUrl(),
                 m.getZoomMeetingId());
     }
 

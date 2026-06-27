@@ -99,6 +99,7 @@ public class InterviewEmailListener {
                 iv.getScheduledAt(),
                 iv.getTimezone(),
                 iv.getZoomJoinUrl(),
+                iv.getZoomStartUrl(),
                 iv.getZoomMeetingId());
     }
 
