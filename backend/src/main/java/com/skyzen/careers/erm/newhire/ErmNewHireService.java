@@ -61,8 +61,14 @@ public class ErmNewHireService {
                                               int page, int pageSize) {
         Pageable pageable = PageRequest.of(
                 Math.max(0, page), Math.min(Math.max(1, pageSize), 100));
-        StringBuilder where = new StringBuilder(
-                " WHERE il.active_status = 'PROSPECTIVE' ");
+        // tab=all surfaces every signed-offer intern (PROSPECTIVE + ACTIVE)
+        // so the unified status table can show "Active" as a stage filter.
+        // The narrower tabs stay PROSPECTIVE-only since they're scoped to
+        // in-flight onboarding work that doesn't apply to activated interns.
+        boolean includeActive = "all".equalsIgnoreCase(tab);
+        StringBuilder where = new StringBuilder(includeActive
+                ? " WHERE il.active_status IN ('PROSPECTIVE', 'ACTIVE') "
+                : " WHERE il.active_status = 'PROSPECTIVE' ");
         List<Object> params = new ArrayList<>();
         if ("pending".equalsIgnoreCase(tab)) {
             // Legacy filter — pre-Phase-8.6.4 this surfaced interns waiting
@@ -131,7 +137,7 @@ public class ErmNewHireService {
                     // Tracker fields are filled in by enrichWithTrackerProgress
                     // below — left null here so the row constructor stays a
                     // pure projection of the SQL columns.
-                    null, null, null, null));
+                    null, null, null, null, null));
         } catch (Exception e) {
             log.warn("[ErmNewHire] list query failed: {}", e.getMessage());
         }
@@ -167,7 +173,8 @@ public class ErmNewHireService {
                         r.managerName(), r.reportingStructureComplete(),
                         r.onboardingAssigned(),
                         t.stepsCompleted(), t.stepsTotal(),
-                        t.nextStepLabel(), t.canActivate()));
+                        t.nextStepLabel(), t.canActivate(),
+                        t.currentStepId() == null ? null : t.currentStepId().name()));
             } catch (Exception e) {
                 log.warn("[ErmNewHire] tracker enrich failed for {}: {}",
                         r.internLifecycleId(), e.getMessage());

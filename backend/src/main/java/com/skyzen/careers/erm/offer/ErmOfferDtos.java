@@ -140,7 +140,13 @@ public final class ErmOfferDtos {
             Integer stepsCompleted,
             Integer stepsTotal,
             String nextStepLabel,
-            Boolean canActivate
+            Boolean canActivate,
+            /** Name of the current {@link com.skyzen.careers.erm.newhire
+             *  .OnboardingTrackerDtos.StepId}, or null when all six are
+             *  done. Drives the unified status-table's Stage badge +
+             *  Next-action deep-link without bouncing the frontend off
+             *  the tracker endpoint per row. */
+            String currentStepId
     ) {}
 
     public record NewHireListPage(

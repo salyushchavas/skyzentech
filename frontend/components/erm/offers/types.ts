@@ -118,6 +118,15 @@ export interface NewHireRow {
   stepsTotal: number | null;
   nextStepLabel: string | null;
   canActivate: boolean | null;
+  /** Current step id from OnboardingTrackerDtos.StepId, null when all done. */
+  currentStepId:
+    | 'OFFER_SENT'
+    | 'OFFER_SIGNED'
+    | 'DOCS_VERIFIED'
+    | 'TEAM_NOTIFIED'
+    | 'MAIL_AND_JOINING'
+    | 'ACTIVATE'
+    | null;
 }
 
 export interface NewHireListPage {
