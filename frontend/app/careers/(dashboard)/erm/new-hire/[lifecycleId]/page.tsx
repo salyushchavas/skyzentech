@@ -12,6 +12,7 @@ import AssignReportingStructureModal from '@/components/erm/newhire/AssignReport
 import UpdateStartDateModal from '@/components/erm/offers/UpdateStartDateModal';
 import AssignPacketModal from '@/components/erm/documents/AssignPacketModal';
 import AssignCompanyEmailDialog from '@/components/erm/mail/AssignCompanyEmailDialog';
+import OnboardingStepTracker from '@/components/erm/onboarding/OnboardingStepTracker';
 import { Mail } from 'lucide-react';
 import toast from 'react-hot-toast';
 import type { NewHireDetail, UserStub } from '@/components/erm/offers/types';
@@ -101,6 +102,18 @@ export default function NewHireDetailPage() {
 
         <div className="grid gap-6 lg:grid-cols-3">
           <main className="lg:col-span-2 space-y-6">
+            <OnboardingStepTracker
+              lifecycleId={data.internLifecycleId}
+              onChanged={() => void load()}
+              onOpenCompanyEmailModal={() => setModal('companyEmail')}
+              onOpenJoiningDateModal={() => setModal('joining')}
+              companyEmailReady={
+                data.mailHandoverState !== null
+                && data.mailHandoverState !== undefined
+                && !!data.employeeId
+              }
+              mailHandoverState={data.mailHandoverState}
+            />
             {data.signedOffer && (
               <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
                 <h3 className="text-sm font-semibold text-slate-900">Signed offer summary</h3>

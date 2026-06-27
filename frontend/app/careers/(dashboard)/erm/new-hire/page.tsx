@@ -8,6 +8,7 @@ import ProtectedRoute from '@/components/ProtectedRoute';
 import DashboardLayout from '@/components/dashboard/DashboardLayout';
 import PageHeader from '@/components/ui/PageHeader';
 import AssignPacketModal from '@/components/erm/documents/AssignPacketModal';
+import OnboardingProgressBadge from '@/components/erm/onboarding/OnboardingProgressBadge';
 import type {
   NewHireListPage,
   NewHireRow,
@@ -194,6 +195,9 @@ function PendingTable({
                     <span className="block text-[11px] text-slate-500">
                       {r.employeeId} · {r.internEmail}
                     </span>
+                    <span className="mt-1 block">
+                      <OnboardingProgressBadge row={r} />
+                    </span>
                   </td>
                   <td className="px-3 py-2 text-xs text-slate-700">
                     {r.tentativeStartDate ?? '—'}
@@ -260,6 +264,9 @@ function InProgressTable({
                   <span className="block text-[11px] text-slate-500">
                     {r.employeeId} · {r.internEmail}
                   </span>
+                  <span className="mt-1 block">
+                    <OnboardingProgressBadge row={r} />
+                  </span>
                 </td>
                 <td className="px-3 py-2 text-xs text-slate-700">
                   {r.tentativeStartDate ?? '—'}
@@ -318,6 +325,9 @@ function AllHiresTable({
                       {r.employeeId} · {r.internEmail}
                     </span>
                   </Link>
+                  <span className="mt-1 block">
+                    <OnboardingProgressBadge row={r} />
+                  </span>
                 </td>
                 <td className="px-3 py-2 text-xs text-slate-700">
                   {r.tentativeStartDate ?? '—'}

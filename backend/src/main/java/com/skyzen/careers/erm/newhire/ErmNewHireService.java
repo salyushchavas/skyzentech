@@ -52,6 +52,7 @@ public class ErmNewHireService {
     private final ApplicationEventPublisher eventPublisher;
     private final ObjectMapper objectMapper;
     private final JdbcTemplate jdbc;
+    private final OnboardingTrackerService onboardingTracker;
 
     // ── List ───────────────────────────────────────────────────────────────
 
@@ -126,13 +127,54 @@ public class ErmNewHireService {
                     rs.getString("evaluator_name"),
                     rs.getString("manager_name"),
                     rs.getBoolean("reporting_structure_complete"),
-                    rs.getBoolean("onboarding_assigned")));
+                    rs.getBoolean("onboarding_assigned"),
+                    // Tracker fields are filled in by enrichWithTrackerProgress
+                    // below — left null here so the row constructor stays a
+                    // pure projection of the SQL columns.
+                    null, null, null, null));
         } catch (Exception e) {
             log.warn("[ErmNewHire] list query failed: {}", e.getMessage());
         }
+        rows = enrichWithTrackerProgress(rows);
         Page<ErmOfferDtos.NewHireRow> p = new PageImpl<>(rows, pageable, total);
         return new ErmOfferDtos.NewHireListPage(p.getContent(), p.getNumber(),
                 p.getSize(), p.getTotalElements(), p.getTotalPages());
+    }
+
+    /**
+     * Per-row enrichment with onboarding-tracker progress so the list can
+     * render the "N/6 · needs X" badge. Best-effort: a per-row failure
+     * leaves the tracker fields null (older-client behaviour) without
+     * failing the whole list call.
+     *
+     * <p>Page size is bounded at 100 → ≤100 lifecycle lookups + tracker
+     * computations per call, which is fine for ERM-facing dashboards.</p>
+     */
+    private List<ErmOfferDtos.NewHireRow> enrichWithTrackerProgress(
+            List<ErmOfferDtos.NewHireRow> rows) {
+        if (rows == null || rows.isEmpty()) return rows;
+        List<ErmOfferDtos.NewHireRow> out = new ArrayList<>(rows.size());
+        for (ErmOfferDtos.NewHireRow r : rows) {
+            try {
+                InternLifecycle lc = lifecycleRepository.findById(r.internLifecycleId())
+                        .orElse(null);
+                if (lc == null) { out.add(r); continue; }
+                var t = onboardingTracker.computeForLifecycle(lc);
+                out.add(new ErmOfferDtos.NewHireRow(
+                        r.internLifecycleId(), r.internUserId(), r.internName(),
+                        r.internEmail(), r.employeeId(), r.signedAt(),
+                        r.tentativeStartDate(), r.trainerName(), r.evaluatorName(),
+                        r.managerName(), r.reportingStructureComplete(),
+                        r.onboardingAssigned(),
+                        t.stepsCompleted(), t.stepsTotal(),
+                        t.nextStepLabel(), t.canActivate()));
+            } catch (Exception e) {
+                log.warn("[ErmNewHire] tracker enrich failed for {}: {}",
+                        r.internLifecycleId(), e.getMessage());
+                out.add(r);
+            }
+        }
+        return out;
     }
 
     // ── Detail ────────────────────────────────────────────────────────────

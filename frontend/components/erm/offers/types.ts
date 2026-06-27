@@ -113,6 +113,11 @@ export interface NewHireRow {
   managerName: string | null;
   reportingStructureComplete: boolean;
   onboardingAssigned: boolean;
+  /** Onboarding-tracker progress per row (null on older clients). */
+  stepsCompleted: number | null;
+  stepsTotal: number | null;
+  nextStepLabel: string | null;
+  canActivate: boolean | null;
 }
 
 export interface NewHireListPage {

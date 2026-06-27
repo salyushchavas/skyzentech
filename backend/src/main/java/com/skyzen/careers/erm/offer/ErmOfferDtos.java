@@ -133,7 +133,14 @@ public final class ErmOfferDtos {
             String evaluatorName,
             String managerName,
             boolean reportingStructureComplete,
-            boolean onboardingAssigned
+            boolean onboardingAssigned,
+            /** ERM onboarding-tracker progress — populated by {@link
+             *  com.skyzen.careers.erm.newhire.ErmNewHireService#list}. Null
+             *  for older clients reading historical responses. */
+            Integer stepsCompleted,
+            Integer stepsTotal,
+            String nextStepLabel,
+            Boolean canActivate
     ) {}
 
     public record NewHireListPage(
