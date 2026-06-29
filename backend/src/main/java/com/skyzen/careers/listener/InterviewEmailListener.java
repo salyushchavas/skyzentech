@@ -12,7 +12,6 @@ import com.skyzen.careers.event.InterviewCompletedEvent;
 import com.skyzen.careers.event.InterviewRescheduledEvent;
 import com.skyzen.careers.event.InterviewScheduledEvent;
 import com.skyzen.careers.event.ManagerHireDecisionEvent;
-import com.skyzen.careers.integration.meeting.MeetingLinkUtil;
 import com.skyzen.careers.notification.EmailProvider;
 import com.skyzen.careers.notification.MeetingEmailHtmlBuilder;
 import com.skyzen.careers.notification.SchedulerMeetingEmailSender;
@@ -458,13 +457,7 @@ public class InterviewEmailListener {
                 ? LOCAL_FMT.format(iv.getScheduledAt().atZone(zone(iv.getTimezone())))
                 : "TBD");
         vars.put("timezone", iv.getTimezone() != null ? iv.getTimezone() : "UTC");
-        // Personalize the join URL with the applicant's full name so
-        // Zoom's web client pre-fills "Your Name" with their real name —
-        // they show in the meeting as themselves instead of as the host
-        // account. See MeetingLinkUtil for the mechanism + caveats.
-        vars.put("zoomJoinUrl", iv.getZoomJoinUrl() != null
-                ? MeetingLinkUtil.appendDisplayName(iv.getZoomJoinUrl(),
-                        applicant != null ? applicant.getFullName() : null)
+        vars.put("zoomJoinUrl", iv.getZoomJoinUrl() != null ? iv.getZoomJoinUrl()
                 : "(meeting link will follow)");
         vars.put("interviewerName", iv.getInterviewer() != null
                 ? iv.getInterviewer().getFullName() : "your interviewer");

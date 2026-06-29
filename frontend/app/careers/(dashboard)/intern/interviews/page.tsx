@@ -11,8 +11,6 @@ import {
   Video,
 } from 'lucide-react';
 import api from '@/lib/api';
-import { useAuth } from '@/lib/auth-context';
-import { appendDisplayName } from '@/lib/meeting-link';
 import InternPageShell from '@/components/intern/InternPageShell';
 import type { CandidateInterviewResponse, InterviewStatus } from '@/types';
 import {
@@ -116,7 +114,6 @@ export default function InternInterviewsPage() {
 }
 
 function InterviewHeroCard({ interview }: { interview: CandidateInterviewResponse }) {
-  const { user } = useAuth();
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
     const t = window.setInterval(() => setNow(Date.now()), 60_000);
@@ -128,13 +125,6 @@ function InterviewHeroCard({ interview }: { interview: CandidateInterviewRespons
     && Boolean(interview.meetingUrl)
     && minutesUntil < 1440 // join window opens 24h before
     && (now - scheduled) < 60 * 60 * 1000; // up to 60min after scheduled time
-  // Pre-fill the candidate's full name into the Zoom join URL — see
-  // lib/meeting-link.ts for the mechanism + caveats. CandidateInterview
-  // -Response exposes the link as meetingUrl (legacy field that holds
-  // zoom_join_url server-side); same join_url semantics.
-  const personalizedMeetingUrl = appendDisplayName(
-    interview.meetingUrl, user?.fullName,
-  );
 
   return (
     <section className="rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
@@ -164,9 +154,9 @@ function InterviewHeroCard({ interview }: { interview: CandidateInterviewRespons
             {countdownLabel(minutesUntil)}
           </p>
         </div>
-        {personalizedMeetingUrl && (
+        {interview.meetingUrl && (
           <a
-            href={personalizedMeetingUrl}
+            href={interview.meetingUrl}
             target="_blank"
             rel="noopener noreferrer"
             aria-disabled={!canJoin}

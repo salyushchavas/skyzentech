@@ -13,8 +13,6 @@ import {
   Video,
 } from 'lucide-react';
 import api from '@/lib/api';
-import { useAuth } from '@/lib/auth-context';
-import { appendDisplayName } from '@/lib/meeting-link';
 import InternPageShell from '@/components/intern/InternPageShell';
 
 type EvaluationStatus =
@@ -160,7 +158,6 @@ export default function InternEvaluationsPage() {
 }
 
 function UpcomingHero({ meeting }: { meeting: UpcomingEvaluation }) {
-  const { user } = useAuth();
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
     const t = window.setInterval(() => setNow(Date.now()), 60_000);
@@ -171,11 +168,6 @@ function UpcomingHero({ meeting }: { meeting: UpcomingEvaluation }) {
   const canJoin = Boolean(meeting.zoomJoinUrl)
     && minutesUntil < 1440
     && (now - scheduled) < 60 * 60 * 1000;
-  // Pre-fill the intern's full name into the Zoom join URL — see
-  // lib/meeting-link.ts for the mechanism + caveats.
-  const personalizedJoinUrl = appendDisplayName(
-    meeting.zoomJoinUrl, user?.fullName,
-  );
 
   return (
     <section className="rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
@@ -198,9 +190,9 @@ function UpcomingHero({ meeting }: { meeting: UpcomingEvaluation }) {
             {countdown(minutesUntil)}
           </p>
         </div>
-        {personalizedJoinUrl && (
+        {meeting.zoomJoinUrl && (
           <a
-            href={personalizedJoinUrl}
+            href={meeting.zoomJoinUrl}
             target="_blank"
             rel="noopener noreferrer"
             aria-disabled={!canJoin}

@@ -430,18 +430,44 @@ public class ZoomService implements MeetingProvider {
         }
         ObjectNode settings = body.putObject("settings");
         // Waiting room OFF + join-before-host ON so the intern enters
-        // directly without sitting on the host-admission lobby. The host
+        // directly without sitting on a host-admission lobby. The host
         // (ERM/trainer/evaluator) still starts the meeting via start_url
-        // when they're ready; but if the intern arrives first, they're
-        // already inside the room rather than blocked by a "waiting for
-        // host" screen. Identification of participants is handled by
-        // appending uname=<full-name> to join URLs (see MeetingLinkUtil).
-        // NOTE: Zoom account-level "Waiting Room" can be locked ON at the
-        // account tier and override this per-meeting setting — confirm
-        // in Zoom Admin > Settings > Meeting > Waiting Room is OFF (or
-        // unlocked) for this account.
+        // when they're ready; if the intern arrives first they're
+        // already inside the room.
+        //
+        // meeting_authentication=false: guests can join without a Zoom
+        // account. When a guest joins via the web client they're prompted
+        // for their name on Zoom's join landing page — this is the
+        // mechanism that makes participants identifiable. (Setting it to
+        // true would force every joiner to sign into Zoom, which is the
+        // opposite of what we want.)
+        //
+        // IMPORTANT LIMITATION the operator should know about:
+        //   Zoom can ONLY prompt joiners who arrive via the web client
+        //   without being signed in. Joiners on the native Zoom app who
+        //   are signed in will use their Zoom account display name and
+        //   skip the prompt — Zoom doesn't expose a per-meeting setting
+        //   to override that. So:
+        //     - If interns share / are signed in to the company Zoom
+        //       account on their devices, they will all show as the
+        //       company name regardless of these settings.
+        //     - Reliable fix is org-side: each person uses their own
+        //       Zoom account, signs out before joining, or joins via
+        //       browser without the desktop app installed.
+        //   The locked-in code-side alternative is Zoom's registrant
+        //   flow (per-participant POST /v2/meetings/{id}/registrants
+        //   with a name + email; returns a per-registrant join URL
+        //   whose name is locked). Not implemented here — significantly
+        //   more invasive than these per-meeting settings.
+        //
+        // Zoom account-level Waiting Room can be locked ON at the
+        // account tier and override the per-meeting waiting_room=false
+        // — confirm Zoom Admin > Settings > Meeting > In Meeting
+        // (Advanced) > Waiting Room is OFF (or unlocked) for this
+        // account.
         settings.put("join_before_host", true);
         settings.put("waiting_room", false);
+        settings.put("meeting_authentication", false);
         settings.put("mute_upon_entry", true);
         return body;
     }

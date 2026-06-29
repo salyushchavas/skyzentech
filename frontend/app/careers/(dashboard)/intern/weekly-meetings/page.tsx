@@ -9,8 +9,6 @@ import {
   Video,
 } from 'lucide-react';
 import api from '@/lib/api';
-import { useAuth } from '@/lib/auth-context';
-import { appendDisplayName } from '@/lib/meeting-link';
 import InternPageShell from '@/components/intern/InternPageShell';
 
 interface WeeklyMeeting {
@@ -121,7 +119,6 @@ export default function InternWeeklyMeetingsPage() {
 }
 
 function HeroCard({ meeting }: { meeting: WeeklyMeeting }) {
-  const { user } = useAuth();
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
     const t = window.setInterval(() => setNow(Date.now()), 60_000);
@@ -133,12 +130,6 @@ function HeroCard({ meeting }: { meeting: WeeklyMeeting }) {
     && Boolean(meeting.zoomJoinUrl)
     && minutesUntil < 1440
     && (now - scheduled) < 60 * 60 * 1000;
-  // Pre-fill the intern's full name into the Zoom join URL so they show
-  // up in the meeting as themselves rather than as the shared host
-  // account. See lib/meeting-link.ts for the mechanism + caveats.
-  const personalizedJoinUrl = appendDisplayName(
-    meeting.zoomJoinUrl, user?.fullName,
-  );
 
   return (
     <section className="rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
@@ -157,9 +148,9 @@ function HeroCard({ meeting }: { meeting: WeeklyMeeting }) {
             {countdownLabel(minutesUntil)}
           </p>
         </div>
-        {personalizedJoinUrl && (
+        {meeting.zoomJoinUrl && (
           <a
-            href={personalizedJoinUrl}
+            href={meeting.zoomJoinUrl}
             target="_blank"
             rel="noopener noreferrer"
             aria-disabled={!canJoin}
