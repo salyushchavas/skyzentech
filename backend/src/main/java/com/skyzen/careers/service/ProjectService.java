@@ -297,6 +297,34 @@ public class ProjectService {
             log.warn("PROJECT_RETURNED notify failed (non-fatal) for {}: {}",
                     saved.getId(), e.getMessage());
         }
+        // Tier A — typed notificationService.sendProjectReturned uses
+        // sendProjectReturned which bypasses BridgingEmailProvider, so the
+        // intern's company mailbox wouldn't see it. notifyIntern routes
+        // through the bridge for ACTIVE interns.
+        try {
+            UUID internUserId = saved.getIntern() != null
+                    && saved.getIntern().getUser() != null
+                    ? saved.getIntern().getUser().getId() : null;
+            if (internUserId != null) {
+                String title = saved.getTitle() != null ? saved.getTitle() : "your project";
+                String reviewNotes = saved.getReviewNotes();
+                String actorPhrase = actor != null && actor.getFullName() != null
+                        && !actor.getFullName().isBlank()
+                        ? actor.getFullName() + ", your Trainer,"
+                        : "Your Trainer";
+                String subject = "Project '" + title + "' returned by your Trainer";
+                String body = "Hi,\n\n" + actorPhrase + " returned \"" + title
+                        + "\" for changes."
+                        + (reviewNotes != null && !reviewNotes.isBlank()
+                            ? "\n\nReview notes: " + reviewNotes : "")
+                        + "\n\nOpen the project: /careers/intern/projects/" + saved.getId()
+                        + "\n\n— Skyzen";
+                internNotifications.notifyIntern(internUserId, subject, body, null);
+            }
+        } catch (Exception e) {
+            log.warn("PROJECT_RETURNED internal-mail failed (non-fatal) for {}: {}",
+                    saved.getId(), e.getMessage());
+        }
         return toResponse(saved);
     }
 
@@ -333,6 +361,12 @@ public class ProjectService {
             log.warn("PROJECT_COMPLETED notify failed (non-fatal) for {}: {}",
                     saved.getId(), e.getMessage());
         }
+        // Tier A — intern internal-mail is handled by
+        // EmailNotifierListener.onCompleted on the ProjectCompletedEvent
+        // we publish below. That listener resolves the actor's role
+        // dynamically (Trainer here on the legacy path, Reporting Manager
+        // on the two-role viva path) so both flows produce correct
+        // Model-A wording without duplicating the send.
 
         // Two-role workflow prerequisite — emit ProjectCompletedEvent from
         // BOTH paths (this legacy single-reviewer complete + the

@@ -53,6 +53,7 @@ public class ErmNewHireService {
     private final ObjectMapper objectMapper;
     private final JdbcTemplate jdbc;
     private final OnboardingTrackerService onboardingTracker;
+    private final com.skyzen.careers.notification.InternNotificationService internNotifications;
 
     // ── List ───────────────────────────────────────────────────────────────
 
@@ -288,6 +289,15 @@ public class ErmNewHireService {
                 ? requireRole(req.managerUserId(), UserRole.MANAGER, "Manager")
                 : null;
 
+        // Capture previous IDs so we can detect mid-engagement reassignments
+        // and notify the intern via internal mail. First-time assignments
+        // (previous == null) are part of onboarding and surface through the
+        // activation team-intro mail instead — we only ping when an existing
+        // staff role changes hands.
+        UUID prevTrainerId = lc.getTrainerId();
+        UUID prevEvaluatorId = lc.getEvaluatorId();
+        UUID prevManagerId = lc.getManagerId();
+
         lc.setTrainerId(trainer.getId());
         lc.setEvaluatorId(evaluator.getId());
         if (manager != null) lc.setManagerId(manager.getId());
@@ -313,7 +323,49 @@ public class ErmNewHireService {
         } catch (Exception e) {
             log.warn("[ErmNewHire] reporting structure event publish failed: {}", e.getMessage());
         }
+
+        // Tier A — mid-engagement reassignment notify (intern internal mail).
+        // Only fires when (a) lifecycle is ACTIVE (so the intern has a
+        // company mailbox the bridge can route to) and (b) the role
+        // actually changed hands (previous != null AND previous != new).
+        if ("ACTIVE".equals(lc.getActiveStatus()) && lc.getUserId() != null) {
+            notifyInternOfReassignment(lc.getUserId(), prevTrainerId, trainer.getId(),
+                    "Trainer", trainer);
+            notifyInternOfReassignment(lc.getUserId(), prevEvaluatorId, evaluator.getId(),
+                    "Evaluator", evaluator);
+            if (manager != null) {
+                notifyInternOfReassignment(lc.getUserId(), prevManagerId, manager.getId(),
+                        "Manager", manager);
+            }
+        }
         return detail(lifecycleId);
+    }
+
+    /**
+     * Send an intern internal-mail when a staff role's owner changes
+     * mid-engagement. Skips silently when this is a first-time assignment
+     * (previousId == null — covered by the activation team-intro mail) or
+     * when nothing actually changed (previousId.equals(newId)).
+     */
+    private void notifyInternOfReassignment(UUID internUserId, UUID previousId,
+                                             UUID newId, String roleWord, User newStaff) {
+        if (previousId == null) return;            // first-time assignment
+        if (previousId.equals(newId)) return;       // no change
+        if (newStaff == null) return;
+        try {
+            String newName = newStaff.getFullName() != null && !newStaff.getFullName().isBlank()
+                    ? newStaff.getFullName() : ("your new " + roleWord);
+            String subject = "Your " + roleWord + " has changed — meet " + newName;
+            String plain = "Hi,\n\n" + newName + " is now your " + roleWord
+                    + " at Skyzen. They'll pick up where the previous " + roleWord
+                    + " left off — feel free to reach out with anything in-flight."
+                    + "\n\nOpen your dashboard: /careers/intern"
+                    + "\n\n— Skyzen";
+            internNotifications.notifyIntern(internUserId, subject, plain, null);
+        } catch (Exception e) {
+            log.warn("[ErmNewHire] reassignment intern-mail failed (non-fatal) intern={} role={}: {}",
+                    internUserId, roleWord, e.getMessage());
+        }
     }
 
     /**
@@ -328,11 +380,12 @@ public class ErmNewHireService {
                 .orElseThrow(() -> new ResourceNotFoundException(
                         "InternLifecycle not found: " + lifecycleId));
         UUID previous = lc.getManagerId();
+        User newManager = null;
         if (managerUserId == null) {
             lc.setManagerId(null);
         } else {
-            User manager = requireRole(managerUserId, UserRole.MANAGER, "Manager");
-            lc.setManagerId(manager.getId());
+            newManager = requireRole(managerUserId, UserRole.MANAGER, "Manager");
+            lc.setManagerId(newManager.getId());
         }
         lifecycleRepository.save(lc);
 
@@ -343,6 +396,12 @@ public class ErmNewHireService {
         writeAudit(caller.getId(), lc.getUserId(),
                 "MANAGER_ASSIGNED", "InternLifecycle", lc.getId(),
                 before, after);
+
+        // Tier A — mid-engagement Manager reassignment notify.
+        if ("ACTIVE".equals(lc.getActiveStatus()) && lc.getUserId() != null && newManager != null) {
+            notifyInternOfReassignment(lc.getUserId(), previous, newManager.getId(),
+                    "Manager", newManager);
+        }
         return detail(lifecycleId);
     }
 

@@ -71,6 +71,7 @@ public class ProjectAssignmentService {
     private final InternLifecycleRepository internLifecycleRepository;
     private final ApplicationEventPublisher eventPublisher;
     private final ObjectMapper objectMapper;
+    private final com.skyzen.careers.notification.InternNotificationService internNotifications;
 
     private static final TypeReference<List<String>> STRING_LIST = new TypeReference<>() {};
 
@@ -148,6 +149,29 @@ public class ProjectAssignmentService {
                         a.getId(), internId, "CREATED"));
                 log.info("[ProjectAssignmentService] assigned project={} intern={} by={} id={}",
                         project.getId(), internId, actor.getId(), a.getId());
+
+                // Tier A — internal mail to the active intern. notifyIntern
+                // gates on ACTIVE + mailbox ACTIVATED, so pre-active or
+                // not-yet-handed-over interns skip silently.
+                try {
+                    String projectTitle = project.getName() != null
+                            ? project.getName()
+                            : (project.getTitle() != null ? project.getTitle() : "your new project");
+                    String due = a.getDueDate() != null ? " due " + a.getDueDate() : "";
+                    String actorPhrase = actor != null && actor.getFullName() != null
+                            && !actor.getFullName().isBlank()
+                            ? actor.getFullName() + ", your Trainer,"
+                            : "Your Trainer";
+                    String subject = "New project assigned by your Trainer: " + projectTitle;
+                    String plain = "Hi,\n\n" + actorPhrase + " has assigned you a new project: \""
+                            + projectTitle + "\"" + due + "."
+                            + "\n\nOpen your projects: /careers/intern/projects"
+                            + "\n\n— Skyzen";
+                    internNotifications.notifyIntern(internId, subject, plain, null);
+                } catch (Exception ex) {
+                    log.warn("[ProjectAssignmentService] catalog-assign intern-mail failed (non-fatal) intern={}: {}",
+                            internId, ex.getMessage());
+                }
             } catch (Exception e) {
                 failures.add(new AssignProjectResultResponse.Failure(
                         internId, e.getMessage()));
@@ -219,6 +243,34 @@ public class ProjectAssignmentService {
         projectAssignmentRepository.save(a);
         log.info("[ProjectAssignmentService] access granted assignment={} by={} invitationId={}",
                 assignmentId, actor.getId(), invitationId);
+
+        // Tier A — interns frequently miss GitHub's own invitation email and
+        // then hit a 400 on startAssignment. Send a Skyzen-side internal-mail
+        // confirmation pointing them at the GitHub invitation. notifyIntern
+        // gates on ACTIVE + mailbox ACTIVATED, so it skips when the intern
+        // isn't yet at that point.
+        try {
+            Project p = projectRepository.findById(a.getProjectId()).orElse(null);
+            String projectTitle = p != null
+                    ? (p.getName() != null ? p.getName()
+                        : (p.getTitle() != null ? p.getTitle() : "your project"))
+                    : "your project";
+            String actorPhrase = actor != null && actor.getFullName() != null
+                    && !actor.getFullName().isBlank()
+                    ? actor.getFullName() + ", your Trainer,"
+                    : "Your Trainer";
+            String subject = "Repo access granted by your Trainer — '" + projectTitle + "'";
+            String plain = "Hi,\n\n" + actorPhrase + " has granted you GitHub repository "
+                    + "access for the project: \"" + projectTitle + "\"."
+                    + "\n\nAccept the GitHub invitation in your inbox (subject usually "
+                    + "starts with \"@<your GitHub handle> invited you\") before you "
+                    + "start the assignment from /careers/intern/projects."
+                    + "\n\n— Skyzen";
+            internNotifications.notifyIntern(a.getInternId(), subject, plain, null);
+        } catch (Exception ex) {
+            log.warn("[ProjectAssignmentService] access-granted intern-mail failed (non-fatal) assignment={}: {}",
+                    assignmentId, ex.getMessage());
+        }
         return mapWithGraph(List.of(a)).get(0);
     }
 

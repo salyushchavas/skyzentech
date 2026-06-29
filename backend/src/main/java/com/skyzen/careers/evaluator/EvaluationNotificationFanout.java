@@ -359,6 +359,27 @@ public class EvaluationNotificationFanout {
                     "I-983 submitted to DSO for " + safeName(intern),
                     method, "/careers/erm/active-interns");
         }
+
+        // Tier A — federal compliance peace-of-mind: notify the intern
+        // via internal mail so the DSO submission has a permanent record
+        // in their company mailbox. Actor is typically ERM.
+        try {
+            String actorPhrase = actor != null && actor.getFullName() != null
+                    && !actor.getFullName().isBlank()
+                    ? actor.getFullName() + ", your ERM,"
+                    : "Your ERM";
+            String subject = "Your I-983 was submitted to your DSO";
+            String plain = "Hi,\n\n" + actorPhrase + " has submitted your I-983 "
+                    + "evaluation to your DSO."
+                    + "\nSubmission method: " + method + "."
+                    + "\n\nKeep this confirmation for your STEM-OPT records."
+                    + "\nOpen your I-983: " + deepLink
+                    + "\n\n— Skyzen";
+            internNotifications.notifyIntern(intern.getId(), subject, plain, null);
+        } catch (Exception e) {
+            log.warn("[EvaluatorFanout] I-983 DSO submitted intern-mail failed (non-fatal): {}",
+                    e.getMessage());
+        }
     }
 
     public void i983Amended(I983Evaluation ev, InternLifecycle lc, User evaluator,
@@ -377,5 +398,27 @@ public class EvaluationNotificationFanout {
                 "I-983 amended for " + safeName(intern),
                 summary + " · DSO submission reset",
                 "/careers/erm/active-interns");
+
+        // Tier A — re-signature required is a high-action prompt; surface
+        // it in the intern's company mailbox alongside the in-app cue so
+        // it isn't lost in the bell stream.
+        try {
+            String actorPhrase = evaluator != null && evaluator.getFullName() != null
+                    && !evaluator.getFullName().isBlank()
+                    ? evaluator.getFullName() + ", your Evaluator,"
+                    : "Your Evaluator";
+            String subject = "Your I-983 was updated — please re-sign";
+            String plain = "Hi,\n\n" + actorPhrase + " has updated your I-983 "
+                    + "evaluation. Your previous signature has been reset, so "
+                    + "please review the changes and re-sign before the DSO "
+                    + "submission window."
+                    + "\n\nWhat changed: " + summary
+                    + "\n\nOpen your I-983: " + deepLink
+                    + "\n\n— Skyzen";
+            internNotifications.notifyIntern(intern.getId(), subject, plain, null);
+        } catch (Exception e) {
+            log.warn("[EvaluatorFanout] I-983 amended intern-mail failed (non-fatal): {}",
+                    e.getMessage());
+        }
     }
 }

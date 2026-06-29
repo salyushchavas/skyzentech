@@ -77,6 +77,7 @@ public class NotificationService {
     private final UserRepository userRepository;
     private final UserNotificationDispatcher userNotificationDispatcher;
     private final InternLifecycleRepository internLifecycleRepository;
+    private final InternNotificationService internNotifications;
 
     /**
      * Operations recipient for "offer accepted" notifications. Configure as a
@@ -742,6 +743,30 @@ public class NotificationService {
                 "Submit your timesheet for the week of " + weekStart + ".",
                 INTERN_DASH + "/timesheets",
                 null, null, null);
+
+        // Tier A — sendTimesheetDue above is a typed EmailProvider method
+        // that bypasses BridgingEmailProvider and reaches the intern's
+        // personal Gmail. For ACTIVE interns we ALSO land the reminder in
+        // their company mailbox via notifyIntern (bridge-routed). Pre-active
+        // interns skip silently inside the helper. Idempotency for the
+        // weekly send is already guaranteed by the alreadySent check above.
+        try {
+            UUID internUserId = applicantUserIdFromCandidate(c);
+            if (internUserId != null) {
+                String subject = "Reminder: your timesheet for the week of "
+                        + weekStart + " is due";
+                String plain = "Hi,\n\nThis is a reminder to submit your timesheet "
+                        + "for the week of " + weekStart + ". Approval can take a "
+                        + "couple of business days, so submitting today keeps the "
+                        + "week's hours on track."
+                        + "\n\nOpen your timesheets: " + INTERN_DASH + "/timesheets"
+                        + "\n\n— Skyzen";
+                internNotifications.notifyIntern(internUserId, subject, plain, null);
+            }
+        } catch (Exception e) {
+            log.warn("[NotificationService] TIMESHEET_DUE internal-mail failed (non-fatal) "
+                    + "engagement={}: {}", engagement.getId(), e.getMessage());
+        }
     }
 
     /** Project assigned — event-triggered, intern recipient. */
