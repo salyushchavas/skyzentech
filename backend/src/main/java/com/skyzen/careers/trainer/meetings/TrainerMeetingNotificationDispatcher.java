@@ -5,6 +5,7 @@ import com.skyzen.careers.entity.User;
 import com.skyzen.careers.entity.WeeklyMeeting;
 import com.skyzen.careers.erm.CommunicationTemplateService;
 import com.skyzen.careers.intern.OrgTeamResolver;
+import com.skyzen.careers.integration.meeting.MeetingLinkUtil;
 import com.skyzen.careers.notification.EmailProvider;
 import com.skyzen.careers.notification.MeetingEmailHtmlBuilder;
 import com.skyzen.careers.notification.SchedulerMeetingEmailSender;
@@ -132,7 +133,13 @@ public class TrainerMeetingNotificationDispatcher {
             vars.put("timezone", nz(m.getTimezone()));
             vars.put("topic", topic);
             vars.put("agenda", nz(m.getAgenda()));
-            vars.put("zoomJoinUrl", nz(m.getZoomJoinUrl()));
+            // Personalize the join URL with the intern's full name so the
+            // Zoom web client pre-fills the "Your Name" field on the join
+            // screen — the intern shows up as their actual name in the
+            // meeting instead of the host account ("Skyzen").
+            vars.put("zoomJoinUrl",
+                    nz(MeetingLinkUtil.appendDisplayName(
+                            m.getZoomJoinUrl(), intern.getFullName())));
             renderAndSend(eventType, vars, intern);
             tryInApp(intern.getId(), eventType, intern.getId(),
                     inAppTitle + ": " + topic, inAppBody, INTERN_PATH);

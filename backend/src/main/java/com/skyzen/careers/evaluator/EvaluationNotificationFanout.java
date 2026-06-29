@@ -6,6 +6,7 @@ import com.skyzen.careers.entity.InternLifecycle;
 import com.skyzen.careers.entity.User;
 import com.skyzen.careers.erm.CommunicationTemplateService;
 import com.skyzen.careers.intern.OrgTeamResolver;
+import com.skyzen.careers.integration.meeting.MeetingLinkUtil;
 import com.skyzen.careers.notification.EmailProvider;
 import com.skyzen.careers.notification.MeetingEmailHtmlBuilder;
 import com.skyzen.careers.notification.SchedulerMeetingEmailSender;
@@ -61,7 +62,17 @@ public class EvaluationNotificationFanout {
         vars.put("evaluatorName", evaluatorName);
         vars.put("scheduledDateLocal", date);
         vars.put("timezone", ev.getTimezone() != null ? ev.getTimezone() : "UTC");
-        vars.put("zoomLink", ev.getZoomJoinUrl() != null ? ev.getZoomJoinUrl() : "(link will follow)");
+        // Personalize the join URL with the intern's full name so they
+        // appear in the Zoom room as themselves (web client pre-fill via
+        // ?uname=). See MeetingLinkUtil for the mechanism + caveats.
+        String personalizedJoin = ev.getZoomJoinUrl() != null
+                ? MeetingLinkUtil.appendDisplayName(ev.getZoomJoinUrl(), intern.getFullName())
+                : "(link will follow)";
+        vars.put("zoomLink", personalizedJoin);
+        // Also expose as zoomJoinUrl so the HTML "Join Meeting" button
+        // (rendered by MeetingEmailHtmlBuilder via the dispatcher's
+        // renderAndEmail path) carries the personalized URL too.
+        vars.put("zoomJoinUrl", personalizedJoin);
         renderAndEmail("EVALUATION_SCHEDULED", intern, vars);
 
         // In-app — intern

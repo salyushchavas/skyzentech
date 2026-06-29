@@ -429,8 +429,19 @@ public class ZoomService implements MeetingProvider {
             body.put("agenda", req.agenda());
         }
         ObjectNode settings = body.putObject("settings");
-        settings.put("join_before_host", false);
-        settings.put("waiting_room", true);
+        // Waiting room OFF + join-before-host ON so the intern enters
+        // directly without sitting on the host-admission lobby. The host
+        // (ERM/trainer/evaluator) still starts the meeting via start_url
+        // when they're ready; but if the intern arrives first, they're
+        // already inside the room rather than blocked by a "waiting for
+        // host" screen. Identification of participants is handled by
+        // appending uname=<full-name> to join URLs (see MeetingLinkUtil).
+        // NOTE: Zoom account-level "Waiting Room" can be locked ON at the
+        // account tier and override this per-meeting setting — confirm
+        // in Zoom Admin > Settings > Meeting > Waiting Room is OFF (or
+        // unlocked) for this account.
+        settings.put("join_before_host", true);
+        settings.put("waiting_room", false);
         settings.put("mute_upon_entry", true);
         return body;
     }
