@@ -116,6 +116,7 @@ export default function InternProjectDetailPage() {
         <aside className="space-y-6">
           <MetaCard a={data} />
           <KtCard a={data} />
+          <DoubtCard a={data} />
           <RepositoryCard a={data} />
         </aside>
       </div>
@@ -729,6 +730,27 @@ function Row({ k, v }: { k: string; v: string }) {
       <dt className="text-slate-500">{k}</dt>
       <dd className="text-right text-slate-800">{v}</dd>
     </div>
+  );
+}
+
+function DoubtCard({ a }: { a: AssignmentSummary }) {
+  const projectId = a.project?.id;
+  const href = projectId
+    ? `/careers/intern/doubts?projectId=${projectId}&assignmentId=${a.id}`
+    : '/careers/intern/doubts';
+  return (
+    <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+      <h3 className="text-sm font-semibold text-slate-900">Stuck on this?</h3>
+      <p className="mt-1 text-xs text-slate-600">
+        Raise a doubt — your Trainer will reply or schedule a quick live session.
+      </p>
+      <Link
+        href={href}
+        className="mt-3 inline-flex items-center gap-1 rounded-md border border-brand-200 bg-brand-50 px-3 py-1.5 text-xs font-semibold text-brand-700 hover:bg-brand-100"
+      >
+        Raise a doubt <ArrowRight className="h-3 w-3" />
+      </Link>
+    </section>
   );
 }
 

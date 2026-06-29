@@ -18,6 +18,7 @@ import {
   Home,
   Inbox,
   LayoutDashboard,
+  LifeBuoy,
   ListChecks,
   Lock,
   LogOut,
@@ -72,6 +73,7 @@ const STAFF_ROLE_LINKS: Record<UserRole, StaffLink[]> = {
     { icon: Star,           label: 'Evaluations',       href: '/careers/intern/evaluations', moduleKey: 'evaluations' },
     { icon: FileText,       label: 'Documents',         href: '/careers/intern/documents',   moduleKey: 'documents' },
     { icon: MessagesSquare, label: 'Messages',          href: '/careers/intern/messages',    moduleKey: 'messages' },
+    { icon: LifeBuoy,       label: 'Doubts',            href: '/careers/intern/doubts',      moduleKey: 'doubts' },
     { icon: HelpCircle,     label: 'Help',              href: '/careers/intern/help',        moduleKey: 'help' },
   ],
   TRAINER: [
@@ -130,6 +132,7 @@ const MODULE_UNLOCK_MODE: Partial<Record<keyof InternModulesMap, string>> = {
   myProjects: 'Active Intern',
   timesheets: 'Active Intern',
   evaluations: 'Active Intern',
+  doubts: 'Active Intern',
   messages: 'Applicant',
 };
 

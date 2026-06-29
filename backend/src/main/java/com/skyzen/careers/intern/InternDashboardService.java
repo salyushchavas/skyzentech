@@ -449,11 +449,15 @@ public class InternDashboardService {
                 ? new ModuleState(true, true, false)
                 : new ModuleState(true, false, false);
 
+        // Doubts — same gating as work modules: only ACTIVE_INTERN can
+        // raise doubts; INACTIVE keeps read-only visibility for history.
+        ModuleState doubts = workModuleState(mode);
+
         // Help — always visible
         ModuleState help = new ModuleState(true, false, false);
 
         return new Modules(home, jobs, apps, interview, offer, onboarding,
-                projects, timesheets, evaluations, documents, messages, help);
+                projects, timesheets, evaluations, documents, messages, doubts, help);
     }
 
     private ModuleState workModuleState(String mode) {

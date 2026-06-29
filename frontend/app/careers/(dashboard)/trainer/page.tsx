@@ -3,6 +3,7 @@
 import { useTrainerDashboard } from '@/components/trainer/TrainerDashboardContext';
 import KPIGrid from '@/components/trainer/KPIGrid';
 import TodayMeetingsCard from '@/components/trainer/TodayMeetingsCard';
+import PendingDoubtsCard from '@/components/trainer/PendingDoubtsCard';
 import RecentActivityCard from '@/components/trainer/RecentActivityCard';
 import DashboardRefreshButton from '@/components/ui/DashboardRefreshButton';
 
@@ -54,6 +55,8 @@ export default function TrainerHomePage() {
       />
 
       <TodayMeetingsCard meetings={dashboard?.todayMeetings ?? []} />
+
+      <PendingDoubtsCard />
 
       <RecentActivityCard rows={dashboard?.recentActivity ?? []} />
 

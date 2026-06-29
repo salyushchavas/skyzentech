@@ -2,6 +2,7 @@ package com.skyzen.careers.controller;
 
 import com.skyzen.careers.integration.meeting.MeetingProvider;
 import com.skyzen.careers.integration.meeting.MeetingResponse;
+import com.skyzen.careers.repository.DoubtRequestRepository;
 import com.skyzen.careers.repository.InternEvaluationRepository;
 import com.skyzen.careers.repository.InterviewRepository;
 import com.skyzen.careers.repository.ProjectRepository;
@@ -56,6 +57,7 @@ public class MeetingHostKeyController {
     private final InterviewRepository interviewRepository;
     private final InternEvaluationRepository internEvaluationRepository;
     private final ProjectRepository projectRepository;
+    private final DoubtRequestRepository doubtRequestRepository;
 
     @GetMapping({"/{providerMeetingId}/host-start", "/{providerMeetingId}/host-key"})
     @PreAuthorize("hasAnyRole('TRAINER', 'REPORTING_MANAGER', 'MANAGER', 'ERM', 'SUPER_ADMIN')")
@@ -63,7 +65,8 @@ public class MeetingHostKeyController {
         boolean known = weeklyMeetingRepository.findFirstByZoomMeetingId(providerMeetingId).isPresent()
                 || interviewRepository.findFirstByZoomMeetingId(providerMeetingId).isPresent()
                 || internEvaluationRepository.findFirstByZoomMeetingId(providerMeetingId).isPresent()
-                || projectRepository.findFirstByKtZoomMeetingId(providerMeetingId).isPresent();
+                || projectRepository.findFirstByKtZoomMeetingId(providerMeetingId).isPresent()
+                || doubtRequestRepository.findFirstByZoomMeetingId(providerMeetingId).isPresent();
         if (!known) {
             return ResponseEntity.notFound().build();
         }
