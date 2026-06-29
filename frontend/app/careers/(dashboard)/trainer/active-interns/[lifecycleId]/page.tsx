@@ -1,7 +1,7 @@
 'use client';
 
 import { Component, useCallback, useEffect, useState, type ErrorInfo, type ReactNode } from 'react';
-import { useParams } from 'next/navigation';
+import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import api from '@/lib/api';
 import StateBadge from '@/components/trainer/StateBadge';
@@ -25,8 +25,34 @@ export default function ActiveInternDetailPage() {
   // value is neither a Promise nor a Context.
   const params = useParams<{ lifecycleId: string }>();
   const lifecycleId = params?.lifecycleId ?? '';
+  const sp = useSearchParams();
+  const router = useRouter();
   const [d, setD] = useState<ActiveInternDetail | null>(null);
   const [err, setErr] = useState<string | null>(null);
+  // One-shot: capture ?kt={projectId} on first render so even if Next
+  // strips it later (or React re-renders before we consume it) the
+  // child RecentProjectItem still gets the auto-open signal. After
+  // we've read it, strip the param from the URL so a refresh or
+  // back-navigation doesn't re-open the modal unintentionally.
+  const [autoOpenKtProjectId] = useState<string | null>(
+    () => sp?.get('kt') ?? null,
+  );
+  useEffect(() => {
+    if (autoOpenKtProjectId == null) return;
+    const remaining = new URLSearchParams(sp?.toString() ?? '');
+    remaining.delete('kt');
+    const qs = remaining.toString();
+    if (typeof window !== 'undefined') {
+      router.replace(
+        window.location.pathname + (qs ? '?' + qs : ''),
+        { scroll: false },
+      );
+    }
+    // Run once on mount; sp/router refs are stable enough for this
+    // one-shot cleanup. eslint-react-hooks would otherwise insist on
+    // adding them and re-firing on every render, which is wrong here.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const load = useCallback(async () => {
     if (!lifecycleId) return;
@@ -173,6 +199,7 @@ export default function ActiveInternDetailPage() {
                     p={p}
                     internUserId={d.intern?.userId ?? null}
                     onChanged={() => void load()}
+                    autoOpenKt={autoOpenKtProjectId === p.id}
                   />
                 </RowErrorBoundary>
               ))}
@@ -334,9 +361,19 @@ function Empty() {
 }
 
 function RecentProjectItem({
-  p, internUserId, onChanged,
-}: { p: RecentProjectRow; internUserId: string | null; onChanged: () => void }) {
-  const [ktOpen, setKtOpen] = useState(false);
+  p, internUserId, onChanged, autoOpenKt,
+}: {
+  p: RecentProjectRow;
+  internUserId: string | null;
+  onChanged: () => void;
+  /** Set true when the parent received ?kt={p.id} on the URL — the
+   *  Mark-KT-done modal opens on mount so the trainer arrives in one
+   *  click from the active-interns table KT button. One-shot: the
+   *  parent strips the query param after the first read so a refresh
+   *  doesn't re-open the modal. */
+  autoOpenKt?: boolean;
+}) {
+  const [ktOpen, setKtOpen] = useState(autoOpenKt ?? false);
   const ktDone = p.ktStatus === 'DONE';
   return (
     <li className="rounded-md border border-slate-100 p-2 text-xs">

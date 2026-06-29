@@ -66,7 +66,19 @@ export type SortKey = 'name' | 'project' | 'kt' | 'eval' | 'timesheet';
  */
 export interface RosterCellActions {
   projectAssignHref?: (row: ActiveInternRow) => string;
-  ktDetailHref?: (row: ActiveInternRow) => string;
+  /**
+   * Called when KT is actionable. The second arg carries the projectId
+   * of the FIRST not-done KT slot (or null when KtCell couldn't
+   * identify one — e.g. ProjectSlot.id was null because the slot row
+   * isn't persisted yet). The returned URL should deep-link to the
+   * intern detail page; passing the projectId lets the detail page
+   * auto-open the matching KT modal so the trainer completes the
+   * action in one click rather than two.
+   */
+  ktDetailHref?: (
+    row: ActiveInternRow,
+    options?: { projectId?: string | null },
+  ) => string;
 }
 
 interface Props {
@@ -413,8 +425,11 @@ function KtCell({
   if (slots.length === 0) {
     return <span className="text-xs text-slate-400">—</span>;
   }
-  const anyNotDone = slots.some((s) => s.ktStatus !== 'DONE');
-  const ktHref = cellActions?.ktDetailHref?.(row);
+  const firstNotDone = slots.find((s) => s.ktStatus !== 'DONE');
+  const anyNotDone = !!firstNotDone;
+  const ktHref = cellActions?.ktDetailHref?.(row, {
+    projectId: firstNotDone?.id ?? null,
+  });
   return (
     <div className="flex flex-col gap-1">
       {slots.map((s, i) => {
