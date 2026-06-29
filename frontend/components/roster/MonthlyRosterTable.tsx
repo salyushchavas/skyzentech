@@ -45,6 +45,30 @@ export type RowFilter =
 
 export type SortKey = 'name' | 'project' | 'kt' | 'eval' | 'timesheet';
 
+/**
+ * Per-cell action providers. When a builder is supplied AND the row's
+ * state matches the cell's "action needed" predicate, the cell renders
+ * a button-with-redirect instead of the passive status pill. Roles
+ * that don't own a given action (e.g. Manager + ERM for KT) just omit
+ * the builder and keep the passive rendering.
+ *
+ * Predicates per cell:
+ *   - projectAssignHref: shown when overallState ∈ {NO_PROJECTS, PARTIAL}
+ *     (a slot is empty + needs assigning).
+ *   - ktDetailHref: shown when any active project slot has
+ *     ktStatus !== 'DONE' (KT not yet completed for that project).
+ *
+ * Other cells (Training eval / Timesheets) are intentionally NOT in
+ * this interface today — the Trainer doesn't own those actions per the
+ * survey, and the brief's principle is "button ONLY when the trainer
+ * has an action". Add more builders here when a role gains a real
+ * action for those cells.
+ */
+export interface RosterCellActions {
+  projectAssignHref?: (row: ActiveInternRow) => string;
+  ktDetailHref?: (row: ActiveInternRow) => string;
+}
+
 interface Props {
   data: ActiveInternListPage | null;
   loading: boolean;
@@ -60,6 +84,11 @@ interface Props {
   renderRowExtra?: (row: ActiveInternRow, onChanged: () => void) => ReactNode;
   /** Called after a row mutation succeeds, so the parent can refetch. */
   onChanged?: () => void;
+  /** Optional per-cell action providers — when omitted the cells render
+   *  as plain status pills (current Manager + ERM behaviour). The
+   *  Trainer surface passes these so Project + KT cells become actionable
+   *  buttons that redirect to the relevant section. */
+  cellActions?: RosterCellActions;
 }
 
 const BASE_FILTERS: Array<{ key: RowFilter; label: string }> = [
@@ -75,6 +104,7 @@ const NO_MGR_FILTER = { key: 'no_manager' as RowFilter, label: 'No manager' };
 export default function MonthlyRosterTable({
   data, loading, err, periodLabel, detailHref,
   showNoManagerControls, renderRowExtra, onChanged,
+  cellActions,
 }: Props) {
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState<RowFilter>('all');
@@ -171,6 +201,7 @@ export default function MonthlyRosterTable({
                     rowExtra={renderRowExtra
                       ? renderRowExtra(r, () => onChanged?.())
                       : null}
+                    cellActions={cellActions}
                   />
                 ))}
               </tbody>
@@ -244,12 +275,13 @@ const TONE_TEXT: Record<string, string> = {
 // ── Row ──────────────────────────────────────────────────────────────────
 
 function Row({
-  row, detailHref, showNoManagerBadge, rowExtra,
+  row, detailHref, showNoManagerBadge, rowExtra, cellActions,
 }: {
   row: ActiveInternRow;
   detailHref: string;
   showNoManagerBadge: boolean;
   rowExtra: ReactNode | null;
+  cellActions?: RosterCellActions;
 }) {
   const attention = rowAttention(row);
   const noManager = row.reportingStructure?.managerId == null;
@@ -276,8 +308,8 @@ function Row({
           )}
         </Link>
       </td>
-      <td className="px-3 py-2"><ProjectCell row={row} /></td>
-      <td className="px-3 py-2"><KtCell row={row} /></td>
+      <td className="px-3 py-2"><ProjectCell row={row} cellActions={cellActions} /></td>
+      <td className="px-3 py-2"><KtCell row={row} cellActions={cellActions} /></td>
       <td className="px-3 py-2"><EvalCell row={row} /></td>
       <td className="px-3 py-2"><TimesheetCell row={row} /></td>
       <td className="px-3 py-2 text-right">
@@ -297,16 +329,48 @@ function Row({
 
 // ── Cells ────────────────────────────────────────────────────────────────
 
-function ProjectCell({ row }: { row: ActiveInternRow }) {
+function ProjectCell({
+  row, cellActions,
+}: { row: ActiveInternRow; cellActions?: RosterCellActions }) {
   const p1 = row.currentMonthProjects.project1;
   const p2 = row.currentMonthProjects.project2;
+  // Action predicate: a slot is empty + needs assigning. Mirrors the
+  // overallState field — kept inline so we don't depend on a stringly-
+  // typed enum getting out of sync with the DTO.
+  const needsAssign = !p1 || !p2;
+  const nextIndex = !p1 ? 1 : 2;
+  const assignHref = cellActions?.projectAssignHref?.(row);
+
   if (!p1 && !p2) {
+    if (assignHref) {
+      return (
+        <Link
+          href={assignHref}
+          className="inline-flex items-center gap-1 rounded-md border border-brand-300 bg-brand-50 px-2.5 py-1 text-[11px] font-semibold text-brand-800 hover:bg-brand-100"
+          title="Assign the first project for this intern"
+        >
+          Assign P1
+          <ChevronRight className="h-3 w-3" />
+        </Link>
+      );
+    }
     return <Pill tone="slate">Not assigned</Pill>;
   }
+
   return (
     <div className="flex flex-col gap-1">
       {p1 && <SlotPill slot={p1} index={1} />}
       {p2 && <SlotPill slot={p2} index={2} />}
+      {needsAssign && assignHref && (
+        <Link
+          href={assignHref}
+          className="inline-flex w-fit items-center gap-1 rounded-md border border-brand-300 bg-brand-50 px-2 py-0.5 text-[10px] font-semibold text-brand-800 hover:bg-brand-100"
+          title={`Assign project ${nextIndex} for this intern`}
+        >
+          Assign P{nextIndex}
+          <ChevronRight className="h-3 w-3" />
+        </Link>
+      )}
     </div>
   );
 }
@@ -341,12 +405,16 @@ function humanProjectStatus(status: string | null): string {
   }
 }
 
-function KtCell({ row }: { row: ActiveInternRow }) {
+function KtCell({
+  row, cellActions,
+}: { row: ActiveInternRow; cellActions?: RosterCellActions }) {
   const slots = [row.currentMonthProjects.project1, row.currentMonthProjects.project2]
     .filter(Boolean) as ProjectSlot[];
   if (slots.length === 0) {
     return <span className="text-xs text-slate-400">—</span>;
   }
+  const anyNotDone = slots.some((s) => s.ktStatus !== 'DONE');
+  const ktHref = cellActions?.ktDetailHref?.(row);
   return (
     <div className="flex flex-col gap-1">
       {slots.map((s, i) => {
@@ -369,6 +437,16 @@ function KtCell({ row }: { row: ActiveInternRow }) {
           </div>
         );
       })}
+      {anyNotDone && ktHref && (
+        <Link
+          href={ktHref}
+          className="inline-flex w-fit items-center gap-1 rounded-md border border-brand-300 bg-brand-50 px-2 py-0.5 text-[10px] font-semibold text-brand-800 hover:bg-brand-100"
+          title="Open the intern's detail page to mark KT done"
+        >
+          Mark KT done
+          <ChevronRight className="h-3 w-3" />
+        </Link>
+      )}
     </div>
   );
 }
