@@ -128,13 +128,17 @@ export default function InternProjectDetailPage() {
           <DescriptionCard a={data} />
           <TrainerFeedbackCard a={data} />
           <SubmissionCard a={data} onChanged={(next) => setData(next)} />
+          {/* Help sits at the bottom of the left column so it's right
+              there while the intern is submitting, and it also fills
+              the gap below Submit-your-work that would otherwise leave
+              the column shorter than the right rail. */}
+          <NeedHelpCard a={data} />
         </main>
         <aside className="space-y-3 lg:h-full lg:min-h-0 lg:overflow-y-auto lg:pr-1">
           <MetaCard a={data} />
           <KtCard a={data} />
           <RepositoryCard a={data} />
           <YourTeamCard />
-          <NeedHelpCard a={data} />
         </aside>
       </div>
     </InternPageShell>
