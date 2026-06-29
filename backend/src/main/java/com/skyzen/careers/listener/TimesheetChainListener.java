@@ -7,6 +7,7 @@ import com.skyzen.careers.event.TimesheetApprovedEvent;
 import com.skyzen.careers.event.TimesheetRejectedEvent;
 import com.skyzen.careers.event.TimesheetSubmittedEvent;
 import com.skyzen.careers.event.TimesheetVerifiedEvent;
+import com.skyzen.careers.notification.InternNotificationService;
 import com.skyzen.careers.notification.UserNotificationDispatcher;
 import com.skyzen.careers.repository.InternLifecycleRepository;
 import com.skyzen.careers.repository.UserRepository;
@@ -46,6 +47,7 @@ public class TimesheetChainListener {
     private final InternLifecycleRepository lifecycleRepository;
     private final UserRepository userRepository;
     private final UserNotificationDispatcher dispatcher;
+    private final InternNotificationService internNotifications;
 
     // ── Submitted → ERM ─────────────────────────────────────────────────────
 
@@ -106,6 +108,15 @@ public class TimesheetChainListener {
                     "Your timesheet was approved",
                     "Your week has been approved and is now counted toward your total hours.",
                     "/careers/intern/timesheets");
+            // Phase: Employee internal-mail — also land in the intern's
+            // company mailbox. Helper short-circuits when intern isn't
+            // ACTIVE / mailbox isn't ACTIVATED, so this is safe to call
+            // unconditionally.
+            internNotifications.notifyIntern(e.getInternUserId(),
+                    "Your timesheet was approved",
+                    "Your week has been approved and is now counted toward your total "
+                    + "hours.\n\nOpen your timesheets: /careers/intern/timesheets\n\n— Skyzen",
+                    null);
         } catch (Exception ex) {
             log.warn("[TimesheetChain] onApproved failed (non-fatal): {}", ex.getMessage());
         }
@@ -125,6 +136,12 @@ public class TimesheetChainListener {
             safeDispatch(e.getInternUserId(), "TIMESHEET_REJECTED", e.getInternUserId(),
                     "Timesheet returned for correction", body,
                     "/careers/intern/timesheets");
+            // Phase: Employee internal-mail — same body, also delivered
+            // to the company mailbox. Helper gates on active+ACTIVATED.
+            internNotifications.notifyIntern(e.getInternUserId(),
+                    "Timesheet returned for correction",
+                    body + "\n\nOpen your timesheets: /careers/intern/timesheets\n\n— Skyzen",
+                    null);
         } catch (Exception ex) {
             log.warn("[TimesheetChain] onRejected failed (non-fatal): {}", ex.getMessage());
         }

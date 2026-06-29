@@ -47,6 +47,7 @@ public class ProjectCatalogService {
             repositoryLinkRepository;
     private final InternLifecycleRepository internLifecycleRepository;
     private final UserNotificationDispatcher userNotificationDispatcher;
+    private final com.skyzen.careers.notification.InternNotificationService internNotifications;
     private final TrainerScopeGuard trainerScopeGuard;
 
     @Transactional
@@ -165,6 +166,17 @@ public class ProjectCatalogService {
             userNotificationDispatcher.dispatch(internUserId, "KT_DONE",
                     project.getKtMarkedById(), title, body,
                     "/careers/intern/projects", false);
+            // Phase: Employee internal-mail — also land this event in the
+            // intern's company mailbox. The helper short-circuits when the
+            // intern isn't activeStatus='ACTIVE' OR doesn't have a
+            // mailHandoverState=ACTIVATED mailbox; safe to call always.
+            String mailSubject = "KT marked complete — " + projectLabel;
+            String mailPlain = "Your Trainer marked KT done for "
+                    + projectLabel + "."
+                    + (project.getKtMeetingLink() != null && !project.getKtMeetingLink().isBlank()
+                        ? " The KT meeting link is available on the project page." : "")
+                    + "\n\nOpen your projects: /careers/intern/projects\n\n— Skyzen";
+            internNotifications.notifyIntern(internUserId, mailSubject, mailPlain, null);
         } catch (Exception e) {
             log.warn("[ProjectCatalogService] KT-done notify failed (non-fatal): {}",
                     e.getMessage());
