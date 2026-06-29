@@ -13,6 +13,9 @@ import {
   GitBranch,
   Github,
   GraduationCap,
+  LifeBuoy,
+  Mail,
+  MessageSquare,
   PencilLine,
   Plus,
   Send,
@@ -85,14 +88,14 @@ export default function InternProjectDetailPage() {
 
   if (loading && !data) {
     return (
-      <InternPageShell title="Project">
+      <InternPageShell title="Project" hideTracker hideRightSidePanel>
         <div className="h-48 animate-pulse rounded-lg bg-slate-100" aria-hidden />
       </InternPageShell>
     );
   }
   if (err || !data) {
     return (
-      <InternPageShell title="Project">
+      <InternPageShell title="Project" hideTracker hideRightSidePanel>
         <BackLink />
         <p className="mt-4 rounded-md border border-red-200 bg-red-50 p-4 text-sm text-red-800">
           {err ?? 'Project not found'}
@@ -104,7 +107,12 @@ export default function InternProjectDetailPage() {
   const name = data.project?.name ?? 'Project';
 
   return (
-    <InternPageShell title={name} subtitle={data.project?.techStack ?? undefined}>
+    <InternPageShell
+      title={name}
+      subtitle={data.project?.techStack ?? undefined}
+      hideTracker
+      hideRightSidePanel
+    >
       <BackLink />
       <StatusBar a={data} />
       <div className="mt-6 grid gap-6 lg:grid-cols-3">
@@ -113,11 +121,12 @@ export default function InternProjectDetailPage() {
           <TrainerFeedbackCard a={data} />
           <SubmissionCard a={data} onChanged={(next) => setData(next)} />
         </main>
-        <aside className="space-y-6">
+        <aside className="space-y-4">
           <MetaCard a={data} />
           <KtCard a={data} />
-          <DoubtCard a={data} />
           <RepositoryCard a={data} />
+          <YourTeamCard />
+          <NeedHelpCard a={data} />
         </aside>
       </div>
     </InternPageShell>
@@ -733,25 +742,125 @@ function Row({ k, v }: { k: string; v: string }) {
   );
 }
 
-function DoubtCard({ a }: { a: AssignmentSummary }) {
+/**
+ * Consolidates the three previously-scattered help affordances (Messages,
+ * Need help?, Stuck on this?) into one accent-toned card. Primary action
+ * is Raise-a-doubt (deep-links to the Doubts page with this project
+ * preselected); secondary is the message inbox.
+ */
+function NeedHelpCard({ a }: { a: AssignmentSummary }) {
   const projectId = a.project?.id;
-  const href = projectId
+  const doubtsHref = projectId
     ? `/careers/intern/doubts?projectId=${projectId}&assignmentId=${a.id}`
     : '/careers/intern/doubts';
   return (
-    <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
-      <h3 className="text-sm font-semibold text-slate-900">Stuck on this?</h3>
-      <p className="mt-1 text-xs text-slate-600">
-        Raise a doubt — your Trainer will reply or schedule a quick live session.
+    <section className="rounded-lg border border-brand-200 bg-brand-50 p-4 shadow-sm">
+      <div className="flex items-center gap-2">
+        <LifeBuoy className="h-4 w-4 text-brand-700" strokeWidth={2.2} />
+        <h3 className="text-sm font-semibold text-brand-900">Need help?</h3>
+      </div>
+      <p className="mt-1.5 text-xs text-brand-900/80">
+        Message your trainer or raise a doubt for a written reply or a live session.
       </p>
-      <Link
-        href={href}
-        className="mt-3 inline-flex items-center gap-1 rounded-md border border-brand-200 bg-brand-50 px-3 py-1.5 text-xs font-semibold text-brand-700 hover:bg-brand-100"
-      >
-        Raise a doubt <ArrowRight className="h-3 w-3" />
-      </Link>
+      <div className="mt-3 flex flex-wrap gap-2">
+        <Link
+          href={doubtsHref}
+          className="inline-flex items-center gap-1 rounded-md bg-brand-700 px-3 py-1.5 text-xs font-semibold text-white hover:bg-brand-800"
+        >
+          Raise a doubt <ArrowRight className="h-3 w-3" />
+        </Link>
+        <Link
+          href="/careers/intern/messages"
+          className="inline-flex items-center gap-1 rounded-md border border-brand-300 bg-white px-3 py-1.5 text-xs font-semibold text-brand-800 hover:bg-brand-100"
+        >
+          <MessageSquare className="h-3 w-3" /> Message
+        </Link>
+      </div>
     </section>
   );
+}
+
+/**
+ * Compact contacts card. Reuses /api/v1/intern/right-panel — the same
+ * endpoint the global RightSidePanel polls — so the Trainer / Manager /
+ * Evaluator / ERM identity surfaces here without needing a parallel
+ * source. Avatar circle on the brand palette + email row on hover.
+ */
+interface TeamContact { name: string; email: string; role: string }
+function YourTeamCard() {
+  const [contacts, setContacts] = useState<TeamContact[] | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    api.get<{
+      contacts: {
+        erm?: TeamContact | null;
+        trainer?: TeamContact | null;
+        evaluator?: TeamContact | null;
+        manager?: TeamContact | null;
+      };
+    }>('/api/v1/intern/right-panel')
+      .then((res) => {
+        if (cancelled) return;
+        const c = res.data?.contacts ?? {};
+        const out: TeamContact[] = [];
+        if (c.trainer) out.push({ ...c.trainer, role: 'Trainer' });
+        if (c.manager) out.push({ ...c.manager, role: 'Manager' });
+        if (c.evaluator) out.push({ ...c.evaluator, role: 'Evaluator' });
+        if (c.erm) out.push({ ...c.erm, role: 'ERM' });
+        setContacts(out);
+      })
+      .catch(() => { if (!cancelled) setContacts([]); });
+    return () => { cancelled = true; };
+  }, []);
+
+  return (
+    <section className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+      <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+        Your team
+      </h3>
+      {contacts === null ? (
+        <div className="mt-2 h-12 animate-pulse rounded bg-slate-50" aria-hidden />
+      ) : contacts.length === 0 ? (
+        <p className="mt-2 text-xs text-slate-500">
+          Contacts will appear here once your team is assigned.
+        </p>
+      ) : (
+        <ul className="mt-2 space-y-2">
+          {contacts.map((c) => (
+            <li key={c.role} className="flex items-center gap-2">
+              <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-brand-100 text-[10px] font-semibold text-brand-800">
+                {teamInitials(c.name)}
+              </span>
+              <div className="min-w-0 flex-1">
+                <div className="flex items-baseline gap-1.5">
+                  <span className="truncate text-xs font-medium text-slate-900">
+                    {c.name}
+                  </span>
+                  <span className="text-[10px] uppercase tracking-wide text-slate-500">
+                    {c.role}
+                  </span>
+                </div>
+                <a
+                  href={`mailto:${c.email}`}
+                  className="inline-flex items-center gap-0.5 truncate text-[11px] text-brand-700 hover:underline"
+                  title={c.email}
+                >
+                  <Mail className="h-2.5 w-2.5 shrink-0" />
+                  <span className="truncate">{c.email}</span>
+                </a>
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
+  );
+}
+
+function teamInitials(name: string): string {
+  return name.trim().split(/\s+/).slice(0, 2)
+    .map((w) => w[0]?.toUpperCase() ?? '').join('');
 }
 
 function RepositoryCard({ a }: { a: AssignmentSummary }) {
@@ -784,15 +893,36 @@ function KtCard({ a }: { a: AssignmentSummary }) {
   if (!kt) return null; // Catalog-only, no assignment → KT is N/A.
   const done = kt.status === 'DONE';
   const hasScheduledSession = !!kt.zoomMeetingId && !!kt.zoomJoinUrl;
+  // Compact branch — KT done AND no active session. Drops the whole
+  // card down to a single-line "Done · Marked {date} by {name}" so the
+  // right rail isn't dominated by a settled artifact. The notes /
+  // meeting-link details remain available on the trainer-side flow;
+  // intern can re-open via the Doubts surface if they need a refresher.
+  if (done && !hasScheduledSession) {
+    return (
+      <section className="rounded-lg border border-green-200 bg-green-50 p-3 shadow-sm">
+        <div className="flex items-center gap-2 text-xs text-green-900">
+          <GraduationCap className="h-4 w-4 text-green-700" />
+          <span className="font-semibold">KT done</span>
+          <span className="text-green-800/80">
+            {kt.completedAt ? '· ' + formatInstant(kt.completedAt) : ''}
+            {kt.markedByName ? ' · ' + kt.markedByName : ''}
+          </span>
+        </div>
+        {kt.notes && (
+          <p className="mt-1 line-clamp-2 text-[11px] text-green-900/80">
+            {kt.notes}
+          </p>
+        )}
+      </section>
+    );
+  }
+  // Expanded branch — scheduled, in-progress, or not-yet-done. Keeps
+  // the Join button + scheduled time prominent.
   return (
-    <section className={
-      'rounded-lg border p-5 shadow-sm text-sm '
-      + (done
-          ? 'border-green-200 bg-green-50'
-          : 'border-slate-200 bg-white')
-    }>
+    <section className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
       <div className="flex items-center gap-2">
-        <GraduationCap className={'h-4 w-4 ' + (done ? 'text-green-700' : 'text-slate-500')} />
+        <GraduationCap className="h-4 w-4 text-slate-500" />
         <h3 className="text-sm font-semibold text-slate-900">KT session</h3>
         <span className={
           'ml-auto rounded-full px-2 py-0.5 text-[11px] font-medium '
@@ -804,9 +934,6 @@ function KtCard({ a }: { a: AssignmentSummary }) {
         </span>
       </div>
 
-      {/* Scheduled live KT session (Zoom). Shown WHENEVER one exists —
-          independent of done/not-done; trainer can mark done at any time
-          regardless of whether a session was conducted. */}
       {hasScheduledSession && (
         <div className="mt-3 rounded-md border border-brand-200 bg-brand-50 p-3">
           <div className="flex flex-wrap items-baseline justify-between gap-2">
@@ -833,39 +960,12 @@ function KtCard({ a }: { a: AssignmentSummary }) {
         </div>
       )}
 
-      {done ? (
-        <>
-          <p className="mt-2 text-xs text-slate-600">
-            Marked on {kt.completedAt ? formatInstant(kt.completedAt) : '—'}
-            {kt.markedByName ? ' · by ' + kt.markedByName : ''}
-          </p>
-          {kt.meetingLink && (
-            <a
-              href={kt.meetingLink}
-              target="_blank"
-              rel="noreferrer"
-              className="mt-2 inline-flex items-center gap-1 break-all text-xs text-brand-700 hover:underline"
-            >
-              <Video className="h-3 w-3" /> {kt.meetingLink}
-            </a>
-          )}
-          {kt.notes && (
-            <div className="mt-2 rounded-md border border-green-200 bg-white p-2">
-              <p className="text-[11px] font-semibold uppercase tracking-wide text-green-700">
-                Notes
-              </p>
-              <p className="mt-1 whitespace-pre-wrap text-xs text-slate-700">
-                {kt.notes}
-              </p>
-            </div>
-          )}
-        </>
-      ) : !hasScheduledSession ? (
+      {!done && !hasScheduledSession && (
         <p className="mt-2 text-xs text-slate-500">
           Your trainer will schedule a Knowledge Transfer session to walk
           you through the project, then mark it done here.
         </p>
-      ) : null}
+      )}
     </section>
   );
 }
