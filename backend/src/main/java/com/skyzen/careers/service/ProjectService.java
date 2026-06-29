@@ -92,6 +92,7 @@ public class ProjectService {
     private final AuditLogRepository auditLogRepository;
     private final ObjectMapper objectMapper;
     private final com.skyzen.careers.notification.NotificationService notificationService;
+    private final com.skyzen.careers.notification.InternNotificationService internNotifications;
     private final org.springframework.context.ApplicationEventPublisher eventPublisher;
 
     // ── Supervisor: allocate ────────────────────────────────────────────────
@@ -155,6 +156,31 @@ public class ProjectService {
             notificationService.sendProjectAssigned(saved);
         } catch (Exception e) {
             log.warn("PROJECT_ASSIGNED notify failed (non-fatal) for {}: {}",
+                    saved.getId(), e.getMessage());
+        }
+        // Phase: Employee internal-mail — sendProjectAssigned above is a
+        // TYPED EmailProvider method that BridgingEmailProvider does NOT
+        // intercept (only sendRendered/sendBrandedHtml are bridged). So
+        // the intern's company mailbox wouldn't see this event via the
+        // legacy supervisor path. notifyIntern routes through the bridge
+        // explicitly and is gated on activeStatus='ACTIVE' + mailbox
+        // ACTIVATED — safe to call always; skips silently for pre-active
+        // interns and for trainer-side assignments that ALSO trigger
+        // ProjectNotificationDispatcher (which renders + bridges its own
+        // intern email, so the trainer path stays single-sent).
+        try {
+            UUID internUserId = intern.getUser() != null ? intern.getUser().getId() : null;
+            if (internUserId != null) {
+                String projectTitle = saved.getTitle() != null ? saved.getTitle() : "your project";
+                String due = saved.getDueDate() != null ? " due " + saved.getDueDate() : "";
+                String body = "You've been assigned a new project: \"" + projectTitle + "\"" + due + "."
+                        + "\n\nOpen your projects: /careers/intern/projects"
+                        + "\n\n— Skyzen";
+                internNotifications.notifyIntern(internUserId,
+                        "New project assigned: " + projectTitle, body, null);
+            }
+        } catch (Exception e) {
+            log.warn("PROJECT_ASSIGNED internal-mail notify failed (non-fatal) for {}: {}",
                     saved.getId(), e.getMessage());
         }
         return toResponse(saved);
