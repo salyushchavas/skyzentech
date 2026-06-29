@@ -285,7 +285,11 @@ public class DoubtRequestService {
     }
 
     private DoubtDtos.DoubtResponse toResponse(DoubtRequest d, boolean includeStartUrl) {
-        Map<UUID, String> names = bulkNames(List.of(
+        // List.of(...) throws NullPointerException on null elements. On a
+        // freshly-created (PENDING) doubt repliedById + resolvedById are
+        // both null, which would NPE here. Use Arrays.asList — which
+        // permits nulls — and let bulkNames filter them out.
+        Map<UUID, String> names = bulkNames(java.util.Arrays.asList(
                 d.getInternUserId(), d.getTrainerUserId(),
                 d.getRepliedById(), d.getResolvedById()));
         String internName = names.get(d.getInternUserId());
