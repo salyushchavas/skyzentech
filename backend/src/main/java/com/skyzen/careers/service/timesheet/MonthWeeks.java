@@ -10,66 +10,74 @@ import java.util.Set;
 
 /**
  * Single source of truth for the "Mon–Fri work-weeks within a month"
- * model used by the intern timesheet entry grid + the Phase A roster.
- * A work-week is Monday-anchored; a week counts as part of a month if
- * <em>any</em> of its Mon–Fri days falls in the month. Edge weeks at
- * month boundaries expose only the weekdays that fall in the requested
- * month (so neither double-counted nor missed).
+ * model used by the intern timesheet entry grid, the trainer roster
+ * timesheet column, and the ERM rollup.
  *
- * <p>Pure functions; no Spring stereotype. Mirrors the convention of
- * other lightweight helpers under {@code service.timesheet}.</p>
+ * <p><b>Bucketing rule:</b> a work-week belongs WHOLLY to the month
+ * containing its Monday. Weeks are never split across two months. So a
+ * Mon–Fri week of 2026-06-29 .. 2026-07-03 is a JUNE week — all five
+ * weekdays appear in June's list and none of them appear in July.</p>
+ *
+ * <p>This is the same rule applied by the
+ * {@code TIMESHEET_DUE} scheduler (write-side: {@code week_start}
+ * Monday determines the period), so read-side and write-side agree by
+ * construction and existing rows need no migration.</p>
+ *
+ * <p>Pure functions; no Spring stereotype.</p>
  */
 public final class MonthWeeks {
+
+    /** Weekdays returned by every {@link WorkWeek#daysInMonth()} — kept
+     *  as a constant since under the Monday's-month rule every week is
+     *  always a full Mon–Fri (no more partial weeks). */
+    private static final List<DayOfWeek> FULL_WEEK = List.of(
+            DayOfWeek.MONDAY, DayOfWeek.TUESDAY, DayOfWeek.WEDNESDAY,
+            DayOfWeek.THURSDAY, DayOfWeek.FRIDAY);
 
     private MonthWeeks() {}
 
     /** A single Mon–Fri work-week's view of a particular month. */
     public record WorkWeek(
-            /** Monday this week begins on (may be in the prior month). */
+            /** Monday this week begins on (always in the requested month). */
             LocalDate weekStart,
             /** Position within the month, 1-based — primarily for labels. */
             int weekNumber,
-            /** Weekdays Mon–Fri that fall inside the requested month. */
+            /** Weekdays Mon–Fri included in this week (always full Mon..Fri). */
             List<DayOfWeek> daysInMonth
     ) {}
 
     /**
-     * Produce the ordered list of Mon–Fri work-weeks touching the given
-     * year+month. Weekend days are never included. Edge weeks at the
-     * month boundary expose only the weekdays that actually fall in the
-     * month — e.g. for June 2026 starting on a Monday, week 1 is Mon–Fri
-     * Jun 1–5; for a month starting on a Wednesday, week 1's
-     * {@code daysInMonth} is {@code [WEDNESDAY, THURSDAY, FRIDAY]}.
+     * Produce the ordered list of Mon–Fri work-weeks belonging to the
+     * given year+month. A week belongs to the month containing its
+     * Monday — boundary weeks are NOT split.
+     *
+     * <p>Examples:</p>
+     * <ul>
+     *   <li>June 2026 (Mon Jun 1 .. Tue Jun 30) → 5 weeks, Mondays
+     *       Jun 1, 8, 15, 22, 29 (the Jun 29 week's Fri Jul 3 still
+     *       belongs to June).</li>
+     *   <li>July 2026 (Wed Jul 1 .. Fri Jul 31) → 4 weeks, Mondays
+     *       Jul 6, 13, 20, 27 (the Jun 29 week is a JUNE week, so
+     *       July's first week starts Jul 6).</li>
+     * </ul>
      */
     public static List<WorkWeek> workWeeksOf(YearMonth ym) {
         if (ym == null) throw new IllegalArgumentException("YearMonth is required");
         LocalDate monthStart = ym.atDay(1);
         LocalDate monthEnd = ym.atEndOfMonth();
 
-        // Anchor on the Monday of the week containing the first day of the month.
-        LocalDate weekStart = monthStart.with(DayOfWeek.MONDAY);
-        // If the month starts mid-week (e.g. Wed), `with(MONDAY)` returns
-        // the previous Monday — which is correct: that week is partially
-        // in the prior month, but slot 1 still anchors there.
+        // First Monday that is in this month — could be day-1 itself or
+        // up to 6 days later. The previous Monday (if any) belongs to the
+        // PRIOR month under the new bucketing rule.
+        int monStartOffset = DayOfWeek.MONDAY.getValue() - monthStart.getDayOfWeek().getValue();
+        if (monStartOffset < 0) monStartOffset += 7;
+        LocalDate weekStart = monthStart.plusDays(monStartOffset);
 
         List<WorkWeek> out = new ArrayList<>();
         int weekNumber = 0;
         while (!weekStart.isAfter(monthEnd)) {
             weekNumber++;
-            List<DayOfWeek> daysInMonth = new ArrayList<>(5);
-            for (int i = 0; i < 5; i++) { // Mon..Fri
-                LocalDate d = weekStart.plusDays(i);
-                if (!d.isBefore(monthStart) && !d.isAfter(monthEnd)) {
-                    daysInMonth.add(DayOfWeek.of(i + 1));
-                }
-            }
-            if (!daysInMonth.isEmpty()) {
-                out.add(new WorkWeek(weekStart, weekNumber, daysInMonth));
-            } else {
-                // No weekdays of this week land in the month — skip
-                // (shouldn't happen for a Mon-anchored week, but defensive).
-                weekNumber--;
-            }
+            out.add(new WorkWeek(weekStart, weekNumber, FULL_WEEK));
             weekStart = weekStart.plusDays(7);
         }
         return out;

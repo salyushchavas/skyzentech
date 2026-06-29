@@ -442,9 +442,11 @@ public class TimesheetService {
             TimesheetWeekResponse weekResp = null;
             if (t != null) {
                 weekResp = toWeekResponse(t);
-                // Only count hours for days that fall inside the
-                // requested month — edge weeks shouldn't double-count.
-                monthTotal = monthTotal.add(sumDaysInMonth(t, w));
+                // Under the Monday's-month rule each week belongs wholly
+                // to one month — sum the parent total directly.
+                if (t.getHours() != null) {
+                    monthTotal = monthTotal.add(t.getHours());
+                }
                 TimesheetStatus s = t.getStatus();
                 if (s != TimesheetStatus.DRAFT && s != TimesheetStatus.REJECTED) {
                     submitted++;
@@ -456,22 +458,6 @@ public class TimesheetService {
         monthTotal = monthTotal.setScale(2, RoundingMode.HALF_UP);
         return new InternTimesheetMonthResponse(
                 period.toString(), monthTotal, submitted, weeks.size(), entries);
-    }
-
-    private BigDecimal sumDaysInMonth(Timesheet t, MonthWeeks.WorkWeek w) {
-        BigDecimal sum = BigDecimal.ZERO;
-        if (w.daysInMonth().size() == 5) {
-            // Full week inside the month — just use the parent total.
-            return t.getHours() != null ? t.getHours() : BigDecimal.ZERO;
-        }
-        java.util.Set<DayOfWeek> inScope = MonthWeeks.asSet(w.daysInMonth());
-        for (TimesheetDay d : timesheetDayRepository
-                .findByTimesheetIdOrderByDayOfWeekAsc(t.getId())) {
-            if (inScope.contains(d.getDayOfWeek()) && d.getHours() != null) {
-                sum = sum.add(d.getHours());
-            }
-        }
-        return sum;
     }
 
     /**

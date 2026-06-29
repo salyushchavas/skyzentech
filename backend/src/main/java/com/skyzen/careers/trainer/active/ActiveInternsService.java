@@ -369,24 +369,46 @@ public class ActiveInternsService {
      */
     private TimesheetStateBlock loadMonthTimesheetState(ActiveInternRow basic, YearMonth period) {
         UUID candidateId = resolveCandidateId(basic.internLifecycleId());
-        LocalDate firstMonday = mondayOf(period.atDay(1));
+        // Single source of truth — same week list the intern view and the
+        // ERM rollup use, so counts agree by construction. A week belongs
+        // wholly to the month containing its Monday (no partial / no
+        // double-counting at the boundary).
+        List<com.skyzen.careers.service.timesheet.MonthWeeks.WorkWeek> weeks =
+                com.skyzen.careers.service.timesheet.MonthWeeks.workWeeksOf(period);
+        int expectedWeeks = weeks.size();
+        LocalDate firstMonday = weeks.isEmpty() ? mondayOf(period.atDay(1))
+                : weeks.get(0).weekStart();
         if (candidateId == null) {
             return new TimesheetStateBlock(firstMonday, "0/0", null, "MISSING",
-                    0, 0, 0, 0, 0, countMondaysInRange(firstMonday,
-                            mondayOf(period.plusMonths(1).atDay(1))));
+                    0, 0, 0, 0, 0, expectedWeeks);
         }
-        LocalDate fromWeek = firstMonday;
-        LocalDate toWeekExclusive = mondayOf(period.plusMonths(1).atDay(1));
+        // Build a Set of in-month Monday dates so the SQL pull can be
+        // filtered Java-side without smearing onto adjacent months. We
+        // also keep the range filter as a server-side narrower scan so
+        // we don't ship every timesheet row across the wire for the
+        // intern.
+        java.util.Set<LocalDate> mondaysInMonth = new java.util.HashSet<>(weeks.size());
+        for (var w : weeks) mondaysInMonth.add(w.weekStart());
+        LocalDate scanFrom = firstMonday;
+        LocalDate scanToExclusive = weeks.isEmpty()
+                ? firstMonday.plusDays(7)
+                : weeks.get(weeks.size() - 1).weekStart().plusDays(7);
+
         int approved = 0, verified = 0, submitted = 0, rejected = 0, draft = 0, total = 0;
         Instant lastApprovedAt = null;
         try {
             List<Map<String, Object>> rows = jdbc.queryForList(
-                    "SELECT status, approved_at FROM timesheets "
+                    "SELECT week_start, status, approved_at FROM timesheets "
                             + " WHERE intern_id = ? "
                             + "   AND week_start >= ? "
                             + "   AND week_start <  ? ",
-                    candidateId, fromWeek, toWeekExclusive);
+                    candidateId, scanFrom, scanToExclusive);
             for (Map<String, Object> r : rows) {
+                LocalDate weekStart = ((java.sql.Date) r.get("week_start")).toLocalDate();
+                // Skip any row whose Monday isn't in THIS month (defensive
+                // — the scan range is broad enough that adjacent-month
+                // rows could leak in if the scheduler ever wrote one).
+                if (!mondaysInMonth.contains(weekStart)) continue;
                 total++;
                 String st = (String) r.get("status");
                 if ("APPROVED".equals(st)) approved++;
@@ -402,7 +424,6 @@ public class ActiveInternsService {
         } catch (Exception e) {
             log.debug("[ActiveInterns] month timesheet load failed: {}", e.getMessage());
         }
-        int expectedWeeks = countMondaysInRange(fromWeek, toWeekExclusive);
         // Overall pill keeps the existing semantics so existing readers
         // (Phase A roster, exit checks) aren't disturbed. The new
         // per-status counts power the per-stage chip row on the cell.
@@ -416,12 +437,6 @@ public class ActiveInternsService {
         int missing = Math.max(0, expectedWeeks - total);
         return new TimesheetStateBlock(firstMonday, summary, lastApprovedAt, state,
                 submitted, verified, approved, rejected, missing, expectedWeeks);
-    }
-
-    private static int countMondaysInRange(LocalDate fromInclusive, LocalDate toExclusive) {
-        int n = 0;
-        for (LocalDate d = fromInclusive; d.isBefore(toExclusive); d = d.plusDays(7)) n++;
-        return n;
     }
 
     private MonthRosterSummary computeRosterSummary(List<ActiveInternRow> rows) {

@@ -198,12 +198,6 @@ function WeekCard({
           <h3 className="text-sm font-semibold text-slate-900">
             Week {entry.weekNumber} · {fmtDate(entry.weekStart)}–{fmtDate(addDays(entry.weekStart, 4))}
           </h3>
-          {entry.daysInMonth.length < 5 && (
-            <p className="text-[11px] text-slate-500">
-              Partial week — only the {entry.daysInMonth.length} weekday
-              {entry.daysInMonth.length === 1 ? '' : 's'} that fall in this month are shown.
-            </p>
-          )}
         </div>
         <StatusPill status={status} />
       </header>
