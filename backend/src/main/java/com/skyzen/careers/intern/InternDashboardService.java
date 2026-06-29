@@ -379,40 +379,62 @@ public class InternDashboardService {
 
     private Modules buildModules(String mode) {
         boolean inactive = "INACTIVE".equals(mode);
+        // Application-phase modules (jobs / apps / interview / offer /
+        // onboarding) are HIDDEN once the intern reaches ACTIVE_INTERN.
+        // The brief is "clean swap at the active boundary" — pre-active
+        // interns see application items only; active/inactive interns see
+        // the work workspace only (no overlap, no read-only ghost nav).
+        boolean preActive = !(inactive || "ACTIVE_INTERN".equals(mode));
 
         ModuleState home = new ModuleState(true, false, inactive);
 
-        // Job Postings
-        ModuleState jobs = switch (mode) {
-            case "APPLICANT"  -> new ModuleState(true, false, false);
-            case "INTERVIEW"  -> new ModuleState(true, false, true);
-            default           -> new ModuleState(true, true, false);
-        };
+        // Job Postings — application-phase only.
+        ModuleState jobs = preActive
+                ? switch (mode) {
+                    case "APPLICANT" -> new ModuleState(true, false, false);
+                    case "INTERVIEW" -> new ModuleState(true, false, true);
+                    default          -> new ModuleState(true, true, false);
+                }
+                : new ModuleState(false, false, false);
 
-        // My Applications — visible from APPLICANT onward; read-only past OFFER stage
-        boolean appsReadOnly = !(mode.equals("APPLICANT") || mode.equals("INTERVIEW"));
-        ModuleState apps = new ModuleState(true, false, appsReadOnly);
+        // My Applications — application-phase only; read-only past OFFER.
+        ModuleState apps;
+        if (!preActive) {
+            apps = new ModuleState(false, false, false);
+        } else {
+            boolean appsReadOnly = !(mode.equals("APPLICANT") || mode.equals("INTERVIEW"));
+            apps = new ModuleState(true, false, appsReadOnly);
+        }
 
-        // Interview Center — locked for APPLICANT, read-only past INTERVIEW
-        ModuleState interview = switch (mode) {
-            case "APPLICANT" -> new ModuleState(true, true, false);
-            case "INTERVIEW" -> new ModuleState(true, false, false);
-            default          -> new ModuleState(true, false, true);
-        };
+        // Interview Center — application-phase only.
+        ModuleState interview = preActive
+                ? switch (mode) {
+                    case "APPLICANT" -> new ModuleState(true, true, false);
+                    case "INTERVIEW" -> new ModuleState(true, false, false);
+                    default          -> new ModuleState(true, false, true);
+                }
+                : new ModuleState(false, false, false);
 
-        // Offer Letter — locked pre-OFFER; active in OFFER; signed copy after
-        ModuleState offer = switch (mode) {
-            case "APPLICANT", "INTERVIEW" -> new ModuleState(true, true, false);
-            case "OFFER"                  -> new ModuleState(true, false, false);
-            default                       -> new ModuleState(true, false, true);
-        };
+        // Offer Letter — application-phase only.
+        ModuleState offer = preActive
+                ? switch (mode) {
+                    case "APPLICANT", "INTERVIEW" -> new ModuleState(true, true, false);
+                    case "OFFER"                  -> new ModuleState(true, false, false);
+                    default                       -> new ModuleState(true, false, true);
+                }
+                : new ModuleState(false, false, false);
 
-        // Onboarding — locked pre-NEW_HIRE; active in NEW_HIRE; read-only after
-        ModuleState onboarding = switch (mode) {
-            case "APPLICANT", "INTERVIEW", "OFFER" -> new ModuleState(true, true, false);
-            case "NEW_HIRE"                        -> new ModuleState(true, false, false);
-            default                                -> new ModuleState(true, false, true);
-        };
+        // Onboarding — application-phase only (locked pre-NEW_HIRE; active
+        // in NEW_HIRE). At ACTIVE_INTERN the onboarding flow is finished;
+        // the tracker on the ERM side captures it, and the intern no
+        // longer needs an "Onboarding" item.
+        ModuleState onboarding = preActive
+                ? switch (mode) {
+                    case "APPLICANT", "INTERVIEW", "OFFER" -> new ModuleState(true, true, false);
+                    case "NEW_HIRE"                        -> new ModuleState(true, false, false);
+                    default                                -> new ModuleState(true, false, true);
+                }
+                : new ModuleState(false, false, false);
 
         // My Projects / Timesheets / Evaluations — locked until ACTIVE_INTERN
         ModuleState projects = workModuleState(mode);

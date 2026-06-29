@@ -4,6 +4,7 @@ import type { ReactNode } from 'react';
 import DashboardLayout from '@/components/dashboard/DashboardLayout';
 import ProtectedRoute from '@/components/ProtectedRoute';
 import { InternDashboardProvider } from '@/components/intern/InternDashboardContext';
+import InternModuleRouteGuard from '@/components/intern/InternModuleRouteGuard';
 
 /**
  * Intern segment layout. Every intern page lives inside:
@@ -23,6 +24,7 @@ export default function InternSegmentLayout({
   return (
     <ProtectedRoute requiredRoles={['INTERN']}>
       <InternDashboardProvider>
+        <InternModuleRouteGuard />
         <DashboardLayout>{children}</DashboardLayout>
       </InternDashboardProvider>
     </ProtectedRoute>
