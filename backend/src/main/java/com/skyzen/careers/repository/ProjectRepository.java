@@ -25,6 +25,12 @@ public interface ProjectRepository extends JpaRepository<Project, UUID> {
     List<Project> findByInternLifecycleIdOrderByMonthYearDescProjectNumberAsc(
             UUID internLifecycleId);
 
+    /** KT scheduling — used by {@code MeetingHostKeyController}'s
+     *  cross-table existence check so {@code /host-start} can return a
+     *  fresh start_url for a KT Zoom meeting. Mirrors the same shape on
+     *  WeeklyMeeting / Interview / InternEvaluation. */
+    Optional<Project> findFirstByKtZoomMeetingId(String ktZoomMeetingId);
+
 
     /**
      * Single project with engagement + supervisor + intern's user fetched

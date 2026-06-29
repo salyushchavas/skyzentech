@@ -213,6 +213,16 @@ export interface RecentProjectRow {
   ktStatus: 'NOT_DONE' | 'DONE' | null;
   ktCompletedAt: string | null;
   ktMeetingLink: string | null;
+  /** Live KT Zoom session — populated when the trainer scheduled one.
+   *  Null when no session is on the calendar. The session and the
+   *  ktStatus=DONE mark are INDEPENDENT — trainer can mark done without
+   *  ever scheduling, or schedule but not mark done. */
+  ktZoomMeetingId?: string | null;
+  ktZoomJoinUrl?: string | null;
+  ktZoomStartUrl?: string | null;
+  ktScheduledFor?: string | null;
+  ktDurationMinutes?: number | null;
+  ktTimezone?: string | null;
 }
 
 export interface RecentMeetingRow {

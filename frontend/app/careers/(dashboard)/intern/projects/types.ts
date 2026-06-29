@@ -22,6 +22,16 @@ export interface KtSummary {
   meetingLink: string | null;
   notes: string | null;
   markedByName: string | null;
+  /** Live KT session (Zoom) — null when the trainer hasn't scheduled
+   *  a live session. zoomStartUrl is host-only and the intern DTO MUST
+   *  strip it server-side; including the field here for type symmetry
+   *  with the trainer-side DTO but rendering must not surface it. */
+  zoomMeetingId?: string | null;
+  zoomJoinUrl?: string | null;
+  zoomStartUrl?: string | null;
+  scheduledFor?: string | null;
+  durationMinutes?: number | null;
+  timezone?: string | null;
 }
 
 export interface ProjectRef {

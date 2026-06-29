@@ -739,7 +739,10 @@ public class ActiveInternsService {
             return jdbc.query(
                     "SELECT p.id, p.title, p.status, p.project_number, "
                             + "       p.month_year, p.due_date, p.reviewed_at, "
-                            + "       p.kt_status, p.kt_completed_at, p.kt_meeting_link "
+                            + "       p.kt_status, p.kt_completed_at, p.kt_meeting_link, "
+                            + "       p.kt_zoom_meeting_id, p.kt_zoom_join_url, "
+                            + "       p.kt_zoom_start_url, p.kt_scheduled_for, "
+                            + "       p.kt_duration_minutes, p.kt_timezone "
                             + "  FROM projects p "
                             + " WHERE p.intern_lifecycle_id = ? "
                             + "    OR p.id IN ( "
@@ -763,6 +766,8 @@ public class ActiveInternsService {
                         // version that works against either driver behavior.
                         short pn = rs.getShort("project_number");
                         Short projectNumber = rs.wasNull() ? null : pn;
+                        int dur = rs.getInt("kt_duration_minutes");
+                        Integer ktDur = rs.wasNull() ? null : dur;
                         return new RecentProjectRow(
                                 nullableUuid(rs.getString("id")),
                                 rs.getString("title"),
@@ -774,7 +779,13 @@ public class ActiveInternsService {
                                 instantOf(rs.getTimestamp("reviewed_at")),
                                 rs.getString("kt_status"),
                                 instantOf(rs.getTimestamp("kt_completed_at")),
-                                rs.getString("kt_meeting_link"));
+                                rs.getString("kt_meeting_link"),
+                                rs.getString("kt_zoom_meeting_id"),
+                                rs.getString("kt_zoom_join_url"),
+                                rs.getString("kt_zoom_start_url"),
+                                instantOf(rs.getTimestamp("kt_scheduled_for")),
+                                ktDur,
+                                rs.getString("kt_timezone"));
                     });
         } catch (Exception e) {
             log.warn("[ActiveInterns] loadRecentProjects failed for lifecycle {}: {}",

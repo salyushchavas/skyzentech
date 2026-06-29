@@ -171,7 +171,18 @@ public final class ActiveInternsDtos {
              *  Mark KT button + the upcoming monthly-roster KT column. */
             String ktStatus,
             Instant ktCompletedAt,
-            String ktMeetingLink
+            String ktMeetingLink,
+            /** Live KT Zoom session — populated when the trainer
+             *  scheduled one via {@code POST /api/v1/projects/{id}
+             *  /kt-schedule}. Null when no session is on the calendar.
+             *  zoomStartUrl is the host-only one-click link;
+             *  intern-side DTOs MUST strip it before serialising. */
+            String ktZoomMeetingId,
+            String ktZoomJoinUrl,
+            String ktZoomStartUrl,
+            Instant ktScheduledFor,
+            Integer ktDurationMinutes,
+            String ktTimezone
     ) {}
 
     public record RecentMeetingRow(

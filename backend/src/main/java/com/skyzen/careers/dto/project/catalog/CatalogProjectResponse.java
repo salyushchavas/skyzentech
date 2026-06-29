@@ -44,6 +44,16 @@ public record CatalogProjectResponse(
             Instant completedAt,
             String meetingLink,
             String notes,
-            String markedByName
+            String markedByName,
+            /** ── KT live session (Zoom) — null when the trainer hasn't
+             *  scheduled a session for this project. {@code zoomStartUrl}
+             *  is the host-only one-click link; the controller surface
+             *  intern-side DTOs MUST strip it. */
+            String zoomMeetingId,
+            String zoomJoinUrl,
+            String zoomStartUrl,
+            Instant scheduledFor,
+            Integer durationMinutes,
+            String timezone
     ) {}
 }

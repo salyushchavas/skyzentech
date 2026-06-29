@@ -761,6 +761,7 @@ function KtCard({ a }: { a: AssignmentSummary }) {
   const kt = a.project?.kt;
   if (!kt) return null; // Catalog-only, no assignment → KT is N/A.
   const done = kt.status === 'DONE';
+  const hasScheduledSession = !!kt.zoomMeetingId && !!kt.zoomJoinUrl;
   return (
     <section className={
       'rounded-lg border p-5 shadow-sm text-sm '
@@ -780,6 +781,36 @@ function KtCard({ a }: { a: AssignmentSummary }) {
           {done ? 'Done' : 'Not done'}
         </span>
       </div>
+
+      {/* Scheduled live KT session (Zoom). Shown WHENEVER one exists —
+          independent of done/not-done; trainer can mark done at any time
+          regardless of whether a session was conducted. */}
+      {hasScheduledSession && (
+        <div className="mt-3 rounded-md border border-brand-200 bg-brand-50 p-3">
+          <div className="flex flex-wrap items-baseline justify-between gap-2">
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-brand-800">
+              Live KT session
+            </p>
+            {kt.scheduledFor && (
+              <p className="text-[11px] text-slate-700">
+                {new Date(kt.scheduledFor).toLocaleString()}
+                {kt.timezone ? ` (${kt.timezone})` : ''}
+                {kt.durationMinutes ? ` · ${kt.durationMinutes} min` : ''}
+              </p>
+            )}
+          </div>
+          <a
+            href={kt.zoomJoinUrl ?? '#'}
+            target="_blank"
+            rel="noreferrer noopener"
+            className="mt-2 inline-flex items-center gap-1.5 rounded-md bg-brand-700 px-3 py-1.5 text-xs font-semibold text-white hover:bg-brand-800"
+          >
+            <Video className="h-3.5 w-3.5" />
+            Join Meeting
+          </a>
+        </div>
+      )}
+
       {done ? (
         <>
           <p className="mt-2 text-xs text-slate-600">
@@ -807,12 +838,12 @@ function KtCard({ a }: { a: AssignmentSummary }) {
             </div>
           )}
         </>
-      ) : (
+      ) : !hasScheduledSession ? (
         <p className="mt-2 text-xs text-slate-500">
           Your trainer will schedule a Knowledge Transfer session to walk
           you through the project, then mark it done here.
         </p>
-      )}
+      ) : null}
     </section>
   );
 }

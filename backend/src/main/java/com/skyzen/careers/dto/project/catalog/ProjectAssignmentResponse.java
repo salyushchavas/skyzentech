@@ -62,7 +62,17 @@ public record ProjectAssignmentResponse(
             Instant completedAt,
             String meetingLink,
             String notes,
-            String markedByName
+            String markedByName,
+            /** Live KT session (Zoom) — null when the trainer hasn't
+             *  scheduled one. zoomStartUrl is intentionally NOT included
+             *  here (intern-side DTO must stay applicant-safe; the host
+             *  link is only surfaced via the trainer-facing
+             *  CatalogProjectResponse.KtSummary). */
+            String zoomMeetingId,
+            String zoomJoinUrl,
+            Instant scheduledFor,
+            Integer durationMinutes,
+            String timezone
     ) {}
 
     public record RepositorySummary(

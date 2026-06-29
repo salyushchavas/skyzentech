@@ -4,6 +4,7 @@ import com.skyzen.careers.integration.meeting.MeetingProvider;
 import com.skyzen.careers.integration.meeting.MeetingResponse;
 import com.skyzen.careers.repository.InternEvaluationRepository;
 import com.skyzen.careers.repository.InterviewRepository;
+import com.skyzen.careers.repository.ProjectRepository;
 import com.skyzen.careers.repository.WeeklyMeetingRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -54,13 +55,15 @@ public class MeetingHostKeyController {
     private final WeeklyMeetingRepository weeklyMeetingRepository;
     private final InterviewRepository interviewRepository;
     private final InternEvaluationRepository internEvaluationRepository;
+    private final ProjectRepository projectRepository;
 
     @GetMapping({"/{providerMeetingId}/host-start", "/{providerMeetingId}/host-key"})
     @PreAuthorize("hasAnyRole('TRAINER', 'REPORTING_MANAGER', 'MANAGER', 'ERM', 'SUPER_ADMIN')")
     public ResponseEntity<Map<String, Object>> hostStart(@PathVariable String providerMeetingId) {
         boolean known = weeklyMeetingRepository.findFirstByZoomMeetingId(providerMeetingId).isPresent()
                 || interviewRepository.findFirstByZoomMeetingId(providerMeetingId).isPresent()
-                || internEvaluationRepository.findFirstByZoomMeetingId(providerMeetingId).isPresent();
+                || internEvaluationRepository.findFirstByZoomMeetingId(providerMeetingId).isPresent()
+                || projectRepository.findFirstByKtZoomMeetingId(providerMeetingId).isPresent();
         if (!known) {
             return ResponseEntity.notFound().build();
         }

@@ -796,7 +796,15 @@ public class ProjectAssignmentService {
                 p.getKtCompletedAt(),
                 p.getKtMeetingLink(),
                 p.getKtNotes(),
-                markedByName);
+                markedByName,
+                // Live KT session (Zoom) — intern-safe fields only. The
+                // host start URL is deliberately NOT surfaced; intern
+                // sees join-only via the existing role-based pattern.
+                p.getKtZoomMeetingId(),
+                p.getKtZoomJoinUrl(),
+                p.getKtScheduledFor(),
+                p.getKtDurationMinutes(),
+                p.getKtTimezone());
     }
 
     private static ProjectAssignmentResponse.UserRef userRef(User u) {

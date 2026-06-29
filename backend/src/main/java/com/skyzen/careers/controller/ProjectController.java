@@ -111,6 +111,24 @@ public class ProjectController {
         return catalogService.markKtDone(id, req, caller);
     }
 
+    /**
+     * Trainer schedules a live KT (Knowledge Transfer) Zoom session
+     * for an assigned project. Backend creates the Zoom meeting and
+     * stores start_url + join_url on the project; intern is notified
+     * via internal mail + in-app; trainer gets the host link email.
+     * Mark-KT-done remains a separate, always-available action — no
+     * gate that requires a scheduled session first.
+     */
+    @org.springframework.web.bind.annotation.PostMapping("/{id}/kt-schedule")
+    @PreAuthorize("hasAnyRole('TRAINER', 'SUPER_ADMIN')")
+    public com.skyzen.careers.dto.project.catalog.CatalogProjectResponse scheduleKt(
+            @PathVariable UUID id,
+            @jakarta.validation.Valid @org.springframework.web.bind.annotation.RequestBody
+            com.skyzen.careers.dto.project.catalog.KtScheduleRequest req,
+            @AuthenticationPrincipal User caller) {
+        return catalogService.scheduleKt(id, req, caller);
+    }
+
     @org.springframework.web.bind.annotation.PostMapping("/catalog/{id}/repository")
     @PreAuthorize("hasAnyRole('TRAINER', 'SUPER_ADMIN')")
     public com.skyzen.careers.dto.project.catalog.CatalogProjectResponse linkRepository(
