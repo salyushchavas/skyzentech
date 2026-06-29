@@ -21,10 +21,10 @@ import { useCallback, useEffect, useState } from 'react';
 import {
   AlertCircle,
   ArrowUpRight,
-  BellRing,
   Check,
   Clock,
   ExternalLink,
+  FilePlus2,
   Lock,
   Mail,
   PartyPopper,
@@ -48,8 +48,10 @@ interface Props {
    *  itself re-fetches on every mount + on any internal action. */
   onChanged?: () => void;
   /** Parent supplies the existing modal launchers so this component
-   *  doesn't have to re-implement the company-email dialog, joining
-   *  date modal, etc. — they already exist on the detail page. */
+   *  doesn't have to re-implement the assign-packet dialog, company-
+   *  email dialog, joining date modal, etc. — they already exist on
+   *  the detail page. */
+  onOpenAssignPacketModal: () => void;
   onOpenCompanyEmailModal: () => void;
   onOpenJoiningDateModal: () => void;
   /** True iff the company email step is reachable today
@@ -65,6 +67,7 @@ interface Props {
 export default function OnboardingStepTracker({
   lifecycleId,
   onChanged,
+  onOpenAssignPacketModal,
   onOpenCompanyEmailModal,
   onOpenJoiningDateModal,
   companyEmailReady,
@@ -75,7 +78,6 @@ export default function OnboardingStepTracker({
   const [err, setErr] = useState<string | null>(null);
   const [notifyOpen, setNotifyOpen] = useState(false);
   const [activatingNow, setActivatingNow] = useState(false);
-  const [reminderState, setReminderState] = useState<'idle' | 'sending' | 'sent'>('idle');
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -94,17 +96,6 @@ export default function OnboardingStepTracker({
   }, [lifecycleId]);
 
   useEffect(() => { void load(); }, [load]);
-
-  async function sendSignatureReminder() {
-    setReminderState('sending');
-    try {
-      await api.post(`/api/v1/erm/new-hire/${lifecycleId}/signature-reminder`);
-      setReminderState('sent');
-      window.setTimeout(() => setReminderState('idle'), 4000);
-    } catch {
-      setReminderState('idle');
-    }
-  }
 
   async function activateNow() {
     if (!confirm(
@@ -175,7 +166,7 @@ export default function OnboardingStepTracker({
       </header>
 
       {/* Stepper — horizontal node row */}
-      <ol className="mt-4 grid grid-cols-6 gap-2">
+      <ol className="mt-4 grid grid-cols-5 gap-2">
         {tracker.steps.map((s, i) => (
           <StepNode
             key={s.id}
@@ -203,13 +194,12 @@ export default function OnboardingStepTracker({
             step={current}
             stepsRemaining={tracker.stepsRemaining}
             canActivate={tracker.canActivate}
-            reminderState={reminderState}
             activatingNow={activatingNow}
             mailHandoverState={mailHandoverState}
             companyEmailReady={companyEmailReady}
-            onSendReminder={sendSignatureReminder}
             onActivateNow={activateNow}
             onOpenNotifyTeam={() => setNotifyOpen(true)}
+            onOpenAssignPacketModal={onOpenAssignPacketModal}
             onOpenCompanyEmailModal={onOpenCompanyEmailModal}
             onOpenJoiningDateModal={onOpenJoiningDateModal}
           />
@@ -305,9 +295,8 @@ function nodeConfig(status: OnboardingStepStatus, isCurrent: boolean) {
 function shortLabel(label: string): string {
   // Tighten longer labels for the small step-node footprint.
   return label
-    .replace('Offer letter sent', 'Offer sent')
-    .replace('Offer accepted + signed', 'Offer signed')
-    .replace('Documents verified', 'Docs verified')
+    .replace('Assign documents', 'Assign docs')
+    .replace('Verify documents', 'Verify docs')
     .replace('Notify trainer + manager', 'Notify team')
     .replace('Mail ID + joining date', 'Mail + date')
     .replace('Activate intern', 'Activate');
@@ -316,21 +305,21 @@ function shortLabel(label: string): string {
 // ── Next action banner ──────────────────────────────────────────────────
 
 function NextActionBanner({
-  step, stepsRemaining, canActivate, reminderState, activatingNow,
+  step, stepsRemaining, canActivate, activatingNow,
   mailHandoverState, companyEmailReady,
-  onSendReminder, onActivateNow, onOpenNotifyTeam,
+  onActivateNow, onOpenNotifyTeam,
+  onOpenAssignPacketModal,
   onOpenCompanyEmailModal, onOpenJoiningDateModal,
 }: {
   step: OnboardingStep;
   stepsRemaining: number;
   canActivate: boolean;
-  reminderState: 'idle' | 'sending' | 'sent';
   activatingNow: boolean;
   mailHandoverState: 'PERSONAL' | 'PENDING_ACTIVATION' | 'ACTIVATED' | null;
   companyEmailReady: boolean;
-  onSendReminder: () => void;
   onActivateNow: () => void;
   onOpenNotifyTeam: () => void;
+  onOpenAssignPacketModal: () => void;
   onOpenCompanyEmailModal: () => void;
   onOpenJoiningDateModal: () => void;
 }) {
@@ -389,13 +378,12 @@ function NextActionBanner({
             step={step}
             stepsRemaining={stepsRemaining}
             canActivate={canActivate}
-            reminderState={reminderState}
             activatingNow={activatingNow}
             mailHandoverState={mailHandoverState}
             companyEmailReady={companyEmailReady}
-            onSendReminder={onSendReminder}
             onActivateNow={onActivateNow}
             onOpenNotifyTeam={onOpenNotifyTeam}
+            onOpenAssignPacketModal={onOpenAssignPacketModal}
             onOpenCompanyEmailModal={onOpenCompanyEmailModal}
             onOpenJoiningDateModal={onOpenJoiningDateModal}
           />
@@ -406,21 +394,21 @@ function NextActionBanner({
 }
 
 function ActionAffordance({
-  step, stepsRemaining, canActivate, reminderState, activatingNow,
+  step, stepsRemaining, canActivate, activatingNow,
   mailHandoverState, companyEmailReady,
-  onSendReminder, onActivateNow, onOpenNotifyTeam,
+  onActivateNow, onOpenNotifyTeam,
+  onOpenAssignPacketModal,
   onOpenCompanyEmailModal, onOpenJoiningDateModal,
 }: {
   step: OnboardingStep;
   stepsRemaining: number;
   canActivate: boolean;
-  reminderState: 'idle' | 'sending' | 'sent';
   activatingNow: boolean;
   mailHandoverState: 'PERSONAL' | 'PENDING_ACTIVATION' | 'ACTIVATED' | null;
   companyEmailReady: boolean;
-  onSendReminder: () => void;
   onActivateNow: () => void;
   onOpenNotifyTeam: () => void;
+  onOpenAssignPacketModal: () => void;
   onOpenCompanyEmailModal: () => void;
   onOpenJoiningDateModal: () => void;
 }) {
@@ -442,25 +430,15 @@ function ActionAffordance({
 
   // WAIT_REMINDER — offer signature or doc-submission waits.
   if (step.actionType === 'WAIT_REMINDER') {
-    const reminderLabel = reminderState === 'sending' ? 'Sending…'
-      : reminderState === 'sent' ? 'Reminder sent ✓'
-      : 'Send reminder';
+    // Currently the only WAIT_REMINDER case is DOCS_VERIFIED while the
+    // intern is still filling the packet. ERM jumps to the review screen
+    // to nudge / inspect; the review screen owns the reminder UX itself.
     return (
       <>
         <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2.5 py-0.5 text-[11px] font-semibold text-amber-800 ring-1 ring-amber-200">
           <Clock className="h-3 w-3" /> Waiting on intern
         </span>
-        {step.id === 'OFFER_SIGNED' ? (
-          <button
-            type="button"
-            onClick={onSendReminder}
-            disabled={reminderState === 'sending'}
-            className="inline-flex items-center gap-1.5 rounded-md border border-brand-300 bg-white px-3 py-2 text-xs font-semibold text-brand-800 hover:bg-brand-50 disabled:opacity-60"
-          >
-            <BellRing className="h-3.5 w-3.5" />
-            {reminderLabel}
-          </button>
-        ) : step.redirectHref ? (
+        {step.redirectHref && (
           <a
             href={step.redirectHref}
             className="inline-flex items-center gap-1.5 rounded-md border border-brand-300 bg-white px-3 py-2 text-xs font-semibold text-brand-800 hover:bg-brand-50"
@@ -468,7 +446,7 @@ function ActionAffordance({
             <ExternalLink className="h-3.5 w-3.5" />
             Open review screen
           </a>
-        ) : null}
+        )}
       </>
     );
   }
@@ -488,6 +466,17 @@ function ActionAffordance({
 
   // MODAL — per-step launcher.
   if (step.actionType === 'MODAL') {
+    if (step.id === 'DOCS_ASSIGNED') {
+      return (
+        <button
+          type="button"
+          onClick={onOpenAssignPacketModal}
+          className="inline-flex items-center gap-1.5 rounded-md bg-brand-700 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-brand-800"
+        >
+          <FilePlus2 className="h-4 w-4" /> Assign documents
+        </button>
+      );
+    }
     if (step.id === 'TEAM_NOTIFIED') {
       return (
         <button
@@ -541,13 +530,7 @@ function ActionAffordance({
         </button>
       );
     }
-    // OFFER_SENT fallback (rare on this surface — InternLifecycle is
-    // only created post-sign).
-    return (
-      <span className="text-[11px] text-slate-500">
-        Open the Offers workspace.
-      </span>
-    );
+    return null;
   }
 
   return null;

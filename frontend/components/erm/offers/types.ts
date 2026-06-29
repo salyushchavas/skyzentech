@@ -120,8 +120,7 @@ export interface NewHireRow {
   canActivate: boolean | null;
   /** Current step id from OnboardingTrackerDtos.StepId, null when all done. */
   currentStepId:
-    | 'OFFER_SENT'
-    | 'OFFER_SIGNED'
+    | 'DOCS_ASSIGNED'
     | 'DOCS_VERIFIED'
     | 'TEAM_NOTIFIED'
     | 'MAIL_AND_JOINING'

@@ -5,7 +5,6 @@ import com.skyzen.careers.entity.Offer;
 import com.skyzen.careers.entity.User;
 import com.skyzen.careers.enums.InternLifecycleStatus;
 import com.skyzen.careers.enums.MailHandoverState;
-import com.skyzen.careers.enums.OfferStatus;
 import com.skyzen.careers.erm.newhire.OnboardingTrackerDtos.ActionType;
 import com.skyzen.careers.erm.newhire.OnboardingTrackerDtos.OnboardingStep;
 import com.skyzen.careers.erm.newhire.OnboardingTrackerDtos.OnboardingTracker;
@@ -207,35 +206,36 @@ public class OnboardingTrackerService {
     // ── Internals ────────────────────────────────────────────────────────────
 
     private OnboardingTracker build(InternLifecycle lc, User intern, Offer latestOffer) {
-        boolean offerSent = latestOffer != null
-                && (latestOffer.getStatus() == OfferStatus.SENT
-                    || latestOffer.getStatus() == OfferStatus.SIGNED
-                    || latestOffer.getSentAt() != null);
-        boolean offerSigned = latestOffer != null
-                && (latestOffer.getStatus() == OfferStatus.SIGNED
-                    || latestOffer.getSignedAt() != null);
+        // Offer state is no longer surfaced as tracker steps (the offer is
+        // already signed when an InternLifecycle row exists; the two prior
+        // OFFER_SENT/OFFER_SIGNED steps were always DONE on this surface
+        // and just added noise). The Offer arg is kept on the build()
+        // signature so legacy callers don't break — unused here.
         boolean docsAccepted = intern != null
                 && intern.getLifecycleStatus() != null
                 && (intern.getLifecycleStatus() == InternLifecycleStatus.ONBOARDING_ACCEPTED
                     || intern.getLifecycleStatus() == InternLifecycleStatus.ACTIVE_INTERN
                     || intern.getLifecycleStatus() == InternLifecycleStatus.INACTIVE_INTERN);
         String packetStatus = loadPacketStatus(lc.getId());
+        boolean docsAssigned = packetStatus != null; // any packet row = assigned
         boolean teamNotified = lc.getTeamNotifiedAt() != null;
         boolean mailActivated = intern != null
                 && intern.getMailHandoverState() == MailHandoverState.ACTIVATED;
         boolean joiningSet = lc.getJoiningDate() != null;
         boolean mailAndJoiningDone = mailActivated && joiningSet;
         boolean active = "ACTIVE".equals(lc.getActiveStatus());
+        // Silence "unused" on the kept-for-back-compat offer param.
+        @SuppressWarnings("unused")
+        Offer _unusedOffer = latestOffer;
 
-        List<OnboardingStep> steps = new ArrayList<>(6);
-        steps.add(buildOfferSent(latestOffer, offerSent));
-        steps.add(buildOfferSigned(latestOffer, offerSigned));
-        steps.add(buildDocsVerified(lc, docsAccepted, packetStatus, offerSigned));
+        List<OnboardingStep> steps = new ArrayList<>(5);
+        steps.add(buildDocsAssigned(lc, docsAssigned, docsAccepted));
+        steps.add(buildDocsVerified(lc, docsAccepted, packetStatus, docsAssigned));
         steps.add(buildTeamNotified(lc, teamNotified, docsAccepted));
         steps.add(buildMailAndJoining(lc, mailActivated, joiningSet,
                 mailAndJoiningDone, teamNotified, docsAccepted));
         steps.add(buildActivate(lc, active,
-                offerSent, offerSigned, docsAccepted, teamNotified, mailAndJoiningDone));
+                docsAssigned, docsAccepted, teamNotified, mailAndJoiningDone));
 
         // First non-DONE step becomes CURRENT (unless it's already WAITING_INTERN
         // or LOCKED — those statuses are sticky). The tracker exposes a single
@@ -256,75 +256,67 @@ public class OnboardingTrackerService {
         String nextStepLabel = current == null ? null
                 : (current.status() == StepStatus.WAITING_INTERN ? "waiting on intern — "
                     : "needs ") + current.label().toLowerCase();
-        boolean canActivate = offerSent && offerSigned && docsAccepted
+        boolean canActivate = docsAssigned && docsAccepted
                 && teamNotified && mailAndJoiningDone;
 
         return new OnboardingTracker(
                 lc.getId(), steps, currentStepId,
-                stepsCompleted, 6, 6 - stepsCompleted,
+                stepsCompleted, 5, 5 - stepsCompleted,
                 nextStepLabel, canActivate);
     }
 
-    private OnboardingStep buildOfferSent(Offer offer, boolean sent) {
-        if (sent) {
-            return new OnboardingStep(StepId.OFFER_SENT, "Offer letter sent",
-                    StepStatus.DONE, StepActor.ERM, ActionType.NONE,
-                    offer != null ? offer.getSentAt() : null,
-                    null, null, List.of());
-        }
-        // Realistically unreachable on this surface (InternLifecycle only
-        // exists post-sign), but kept defensively so an admin-side query
-        // for an in-progress lifecycle returns something coherent.
-        return new OnboardingStep(StepId.OFFER_SENT, "Offer letter sent",
-                StepStatus.CURRENT, StepActor.ERM, ActionType.MODAL,
-                null,
-                "Send the offer letter to the candidate from the Offers workspace.",
-                null, List.of());
-    }
-
-    private OnboardingStep buildOfferSigned(Offer offer, boolean signed) {
-        if (signed) {
-            return new OnboardingStep(StepId.OFFER_SIGNED, "Offer accepted + signed",
-                    StepStatus.DONE, StepActor.INTERN, ActionType.NONE,
-                    offer != null ? offer.getSignedAt() : null,
-                    null, null, List.of());
-        }
-        return new OnboardingStep(StepId.OFFER_SIGNED, "Offer accepted + signed",
-                StepStatus.WAITING_INTERN, StepActor.INTERN, ActionType.WAIT_REMINDER,
-                null,
-                "Waiting for the candidate to sign their offer. You can send a reminder.",
-                null, List.of());
-    }
-
-    private OnboardingStep buildDocsVerified(InternLifecycle lc, boolean done,
-                                              String packetStatus, boolean offerSigned) {
-        if (done) {
-            return new OnboardingStep(StepId.DOCS_VERIFIED, "Documents verified",
+    private OnboardingStep buildDocsAssigned(InternLifecycle lc, boolean assigned,
+                                              boolean docsAccepted) {
+        // Once docs are accepted (or any later state), the assign step is
+        // implicitly DONE too — defensive in case a packet row was deleted
+        // without the lifecycle being rolled back.
+        if (assigned || docsAccepted) {
+            return new OnboardingStep(StepId.DOCS_ASSIGNED, "Assign documents",
                     StepStatus.DONE, StepActor.ERM, ActionType.NONE,
                     null, null, null, List.of());
         }
-        if (!offerSigned) {
-            return new OnboardingStep(StepId.DOCS_VERIFIED, "Documents verified",
-                    StepStatus.PENDING, StepActor.ERM, ActionType.NONE,
-                    null, "Available once the offer is signed.", null, List.of());
+        // No packet on file — ERM opens the AssignPacketModal on the
+        // detail page. The redirect href returns the user to the same
+        // detail page (where the tracker is mounted); the frontend
+        // tracker also exposes an explicit "open packet modal" callback
+        // wired by the detail page so a click can launch the modal
+        // without a navigation round-trip.
+        return new OnboardingStep(StepId.DOCS_ASSIGNED, "Assign documents",
+                StepStatus.CURRENT, StepActor.ERM, ActionType.MODAL,
+                null,
+                "Assign the intern's document packet so they can start uploading.",
+                "/careers/erm/new-hire/" + lc.getId(), List.of());
+    }
+
+    private OnboardingStep buildDocsVerified(InternLifecycle lc, boolean done,
+                                              String packetStatus, boolean docsAssigned) {
+        if (done) {
+            return new OnboardingStep(StepId.DOCS_VERIFIED, "Verify documents",
+                    StepStatus.DONE, StepActor.ERM, ActionType.NONE,
+                    null, null, null, List.of());
         }
-        // Packet not yet assigned, OR assigned but intern is still filling.
+        if (!docsAssigned) {
+            return new OnboardingStep(StepId.DOCS_VERIFIED, "Verify documents",
+                    StepStatus.PENDING, StepActor.ERM, ActionType.NONE,
+                    null, "Available once the document packet is assigned.",
+                    null, List.of());
+        }
+        // Packet assigned but intern is still filling.
         boolean waitingOnIntern = "ASSIGNED".equalsIgnoreCase(packetStatus)
                 || "IN_PROGRESS".equalsIgnoreCase(packetStatus);
         if (waitingOnIntern) {
-            return new OnboardingStep(StepId.DOCS_VERIFIED, "Documents verified",
+            return new OnboardingStep(StepId.DOCS_VERIFIED, "Verify documents",
                     StepStatus.WAITING_INTERN, StepActor.INTERN, ActionType.WAIT_REMINDER,
                     null,
-                    "Waiting for the intern to complete + submit their document packet.",
+                    "Waiting for the intern to complete + submit their document packet. "
+                            + "Open the review screen to nudge them or follow up.",
                     "/careers/erm/document-review/" + lc.getId(), List.of());
         }
-        // Either nothing assigned yet, or ALL_SUBMITTED needing ERM review.
-        String help = packetStatus == null
-                ? "Assign a document packet from the Documents workspace, then verify each item."
-                : "Intern submitted documents — review and accept each one to move forward.";
-        return new OnboardingStep(StepId.DOCS_VERIFIED, "Documents verified",
+        // ALL_SUBMITTED or similar — needs ERM review/acceptance.
+        return new OnboardingStep(StepId.DOCS_VERIFIED, "Verify documents",
                 StepStatus.CURRENT, StepActor.ERM, ActionType.REDIRECT,
-                null, help,
+                null,
+                "Intern submitted documents — review and accept each one to move forward.",
                 "/careers/erm/document-review/" + lc.getId(), List.of());
     }
 
@@ -374,7 +366,7 @@ public class OnboardingTrackerService {
     }
 
     private OnboardingStep buildActivate(InternLifecycle lc, boolean active,
-                                          boolean offerSent, boolean offerSigned,
+                                          boolean docsAssigned,
                                           boolean docsAccepted, boolean teamNotified,
                                           boolean mailAndJoiningDone) {
         if (active) {
@@ -382,7 +374,7 @@ public class OnboardingTrackerService {
                     StepStatus.DONE, StepActor.SYSTEM, ActionType.NONE,
                     lc.getStartedAt(), null, null, List.of());
         }
-        boolean allPrior = offerSent && offerSigned && docsAccepted
+        boolean allPrior = docsAssigned && docsAccepted
                 && teamNotified && mailAndJoiningDone;
         if (!allPrior) {
             return new OnboardingStep(StepId.ACTIVATE, "Activate intern",

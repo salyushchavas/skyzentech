@@ -105,6 +105,7 @@ export default function NewHireDetailPage() {
             <OnboardingStepTracker
               lifecycleId={data.internLifecycleId}
               onChanged={() => void load()}
+              onOpenAssignPacketModal={() => setModal('packet')}
               onOpenCompanyEmailModal={() => setModal('companyEmail')}
               onOpenJoiningDateModal={() => setModal('joining')}
               companyEmailReady={

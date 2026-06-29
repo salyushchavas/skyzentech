@@ -4,8 +4,7 @@
 // the right action component (modal / redirect / waiting+reminder / gated).
 
 export type OnboardingStepId =
-  | 'OFFER_SENT'
-  | 'OFFER_SIGNED'
+  | 'DOCS_ASSIGNED'
   | 'DOCS_VERIFIED'
   | 'TEAM_NOTIFIED'
   | 'MAIL_AND_JOINING'

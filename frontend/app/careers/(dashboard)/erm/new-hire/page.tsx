@@ -30,12 +30,10 @@ import {
   ArrowRight,
   CheckCircle2,
   ChevronRight,
-  Clock,
   ExternalLink,
   FileCheck,
-  KeyRound,
+  FilePlus2,
   Mail,
-  Send,
   Sparkles,
   Users,
   Zap,
@@ -51,16 +49,14 @@ import type {
 
 // ── Stage derivation ─────────────────────────────────────────────────────
 
-type Stage = 'OFFER' | 'DOCUMENTS' | 'SETUP' | 'READY' | 'ACTIVE';
+type Stage = 'DOCUMENTS' | 'SETUP' | 'READY' | 'ACTIVE';
 
 function stageOf(row: NewHireRow): Stage {
   if (row.stepsCompleted != null && row.stepsTotal != null
       && row.stepsCompleted === row.stepsTotal) return 'ACTIVE';
   if (row.canActivate) return 'READY';
   switch (row.currentStepId) {
-    case 'OFFER_SENT':
-    case 'OFFER_SIGNED':
-      return 'OFFER';
+    case 'DOCS_ASSIGNED':
     case 'DOCS_VERIFIED':
       return 'DOCUMENTS';
     case 'TEAM_NOTIFIED':
@@ -68,14 +64,13 @@ function stageOf(row: NewHireRow): Stage {
     case 'ACTIVATE':
       return 'SETUP';
     default:
-      // No tracker data yet (older client / new lifecycle) — fall back
-      // to OFFER so the row stays visible under the default sort.
-      return 'OFFER';
+      // No tracker data yet (older client / brand new lifecycle) — fall
+      // back to DOCUMENTS so the row stays visible under the default sort.
+      return 'DOCUMENTS';
   }
 }
 
 const STAGE_LABEL: Record<Stage, string> = {
-  OFFER: 'Offer',
   DOCUMENTS: 'Documents',
   SETUP: 'Setup',
   READY: 'Ready to activate',
@@ -84,7 +79,6 @@ const STAGE_LABEL: Record<Stage, string> = {
 
 function stagePillClasses(stage: Stage): string {
   switch (stage) {
-    case 'OFFER':     return 'bg-amber-50 text-amber-800 ring-amber-200';
     case 'DOCUMENTS': return 'bg-brand-50 text-brand-800 ring-brand-200';
     case 'SETUP':     return 'bg-brand-50 text-brand-800 ring-brand-200';
     case 'READY':     return 'bg-accent/15 text-accent-dark ring-accent/30';
@@ -92,10 +86,10 @@ function stagePillClasses(stage: Stage): string {
   }
 }
 
-// Action-needed first (Setup → Documents → Ready), then Offer (waiting
-// on intern), then Active. Within a stage, most recently signed first.
+// Action-needed first (Setup → Documents → Ready), then Active.
+// Within a stage, most recently signed first.
 const STAGE_PRIORITY: Record<Stage, number> = {
-  SETUP: 0, DOCUMENTS: 1, READY: 2, OFFER: 3, ACTIVE: 4,
+  SETUP: 0, DOCUMENTS: 1, READY: 2, ACTIVE: 3,
 };
 
 // ── Deep-link mapping ────────────────────────────────────────────────────
@@ -109,24 +103,19 @@ interface NextActionTarget {
 
 function nextActionFor(row: NewHireRow): NextActionTarget {
   const detailHref = `/careers/erm/new-hire/${row.internLifecycleId}`;
-  // 6/6 — fully active.
+  // 5/5 — fully active.
   if (row.stepsCompleted != null && row.stepsTotal != null
       && row.stepsCompleted === row.stepsTotal) {
     return { href: detailHref, label: 'View intern', icon: CheckCircle2 };
   }
   switch (row.currentStepId) {
-    case 'OFFER_SENT':
-      return { href: detailHref, label: 'Send the offer', icon: Send };
-    case 'OFFER_SIGNED':
-      return {
-        href: detailHref,
-        label: 'Waiting on signature',
-        icon: Clock,
-        waiting: true,
-      };
+    case 'DOCS_ASSIGNED':
+      // The packet assign is a modal on the detail page; the tracker
+      // there auto-opens it via its onOpenAssignPacketModal callback.
+      return { href: detailHref, label: 'Assign documents', icon: FilePlus2 };
     case 'DOCS_VERIFIED':
-      // Direct redirect to the existing review screen — the one separate
-      // surface (everything else lives on the detail-page tracker).
+      // Direct redirect to the existing review screen — the one
+      // separate surface (everything else lives on the detail tracker).
       return {
         href: `/careers/erm/document-review/${row.internLifecycleId}`,
         label: 'Review documents',
@@ -152,7 +141,6 @@ const FILTERS: { key: FilterKey; label: string }[] = [
   { key: 'SETUP',     label: 'Setup' },
   { key: 'DOCUMENTS', label: 'Documents' },
   { key: 'READY',     label: 'Ready' },
-  { key: 'OFFER',     label: 'Offer' },
   { key: 'ACTIVE',    label: 'Active' },
 ];
 
@@ -216,7 +204,7 @@ function NewHireListInner() {
 
   const counts = useMemo(() => {
     const c: Record<Stage, number> = {
-      OFFER: 0, DOCUMENTS: 0, SETUP: 0, READY: 0, ACTIVE: 0,
+      DOCUMENTS: 0, SETUP: 0, READY: 0, ACTIVE: 0,
     };
     for (const r of sorted) c[stageOf(r)] += 1;
     return c;
@@ -548,6 +536,3 @@ function Pagination({
   );
 }
 
-// KeyRound is imported for future use (mail-id deep links); silence
-// the unused warning explicitly so tsc passes with strict checks.
-void KeyRound;

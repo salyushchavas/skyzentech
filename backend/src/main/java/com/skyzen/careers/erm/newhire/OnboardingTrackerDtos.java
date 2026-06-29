@@ -6,7 +6,7 @@ import java.util.UUID;
 
 /**
  * Wire shapes for the ERM "selected → active intern" onboarding tracker.
- * The tracker exposes a fixed 6-step pipeline with per-step statuses so
+ * The tracker exposes a fixed 5-step pipeline with per-step statuses so
  * the frontend can render a stepper + a single "Next action" banner that
  * always tells the ERM where to look next.
  *
@@ -14,6 +14,12 @@ import java.util.UUID;
  * the frontend to pick the right action component (modal launcher,
  * redirect link, waiting+reminder pair, gated activate button). Don't
  * rename them without coordinating with the frontend.</p>
+ *
+ * <p>The pipeline starts at "Assign documents" rather than "Offer sent".
+ * Both offer-related steps were dropped: by the time a row appears in
+ * the New Hire List, the offer is already SENT + SIGNED (that's the
+ * entry condition for an InternLifecycle row to exist), so rendering
+ * them as separate steps was just noise.</p>
  */
 public final class OnboardingTrackerDtos {
 
@@ -21,8 +27,7 @@ public final class OnboardingTrackerDtos {
 
     /** Fixed step IDs. Order in the enum is the display order. */
     public enum StepId {
-        OFFER_SENT,
-        OFFER_SIGNED,
+        DOCS_ASSIGNED,
         DOCS_VERIFIED,
         TEAM_NOTIFIED,
         MAIL_AND_JOINING,
@@ -87,7 +92,7 @@ public final class OnboardingTrackerDtos {
 
     /**
      * Top-level tracker payload. {@code stepsRemaining} is a convenience
-     * the list page uses for the "N/6 · needs X" badge so callers don't
+     * the list page uses for the "N/5 · needs X" badge so callers don't
      * have to count DONE entries themselves.
      */
     public record OnboardingTracker(
