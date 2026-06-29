@@ -48,6 +48,7 @@ public class ProjectNotificationDispatcher {
     private final EmailProvider emailProvider;
     private final UserNotificationDispatcher inApp;
     private final OrgTeamResolver orgTeamResolver;
+    private final com.skyzen.careers.notification.InternNotificationService internNotifications;
 
     public void dispatchProjectAssigned(Project project, InternLifecycle lc,
                                          User trainer, boolean notifyStakeholders,
@@ -87,19 +88,31 @@ public class ProjectNotificationDispatcher {
         String deepLinkStaff = "/careers/trainer/active-interns/" + lc.getId();
 
         // ── 1) Intern (always) ───────────────────────────────────────────
+        // Model A — system sends the mail; the body names the actor + role
+        // ("<Trainer name>, your Trainer, has assigned..."). Replaces the
+        // previous PROJECT_ASSIGNED template render so the explicit wording
+        // is the source of truth for intern delivery and lands directly in
+        // the company mailbox via InternNotificationService.
         try {
-            Map<String, Object> vars = new LinkedHashMap<>();
-            vars.put("firstName", firstName(intern));
-            vars.put("trainerName", nz(trainer.getFullName()));
-            vars.put("projectTitle", nz(project.getTitle()));
-            vars.put("technologyArea", nz(project.getTechStack()));
-            vars.put("dueDateLocal", dueDateLocal);
-            vars.put("deepLink", deepLinkIntern);
-            renderAndSend("PROJECT_ASSIGNED", vars, intern);
+            String actorPhrase = trainer.getFullName() != null
+                    && !trainer.getFullName().isBlank()
+                    ? trainer.getFullName() + ", your Trainer,"
+                    : "Your Trainer";
+            String projectTitle = nz(project.getTitle());
+            String subject = "New project assigned by your Trainer: " + projectTitle;
+            String plain = "Hi " + firstName(intern) + ",\n\n"
+                    + actorPhrase + " has assigned you a new project: \""
+                    + projectTitle + "\""
+                    + (project.getDueDate() != null ? " due " + dueDateLocal : "")
+                    + (project.getTechStack() != null && !project.getTechStack().isBlank()
+                        ? " (tech: " + project.getTechStack() + ")" : "")
+                    + ".\n\nOpen the project: " + deepLinkIntern
+                    + "\n\n— Skyzen";
+            internNotifications.notifyIntern(intern.getId(), subject, plain, null);
             inApp.dispatch(intern.getId(), "PROJECT_ASSIGNED",
                     intern.getId(),
-                    "New project: " + project.getTitle(),
-                    "Your trainer assigned a project due " + dueDateLocal + ".",
+                    "New project assigned by your Trainer: " + projectTitle,
+                    actorPhrase + " assigned a project due " + dueDateLocal + ".",
                     deepLinkIntern, true);
         } catch (Exception e) {
             log.warn("[ProjectNotify] intern dispatch failed: {}", e.getMessage());

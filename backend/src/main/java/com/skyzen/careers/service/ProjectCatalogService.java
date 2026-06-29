@@ -249,12 +249,17 @@ public class ProjectCatalogService {
                     ? project.getKtScheduledFor().toString() : "TBD";
             String tz = project.getKtTimezone() != null ? project.getKtTimezone() : "UTC";
 
+            // Actor + role per Model A: "<Name>, your Trainer, ..."
+            String actorPhrase = trainer != null && trainer.getFullName() != null
+                    ? trainer.getFullName() + ", your Trainer,"
+                    : "Your Trainer";
+
             // Intern: in-app
             try {
                 userNotificationDispatcher.dispatch(intern.getId(), "KT_SCHEDULED",
                         trainer != null ? trainer.getId() : null,
-                        "KT session scheduled — " + projectLabel,
-                        "Your trainer scheduled a KT session for " + projectLabel
+                        "KT session scheduled by your Trainer — " + projectLabel,
+                        actorPhrase + " scheduled a KT session for " + projectLabel
                                 + " on " + when + " (" + tz + ").",
                         "/careers/intern/projects", true);
             } catch (Exception e) {
@@ -262,7 +267,7 @@ public class ProjectCatalogService {
             }
 
             // Intern: internal mail (active interns with ACTIVATED mailbox only)
-            String body = "Your trainer scheduled a KT session for \"" + projectLabel
+            String body = actorPhrase + " scheduled a KT session for \"" + projectLabel
                     + "\" on " + when + " (" + tz + "), "
                     + (project.getKtDurationMinutes() != null
                         ? project.getKtDurationMinutes() : 30)
@@ -272,7 +277,7 @@ public class ProjectCatalogService {
                     + "\n\nOpen your projects: /careers/intern/projects"
                     + "\n\n— Skyzen";
             internNotifications.notifyIntern(intern.getId(),
-                    "KT session scheduled — " + projectLabel, body, null);
+                    "KT session scheduled by your Trainer — " + projectLabel, body, null);
 
             // Trainer: host-link email (mirrors WeeklyMeeting trainer email).
             if (trainer != null && trainer.getEmail() != null && !trainer.getEmail().isBlank()) {
@@ -340,8 +345,17 @@ public class ProjectCatalogService {
             // intern's company mailbox. The helper short-circuits when the
             // intern isn't activeStatus='ACTIVE' OR doesn't have a
             // mailHandoverState=ACTIVATED mailbox; safe to call always.
-            String mailSubject = "KT marked complete — " + projectLabel;
-            String mailPlain = "Your Trainer marked KT done for "
+            //
+            // Actor + role per Model A: "<Name>, your Trainer, ...". The
+            // trainer is the user who marked KT done (project.kt_marked_by_id).
+            User actor = project.getKtMarkedById() != null
+                    ? userRepository.findById(project.getKtMarkedById()).orElse(null)
+                    : null;
+            String actorPhrase = actor != null && actor.getFullName() != null
+                    ? actor.getFullName() + ", your Trainer,"
+                    : "Your Trainer";
+            String mailSubject = "KT marked complete by your Trainer — " + projectLabel;
+            String mailPlain = actorPhrase + " marked KT done for "
                     + projectLabel + "."
                     + (project.getKtMeetingLink() != null && !project.getKtMeetingLink().isBlank()
                         ? " The KT meeting link is available on the project page." : "")

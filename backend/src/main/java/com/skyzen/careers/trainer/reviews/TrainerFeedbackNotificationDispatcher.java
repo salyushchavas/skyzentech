@@ -46,6 +46,7 @@ public class TrainerFeedbackNotificationDispatcher {
     private final EmailProvider emailProvider;
     private final UserNotificationDispatcher inApp;
     private final OrgTeamResolver orgTeamResolver;
+    private final com.skyzen.careers.notification.InternNotificationService internNotifications;
 
     public void dispatchFeedbackPublished(Project project,
                                            ProjectSubmission submission,
@@ -77,12 +78,28 @@ public class TrainerFeedbackNotificationDispatcher {
         vars.put("deepLink", dl);
 
         // ── Intern (always) ──────────────────────────────────────────────
+        // Model A — system sends; body names the trainer who published.
         try {
-            renderAndSend("FEEDBACK_PUBLISHED", vars, intern);
+            String actorPhrase = trainer.getFullName() != null
+                    && !trainer.getFullName().isBlank()
+                    ? trainer.getFullName() + ", your Trainer,"
+                    : "Your Trainer";
+            String projectTitle = nz(project.getTitle());
+            String reviewNotes = submission != null && submission.getTrainerFeedback() != null
+                    ? submission.getTrainerFeedback() : "";
+            String subject = "Project feedback by your Trainer: " + projectTitle;
+            String plain = "Hi " + firstName(intern) + ",\n\n"
+                    + actorPhrase + " has shared feedback on your project \""
+                    + projectTitle + "\": " + label + "."
+                    + (!reviewNotes.isBlank() ? "\n\nNotes: " + reviewNotes : "")
+                    + "\n\nOpen the project: " + dl
+                    + "\n\n— Skyzen";
+            internNotifications.notifyIntern(intern.getId(), subject, plain, null);
             inApp.dispatch(intern.getId(), "FEEDBACK_PUBLISHED",
                     intern.getId(),
-                    "Project feedback: " + project.getTitle(),
-                    label + (submission != null && submission.getTrainerFeedback() != null
+                    subject,
+                    actorPhrase + " " + label
+                        + (submission != null && submission.getTrainerFeedback() != null
                             ? " — " + truncate(submission.getTrainerFeedback(), 120) : ""),
                     dl, true);
         } catch (Exception e) {

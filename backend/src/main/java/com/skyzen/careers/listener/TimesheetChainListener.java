@@ -104,18 +104,24 @@ public class TimesheetChainListener {
     public void onApproved(TimesheetApprovedEvent e) {
         if (e == null || e.getInternUserId() == null) return;
         try {
+            // Actor + role per Model A. Approval happens at the Manager stage
+            // (Manager promotes a VERIFIED row → APPROVED), so the actor's
+            // role label is "Manager". Fall back to neutral "Your Manager"
+            // when actor isn't resolvable.
+            String actorPhrase = resolveActorPhrase(e.getActorUserId(), "Manager");
+            String body = actorPhrase + " has approved your timesheet. "
+                    + "Your week is now counted toward your total hours.";
             safeDispatch(e.getInternUserId(), "TIMESHEET_APPROVED", e.getInternUserId(),
-                    "Your timesheet was approved",
-                    "Your week has been approved and is now counted toward your total hours.",
+                    "Your Manager approved your timesheet", body,
                     "/careers/intern/timesheets");
             // Phase: Employee internal-mail — also land in the intern's
             // company mailbox. Helper short-circuits when intern isn't
             // ACTIVE / mailbox isn't ACTIVATED, so this is safe to call
             // unconditionally.
             internNotifications.notifyIntern(e.getInternUserId(),
-                    "Your timesheet was approved",
-                    "Your week has been approved and is now counted toward your total "
-                    + "hours.\n\nOpen your timesheets: /careers/intern/timesheets\n\n— Skyzen",
+                    "Your Manager approved your timesheet",
+                    body
+                    + "\n\nOpen your timesheets: /careers/intern/timesheets\n\n— Skyzen",
                     null);
         } catch (Exception ex) {
             log.warn("[TimesheetChain] onApproved failed (non-fatal): {}", ex.getMessage());
@@ -128,23 +134,45 @@ public class TimesheetChainListener {
     public void onRejected(TimesheetRejectedEvent e) {
         if (e == null || e.getInternUserId() == null) return;
         try {
-            String stageLabel = "VERIFIED".equalsIgnoreCase(e.getPreviousStatus())
-                    ? "Your manager" : "Your ERM";
+            // Actor + role per Model A. Reject can fire at either the ERM
+            // stage (SUBMITTED → REJECTED) or the Manager stage
+            // (VERIFIED → REJECTED); pick the role label from
+            // previousStatus and resolve the acting user's name.
+            String roleWord = "VERIFIED".equalsIgnoreCase(e.getPreviousStatus())
+                    ? "Manager" : "ERM";
+            String actorPhrase = resolveActorPhrase(e.getActorUserId(), roleWord);
             String reason = e.getReason() != null ? e.getReason() : "(no reason given)";
-            String body = stageLabel + " sent your week back for correction. Reason: "
+            String body = actorPhrase + " sent your week back for correction. Reason: "
                     + truncate(reason, 200);
+            String subject = "Timesheet returned for correction by your " + roleWord;
             safeDispatch(e.getInternUserId(), "TIMESHEET_REJECTED", e.getInternUserId(),
-                    "Timesheet returned for correction", body,
+                    subject, body,
                     "/careers/intern/timesheets");
             // Phase: Employee internal-mail — same body, also delivered
             // to the company mailbox. Helper gates on active+ACTIVATED.
             internNotifications.notifyIntern(e.getInternUserId(),
-                    "Timesheet returned for correction",
+                    subject,
                     body + "\n\nOpen your timesheets: /careers/intern/timesheets\n\n— Skyzen",
                     null);
         } catch (Exception ex) {
             log.warn("[TimesheetChain] onRejected failed (non-fatal): {}", ex.getMessage());
         }
+    }
+
+    /**
+     * Resolve an actor's "<Name>, your <Role>," prefix for the body text
+     * (Model A — sender stays the system, the body names who acted).
+     * Falls back to "Your <Role>" when the actor user isn't resolvable.
+     */
+    private String resolveActorPhrase(java.util.UUID actorUserId, String roleWord) {
+        if (actorUserId != null) {
+            User actor = userRepository.findById(actorUserId).orElse(null);
+            if (actor != null && actor.getFullName() != null
+                    && !actor.getFullName().isBlank()) {
+                return actor.getFullName() + ", your " + roleWord + ",";
+            }
+        }
+        return "Your " + roleWord;
     }
 
     // ── Helpers ─────────────────────────────────────────────────────────────

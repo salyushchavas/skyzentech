@@ -44,6 +44,7 @@ public class TrainerMeetingNotificationDispatcher {
     private final UserNotificationDispatcher inApp;
     private final OrgTeamResolver orgTeamResolver;
     private final SchedulerMeetingEmailSender schedulerEmail;
+    private final com.skyzen.careers.notification.InternNotificationService internNotifications;
 
     public void dispatchScheduled(WeeklyMeeting m, User trainer, String rescheduleNote) {
         fanOut(m, trainer, "WEEKLY_MEETING_SCHEDULED",
@@ -123,19 +124,36 @@ public class TrainerMeetingNotificationDispatcher {
         String meetingDateLocal = formatLocal(m);
         String topic = nz(m.getTopic());
 
-        // Intern — always email + in-app
+        // Intern — always internal mail + in-app
+        // Model A — system sends; body names the trainer.
         try {
-            Map<String, Object> vars = new LinkedHashMap<>();
-            vars.put("firstName", firstName(intern));
-            vars.put("trainerName", nz(trainer.getFullName()));
-            vars.put("meetingDateLocal", meetingDateLocal);
-            vars.put("timezone", nz(m.getTimezone()));
-            vars.put("topic", topic);
-            vars.put("agenda", nz(m.getAgenda()));
-            vars.put("zoomJoinUrl", nz(m.getZoomJoinUrl()));
-            renderAndSend(eventType, vars, intern);
+            String actorPhrase = trainer.getFullName() != null
+                    && !trainer.getFullName().isBlank()
+                    ? trainer.getFullName() + ", your Trainer,"
+                    : "Your Trainer";
+            String verb = switch (eventType) {
+                case "WEEKLY_MEETING_SCHEDULED" -> "has scheduled a weekly meeting";
+                case "WEEKLY_MEETING_COMPLETED" -> "logged notes from your weekly meeting";
+                case "WEEKLY_MEETING_MISSED"   -> "marked your weekly meeting missed";
+                case "WEEKLY_MEETING_CANCELLED" -> "cancelled your weekly meeting";
+                default -> "updated your weekly meeting";
+            };
+            String subject = inAppTitle + " by your Trainer: " + topic;
+            String plain = "Hi " + firstName(intern) + ",\n\n"
+                    + actorPhrase + " " + verb + ": \"" + topic + "\"."
+                    + (m.getScheduledFor() != null
+                        ? "\nWhen: " + meetingDateLocal + " (" + nz(m.getTimezone()) + ")"
+                        : "")
+                    + (m.getZoomJoinUrl() != null && !m.getZoomJoinUrl().isBlank()
+                        ? "\nJoin: " + m.getZoomJoinUrl() : "")
+                    + (m.getAgenda() != null && !m.getAgenda().isBlank()
+                        ? "\nAgenda: " + m.getAgenda() : "")
+                    + "\n\nOpen your weekly meetings: " + INTERN_PATH
+                    + "\n\n— Skyzen";
+            internNotifications.notifyIntern(intern.getId(), subject, plain, null);
             tryInApp(intern.getId(), eventType, intern.getId(),
-                    inAppTitle + ": " + topic, inAppBody, INTERN_PATH);
+                    inAppTitle + " by your Trainer: " + topic,
+                    actorPhrase + " " + verb + ".", INTERN_PATH);
         } catch (Exception e) {
             log.warn("[TrainerMeetingNotify] intern dispatch failed: {}", e.getMessage());
         }

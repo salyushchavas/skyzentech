@@ -39,6 +39,7 @@ public class EvaluationNotificationFanout {
     private final CommunicationTemplateService templateService;
     private final OrgTeamResolver orgTeamResolver;
     private final SchedulerMeetingEmailSender schedulerEmail;
+    private final com.skyzen.careers.notification.InternNotificationService internNotifications;
 
     @Value("${app.frontend.base-url:https://www.skyzentech.com}")
     private String frontendBaseUrl;
@@ -47,6 +48,8 @@ public class EvaluationNotificationFanout {
         User intern = userRepo.findById(lc.getUserId()).orElse(null);
         if (intern == null) return;
         String firstName = firstName(intern);
+        String tz = ev.getTimezone() != null && !ev.getTimezone().isBlank()
+                ? ev.getTimezone() : "UTC";
         String date = ev.getScheduledFor() != null
                 ? DATE_FMT.format(ev.getScheduledFor().atZone(ZoneId.of("UTC")))
                 : "TBD";
@@ -54,20 +57,29 @@ public class EvaluationNotificationFanout {
                 ? evaluator.getFullName() : "your Evaluator";
         String deepLink = link("/careers/intern/evaluations");
 
-        // Email — intern
-        Map<String, Object> vars = new LinkedHashMap<>();
-        vars.put("firstName", firstName);
-        vars.put("evaluationType", "monthly");
-        vars.put("evaluatorName", evaluatorName);
-        vars.put("scheduledDateLocal", date);
-        vars.put("timezone", ev.getTimezone() != null ? ev.getTimezone() : "UTC");
-        vars.put("zoomLink", ev.getZoomJoinUrl() != null ? ev.getZoomJoinUrl() : "(link will follow)");
-        renderAndEmail("EVALUATION_SCHEDULED", intern, vars);
+        // Intern — Model A: system sends; body names the evaluator + role
+        String actorPhrase = evaluator != null && evaluator.getFullName() != null
+                && !evaluator.getFullName().isBlank()
+                ? evaluator.getFullName() + ", your Evaluator,"
+                : "Your Evaluator";
+        try {
+            String subject = "Evaluation scheduled by your Evaluator";
+            String plain = "Hi " + firstName + ",\n\n"
+                    + actorPhrase + " has scheduled your monthly evaluation for "
+                    + date + " (" + tz + ")."
+                    + (ev.getZoomJoinUrl() != null && !ev.getZoomJoinUrl().isBlank()
+                        ? "\n\nJoin: " + ev.getZoomJoinUrl() : "")
+                    + "\n\nOpen your evaluations: " + deepLink
+                    + "\n\n— Skyzen";
+            internNotifications.notifyIntern(intern.getId(), subject, plain, null);
+        } catch (Exception e) {
+            log.warn("[EvaluatorFanout] intern scheduled mail failed: {}", e.getMessage());
+        }
 
         // In-app — intern
         tryInApp(intern.getId(), "EVALUATION_SCHEDULED", intern.getId(),
-                "Evaluation scheduled",
-                evaluatorName + " has scheduled your monthly evaluation for " + date,
+                "Evaluation scheduled by your Evaluator",
+                actorPhrase + " has scheduled your monthly evaluation for " + date,
                 deepLink);
 
         // CC fan-out — ERM + Manager + Trainer (in-app only; email kept terse)
@@ -100,26 +112,32 @@ public class EvaluationNotificationFanout {
         User intern = userRepo.findById(lc.getUserId()).orElse(null);
         if (intern == null) return;
         String firstName = firstName(intern);
-        String evaluatorName = evaluator != null && evaluator.getFullName() != null
-                ? evaluator.getFullName() : "your Evaluator";
         String summary = "Overall " + (ev.getOverallScore() != null ? ev.getOverallScore() : "—")
                 + " / 5 · " + (ev.getRecommendation() != null
                         ? ev.getRecommendation().replace('_', ' ').toLowerCase()
                         : "no recommendation");
         String deepLink = link("/careers/intern/evaluations/" + ev.getId());
 
-        Map<String, Object> vars = new LinkedHashMap<>();
-        vars.put("firstName", firstName);
-        vars.put("evaluatorName", evaluatorName);
-        vars.put("evaluationType", "monthly");
-        vars.put("ackDays", "5");
-        vars.put("summaryLine", summary);
-        vars.put("deepLink", deepLink);
-        renderAndEmail("EVALUATION_PUBLISHED", intern, vars);
+        // Intern — Model A: system sends; body names the evaluator + role
+        String actorPhrase = evaluator != null && evaluator.getFullName() != null
+                && !evaluator.getFullName().isBlank()
+                ? evaluator.getFullName() + ", your Evaluator,"
+                : "Your Evaluator";
+        try {
+            String subject = "Your Evaluator published your evaluation";
+            String plain = "Hi " + firstName + ",\n\n"
+                    + actorPhrase + " published your monthly evaluation."
+                    + "\n\n" + summary
+                    + "\n\nOpen it to acknowledge: " + deepLink
+                    + "\n\n— Skyzen";
+            internNotifications.notifyIntern(intern.getId(), subject, plain, null);
+        } catch (Exception e) {
+            log.warn("[EvaluatorFanout] intern published mail failed: {}", e.getMessage());
+        }
 
         tryInApp(intern.getId(), "EVALUATION_PUBLISHED", intern.getId(),
-                "Your evaluation is ready",
-                evaluatorName + " published your monthly evaluation. "
+                "Your Evaluator published your evaluation",
+                actorPhrase + " published your monthly evaluation. "
                         + "Open it to acknowledge.",
                 deepLink);
 

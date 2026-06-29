@@ -173,11 +173,37 @@ public class ProjectService {
             if (internUserId != null) {
                 String projectTitle = saved.getTitle() != null ? saved.getTitle() : "your project";
                 String due = saved.getDueDate() != null ? " due " + saved.getDueDate() : "";
-                String body = "You've been assigned a new project: \"" + projectTitle + "\"" + due + "."
+                // Actor + role per Model A: "<Name>, your <Role>, ...". On the
+                // legacy supervisor path the assigner can be any of TRAINER /
+                // MANAGER / REPORTING_MANAGER / SUPER_ADMIN; resolve a friendly
+                // role label from their first role, defaulting to "Supervisor".
+                String actorPhrase = "Your team";
+                String roleWord = "Supervisor";
+                if (actor != null) {
+                    if (actor.getRoles() != null && !actor.getRoles().isEmpty()) {
+                        UserRole firstRole = actor.getRoles().iterator().next();
+                        roleWord = switch (firstRole) {
+                            case TRAINER -> "Trainer";
+                            case MANAGER -> "Manager";
+                            case REPORTING_MANAGER -> "Reporting Manager";
+                            case ERM -> "ERM";
+                            case SUPER_ADMIN -> "Admin";
+                            default -> "Supervisor";
+                        };
+                    }
+                    if (actor.getFullName() != null && !actor.getFullName().isBlank()) {
+                        actorPhrase = actor.getFullName() + ", your " + roleWord + ",";
+                    } else {
+                        actorPhrase = "Your " + roleWord;
+                    }
+                }
+                String body = actorPhrase + " has assigned you a new project: \""
+                        + projectTitle + "\"" + due + "."
                         + "\n\nOpen your projects: /careers/intern/projects"
                         + "\n\n— Skyzen";
                 internNotifications.notifyIntern(internUserId,
-                        "New project assigned: " + projectTitle, body, null);
+                        "New project assigned by your " + roleWord + ": " + projectTitle,
+                        body, null);
             }
         } catch (Exception e) {
             log.warn("PROJECT_ASSIGNED internal-mail notify failed (non-fatal) for {}: {}",
