@@ -435,10 +435,19 @@ public class InternDashboardService {
     }
 
     private ModuleState workModuleState(String mode) {
+        // My Projects / Timesheets / Evaluations are gated on ACTIVE_INTERN.
+        // Pre-active interns are hidden from these modules entirely (visible
+        // = false) — the prior behaviour (visible=true, locked=true) put
+        // greyed-out links in the sidebar that confused new hires into
+        // thinking timesheets were already required. The sidebar
+        // (DashboardSidebar.tsx) hides any link whose moduleState.visible
+        // is false. INACTIVE keeps visibility for historical read-only
+        // access; ACTIVE_INTERN is the only mode where these modules are
+        // fully interactive.
         return switch (mode) {
             case "ACTIVE_INTERN" -> new ModuleState(true, false, false);
             case "INACTIVE"      -> new ModuleState(true, false, true);
-            default              -> new ModuleState(true, true, false);
+            default              -> new ModuleState(false, true, false);
         };
     }
 

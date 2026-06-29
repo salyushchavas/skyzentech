@@ -21,11 +21,9 @@ import api from '@/lib/api';
  */
 export default function WebexHostStartCard({
   providerMeetingId,
-  joinUrl,
   startUrl,
 }: {
   providerMeetingId: string | null | undefined;
-  joinUrl: string | null | undefined;
   startUrl?: string | null | undefined;
 }) {
   const [freshStartUrl, setFreshStartUrl] = useState<string | null>(
@@ -40,9 +38,10 @@ export default function WebexHostStartCard({
     setBusy(true);
     setErr(null);
     try {
+      // We only ever read startUrl here. The endpoint also returns joinUrl
+      // for legacy callers — ignored on purpose; this card is host-only.
       const res = await api.get<{
         startUrl: string | null;
-        joinUrl: string | null;
         available: boolean;
       }>(`/api/v1/meetings/${encodeURIComponent(providerMeetingId)}/host-start`);
       if (res.data?.startUrl) {
@@ -65,9 +64,11 @@ export default function WebexHostStartCard({
   }, [fetchFresh]);
 
   const hostHref = freshStartUrl ?? startUrl ?? null;
-  const joinHref = joinUrl ?? null;
 
-  if (!hostHref && !joinHref) return null;
+  // Host-only component. Render nothing when no provider id + no host
+  // URL is available — the parent already gates on providerMeetingId, so
+  // this is a defensive no-op.
+  if (!hostHref && !providerMeetingId) return null;
 
   return (
     <div className="space-y-2">

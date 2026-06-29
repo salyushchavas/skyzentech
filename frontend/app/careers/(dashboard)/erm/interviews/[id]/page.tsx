@@ -191,24 +191,19 @@ export default function InterviewDetailPage() {
                   <p className="mt-2 text-sm text-slate-700">
                     Interviewer: <b>{data.interviewer?.fullName ?? '—'}</b>
                   </p>
-                  {data.zoomJoinUrl && (
-                    <p className="mt-1 text-xs text-slate-600 break-all">
-                      Join link:{' '}
-                      <a className="text-brand-700 underline" href={data.zoomJoinUrl} target="_blank" rel="noreferrer">
-                        {data.zoomJoinUrl}
-                      </a>
-                    </p>
-                  )}
+                  {/* ERM is the host — show ONLY the host start link.
+                      The participant join URL is intentionally NOT
+                      surfaced here; the applicant sees it on their own
+                      /careers/intern/interviews page. */}
                   {data.zoomPassword && (
                     <p className="mt-1 text-xs text-slate-600">
                       Passcode: <span className="font-mono">{data.zoomPassword}</span>
                     </p>
                   )}
-                  {(data.zoomStartUrl ?? data.zoomJoinUrl) && (
+                  {data.zoomMeetingId && (
                     <div className="mt-3">
                       <WebexHostStartCard
                         providerMeetingId={data.zoomMeetingId}
-                        joinUrl={data.zoomJoinUrl}
                         startUrl={data.zoomStartUrl}
                       />
                     </div>

@@ -320,11 +320,10 @@ function MeetingActionModal({ meeting, interns, onClose, onChanged }: {
         <Row k="When" v={new Date(meeting.scheduledFor).toLocaleString()} />
         <Row k="Duration" v={`${meeting.durationMinutes} min`} />
         <Row k="Status" v={meeting.status} />
-        {(meeting.zoomStartUrl ?? meeting.zoomJoinUrl) && (
+        {meeting.zoomMeetingId && (
           <div className="pt-1">
             <WebexHostStartCard
               providerMeetingId={meeting.zoomMeetingId}
-              joinUrl={meeting.zoomJoinUrl}
               startUrl={meeting.zoomStartUrl}
             />
           </div>

@@ -154,11 +154,10 @@ export default function ComposePage() {
               {data.periodStart && ` · Period: ${data.periodStart} → ${data.periodEnd}`}
             </p>
           </div>
-          {data.zoomJoinUrl && (
+          {data.zoomMeetingId && (
             <div className="w-full max-w-md">
               <WebexHostStartCard
                 providerMeetingId={data.zoomMeetingId}
-                joinUrl={data.zoomJoinUrl}
                 startUrl={data.zoomStartUrl}
               />
             </div>

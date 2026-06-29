@@ -67,6 +67,12 @@ public class SchedulerMeetingEmailSender {
                      String participantLabel, Instant scheduledFor,
                      String timezone, String joinUrl,
                      String storedStartUrl, String providerMeetingId) {
+        // joinUrl is used here only as a "meeting was actually created"
+        // signal (Zoom returns both URLs on a successful create). When
+        // joinUrl is null, the create probably failed — no point spamming
+        // the scheduler with a start link they can't share. The join URL
+        // itself is NEVER rendered into this email body — schedulers see
+        // host-only.
         if (recipientEmail == null || recipientEmail.isBlank()
                 || joinUrl == null || joinUrl.isBlank()) {
             log.debug("[SchedulerMeetingEmail] skipping send — missing recipient/join URL");
@@ -99,11 +105,16 @@ public class SchedulerMeetingEmailSender {
                     .append(startUrl).append("\n")
                     .append("Note: this start link expires roughly 2 hours after the meeting was created. ")
                     .append("If it doesn't work, open the meeting in the Skyzen dashboard for a fresh link.\n\n");
+        } else {
+            plain.append("Open the meeting in the Skyzen dashboard for your host start link.\n\n");
         }
-        plain.append("Attendee join link: ").append(joinUrl).append("\n\n")
-                .append("— Skyzen");
+        plain.append("— Skyzen");
+        // Scheduler email is host-only — the attendee join link is sent
+        // separately to the participant via their own notification flow,
+        // and is NEVER included here. The HTML builder receives a null
+        // joinUrl so the "Join Meeting" button is skipped.
         String html = MeetingEmailHtmlBuilder.buildWithHostStart(
-                plain.toString(), joinUrl, startUrl);
+                plain.toString(), null, startUrl);
         try {
             emailProvider.sendBrandedHtml(recipientEmail, subject, plain.toString(), html);
         } catch (Exception e) {
