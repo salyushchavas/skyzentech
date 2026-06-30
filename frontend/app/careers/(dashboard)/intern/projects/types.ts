@@ -34,6 +34,13 @@ export interface KtSummary {
   timezone?: string | null;
 }
 
+export interface ProjectFileRef {
+  id: string;
+  fileName: string;
+  mimeType: string | null;
+  fileSize: number | null;
+}
+
 export interface ProjectRef {
   id: string;
   name: string | null;
@@ -49,6 +56,10 @@ export interface ProjectRef {
   endDate: string | null;
   repository: { repositoryName: string | null; repositoryUrl: string | null } | null;
   kt: KtSummary | null;
+  /** Trainer-uploaded brief/spec/starter files attached at project-assignment
+   *  time. Downloadable by the assigned intern via
+   *  GET /api/v1/project-assignments/{assignmentId}/file?documentId=... */
+  files?: ProjectFileRef[] | null;
 }
 
 export interface LatestSubmission {

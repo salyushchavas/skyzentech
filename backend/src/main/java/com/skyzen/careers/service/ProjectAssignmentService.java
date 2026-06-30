@@ -7,11 +7,14 @@ import com.skyzen.careers.dto.project.catalog.ProjectAssignmentResponse;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.skyzen.careers.entity.Candidate;
+import com.skyzen.careers.entity.Document;
 import com.skyzen.careers.entity.Engagement;
 import com.skyzen.careers.entity.Project;
 import com.skyzen.careers.entity.ProjectAssignment;
 import com.skyzen.careers.entity.ProjectSubmission;
 import com.skyzen.careers.entity.User;
+import com.skyzen.careers.intern.DocumentVaultService;
+import com.skyzen.careers.repository.DocumentRepository;
 import com.skyzen.careers.enums.EngagementStatus;
 import com.skyzen.careers.enums.ProjectAssignmentStatus;
 import com.skyzen.careers.enums.UserRole;
@@ -72,6 +75,8 @@ public class ProjectAssignmentService {
     private final ApplicationEventPublisher eventPublisher;
     private final ObjectMapper objectMapper;
     private final com.skyzen.careers.notification.InternNotificationService internNotifications;
+    private final DocumentRepository documentRepository;
+    private final DocumentVaultService documentVault;
 
     private static final TypeReference<List<String>> STRING_LIST = new TypeReference<>() {};
 
@@ -762,6 +767,28 @@ public class ProjectAssignmentService {
             }
         }
 
+        // Bulk-resolve trainer-attached project files. Trainer's attach path
+        // stashes the Document UUID into project.resource_links_json as a
+        // single-element JSON array (see TrainerProjectAssignmentService.
+        // attachProjectFile). Pre-resolve all referenced documents in one
+        // query so the per-row mapping doesn't N+1, and drop soft-deleted
+        // rows on the way through.
+        Map<UUID, List<UUID>> projectToDocIds = new HashMap<>();
+        Set<UUID> allDocIds = new java.util.HashSet<>();
+        for (Project p : projects.values()) {
+            List<UUID> ids = extractResourceDocIds(p.getResourceLinksJson());
+            if (!ids.isEmpty()) {
+                projectToDocIds.put(p.getId(), ids);
+                allDocIds.addAll(ids);
+            }
+        }
+        Map<UUID, Document> docsById = new HashMap<>();
+        if (!allDocIds.isEmpty()) {
+            for (Document d : documentRepository.findAllById(allDocIds)) {
+                if (d.getDeletedAt() == null) docsById.put(d.getId(), d);
+            }
+        }
+
         return rows.stream().map(r -> {
             Project p = projects.get(r.getProjectId());
             User intern = users.get(r.getInternId());
@@ -796,6 +823,9 @@ public class ProjectAssignmentService {
             ProjectAssignmentResponse.KtSummary ktSummary = p == null
                     ? null
                     : buildKtSummary(p, users);
+            List<ProjectAssignmentResponse.ProjectFileRef> projectFiles = p == null
+                    ? null
+                    : toProjectFileRefs(projectToDocIds.get(p.getId()), docsById);
             return new ProjectAssignmentResponse(
                     r.getId(),
                     p == null ? null : new ProjectAssignmentResponse.ProjectRef(
@@ -812,7 +842,8 @@ public class ProjectAssignmentService {
                             p.getStartDate(),
                             p.getDueDate(),
                             repoSummary,
-                            ktSummary),
+                            ktSummary,
+                            projectFiles),
                     userRef(intern),
                     userRef(assignedBy),
                     r.getAssignmentDate(),
@@ -857,6 +888,88 @@ public class ProjectAssignmentService {
                 p.getKtScheduledFor(),
                 p.getKtDurationMinutes(),
                 p.getKtTimezone());
+    }
+
+    /**
+     * Parse {@code project.resource_links_json} into the list of attached
+     * Document UUIDs. The trainer attach path writes a single-element JSON
+     * array of UUID strings (see TrainerProjectAssignmentService.
+     * attachProjectFile); future multi-file support can extend the array
+     * without changing this reader. Returns empty on null / blank / parse
+     * errors / shape mismatches — the field is best-effort, not load-bearing.
+     */
+    private List<UUID> extractResourceDocIds(String resourceLinksJson) {
+        if (resourceLinksJson == null || resourceLinksJson.isBlank()) return List.of();
+        try {
+            List<?> raw = objectMapper.readValue(resourceLinksJson, List.class);
+            List<UUID> out = new ArrayList<>(raw.size());
+            for (Object o : raw) {
+                if (o == null) continue;
+                try {
+                    out.add(UUID.fromString(o.toString()));
+                } catch (IllegalArgumentException ignored) {
+                    // legacy entries may be plain URL strings — skip
+                }
+            }
+            return out;
+        } catch (Exception e) {
+            return List.of();
+        }
+    }
+
+    private static List<ProjectAssignmentResponse.ProjectFileRef> toProjectFileRefs(
+            List<UUID> ids, Map<UUID, Document> docsById) {
+        if (ids == null || ids.isEmpty()) return null;
+        List<ProjectAssignmentResponse.ProjectFileRef> out = new ArrayList<>(ids.size());
+        for (UUID id : ids) {
+            Document d = docsById.get(id);
+            if (d == null) continue;
+            out.add(new ProjectAssignmentResponse.ProjectFileRef(
+                    d.getId(), d.getFileName(), d.getMimeType(), d.getFileSize()));
+        }
+        return out.isEmpty() ? null : out;
+    }
+
+    /** Trainer-uploaded project file payload returned to the controller for streaming. */
+    public record DownloadedProjectFile(UUID documentId, String fileName, String mimeType, byte[] bytes) {}
+
+    /**
+     * Download a trainer-uploaded project file for an assignment. The
+     * project file's Document row is owned by the trainer, so the vault's
+     * standard owner-or-staff RBAC would reject the intern. We instead
+     * authorize on the assignment row: the owning intern (or staff) may
+     * download. Resolves the Document UUID from
+     * {@code project.resource_links_json} (first entry), then reads bytes
+     * via {@link DocumentVaultService#readDocumentBytesNoAuth(UUID)}.
+     */
+    @Transactional
+    public DownloadedProjectFile downloadProjectFile(UUID assignmentId, UUID documentId, User caller) {
+        ProjectAssignment a = loadAssignment(assignmentId);
+        if (caller == null) throw new ForbiddenException("Authentication required");
+        boolean isOwner = a.getInternId() != null && a.getInternId().equals(caller.getId());
+        boolean isStaff = caller.getRoles() != null
+                && (caller.getRoles().contains(UserRole.TRAINER)
+                    || caller.getRoles().contains(UserRole.SUPER_ADMIN));
+        if (!isOwner && !isStaff) {
+            throw new ForbiddenException("Not authorised to download this project's file");
+        }
+        Project project = projectRepository.findById(a.getProjectId())
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "Project not found: " + a.getProjectId()));
+        List<UUID> docIds = extractResourceDocIds(project.getResourceLinksJson());
+        if (docIds.isEmpty()) {
+            throw new ResourceNotFoundException("No file attached to this project");
+        }
+        UUID targetDocId = documentId != null ? documentId : docIds.get(0);
+        if (!docIds.contains(targetDocId)) {
+            // Guards against passing a doc UUID that belongs to some OTHER
+            // project — the assignment scope check above must be the only
+            // gate on which document this caller can pull.
+            throw new ForbiddenException("Document is not attached to this project");
+        }
+        Document doc = documentVault.loadDocumentNoAuth(targetDocId);
+        byte[] bytes = documentVault.readDocumentBytesNoAuth(targetDocId);
+        return new DownloadedProjectFile(doc.getId(), doc.getFileName(), doc.getMimeType(), bytes);
     }
 
     private static ProjectAssignmentResponse.UserRef userRef(User u) {

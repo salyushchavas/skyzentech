@@ -9,7 +9,9 @@ import {
   CheckCircle2,
   ChevronLeft,
   Clock,
+  Download,
   ExternalLink,
+  FileText,
   GitBranch,
   Github,
   GraduationCap,
@@ -126,6 +128,7 @@ export default function InternProjectDetailPage() {
       <div className="grid gap-4 lg:grid-cols-3 lg:h-[calc(100vh-190px)] lg:overflow-hidden">
         <main className="lg:col-span-2 space-y-3 lg:h-full lg:min-h-0 lg:overflow-y-auto lg:pr-1">
           <DescriptionCard a={data} />
+          <ProjectFilesCard a={data} />
           <TrainerFeedbackCard a={data} />
           <SubmissionCard a={data} onChanged={(next) => setData(next)} />
           {/* Help sits at the bottom of the left column so it's right
@@ -230,6 +233,91 @@ function DescriptionCard({ a }: { a: AssignmentSummary }) {
       </dl>
     </section>
   );
+}
+
+function ProjectFilesCard({ a }: { a: AssignmentSummary }) {
+  const files = a.project?.files ?? [];
+  const [busyId, setBusyId] = useState<string | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+
+  if (files.length === 0) return null;
+
+  async function downloadFile(fileId: string, fileName: string) {
+    setBusyId(fileId);
+    setErr(null);
+    try {
+      const res = await api.get(
+        `/api/v1/project-assignments/${a.id}/file`,
+        { params: { documentId: fileId }, responseType: 'blob' },
+      );
+      const blob = res.data as Blob;
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = fileName;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (e) {
+      const ax = e as { response?: { data?: { error?: string } } };
+      setErr(
+        ax.response?.data?.error
+          ?? (e instanceof Error ? e.message : 'Download failed'),
+      );
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  return (
+    <section className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+      <h3 className="text-sm font-semibold text-slate-900">
+        Project file{files.length === 1 ? '' : 's'}
+      </h3>
+      <p className="mt-0.5 text-[11px] text-slate-500">
+        Attached by your trainer.
+      </p>
+      <ul className="mt-2 space-y-1.5">
+        {files.map((f) => (
+          <li
+            key={f.id}
+            className="flex items-center justify-between gap-3 rounded-md border border-slate-200 bg-slate-50 px-3 py-2"
+          >
+            <span className="inline-flex min-w-0 items-center gap-2 text-sm text-slate-800">
+              <FileText className="h-4 w-4 shrink-0 text-slate-500" />
+              <span className="truncate" title={f.fileName}>{f.fileName}</span>
+              {f.fileSize != null && (
+                <span className="shrink-0 text-[11px] text-slate-500">
+                  · {formatFileSize(f.fileSize)}
+                </span>
+              )}
+            </span>
+            <button
+              type="button"
+              onClick={() => downloadFile(f.id, f.fileName)}
+              disabled={busyId === f.id}
+              className="inline-flex items-center gap-1 rounded-md border border-slate-200 bg-white px-2.5 py-1 text-xs font-semibold text-brand-700 hover:bg-brand-50 disabled:opacity-60"
+            >
+              <Download className="h-3 w-3" />
+              {busyId === f.id ? 'Downloading…' : 'Download'}
+            </button>
+          </li>
+        ))}
+      </ul>
+      {err && (
+        <p className="mt-2 rounded-md border border-red-200 bg-red-50 p-2 text-xs text-red-800">
+          {err}
+        </p>
+      )}
+    </section>
+  );
+}
+
+function formatFileSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
 function TrainerFeedbackCard({ a }: { a: AssignmentSummary }) {

@@ -54,7 +54,21 @@ public record ProjectAssignmentResponse(
             LocalDate endDate,
             RepositorySummary repository,
             /** KT (Knowledge Transfer) — null when not assigned (catalog-only). */
-            KtSummary kt
+            KtSummary kt,
+            /** Trainer-uploaded project brief / starter file. Null when the
+             *  trainer didn't attach one (or attached only after the intern's
+             *  DTO was cached). Download via
+             *  {@code GET /api/v1/project-assignments/{id}/file} — that
+             *  endpoint authorizes the assignment owner rather than the
+             *  document owner. */
+            List<ProjectFileRef> files
+    ) {}
+
+    public record ProjectFileRef(
+            UUID id,
+            String fileName,
+            String mimeType,
+            Long fileSize
     ) {}
 
     public record KtSummary(

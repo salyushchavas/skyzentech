@@ -236,6 +236,48 @@ public class DocumentVaultService {
         return doc;
     }
 
+    /**
+     * Load document metadata WITHOUT enforcing owner/staff RBAC. Reserved for
+     * trusted callers that resolve their own access policy from a different
+     * authority (e.g. the project-assignment surface authorizes by assignment
+     * ownership: the trainer-uploaded project file is owned by the trainer
+     * but must be downloadable by the assigned intern). Returns a clean 404
+     * when the document is missing or soft-deleted.
+     */
+    @Transactional(readOnly = true)
+    public Document loadDocumentNoAuth(UUID documentId) {
+        Document doc = documentRepository.findById(documentId)
+                .orElseThrow(() -> new ResourceNotFoundException("Document not found: " + documentId));
+        if (doc.getDeletedAt() != null) {
+            throw new ResourceNotFoundException("Document not found: " + documentId);
+        }
+        return doc;
+    }
+
+    /**
+     * Read document bytes WITHOUT enforcing owner/staff RBAC. See
+     * {@link #loadDocumentNoAuth(UUID)} for the access-policy rationale.
+     * Decrypts PII envelopes the same way {@link #readDocument} does.
+     */
+    @Transactional
+    public byte[] readDocumentBytesNoAuth(UUID documentId) {
+        Document doc = loadDocumentNoAuth(documentId);
+        try {
+            byte[] raw = readBytesByStorageKey(doc.getStorageKey());
+            if (doc.getEncryptionMetadataJson() != null) {
+                String b64 = new String(raw, java.nio.charset.StandardCharsets.UTF_8);
+                String inner = piiEncryption.decrypt(b64);
+                return Base64.getDecoder().decode(inner);
+            }
+            return raw;
+        } catch (RuntimeException re) {
+            throw re;
+        } catch (Exception e) {
+            log.error("[DocumentVault] no-auth read failed for {}: {}", documentId, e.getMessage());
+            throw new RuntimeException("Document read failed");
+        }
+    }
+
     @Transactional
     public void softDelete(UUID documentId, User caller) {
         Document doc = documentRepository.findById(documentId)

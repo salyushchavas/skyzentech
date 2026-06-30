@@ -9,8 +9,12 @@ import com.skyzen.careers.dto.project.catalog.SubmitAssignmentRequest;
 import com.skyzen.careers.entity.User;
 import com.skyzen.careers.enums.ProjectAssignmentStatus;
 import com.skyzen.careers.service.ProjectAssignmentService;
+import com.skyzen.careers.service.ProjectAssignmentService.DownloadedProjectFile;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
@@ -133,5 +137,40 @@ public class ProjectAssignmentController {
     public ProjectAssignmentResponse get(@PathVariable UUID id,
                                           @AuthenticationPrincipal User caller) {
         return service.getAssignment(id, caller);
+    }
+
+    /**
+     * Download a trainer-uploaded project file (brief / starter zip / spec).
+     * Authorized on the assignment row: the owning intern, the trainer, or
+     * SUPER_ADMIN. The Document Vault's own RBAC would reject the intern
+     * because the file is owned by the trainer who uploaded it — this
+     * endpoint substitutes assignment-ownership as the access policy.
+     *
+     * <p>{@code documentId} is optional; when omitted the first attached
+     * file is returned (currently the only one — the underlying
+     * resource_links_json carries a single entry). Passing it lets future
+     * multi-file UI request a specific attachment by id while still
+     * being scope-checked against this assignment's project.</p>
+     */
+    @GetMapping("/{id}/file")
+    @PreAuthorize("hasAnyRole('TRAINER', 'SUPER_ADMIN', 'INTERN')")
+    public ResponseEntity<byte[]> downloadFile(
+            @PathVariable UUID id,
+            @RequestParam(value = "documentId", required = false) UUID documentId,
+            @AuthenticationPrincipal User caller) {
+        DownloadedProjectFile f = service.downloadProjectFile(id, documentId, caller);
+        String mime = f.mimeType() != null ? f.mimeType() : "application/octet-stream";
+        String safeName = sanitizeFilename(f.fileName());
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION,
+                        "attachment; filename=\"" + safeName + "\"")
+                .contentType(MediaType.parseMediaType(mime))
+                .contentLength(f.bytes().length)
+                .body(f.bytes());
+    }
+
+    private static String sanitizeFilename(String name) {
+        if (name == null || name.isBlank()) return "project-file.bin";
+        return name.replaceAll("[\\r\\n\"\\\\]", "_");
     }
 }
