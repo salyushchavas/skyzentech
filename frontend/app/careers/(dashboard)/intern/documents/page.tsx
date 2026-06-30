@@ -108,6 +108,11 @@ function PacketView({ packet, onChanged }: {
       <SubmitHandoffCard packet={packet} pending={pending}
         onSubmitted={onChanged} />
 
+      <p className="mb-3 inline-flex items-center gap-1.5 text-[11px] text-slate-500">
+        <Lock className="h-3 w-3" aria-hidden="true" />
+        Your documents are encrypted and stored securely.
+      </p>
+
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
         {packet.tasks.map((t) => (
           <TaskCard key={t.taskId} task={t} packet={packet} onChanged={onChanged} />
