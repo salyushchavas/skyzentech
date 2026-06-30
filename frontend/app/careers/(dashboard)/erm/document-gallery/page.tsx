@@ -11,6 +11,8 @@ import {
   Search,
 } from 'lucide-react';
 import api from '@/lib/api';
+import ProtectedRoute from '@/components/ProtectedRoute';
+import DashboardLayout from '@/components/dashboard/DashboardLayout';
 
 type StatusFilter = 'ALL' | 'ACTIVE' | 'INACTIVE' | 'PROSPECTIVE';
 
@@ -45,6 +47,16 @@ const STATUS_OPTIONS: { value: StatusFilter; label: string }[] = [
 ];
 
 export default function ErmDocumentGalleryPage() {
+  return (
+    <ProtectedRoute requiredRoles={['ERM', 'SUPER_ADMIN']}>
+      <DashboardLayout>
+        <GalleryInner />
+      </DashboardLayout>
+    </ProtectedRoute>
+  );
+}
+
+function GalleryInner() {
   const [data, setData] = useState<InternListResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);

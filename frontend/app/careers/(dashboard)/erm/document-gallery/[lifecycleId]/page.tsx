@@ -15,6 +15,8 @@ import {
   RefreshCw,
 } from 'lucide-react';
 import api from '@/lib/api';
+import ProtectedRoute from '@/components/ProtectedRoute';
+import DashboardLayout from '@/components/dashboard/DashboardLayout';
 
 interface FileRef {
   documentId: string;
@@ -60,6 +62,16 @@ interface InternGalleryDetail {
 }
 
 export default function ErmDocumentGalleryDetailPage() {
+  return (
+    <ProtectedRoute requiredRoles={['ERM', 'SUPER_ADMIN']}>
+      <DashboardLayout>
+        <DetailInner />
+      </DashboardLayout>
+    </ProtectedRoute>
+  );
+}
+
+function DetailInner() {
   const params = useParams<{ lifecycleId: string }>();
   const lifecycleId = params?.lifecycleId;
   const [data, setData] = useState<InternGalleryDetail | null>(null);
