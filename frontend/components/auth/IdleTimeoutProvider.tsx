@@ -96,7 +96,17 @@ export default function IdleTimeoutProvider({ children }: { children: ReactNode 
         catch { /* ignore */ }
       }
       logout();
-      router.replace('/careers/login?reason=idle');
+      // Hard navigation — same rationale as SignOutButton: clearing the
+      // React user state on the same task as a Next router replace lets
+      // the source page's ProtectedRoute re-render with user=null and
+      // stamp `?returnTo=<previous-page>` onto the login URL before the
+      // navigation commits. A full-page replace tears the React tree
+      // down before any effect can fire.
+      if (typeof window !== 'undefined') {
+        window.location.replace('/careers/login?reason=idle');
+      } else {
+        router.replace('/careers/login?reason=idle');
+      }
     },
     [clearTimers, logout, router],
   );
@@ -167,14 +177,18 @@ export default function IdleTimeoutProvider({ children }: { children: ReactNode 
         resetAll();
       } else if (e.type === 'logout') {
         // Sibling tab logged out — match it locally without rebroadcasting.
+        // Hard navigation for the same reason performLogout uses one.
         clearTimers();
         setWarningOpen(false);
         logout();
-        router.replace(
-          e.reason === 'idle'
-            ? '/careers/login?reason=idle'
-            : '/careers/login',
-        );
+        const dest = e.reason === 'idle'
+          ? '/careers/login?reason=idle'
+          : '/careers/login';
+        if (typeof window !== 'undefined') {
+          window.location.replace(dest);
+        } else {
+          router.replace(dest);
+        }
       }
     });
 
