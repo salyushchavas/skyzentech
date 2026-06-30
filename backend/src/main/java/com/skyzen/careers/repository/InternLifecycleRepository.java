@@ -3,6 +3,7 @@ package com.skyzen.careers.repository;
 import com.skyzen.careers.entity.InternLifecycle;
 import org.springframework.data.jpa.repository.JpaRepository;
 
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -13,4 +14,10 @@ public interface InternLifecycleRepository extends JpaRepository<InternLifecycle
     Optional<InternLifecycle> findByEmployeeId(String employeeId);
 
     boolean existsByUserId(UUID userId);
+
+    /** Active interns for the weekly-sessions tracker. Filters by
+     *  active_status='ACTIVE' so closed lifecycles don't pollute the
+     *  grid. Trainer scoping happens in the service layer via
+     *  TrainerScopeGuard (handles the null-trainer single-org fallback). */
+    List<InternLifecycle> findByActiveStatusOrderByEmployeeIdAsc(String activeStatus);
 }

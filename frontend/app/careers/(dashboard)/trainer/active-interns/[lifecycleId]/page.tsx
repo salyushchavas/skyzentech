@@ -8,6 +8,7 @@ import StateBadge from '@/components/trainer/StateBadge';
 import ProjectSlotIndicator from '@/components/trainer/ProjectSlotIndicator';
 import ReportingStructureBadge from '@/components/trainer/ReportingStructureBadge';
 import WebexHostStartCard from '@/components/meeting/WebexHostStartCard';
+import WeeklyTrackerGrid from '@/components/trainer/weeklyTracker/WeeklyTrackerGrid';
 import type {
   ActiveInternDetail,
   RecentMeetingRow,
@@ -182,6 +183,11 @@ export default function ActiveInternDetailPage() {
           </div>
         </Card>
       </div>
+
+      {/* Weekly-sessions tracker for this intern — month grid with
+          Schedule / Mark-done actions per week. Sits above the
+          2-column card grid so the strip has full horizontal room. */}
+      <WeeklyTrackerGrid internLifecycleId={lifecycleId} compact />
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <CardWithCta

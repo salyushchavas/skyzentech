@@ -323,6 +323,21 @@ public class WeeklyMeetingService {
         return meetingRepository.save(m);
     }
 
+    /**
+     * Lightweight mark-done variant for the weekly-sessions tracker
+     * pill. Reuses {@link #complete} (same guards, same audit-log
+     * shape) but accepts an optional short note — synthesizes a
+     * default when blank so the tracker's one-click "Mark done" doesn't
+     * require typing a 50-char incident report.
+     */
+    @Transactional
+    public WeeklyMeeting completeQuick(UUID meetingId, String trainerNote, User actor) {
+        String note = trainerNote == null || trainerNote.isBlank()
+                ? "Marked done from weekly-sessions tracker."
+                : trainerNote.trim();
+        return complete(meetingId, note, actor);
+    }
+
     /** Trainer Phase 3 — manual mark-missed by the host trainer when the
      *  intern was a no-show. The {@code MissedMeetingDetectorJob} fires the
      *  same path automatically when a SCHEDULED meeting elapses past its
