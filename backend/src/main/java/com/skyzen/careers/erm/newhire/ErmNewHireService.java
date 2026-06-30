@@ -283,8 +283,13 @@ public class ErmNewHireService {
                             + lc.getActiveStatus() + ")");
         }
         User trainer = requireRole(req.trainerUserId(), UserRole.TRAINER, "Trainer");
-        User evaluator = requireRole(req.evaluatorUserId(),
-                UserRole.REPORTING_MANAGER, "Evaluator");
+        // Accept EVALUATOR or REPORTING_MANAGER — mirrors the eligible
+        // list which unions both roles. Without this an admin who
+        // created an "Evaluator" with the EVALUATOR role wouldn't be
+        // assignable even though they appear in the picker.
+        User evaluator = requireAnyRole(req.evaluatorUserId(),
+                java.util.EnumSet.of(UserRole.EVALUATOR, UserRole.REPORTING_MANAGER),
+                "Evaluator");
         User manager = req.managerUserId() != null
                 ? requireRole(req.managerUserId(), UserRole.MANAGER, "Manager")
                 : null;
@@ -439,13 +444,47 @@ public class ErmNewHireService {
 
     @Transactional(readOnly = true)
     public List<ErmOfferDtos.UserStub> listEligible(UserRole role) {
-        List<User> users = userRepository.findByRole(role);
-        List<ErmOfferDtos.UserStub> out = new ArrayList<>();
-        for (User u : users) {
-            if (u == null || !Boolean.TRUE.equals(u.getActive())) continue;
-            int count = countAssignedInterns(u.getId(), role);
+        return listEligibleAny(java.util.EnumSet.of(role), role);
+    }
+
+    /**
+     * Union of users across multiple roles, de-duplicated. Used by the
+     * evaluator selector — admin can create staff with either
+     * {@link UserRole#EVALUATOR} OR {@link UserRole#REPORTING_MANAGER}
+     * (the codebase has historical overlap between the two for the
+     * evaluator function), so the eligible list must include both.
+     *
+     * @param roles roles to union
+     * @param countingRole role to use for the workload-hint join (the
+     *        intern_lifecycles column is keyed off this single role —
+     *        for evaluators we count by evaluator_id regardless of
+     *        which underlying role the user holds)
+     */
+    @Transactional(readOnly = true)
+    public List<ErmOfferDtos.UserStub> listEligibleAny(java.util.Set<UserRole> roles,
+                                                       UserRole countingRole) {
+        if (roles == null || roles.isEmpty()) return List.of();
+        java.util.Map<UUID, User> deduped = new java.util.LinkedHashMap<>();
+        for (UserRole r : roles) {
+            for (User u : userRepository.findByRole(r)) {
+                if (u == null || u.getId() == null) continue;
+                if (!Boolean.TRUE.equals(u.getActive())) continue;
+                deduped.putIfAbsent(u.getId(), u);
+            }
+        }
+        List<ErmOfferDtos.UserStub> out = new ArrayList<>(deduped.size());
+        for (User u : deduped.values()) {
+            int count = countAssignedInterns(u.getId(), countingRole);
+            // Surface the friendliest single role label — prefer the
+            // primary role the ERM expects to find here. Falls back to
+            // any matched role on the user if the primary isn't held.
+            String roleLabel = u.getRoles() != null && u.getRoles().contains(countingRole)
+                    ? countingRole.name()
+                    : roles.stream()
+                            .filter(r -> u.getRoles() != null && u.getRoles().contains(r))
+                            .findFirst().map(UserRole::name).orElse(countingRole.name());
             out.add(new ErmOfferDtos.UserStub(
-                    u.getId(), u.getFullName(), u.getEmail(), role.name(), count));
+                    u.getId(), u.getFullName(), u.getEmail(), roleLabel, count));
         }
         return out;
     }
@@ -473,12 +512,27 @@ public class ErmNewHireService {
     // ── Helpers ───────────────────────────────────────────────────────────
 
     private User requireRole(UUID userId, UserRole role, String label) {
+        return requireAnyRole(userId, java.util.EnumSet.of(role), label);
+    }
+
+    /**
+     * Accept-any-of-N variant of {@link #requireRole}. Used for the
+     * evaluator slot because admin can create accounts with either
+     * {@link UserRole#EVALUATOR} or {@link UserRole#REPORTING_MANAGER}
+     * (historical role overlap) — the assigned user need only hold one
+     * of them.
+     */
+    private User requireAnyRole(UUID userId, java.util.Set<UserRole> acceptable, String label) {
         User u = userRepository.findById(userId)
                 .orElseThrow(() -> new ResourceNotFoundException(
                         label + " user not found: " + userId));
-        if (u.getRoles() == null || !u.getRoles().contains(role)) {
+        if (u.getRoles() == null
+                || acceptable.stream().noneMatch(u.getRoles()::contains)) {
+            String roleList = acceptable.stream()
+                    .map(UserRole::name)
+                    .collect(java.util.stream.Collectors.joining(" or "));
             throw new BadRequestException(
-                    label + " must hold role " + role.name() + " (user " + userId + ")");
+                    label + " must hold role " + roleList + " (user " + userId + ")");
         }
         return u;
     }
