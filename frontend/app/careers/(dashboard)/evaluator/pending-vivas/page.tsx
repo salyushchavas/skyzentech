@@ -14,12 +14,16 @@ import {
   X,
 } from 'lucide-react';
 import api from '@/lib/api';
+import WebexHostStartCard from '@/components/meeting/WebexHostStartCard';
 
 type ActiveSession = {
   sessionId: string;
   status: 'SCHEDULED' | 'CONDUCTED' | string;
   scheduledAt: string | null;
   meetingLink: string | null;
+  zoomMeetingId: string | null;
+  zoomJoinUrl: string | null;
+  zoomStartUrl: string | null;
 };
 
 type PendingVivaRow = {
@@ -380,12 +384,21 @@ function SessionModal({ row, onClose, onChanged }: {
 
           {view === 'conduct' && (
             <div className="space-y-3">
-              {existing?.meetingLink && (
+              {/* Host-side start card — fetches a fresh Zoom start_url on
+                  every render (~2h zak), so the evaluator's one-click
+                  "Start Meeting (Host)" is always live. Falls back to the
+                  pasted meetingLink when Zoom isn't wired. */}
+              {existing?.zoomMeetingId ? (
+                <WebexHostStartCard
+                  providerMeetingId={existing.zoomMeetingId}
+                  startUrl={existing.zoomStartUrl}
+                />
+              ) : existing?.meetingLink ? (
                 <a href={existing.meetingLink} target="_blank" rel="noreferrer"
                   className="inline-flex items-center gap-1 text-xs font-medium text-brand-700 hover:underline">
                   <Video className="h-3.5 w-3.5" /> Join session
                 </a>
-              )}
+              ) : null}
               <Field label="Questions asked* (one per line)">
                 <textarea value={questionsAsked} onChange={(e) => setQuestionsAsked(e.target.value)}
                   rows={5}

@@ -39,7 +39,13 @@ public final class PendingVivasDtos {
             UUID sessionId,
             String status,
             Instant scheduledAt,
-            String meetingLink
+            String meetingLink,
+            String zoomMeetingId,
+            String zoomJoinUrl,
+            // HOST-ONLY — the frontend re-fetches a fresh start_url via
+            // /api/v1/meetings/{id}/host-start; this stored copy only
+            // backs the "stored copy exists" error-state hint.
+            String zoomStartUrl
     ) {}
 
     public record PendingVivasResponse(

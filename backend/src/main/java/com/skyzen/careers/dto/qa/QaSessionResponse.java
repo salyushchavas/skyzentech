@@ -15,6 +15,12 @@ public record QaSessionResponse(
         String internName,
         Instant scheduledAt,
         String meetingLink,
+        String zoomMeetingId,
+        String zoomJoinUrl,
+        // HOST-ONLY — the frontend uses /host-start to refetch a fresh
+        // copy (~2h zak); we still surface the stored copy so the host
+        // card has a fallback to mention in its error state.
+        String zoomStartUrl,
         QaSessionStatus status,
         String questionsAsked,
         String internResponses,

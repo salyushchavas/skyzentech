@@ -44,7 +44,9 @@ public class QaSessionController {
             @Valid @RequestBody ScheduleQaSessionRequest req,
             @AuthenticationPrincipal User caller) {
         QaSession s = qaSessionService.schedule(
-                req.projectId(), req.scheduledAt(), req.meetingLink(), caller);
+                req.projectId(), req.scheduledAt(), req.meetingLink(),
+                req.durationMinutes(), req.timezone(), req.topic(), req.agenda(),
+                caller);
         return ResponseEntity
                 .created(URI.create("/api/v1/qa-sessions/" + s.getId()))
                 .body(qaSessionService.toResponse(s));

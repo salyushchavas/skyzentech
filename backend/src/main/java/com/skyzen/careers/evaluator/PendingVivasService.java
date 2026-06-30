@@ -102,7 +102,8 @@ public class PendingVivasService {
     private PendingVivasDtos.ActiveSession loadActiveSession(UUID projectId) {
         // Most-recent SCHEDULED or CONDUCTED session, if any. Returning +
         // completed sessions don't surface here — they're history.
-        String sql = "SELECT id, status, scheduled_at, meeting_link "
+        String sql = "SELECT id, status, scheduled_at, meeting_link, "
+                + "       zoom_meeting_id, zoom_join_url, zoom_start_url "
                 + "FROM qa_sessions "
                 + "WHERE project_id = ? "
                 + "  AND status IN ('SCHEDULED', 'CONDUCTED') "
@@ -116,7 +117,10 @@ public class PendingVivasService {
                     uuid(r.get("id")),
                     (String) r.get("status"),
                     toInstant(r.get("scheduled_at")),
-                    (String) r.get("meeting_link"));
+                    (String) r.get("meeting_link"),
+                    (String) r.get("zoom_meeting_id"),
+                    (String) r.get("zoom_join_url"),
+                    (String) r.get("zoom_start_url"));
         } catch (Exception e) {
             log.debug("[PendingVivas] active-session lookup failed for {}: {}",
                     projectId, e.getMessage());

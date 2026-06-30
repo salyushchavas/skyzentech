@@ -1586,6 +1586,9 @@ export interface QaSession {
   internName?: string;
   scheduledAt: IsoDateTime;
   meetingLink?: string;
+  zoomMeetingId?: string;
+  zoomJoinUrl?: string;
+  zoomStartUrl?: string;
   status: QaSessionStatus;
   questionsAsked?: string;
   internResponses?: string;
@@ -1604,6 +1607,10 @@ export interface ScheduleQaSessionRequest {
   projectId: Uuid;
   scheduledAt: IsoDateTime;
   meetingLink?: string;
+  durationMinutes?: number;
+  timezone?: string;
+  topic?: string;
+  agenda?: string;
 }
 
 // === Day-by-day timesheet ===================================================

@@ -28,7 +28,8 @@ import java.util.UUID;
         indexes = {
                 @Index(name = "idx_qa_session_project", columnList = "project_id"),
                 @Index(name = "idx_qa_session_status", columnList = "status"),
-                @Index(name = "idx_qa_session_rm", columnList = "scheduled_by")
+                @Index(name = "idx_qa_session_rm", columnList = "scheduled_by"),
+                @Index(name = "idx_qa_session_zoom_meeting", columnList = "zoom_meeting_id")
         }
 )
 @Getter
@@ -51,6 +52,31 @@ public class QaSession {
 
     @Column(name = "meeting_link", length = 1024)
     private String meetingLink;
+
+    // ── Live session (Zoom) ───────────────────────────────────────────────
+    // Mirror the KT / weekly / doubt-session pattern: schedule() asks the
+    // MeetingProvider for a meeting; the host start_url is short-lived
+    // (~2h zak) so the evaluator's "Start Meeting (Host)" card refetches
+    // it via /api/v1/meetings/{id}/host-start on every render.
+
+    @Column(name = "zoom_meeting_id", length = 64)
+    private String zoomMeetingId;
+
+    @Column(name = "zoom_join_url", columnDefinition = "text")
+    private String zoomJoinUrl;
+
+    /** HOST-ONLY — never serialised to the intern. */
+    @Column(name = "zoom_start_url", columnDefinition = "text")
+    private String zoomStartUrl;
+
+    @Column(name = "zoom_password", length = 40)
+    private String zoomPassword;
+
+    @Column(name = "session_duration_minutes")
+    private Integer sessionDurationMinutes;
+
+    @Column(name = "session_timezone", length = 50)
+    private String sessionTimezone;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 16)

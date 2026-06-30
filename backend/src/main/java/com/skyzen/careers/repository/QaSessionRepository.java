@@ -15,6 +15,14 @@ import java.util.UUID;
 public interface QaSessionRepository extends JpaRepository<QaSession, UUID> {
 
     /**
+     * Authorization lookup for {@code /api/v1/meetings/{id}/host-start} —
+     * the controller refuses to proxy a fresh Zoom start_url unless the
+     * caller's meeting id maps to one of our own meeting rows. Mirrors
+     * {@code DoubtRequestRepository.findFirstByZoomMeetingId}.
+     */
+    Optional<QaSession> findFirstByZoomMeetingId(String zoomMeetingId);
+
+    /**
      * Full fetch graph for a single session — project + engagement + RM +
      * intern user — so the service / DTO mapper never lazy-loads after the
      * transaction closes.

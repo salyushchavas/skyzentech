@@ -11,6 +11,9 @@ import com.skyzen.careers.enums.UserRole;
 import com.skyzen.careers.exception.BadRequestException;
 import com.skyzen.careers.exception.ForbiddenException;
 import com.skyzen.careers.exception.ResourceNotFoundException;
+import com.skyzen.careers.integration.meeting.MeetingProvider;
+import com.skyzen.careers.integration.meeting.MeetingRequest;
+import com.skyzen.careers.integration.meeting.MeetingResponse;
 import com.skyzen.careers.repository.ProjectRepository;
 import com.skyzen.careers.repository.QaSessionRepository;
 import lombok.RequiredArgsConstructor;
@@ -42,9 +45,12 @@ public class QaSessionService {
     private final QaSessionRepository qaSessionRepository;
     private final ProjectRepository projectRepository;
     private final ProjectWorkflowService projectWorkflowService;
+    private final MeetingProvider meetingProvider;
 
     @Transactional
-    public QaSession schedule(UUID projectId, Instant scheduledAt, String meetingLink, User caller) {
+    public QaSession schedule(UUID projectId, Instant scheduledAt, String meetingLink,
+                              Integer durationMinutes, String timezone,
+                              String topic, String agenda, User caller) {
         if (scheduledAt == null) {
             throw new BadRequestException("scheduledAt is required.");
         }
@@ -59,10 +65,49 @@ public class QaSessionService {
                             + current + ")");
         }
 
+        int duration = durationMinutes == null ? 30
+                : Math.max(15, Math.min(180, durationMinutes));
+        String tz = (timezone == null || timezone.isBlank()) ? "UTC" : timezone;
+        String meetingTopic = (topic != null && !topic.isBlank())
+                ? topic
+                : "Q&A — " + (project.getTitle() != null ? project.getTitle() : "Project viva");
+
+        // Auto-create a Zoom meeting on schedule so the evaluator gets a
+        // host start_url (refetched fresh via /host-start) and the intern
+        // gets a join_url — same pattern as KT / weekly / doubt sessions.
+        // Best-effort: a Zoom outage falls back to the manually-pasted
+        // meetingLink so the schedule still goes through.
+        String zoomId = null, joinUrl = null, startUrl = null, password = null;
+        if (meetingProvider.isReady()) {
+            try {
+                String hostId = caller.getZoomEmail() != null
+                        && !caller.getZoomEmail().isBlank()
+                        ? caller.getZoomEmail() : "me";
+                MeetingResponse z = meetingProvider.createMeeting(
+                        new MeetingRequest(hostId, meetingTopic, scheduledAt,
+                                duration, tz, agenda));
+                zoomId = z.providerMeetingId();
+                joinUrl = z.joinUrl();
+                startUrl = z.startUrl();
+                password = z.password();
+                log.info("[QaSession] {} meeting created id={} for project={}",
+                        meetingProvider.providerName(), zoomId, project.getId());
+            } catch (Exception e) {
+                log.warn("[QaSession] {} meeting create failed (non-fatal): {}",
+                        meetingProvider.providerName(), e.getMessage());
+            }
+        }
+
         QaSession session = QaSession.builder()
                 .project(project)
                 .scheduledAt(scheduledAt)
                 .meetingLink(trimToNull(meetingLink))
+                .zoomMeetingId(zoomId)
+                .zoomJoinUrl(joinUrl)
+                .zoomStartUrl(startUrl)
+                .zoomPassword(password)
+                .sessionDurationMinutes(duration)
+                .sessionTimezone(tz)
                 .status(QaSessionStatus.SCHEDULED)
                 .scheduledBy(caller)
                 .build();
@@ -179,6 +224,9 @@ public class QaSessionService {
                 internUser != null ? internUser.getFullName() : null,
                 s.getScheduledAt(),
                 s.getMeetingLink(),
+                s.getZoomMeetingId(),
+                s.getZoomJoinUrl(),
+                s.getZoomStartUrl(),
                 s.getStatus(),
                 s.getQuestionsAsked(),
                 s.getInternResponses(),
