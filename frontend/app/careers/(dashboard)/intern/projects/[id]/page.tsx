@@ -909,12 +909,12 @@ function KtCard({ a }: { a: AssignmentSummary }) {
   if (!kt) return null; // Catalog-only, no assignment → KT is N/A.
   const done = kt.status === 'DONE';
   const hasScheduledSession = !!kt.zoomMeetingId && !!kt.zoomJoinUrl;
-  // Compact branch — KT done AND no active session. Drops the whole
-  // card down to a single-line "Done · Marked {date} by {name}" so the
-  // right rail isn't dominated by a settled artifact. The notes /
-  // meeting-link details remain available on the trainer-side flow;
-  // intern can re-open via the Doubts surface if they need a refresher.
-  if (done && !hasScheduledSession) {
+  // Compact branch — KT done. Once the trainer marks done we never
+  // surface the live Zoom join link again, even if the stored
+  // ktZoom* fields are still on the project row. The compact "KT
+  // done · {date} · {trainer}" pill IS the status. Notes (if the
+  // trainer added a summary) line-clamp under it.
+  if (done) {
     return (
       <section className="rounded-lg border border-green-200 bg-green-50 px-3 py-2 shadow-sm">
         <div className="flex items-center gap-1.5 text-[11px] text-green-900">

@@ -442,10 +442,15 @@ function RecentProjectItem({
       </div>
 
       {/* Scheduled KT session block — appears when a Zoom meeting exists
-          for this project. Mirrors the WeeklyMeeting host card pattern:
-          show the date + meeting id, then the WebexHostStartCard which
-          fetches a fresh start_url on demand (~2h zak expiry). */}
-      {hasScheduledSession && (
+          for this project AND KT isn't done yet. Mirrors the
+          WeeklyMeeting host card pattern: show the date + meeting id,
+          then the WebexHostStartCard which fetches a fresh start_url on
+          demand (~2h zak expiry). Once the trainer marks KT done the
+          host-link surface disappears (status is captured by the
+          "KT: Done · {date}" pill above + the symmetric intern-side
+          compact pill); the underlying ktZoom* fields stay on the row
+          for audit but are never re-exposed as a live link. */}
+      {hasScheduledSession && !ktDone && (
         <div className="mt-2 rounded-md border border-slate-200 bg-slate-50 p-2">
           <div className="flex flex-wrap items-baseline justify-between gap-2">
             <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">
