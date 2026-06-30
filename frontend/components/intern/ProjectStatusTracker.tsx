@@ -9,19 +9,24 @@ import type {
 import { AlertTriangle } from 'lucide-react';
 
 /**
- * Project status tracker — 6-step pipeline that mirrors the application
- * stepper visual (StepperHorizontal). Maps the real
- * {@link ProjectAssignmentStatus} + trainer decision to the visible step.
+ * Project status tracker — 5-step pipeline that mirrors the application
+ * stepper visual (StepperHorizontal).
  *
  * <pre>
- *   1 Submitted        SUBMITTED (no trainer decision)
- *   2 Trainer review   SUBMITTED, trainer has the work
- *   3 Revisions        RETURNED or trainerDecision = REQUEST_REVISION
- *                      (conditional badge — loops back to step 1)
- *   4 Approved         TECH_APPROVED | PENDING_VIVA (trainer approved)
- *   5 Q&A              PENDING_VIVA (evaluator's Q&A session live)
- *   6 Completed        COMPLETED
+ *   0 Submitted        SUBMITTED before trainer review
+ *   1 Trainer review   SUBMITTED while trainer reviews
+ *   2 Approved         TECH_APPROVED | PENDING_VIVA (trainer approved)
+ *   3 Q&A session      PENDING_VIVA (evaluator's Q&A session live)
+ *   4 Completed        COMPLETED
  * </pre>
+ *
+ * <p>The tracker reads from {@link effectiveStatusFor} — a derived
+ * canonical state that consolidates {@link ProjectAssignmentStatus},
+ * the trainer's latest decision, and the QA session state. This is the
+ * SINGLE SOURCE OF TRUTH the tracker AND the top status pills should
+ * both feed off, so they always agree even when the backend mirror lags
+ * (e.g. legacy data where ProjectAssignment.status is still SUBMITTED
+ * but trainerDecision = ACCEPT).</p>
  */
 
 export const PROJECT_TRACKER_STEPS = [
@@ -32,59 +37,136 @@ export const PROJECT_TRACKER_STEPS = [
   { key: 'completed', label: 'Completed' },
 ] as const;
 
+/**
+ * Canonical effective state — derived from the assignment row, the
+ * trainer's latest decision, and the Q&A session. Both the tracker
+ * and the top status pills should derive from this so they never
+ * contradict each other.
+ */
+export type EffectiveStatus =
+  | 'ASSIGNED'
+  | 'IN_PROGRESS'
+  | 'SUBMITTED'
+  | 'UNDER_REVIEW'
+  | 'RETURNED'
+  | 'APPROVED'
+  | 'QA_SCHEDULED'
+  | 'QA_CONDUCTED'
+  | 'COMPLETED';
+
+export function effectiveStatusFor(a: AssignmentSummary): EffectiveStatus {
+  const status: ProjectAssignmentStatus = a.status;
+  const decision: TrainerDecision | null =
+    a.latestSubmission?.trainerDecision ?? null;
+  const qa = a.qaSession;
+
+  // COMPLETED dominates everything.
+  if (status === 'COMPLETED') return 'COMPLETED';
+
+  // Q&A live? The evaluator's session beats the trainer decision in
+  // labelling — once we're at the viva step, the trainer's accept is
+  // assumed.
+  if (qa?.status === 'CONDUCTED') return 'QA_CONDUCTED';
+  if (qa?.status === 'SCHEDULED' || status === 'PENDING_VIVA') {
+    return qa ? 'QA_SCHEDULED' : 'APPROVED';
+  }
+
+  // Trainer-decision dominates the assignment row for the
+  // SUBMITTED-but-decided case (the bug fix — backend mirror keeps these
+  // in sync for new rows, but legacy/stale rows still hit this branch).
+  if (decision === 'ACCEPT' || status === 'TECH_APPROVED') return 'APPROVED';
+  if (decision === 'REQUEST_REVISION' || status === 'RETURNED') return 'RETURNED';
+
+  // Submitted but no decision yet → still under review.
+  if (status === 'SUBMITTED') return 'UNDER_REVIEW';
+  if (status === 'IN_PROGRESS') return 'IN_PROGRESS';
+  return 'ASSIGNED';
+}
+
 export interface ProjectTrackerState {
   currentIndex: number;
   revisionRequested: boolean;
   nowLine: string;
+  effective: EffectiveStatus;
 }
 
 export function projectTrackerStateFor(a: AssignmentSummary): ProjectTrackerState {
-  const status: ProjectAssignmentStatus = a.status;
-  const decision: TrainerDecision | null =
-    a.latestSubmission?.trainerDecision ?? null;
-  const revisionRequested =
-    decision === 'REQUEST_REVISION' || status === 'RETURNED';
+  const effective = effectiveStatusFor(a);
+  const revisionRequested = effective === 'RETURNED';
 
-  // Step indices line up with PROJECT_TRACKER_STEPS above.
-  let currentIndex = 0;
+  let currentIndex = -1;
   let nowLine = '';
-  switch (status) {
+  switch (effective) {
     case 'ASSIGNED':
     case 'IN_PROGRESS':
-      currentIndex = revisionRequested ? 1 : -1;
-      nowLine = revisionRequested
-        ? 'Your trainer asked for revisions — update your work and re-submit.'
-        : 'Working on the project — submit when ready.';
+      nowLine = 'Working on the project — submit when ready.';
       break;
-    case 'SUBMITTED':
+    case 'UNDER_REVIEW':
+      // SUBMITTED but the trainer hasn't published a decision yet.
+      // Step 1 = "Trainer review" is current.
       currentIndex = 1;
-      nowLine = revisionRequested
-        ? 'Your trainer asked for revisions — update your work and re-submit.'
-        : 'Submitted and waiting for trainer review.';
+      nowLine = 'Submitted and waiting for trainer review.';
       break;
     case 'RETURNED':
-      currentIndex = 1;
+      // Loops back to "Submitted" so the intern's mental model is
+      // "fix and re-submit". The conditional badge below the tracker
+      // makes the revisions branch explicit.
+      currentIndex = 0;
       nowLine = 'Your trainer returned the project — see the notes below, update, and re-submit.';
       break;
-    case 'TECH_APPROVED':
+    case 'APPROVED':
+      // Trainer accepted — Submitted + Trainer review both DONE,
+      // "Approved" is the current step. Either the project is
+      // PENDING_VIVA awaiting the evaluator, or TECH_APPROVED (only on
+      // the legacy two-step path that doesn't auto-flip).
       currentIndex = 2;
-      nowLine = 'Trainer approved — heading to your Evaluator for the Q&A session.';
+      nowLine = 'Trainer approved — awaiting your Evaluator to schedule the Q&A session. You\'ll be notified when it\'s booked.';
       break;
-    case 'PENDING_VIVA':
+    case 'QA_SCHEDULED':
       currentIndex = 3;
-      nowLine = a.qaSession
-        ? 'Q&A session scheduled — see the Q&A card on the right for the join link and time.'
-        : 'Awaiting the Evaluator to schedule your Q&A session. You\'ll be notified when it\'s booked.';
+      nowLine = 'Q&A session scheduled — see the Q&A card on the right for the join link and time.';
+      break;
+    case 'QA_CONDUCTED':
+      currentIndex = 3;
+      nowLine = 'Q&A conducted — your Evaluator is preparing the final sign-off (marks + remarks).';
       break;
     case 'COMPLETED':
       currentIndex = 4;
       nowLine = 'Project completed and signed off. Nice work.';
       break;
-    default:
-      currentIndex = -1;
-      nowLine = '';
   }
-  return { currentIndex, revisionRequested, nowLine };
+  return { currentIndex, revisionRequested, nowLine, effective };
+}
+
+/**
+ * Single user-facing label per effective state. The project detail
+ * page's StatusBar uses this so the top-of-page status pill matches
+ * the tracker.
+ */
+export function effectiveStatusLabel(s: EffectiveStatus): string {
+  switch (s) {
+    case 'ASSIGNED':      return 'Assigned';
+    case 'IN_PROGRESS':   return 'In progress';
+    case 'SUBMITTED':     return 'Submitted';
+    case 'UNDER_REVIEW':  return 'Submitted — awaiting review';
+    case 'RETURNED':      return 'Returned for revisions';
+    case 'APPROVED':      return 'Trainer approved — heading to Q&A';
+    case 'QA_SCHEDULED':  return 'Q&A session scheduled';
+    case 'QA_CONDUCTED':  return 'Q&A conducted — awaiting sign-off';
+    case 'COMPLETED':     return 'Completed';
+  }
+}
+
+export function effectiveStatusTone(s: EffectiveStatus): string {
+  switch (s) {
+    case 'RETURNED':      return 'bg-red-100 text-red-800';
+    case 'UNDER_REVIEW':  return 'bg-slate-100 text-slate-700';
+    case 'APPROVED':      return 'bg-green-100 text-green-800';
+    case 'QA_SCHEDULED':  return 'bg-amber-100 text-amber-800';
+    case 'QA_CONDUCTED':  return 'bg-emerald-100 text-emerald-800';
+    case 'COMPLETED':     return 'bg-green-100 text-green-800';
+    default:              return 'bg-slate-100 text-slate-700';
+  }
 }
 
 interface Props {

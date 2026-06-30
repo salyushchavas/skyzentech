@@ -26,32 +26,15 @@ import {
 } from 'lucide-react';
 import api from '@/lib/api';
 import InternPageShell from '@/components/intern/InternPageShell';
-import ProjectStatusTracker from '@/components/intern/ProjectStatusTracker';
+import ProjectStatusTracker, {
+  effectiveStatusFor,
+  effectiveStatusLabel,
+  effectiveStatusTone,
+} from '@/components/intern/ProjectStatusTracker';
 import type {
   AssignmentSummary,
-  ProjectAssignmentStatus,
   TrainerDecision,
 } from '../types';
-
-const STATUS_TONE: Record<ProjectAssignmentStatus, string> = {
-  ASSIGNED:       'bg-slate-100 text-slate-700',
-  IN_PROGRESS:    'bg-amber-100 text-amber-800',
-  SUBMITTED:      'bg-slate-100 text-slate-700',
-  RETURNED:       'bg-red-100 text-red-800',
-  TECH_APPROVED:  'bg-green-100 text-green-800',
-  PENDING_VIVA:   'bg-slate-100 text-slate-700',
-  COMPLETED:      'bg-green-100 text-green-800',
-};
-
-const STATUS_LABEL: Record<ProjectAssignmentStatus, string> = {
-  ASSIGNED:       'Assigned',
-  IN_PROGRESS:    'In progress',
-  SUBMITTED:      'Submitted — awaiting review',
-  RETURNED:       'Returned for revisions',
-  TECH_APPROVED:  'Tech approved',
-  PENDING_VIVA:   'Pending viva',
-  COMPLETED:      'Completed',
-};
 
 const DECISION_LABEL: Record<TrainerDecision, string> = {
   ACCEPT:           'Accepted',
@@ -175,24 +158,29 @@ function BackLink() {
 }
 
 function StatusBar({ a }: { a: AssignmentSummary }) {
-  const revisionRequested =
-    a.latestSubmission?.trainerDecision === 'REQUEST_REVISION';
-  const accepted = a.latestSubmission?.trainerDecision === 'ACCEPT';
+  // SINGLE source of truth — both the tracker and this top status pill
+  // derive from effectiveStatusFor so they can never disagree. The
+  // previous version showed BOTH the assignment-row label
+  // ("Submitted — awaiting review") and a standalone "Trainer accepted"
+  // pill at the same time, which contradicted each other once the
+  // trainer approved but the assignment row hadn't yet been mirrored.
+  const effective = effectiveStatusFor(a);
+  const showApprovedCheck =
+    effective === 'APPROVED'
+    || effective === 'QA_SCHEDULED'
+    || effective === 'QA_CONDUCTED'
+    || effective === 'COMPLETED';
   return (
     <div className="flex flex-wrap items-center gap-2">
-      <span className={'rounded-full px-2.5 py-0.5 text-xs font-semibold ' + STATUS_TONE[a.status]}>
-        {STATUS_LABEL[a.status]}
+      <span
+        className={
+          'inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold '
+          + effectiveStatusTone(effective)
+        }
+      >
+        {showApprovedCheck && <CheckCircle2 className="h-3 w-3" />}
+        {effectiveStatusLabel(effective)}
       </span>
-      {revisionRequested && a.status !== 'RETURNED' && (
-        <span className="rounded-full bg-red-100 px-2.5 py-0.5 text-xs font-semibold text-red-800">
-          Trainer requested changes
-        </span>
-      )}
-      {accepted && (
-        <span className="inline-flex items-center gap-1 rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-semibold text-green-800">
-          <CheckCircle2 className="h-3 w-3" /> Trainer accepted
-        </span>
-      )}
       {a.dueDate && <DueChip iso={a.dueDate} submittedAt={a.submittedAt} />}
     </div>
   );
