@@ -20,4 +20,13 @@ public interface InternLifecycleRepository extends JpaRepository<InternLifecycle
      *  grid. Trainer scoping happens in the service layer via
      *  TrainerScopeGuard (handles the null-trainer single-org fallback). */
     List<InternLifecycle> findByActiveStatusOrderByEmployeeIdAsc(String activeStatus);
+
+    /** ERM Document Gallery — list every lifecycle row (active + past)
+     *  ordered by employee id. Filtering by status happens in the service
+     *  layer so the same listing can serve the ALL / ACTIVE / INACTIVE /
+     *  PROSPECTIVE filter without N+1 queries. */
+    List<InternLifecycle> findAllByOrderByEmployeeIdAsc();
+
+    List<InternLifecycle> findByActiveStatusInOrderByEmployeeIdAsc(
+            java.util.Collection<String> activeStatuses);
 }

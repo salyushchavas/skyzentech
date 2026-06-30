@@ -106,6 +106,7 @@ const STAFF_ROLE_LINKS: Record<UserRole, StaffLink[]> = {
         { icon: ShieldCheck,    label: 'I-9 / E-Verify',     href: '/careers/erm/compliance' },
       ],
     },
+    { icon: FolderArchive,  label: 'Document Gallery',     href: '/careers/erm/document-gallery' },
     { icon: Users,          label: 'Active Interns',       href: '/careers/erm/active-interns' },
     { icon: Hammer,         label: 'Timesheets',           href: '/careers/erm/timesheets' },
     { icon: AlertTriangle,  label: 'Escalations',          href: '/careers/erm/escalations' },

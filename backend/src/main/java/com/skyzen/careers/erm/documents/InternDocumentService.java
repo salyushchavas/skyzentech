@@ -51,6 +51,7 @@ public class InternDocumentService {
     private final DocumentTaskRepository taskRepository;
     private final DocumentTaskReviewLogRepository reviewLogRepository;
     private final InternLifecycleRepository lifecycleRepository;
+    private final DocumentRepository documentRepository;
     private final DocumentVaultService documentVault;
     private final ApplicationEventPublisher eventPublisher;
     private final DocumentPacketService packetService;
@@ -121,6 +122,29 @@ public class InternDocumentService {
                     sensitivity,
                     caller.getId());
             String previous = t.getStatus();
+            // Pure-overwrite on revision re-upload — the previous file
+            // (if any) is soft-deleted so only the latest version is
+            // visible from the gallery / vault list. Bytes in S3/disk
+            // are not eagerly removed; the soft-delete sets deleted_at
+            // on the Document row, and every read path filters that
+            // out. Best-effort: failure to soft-delete the prior row
+            // logs at WARN — the new file is already saved and the
+            // pointer swap below succeeds either way.
+            UUID previousFileId = t.getUploadedFileId();
+            if (previousFileId != null && !previousFileId.equals(saved.getId())) {
+                try {
+                    documentRepository.findById(previousFileId).ifPresent(prior -> {
+                        if (prior.getDeletedAt() == null) {
+                            prior.setDeletedAt(Instant.now());
+                            documentRepository.save(prior);
+                        }
+                    });
+                } catch (Exception e) {
+                    log.warn("[InternDocument] prior-file soft-delete failed "
+                            + "(non-fatal) for task {} previous file {}: {}",
+                            t.getId(), previousFileId, e.getMessage());
+                }
+            }
             t.setUploadedFileId(saved.getId());
             t.setStatus("SUBMITTED");
             t.setSubmittedAt(Instant.now());
