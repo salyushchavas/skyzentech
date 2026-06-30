@@ -26,6 +26,7 @@ public class EvaluatorController {
     private final EvaluatorRightPanelService rightPanelService;
     private final EvaluationWorkflowService workflowService;
     private final PendingEvaluationsService pendingService;
+    private final PendingVivasService pendingVivasService;
     private final I983EvaluationWorkflowService i983Workflow;
     private final EvaluationHistoryService historyService;
     private final EvaluatorReportsService reportsService;
@@ -124,6 +125,23 @@ public class EvaluatorController {
     public EvaluationWorkflowDtos.PendingEvaluationsResponse pendingEvaluations(
             @AuthenticationPrincipal User caller) {
         return pendingService.list(caller);
+    }
+
+    /**
+     * Evaluator pending-Q&A queue — projects whose status is PENDING_VIVA
+     * (trainer approved; awaiting evaluator's Q&A session + final
+     * approval). Scoped to lifecycles where {@code evaluator_id} matches
+     * the caller or is null (single-evaluator-org fallback).
+     *
+     * <p>Wires into the existing {@code /api/v1/qa-sessions} surface —
+     * the frontend uses this list to schedule sessions, record conducted
+     * notes, sign off (marks + remarks), or return for revisions.</p>
+     */
+    @GetMapping("/pending-vivas")
+    @PreAuthorize("hasAnyRole('EVALUATOR', 'SUPER_ADMIN')")
+    public PendingVivasDtos.PendingVivasResponse pendingVivas(
+            @AuthenticationPrincipal User caller) {
+        return pendingVivasService.list(caller);
     }
 
     // ── Phase 3 — I-983 evaluation workflow ──────────────────────────────
