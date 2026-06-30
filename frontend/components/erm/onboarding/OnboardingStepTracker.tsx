@@ -47,6 +47,13 @@ interface Props {
    *  NewHireDetail (the legacy modals already do this). The tracker
    *  itself re-fetches on every mount + on any internal action. */
   onChanged?: () => void;
+  /** Bump from the parent (counter, timestamp, etc.) to force the
+   *  tracker to re-fetch its payload. Needed when a sibling modal
+   *  (Assign Packet, Set Joining Date, Assign Company Email) changes
+   *  the underlying tracker state — those modals close on the parent,
+   *  not the tracker, so the tracker has no other way to know it
+   *  needs to refresh. */
+  refreshKey?: number;
   /** Parent supplies the existing modal launchers so this component
    *  doesn't have to re-implement the assign-packet dialog, company-
    *  email dialog, joining date modal, etc. — they already exist on
@@ -67,6 +74,7 @@ interface Props {
 export default function OnboardingStepTracker({
   lifecycleId,
   onChanged,
+  refreshKey,
   onOpenAssignPacketModal,
   onOpenCompanyEmailModal,
   onOpenJoiningDateModal,
@@ -95,7 +103,11 @@ export default function OnboardingStepTracker({
     }
   }, [lifecycleId]);
 
-  useEffect(() => { void load(); }, [load]);
+  // Re-fetch on mount, on lifecycle change, AND whenever the parent
+  // bumps refreshKey (e.g. AssignPacket / SetJoiningDate / AssignMail
+  // modal completes). Without the refreshKey dep, a sibling-modal save
+  // wouldn't flip the relevant step to DONE until the page is reloaded.
+  useEffect(() => { void load(); }, [load, refreshKey]);
 
   async function activateNow() {
     if (!confirm(

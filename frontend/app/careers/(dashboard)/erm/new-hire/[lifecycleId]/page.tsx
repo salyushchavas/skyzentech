@@ -26,6 +26,13 @@ export default function NewHireDetailPage() {
   const [modal, setModal] = useState<'reporting' | 'startdate' | 'packet' | 'manager' | 'joining' | 'companyEmail' | null>(null);
   const [activating, setActivating] = useState(false);
   const [activateErr, setActivateErr] = useState<string | null>(null);
+  // Bumped after any sibling modal that mutates onboarding-tracker
+  // state (assign packet, set joining date, assign company email) so
+  // the OnboardingStepTracker re-fetches its own payload. The tracker
+  // has its own internal fetch — the page's load() refreshes
+  // NewHireDetail but not the tracker payload, hence the explicit cue.
+  const [trackerRefreshKey, setTrackerRefreshKey] = useState(0);
+  const bumpTracker = () => setTrackerRefreshKey((n) => n + 1);
 
   const load = useCallback(async () => {
     if (!id) return;
@@ -105,6 +112,7 @@ export default function NewHireDetailPage() {
             <OnboardingStepTracker
               lifecycleId={data.internLifecycleId}
               onChanged={() => void load()}
+              refreshKey={trackerRefreshKey}
               onOpenAssignPacketModal={() => setModal('packet')}
               onOpenCompanyEmailModal={() => setModal('companyEmail')}
               onOpenJoiningDateModal={() => setModal('joining')}
@@ -295,7 +303,7 @@ export default function NewHireDetailPage() {
             lifecycleId={data.internLifecycleId}
             internName={data.internName ?? null}
             onClose={() => setModal(null)}
-            onAssigned={() => { setModal(null); void load(); }}
+            onAssigned={() => { setModal(null); bumpTracker(); void load(); }}
           />
         )}
         {modal === 'manager' && (
@@ -311,7 +319,7 @@ export default function NewHireDetailPage() {
             lifecycleId={data.internLifecycleId}
             currentDate={data.joiningDate}
             onClose={() => setModal(null)}
-            onApplied={() => { setModal(null); void load(); }}
+            onApplied={() => { setModal(null); bumpTracker(); void load(); }}
           />
         )}
         {modal === 'companyEmail' && (
@@ -327,6 +335,7 @@ export default function NewHireDetailPage() {
                 + `${data.internEmail ?? 'the intern’s personal email'}.`,
               );
               setModal(null);
+              bumpTracker();
               void load();
             }}
           />
