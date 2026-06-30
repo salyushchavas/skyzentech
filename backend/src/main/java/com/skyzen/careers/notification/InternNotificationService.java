@@ -12,34 +12,38 @@ import org.springframework.stereotype.Service;
 import java.util.UUID;
 
 /**
- * One-call helper for sending an INTERNAL mail to an active intern
- * (employee) when a meaningful action happens. Centralised so every
- * post-activation event uses the same gates + send path.
+ * One-call helper for sending a mail to an active intern (employee)
+ * when a meaningful action happens. Centralised so every post-activation
+ * event uses the same gate + send path.
  *
- * <h2>Gates (both must pass; otherwise no send, no error)</h2>
- * <ol>
- *   <li><b>True-active</b> — {@code intern_lifecycles.active_status = 'ACTIVE'}.
- *       Same signal the tracker, dashboard mode, and nav swap key off.
- *       A pre-active intern (still in onboarding) gets nothing — they
- *       don't yet have a company mailbox and the notifications aren't
- *       meaningful until they're a working employee.</li>
- *   <li><b>Mailbox ready</b> — {@code user.mailHandoverState = ACTIVATED}
- *       AND {@code user.mailAccountId != null}. The
- *       {@link BridgingEmailProvider} intercept routes
- *       {@link EmailProvider#sendBrandedHtml} to
- *       {@code MailMessageService.deliverInternalNotification} only
- *       under this condition; otherwise it would fall through to
- *       external SMTP, which the brief explicitly rules out for these
- *       employee-side notifications.</li>
- * </ol>
+ * <h2>Gate (must pass; otherwise no send, no error)</h2>
+ * <p><b>True-active</b> — {@code intern_lifecycles.active_status = 'ACTIVE'}.
+ * Same signal the tracker, dashboard mode, and nav swap key off. A
+ * pre-active intern (still in onboarding) gets nothing — they have
+ * their own dedicated pre-active flows for offer / docs / etc.</p>
  *
- * <h2>Delivery</h2>
- * Calls {@link EmailProvider#sendBrandedHtml} with the intern's
- * personal Gmail (which {@code users.email} still holds post-handover —
- * the bridge looks up the user by that key and routes to the linked
- * company mailbox). The send is wrapped in try/catch so a delivery
- * failure NEVER breaks the calling action — the notification is a
- * niceness, not a side-effect the workflow depends on.
+ * <h2>Delivery — routing is delegated to {@link BridgingEmailProvider}</h2>
+ * Calls {@link EmailProvider#sendBrandedHtml} with the intern's email
+ * (which {@code users.email} still holds post-handover). The bridge
+ * decides where the mail lands:
+ * <ul>
+ *   <li>{@code mailHandoverState = ACTIVATED} AND {@code mailAccountId != null}
+ *       → company mailbox via
+ *       {@code MailMessageService.deliverInternalNotification}.</li>
+ *   <li>Otherwise (PENDING_ACTIVATION, PERSONAL, or missing mailbox row)
+ *       → bridge falls through to raw SMTP → personal email.</li>
+ * </ul>
+ *
+ * <p>Previously this helper also pre-gated on the mailbox state and
+ * silently dropped sends when the mailbox wasn't yet ACTIVATED — which
+ * meant an intern who'd just been flipped to ACTIVE but whose company
+ * mailbox was still PENDING_ACTIVATION received no notification at all
+ * for project assignment, KT, feedback, evaluations, etc. The mailbox
+ * pre-gate is now gone; the bridge already handles routing both ways
+ * and never drops a send.</p>
+ *
+ * <p>The send is wrapped in try/catch so a delivery failure NEVER
+ * breaks the calling action.</p>
  */
 @Service
 @RequiredArgsConstructor
@@ -75,23 +79,21 @@ public class InternNotificationService {
                         internUserId, lc == null ? "null" : lc.getActiveStatus());
                 return;
             }
-            if (user.getMailHandoverState() != MailHandoverState.ACTIVATED
-                    || user.getMailAccountId() == null) {
-                log.debug("[InternNotification] skip — mailbox not yet ACTIVATED for {} (state={})",
-                        internUserId, user.getMailHandoverState());
-                return;
-            }
-            // EmailProvider.sendBrandedHtml goes through BridgingEmailProvider
-            // which detects mailHandoverState=ACTIVATED + mailAccountId set
-            // and routes the message via MailMessageService.deliverInternal
-            // -Notification — landing in the intern's company mailbox
-            // rather than external SMTP. No CC, no fan-out — single-
-            // recipient internal delivery per the brief.
+            // EmailProvider.sendBrandedHtml is wrapped by BridgingEmailProvider.
+            // For ACTIVATED users with a linked mail_account it routes to the
+            // company mailbox via MailMessageService.deliverInternalNotification;
+            // for PENDING_ACTIVATION / PERSONAL users (or any state where the
+            // mailbox isn't fully linked yet) it falls through to raw SMTP and
+            // reaches the intern's personal email. Either way the message lands —
+            // a notification is NEVER silently dropped just because the company
+            // mailbox is still mid-provisioning. The bridge logs the routing
+            // decision so the delivery channel is greppable per send.
             String safeHtml = htmlBody != null && !htmlBody.isBlank() ? htmlBody
                     : plainTextToSimpleHtml(plainBody);
             emailProvider.sendBrandedHtml(user.getEmail(), subject,
                     plainBody != null ? plainBody : subject, safeHtml);
-            log.info("[InternNotification] sent '{}' to intern={}", subject, internUserId);
+            log.info("[InternNotification] sent '{}' to intern={} (mailbox state={})",
+                    subject, internUserId, user.getMailHandoverState());
         } catch (Exception e) {
             // Notification failure is never fatal — the calling action
             // already committed; logging at warn surfaces it without
