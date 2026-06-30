@@ -27,8 +27,8 @@ import java.util.List;
 import java.util.UUID;
 
 /**
- * Q&amp;A session endpoints. Writes restricted to REPORTING_MANAGER or
- * SUPER_ADMIN; reads also accept the engagement's technical supervisor
+ * Q&amp;A session endpoints. Writes restricted to EVALUATOR,
+ * REPORTING_MANAGER, or SUPER_ADMIN; reads also accept the trainer
  * and the intern themselves (service-level scoping).
  */
 @RestController
@@ -39,7 +39,7 @@ public class QaSessionController {
     private final QaSessionService qaSessionService;
 
     @PostMapping
-    @PreAuthorize("hasAnyRole('REPORTING_MANAGER', 'SUPER_ADMIN')")
+    @PreAuthorize("hasAnyRole('EVALUATOR', 'REPORTING_MANAGER', 'SUPER_ADMIN')")
     public ResponseEntity<QaSessionResponse> schedule(
             @Valid @RequestBody ScheduleQaSessionRequest req,
             @AuthenticationPrincipal User caller) {
@@ -51,7 +51,7 @@ public class QaSessionController {
     }
 
     @PatchMapping("/{id}/conducted")
-    @PreAuthorize("hasAnyRole('REPORTING_MANAGER', 'SUPER_ADMIN')")
+    @PreAuthorize("hasAnyRole('EVALUATOR', 'REPORTING_MANAGER', 'SUPER_ADMIN')")
     public QaSessionResponse updateConducted(
             @PathVariable UUID id,
             @Valid @RequestBody UpdateConductedRequest req,
@@ -62,7 +62,7 @@ public class QaSessionController {
     }
 
     @PostMapping("/{id}/sign-off")
-    @PreAuthorize("hasAnyRole('REPORTING_MANAGER', 'SUPER_ADMIN')")
+    @PreAuthorize("hasAnyRole('EVALUATOR', 'REPORTING_MANAGER', 'SUPER_ADMIN')")
     public QaSessionResponse signOff(
             @PathVariable UUID id,
             @Valid @RequestBody(required = false) SignOffRequest req,
@@ -74,7 +74,7 @@ public class QaSessionController {
     }
 
     @PostMapping("/{id}/return")
-    @PreAuthorize("hasAnyRole('REPORTING_MANAGER', 'SUPER_ADMIN')")
+    @PreAuthorize("hasAnyRole('EVALUATOR', 'REPORTING_MANAGER', 'SUPER_ADMIN')")
     public QaSessionResponse returnForRevisions(
             @PathVariable UUID id,
             @Valid @RequestBody ReturnQaSessionRequest req,

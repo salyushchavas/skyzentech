@@ -203,17 +203,19 @@ public class QaSessionService {
     }
 
     // Role-based gates — per-engagement RM/supervisor FKs are not the
-    // boundary. Any REPORTING_MANAGER acts on any Q&A; reads also allow
-    // TECHNICAL_EVALUATOR and the project's own intern.
+    // boundary. EVALUATOR (org-wide Phase 8.6.4 evaluator) or
+    // REPORTING_MANAGER may act on any Q&A; reads also allow
+    // TRAINER and the project's own intern.
     private static void ensureRmOrSuperAdmin(Project project, User caller) {
         if (caller == null) throw new ForbiddenException("Authentication required.");
         if (isSuperAdmin(caller)) return;
         if (caller.getRoles() != null
-                && caller.getRoles().contains(UserRole.REPORTING_MANAGER)) {
+                && (caller.getRoles().contains(UserRole.EVALUATOR)
+                    || caller.getRoles().contains(UserRole.REPORTING_MANAGER))) {
             return;
         }
         throw new ForbiddenException(
-                "Only REPORTING_MANAGER or SUPER_ADMIN may act on this Q&A.");
+                "Only EVALUATOR, REPORTING_MANAGER, or SUPER_ADMIN may act on this Q&A.");
     }
 
     private static void ensureCanRead(Project project, User caller) {
@@ -223,7 +225,8 @@ public class QaSessionService {
         User internUser = intern != null ? intern.getUser() : null;
         boolean isIntern = internUser != null && internUser.getId().equals(caller.getId());
         boolean hasReviewerRole = caller.getRoles() != null
-                && (caller.getRoles().contains(UserRole.REPORTING_MANAGER)
+                && (caller.getRoles().contains(UserRole.EVALUATOR)
+                    || caller.getRoles().contains(UserRole.REPORTING_MANAGER)
                     || caller.getRoles().contains(UserRole.TRAINER));
         if (!isIntern && !hasReviewerRole) {
             throw new ForbiddenException("Not authorised to view this Q&A session.");

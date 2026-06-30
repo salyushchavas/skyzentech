@@ -134,6 +134,8 @@ function PendingReviewsInner() {
         <h1 className="mt-1 text-xl font-semibold text-slate-900">Pending Reviews</h1>
         <p className="text-xs text-slate-500">
           Doc §9 queue — submitted project work awaiting Trainer feedback.
+          Trainer <em>reviews &amp; approves</em>; the Evaluator runs the Q&amp;A
+          session and signs final completion.
         </p>
       </div>
 
@@ -454,7 +456,7 @@ function ReviewModal({ submissionId, onClose, onSubmitted }: {
             <Field label="Decision*">
               <div className="space-y-1 text-sm">
                 {[
-                  { v: 'ACCEPT', label: 'Accept — project Completed', icon: CheckCircle2, tone: 'text-green-700' },
+                  { v: 'ACCEPT', label: 'Approve — send to Evaluator for Q&A', icon: CheckCircle2, tone: 'text-green-700' },
                   { v: 'REQUEST_REVISION', label: 'Request revision', icon: RotateCcw, tone: 'text-amber-700' },
                   { v: 'ESCALATE', label: 'Escalate to ERM + Manager', icon: AlertOctagon, tone: 'text-red-700' },
                   { v: 'NO_ACTION_YET', label: 'No action yet (silent state)', icon: Clock, tone: 'text-slate-700' },
