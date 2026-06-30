@@ -41,10 +41,20 @@ export interface RecentActivityRow {
   deepLink: string | null;
 }
 
+export interface FocusItem {
+  key: string;
+  label: string;
+  count: number;
+  actionUrl: string;
+}
+
 export interface TrainerDashboardResponse {
   caller: { firstName: string; lastName: string; role: string };
   asOf: string;
   kpis: Partial<Record<TrainerKpiKey, KpiSnapshot>>;
+  /** "This week" focus strip — ≤5 actionable items. Zero-count items
+   *  are returned and hidden client-side; all-zero renders "all caught up". */
+  focusItems: FocusItem[];
   todayMeetings: TodayMeetingRow[];
   recentActivity: RecentActivityRow[];
   unreadNotifications: number;
