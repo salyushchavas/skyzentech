@@ -75,4 +75,20 @@ public interface QaSessionRepository extends JpaRepository<QaSession, UUID> {
             + "WHERE s.status IN :statuses "
             + "ORDER BY s.scheduledAt ASC")
     List<QaSession> findAllByStatusInWithGraph(@Param("statuses") List<QaSessionStatus> statuses);
+
+    /**
+     * Intern's pending-Q&A surface — sessions whose project is in the
+     * given list and whose status is in the given set, newest scheduled
+     * first. Used by {@code ProjectAssignmentService.mapWithGraph} to
+     * surface the join link + scheduled time on each intern's project
+     * row in one round-trip rather than N+1.
+     */
+    @Query("SELECT s FROM QaSession s "
+            + "LEFT JOIN FETCH s.scheduledBy sb "
+            + "WHERE s.project.id IN :projectIds "
+            + "  AND s.status IN :statuses "
+            + "ORDER BY s.scheduledAt DESC")
+    List<QaSession> findByProjectIdsAndStatusIn(
+            @Param("projectIds") java.util.Collection<UUID> projectIds,
+            @Param("statuses") List<QaSessionStatus> statuses);
 }

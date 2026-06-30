@@ -26,6 +26,7 @@ import {
 } from 'lucide-react';
 import api from '@/lib/api';
 import InternPageShell from '@/components/intern/InternPageShell';
+import ProjectStatusTracker from '@/components/intern/ProjectStatusTracker';
 import type {
   AssignmentSummary,
   ProjectAssignmentStatus,
@@ -122,6 +123,17 @@ export default function InternProjectDetailPage() {
         <StatusBar a={data} />
       </div>
 
+      {/* Status tracker — same visual pattern as the application
+          stepper / intern journey bar. Hidden during ASSIGNED /
+          IN_PROGRESS (nothing in flight yet) to keep the
+          government-tracker affordance focused on the submit → review
+          → Q&A → completed pipeline. */}
+      {data.status !== 'ASSIGNED' && data.status !== 'IN_PROGRESS' && (
+        <div className="mb-3">
+          <ProjectStatusTracker assignment={data} />
+        </div>
+      )}
+
       {/* One-frame layout on lg+: outer grid has bounded height + no
           overflow; each column scrolls internally. Mobile keeps natural
           flow + page scroll. */}
@@ -139,6 +151,7 @@ export default function InternProjectDetailPage() {
         </main>
         <aside className="space-y-3 lg:h-full lg:min-h-0 lg:overflow-y-auto lg:pr-1">
           <MetaCard a={data} />
+          <QaSessionCard a={data} />
           <KtCard a={data} />
           <RepositoryCard a={data} />
           <YourTeamCard />
@@ -988,6 +1001,99 @@ function RepositoryCard({ a }: { a: AssignmentSummary }) {
           Access not granted yet — ask your trainer.
         </p>
       )}
+    </section>
+  );
+}
+
+/**
+ * Q&A (viva) session card. Shows when the Evaluator has scheduled a
+ * Q&A session for this project. Surfaces the Zoom join link + time +
+ * who scheduled. Mirrors the KtCard layout. Pending state shown when
+ * the project has reached PENDING_VIVA but the Evaluator hasn't
+ * scheduled yet — so the intern knows what's next.
+ */
+function QaSessionCard({ a }: { a: AssignmentSummary }) {
+  const qa = a.qaSession;
+  const awaiting = a.status === 'PENDING_VIVA' && !qa;
+  if (!qa && !awaiting) return null;
+
+  if (awaiting) {
+    return (
+      <section className="rounded-lg border border-slate-200 bg-white p-3 shadow-sm">
+        <div className="flex items-center gap-1.5">
+          <MessageSquare className="h-3.5 w-3.5 text-slate-500" />
+          <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+            Q&amp;A session
+          </h3>
+          <span className="ml-auto rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-medium text-amber-800">
+            Awaiting Evaluator
+          </span>
+        </div>
+        <p className="mt-1.5 text-[11px] text-slate-500">
+          Your trainer approved the project. Your Evaluator will schedule a
+          Q&amp;A session — you&apos;ll be notified by email with the join link.
+        </p>
+      </section>
+    );
+  }
+  // qa is non-null past this point.
+  const hasJoin = !!qa!.zoomJoinUrl || !!qa!.meetingLink;
+  const isConducted = qa!.status === 'CONDUCTED';
+  return (
+    <section className="rounded-lg border border-slate-200 bg-white p-3 shadow-sm">
+      <div className="flex items-center gap-1.5">
+        <MessageSquare className="h-3.5 w-3.5 text-slate-500" />
+        <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+          Q&amp;A session
+        </h3>
+        <span className={
+          'ml-auto rounded-full px-2 py-0.5 text-[10px] font-medium '
+          + (isConducted
+              ? 'bg-emerald-100 text-emerald-800'
+              : 'bg-amber-100 text-amber-800')
+        }>
+          {isConducted ? 'Conducted — awaiting sign-off' : 'Scheduled'}
+        </span>
+      </div>
+
+      <div className="mt-2 rounded-md border border-brand-200 bg-brand-50 p-2">
+        <div className="flex flex-wrap items-baseline justify-between gap-1.5">
+          <p className="text-[10px] font-semibold uppercase tracking-wide text-brand-800">
+            Live Q&amp;A session
+          </p>
+          {qa!.scheduledAt && (
+            <p className="text-[10px] text-slate-700">
+              {new Date(qa!.scheduledAt).toLocaleString([], {
+                month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit',
+              })}
+              {qa!.durationMinutes ? ` · ${qa!.durationMinutes}m` : ''}
+            </p>
+          )}
+        </div>
+        {qa!.scheduledByName && (
+          <p className="mt-0.5 text-[10px] text-slate-600">
+            Scheduled by {qa!.scheduledByName}, your Evaluator
+          </p>
+        )}
+        {hasJoin && !isConducted && (
+          <a
+            href={(qa!.zoomJoinUrl ?? qa!.meetingLink) ?? '#'}
+            target="_blank"
+            rel="noreferrer noopener"
+            className="mt-1.5 inline-flex items-center gap-1 rounded-md bg-brand-700 px-2.5 py-1 text-[11px] font-semibold text-white hover:bg-brand-800"
+          >
+            <Video className="h-3 w-3" />
+            Join Meeting
+          </a>
+        )}
+        {isConducted && (
+          <p className="mt-1.5 text-[11px] text-emerald-800">
+            Session conducted. Your Evaluator will sign off with marks and
+            remarks — you&apos;ll be notified when the project is marked
+            Completed.
+          </p>
+        )}
+      </div>
     </section>
   );
 }

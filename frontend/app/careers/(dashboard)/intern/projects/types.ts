@@ -81,6 +81,24 @@ export interface UserRef {
   githubUsername: string | null;
 }
 
+/**
+ * Active Q&A session summary — surfaced on the assignment row when the
+ * evaluator has scheduled a session that hasn't completed/returned yet.
+ * Host start_url is HOST-ONLY and is intentionally absent from this
+ * intern-facing type.
+ */
+export interface QaSessionSummary {
+  sessionId: string;
+  status: 'SCHEDULED' | 'CONDUCTED' | string;
+  scheduledAt: string | null;
+  durationMinutes: number | null;
+  timezone: string | null;
+  meetingLink: string | null;
+  zoomMeetingId: string | null;
+  zoomJoinUrl: string | null;
+  scheduledByName: string | null;
+}
+
 export interface AssignmentSummary {
   id: string;
   project: ProjectRef | null;
@@ -96,4 +114,7 @@ export interface AssignmentSummary {
   submittedAt: string | null;
   submissionNotes: string | null;
   latestSubmission: LatestSubmission | null;
+  /** Active Q&A session (SCHEDULED or CONDUCTED) on this project. Null
+   *  when nothing is scheduled yet. */
+  qaSession: QaSessionSummary | null;
 }

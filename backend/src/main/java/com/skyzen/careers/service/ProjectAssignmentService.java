@@ -71,6 +71,7 @@ public class ProjectAssignmentService {
     private final GitHubService gitHubService;
     private final LifecycleAccessPolicy lifecycleAccessPolicy;
     private final ProjectSubmissionRepository projectSubmissionRepository;
+    private final com.skyzen.careers.repository.QaSessionRepository qaSessionRepository;
     private final InternLifecycleRepository internLifecycleRepository;
     private final ApplicationEventPublisher eventPublisher;
     private final ObjectMapper objectMapper;
@@ -747,6 +748,33 @@ public class ProjectAssignmentService {
                 if (top.getReviewedById() != null) userIds.add(top.getReviewedById());
             }
         }
+        // Bulk-fetch the active QaSession per project (SCHEDULED or
+        // CONDUCTED only — COMPLETED / RETURNED sessions are history,
+        // not a join-now signal). Tracker + dashboard surface the
+        // Zoom join link from this.
+        Map<UUID, com.skyzen.careers.entity.QaSession> activeQaByProject = new HashMap<>();
+        if (!projectIds.isEmpty()) {
+            try {
+                List<com.skyzen.careers.entity.QaSession> active = qaSessionRepository
+                        .findByProjectIdsAndStatusIn(projectIds, List.of(
+                                com.skyzen.careers.enums.QaSessionStatus.SCHEDULED,
+                                com.skyzen.careers.enums.QaSessionStatus.CONDUCTED));
+                for (com.skyzen.careers.entity.QaSession s : active) {
+                    UUID pid = s.getProject() != null ? s.getProject().getId() : null;
+                    if (pid == null) continue;
+                    // Sorted DESC by scheduledAt — first hit wins; later
+                    // duplicates (re-schedules) silently skipped here so
+                    // the intern only ever sees the newest session.
+                    activeQaByProject.putIfAbsent(pid, s);
+                    if (s.getScheduledBy() != null) {
+                        userIds.add(s.getScheduledBy().getId());
+                    }
+                }
+            } catch (Exception e) {
+                log.warn("[ProjectAssignment] bulk QaSession fetch failed "
+                        + "(non-fatal): {}", e.getMessage());
+            }
+        }
         Map<UUID, User> users = userRepository.findAllById(userIds).stream()
                 .collect(Collectors.toMap(User::getId, u -> u));
         // Bulk-fetch repository links so per-row mapping doesn't N+1.
@@ -823,6 +851,11 @@ public class ProjectAssignmentService {
             ProjectAssignmentResponse.KtSummary ktSummary = p == null
                     ? null
                     : buildKtSummary(p, users);
+            com.skyzen.careers.entity.QaSession activeQa = p != null
+                    ? activeQaByProject.get(p.getId()) : null;
+            ProjectAssignmentResponse.QaSummary qaSummary = activeQa == null
+                    ? null
+                    : buildQaSummary(activeQa, users);
             List<ProjectAssignmentResponse.ProjectFileRef> projectFiles = p == null
                     ? null
                     : toProjectFileRefs(projectToDocIds.get(p.getId()), docsById);
@@ -857,10 +890,37 @@ public class ProjectAssignmentService {
                     r.getSubmittedAt(),
                     r.getSubmissionNotes(),
                     latest,
+                    qaSummary,
                     r.getCreatedAt(),
                     r.getUpdatedAt()
             );
         }).toList();
+    }
+
+    /**
+     * Intern-safe projection of the active QaSession. Mirrors the
+     * KtSummary builder — intern gets join URL + time + duration +
+     * who scheduled, NEVER the host start URL (that field is host-only).
+     */
+    private static ProjectAssignmentResponse.QaSummary buildQaSummary(
+            com.skyzen.careers.entity.QaSession s, Map<UUID, User> users) {
+        if (s == null) return null;
+        String scheduledByName = null;
+        if (s.getScheduledBy() != null) {
+            User u = users.get(s.getScheduledBy().getId());
+            scheduledByName = u != null ? u.getFullName()
+                    : s.getScheduledBy().getFullName();
+        }
+        return new ProjectAssignmentResponse.QaSummary(
+                s.getId(),
+                s.getStatus() != null ? s.getStatus().name() : null,
+                s.getScheduledAt(),
+                s.getSessionDurationMinutes(),
+                s.getSessionTimezone(),
+                s.getMeetingLink(),
+                s.getZoomMeetingId(),
+                s.getZoomJoinUrl(),
+                scheduledByName);
     }
 
     private static ProjectAssignmentResponse.KtSummary buildKtSummary(Project p, Map<UUID, User> users) {

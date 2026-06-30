@@ -36,6 +36,13 @@ public record ProjectAssignmentResponse(
          *  the trainer said. Null until the intern submits at least once. */
         LatestSubmission latestSubmission,
 
+        /** Active {@code QaSession} for this project (status SCHEDULED or
+         *  CONDUCTED) — surfaces the evaluator's Zoom join link + scheduled
+         *  time on the intern's project tracker + dashboard Q&A card. Null
+         *  when no session is scheduled. Host start_url is intentionally
+         *  NOT included — that field is HOST-ONLY. */
+        QaSummary qaSession,
+
         Instant createdAt,
         Instant updatedAt
 ) {
@@ -108,6 +115,25 @@ public record ProjectAssignmentResponse(
      * intentionally left off — the intern surface only needs the public
      * decision + feedback.
      */
+    /**
+     * Intern-safe projection of the active {@code QaSession} (the
+     * evaluator's Q&A / viva session). Mirrors the {@code KtSummary}
+     * pattern — Zoom join URL + scheduled time + duration / timezone +
+     * who scheduled it. {@code zoomStartUrl} is host-only and is NEVER
+     * surfaced through this DTO.
+     */
+    public record QaSummary(
+            UUID sessionId,
+            String status,             // SCHEDULED | CONDUCTED
+            Instant scheduledAt,
+            Integer durationMinutes,
+            String timezone,
+            String meetingLink,        // free-text fallback (manual link if no Zoom)
+            String zoomMeetingId,
+            String zoomJoinUrl,
+            String scheduledByName     // evaluator full name — for Model A copy
+    ) {}
+
     public record LatestSubmission(
             UUID id,
             Integer version,
