@@ -18,6 +18,7 @@ import java.util.Set;
  *   SUBMITTED       → IN_PROGRESS                  (intern revises, no review yet)
  *                   | RETURNED                     (legacy single-reviewer return)
  *                   | TECH_APPROVED                (tech supervisor approves)
+ *                   | PENDING_VIVA                 (trainer "Review &amp; approve" — routes to evaluator Q&amp;A)
  *                   | COMPLETED                    (legacy single-reviewer complete)
  *   RETURNED        → IN_PROGRESS                  (intern resumes work)
  *                   | SUBMITTED                    (intern resubmits)
@@ -52,6 +53,7 @@ public final class ProjectLifecycle {
                     ProjectStatus.IN_PROGRESS,
                     ProjectStatus.RETURNED,
                     ProjectStatus.TECH_APPROVED,
+                    ProjectStatus.PENDING_VIVA,
                     ProjectStatus.COMPLETED),
             ProjectStatus.RETURNED, EnumSet.of(
                     ProjectStatus.IN_PROGRESS,

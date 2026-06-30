@@ -52,6 +52,55 @@ public class InternLifecycleController {
         return body;
     }
 
+    /**
+     * ERM Pass 2 — set / clear the joining_date that gates auto-activation.
+     * Accepts {@code {"joiningDate": "2026-07-01"}} or {@code null} to
+     * clear. Server is permissive on lifecycle state: ERM can pre-set
+     * the date earlier in the funnel (it just won't fire activation
+     * until the lifecycle reaches ONBOARDING_ACCEPTED + offer is
+     * signed), and clearing it is allowed pre-activation. Once the
+     * intern is already ACTIVE_INTERN, the date is informational only —
+     * we still save it so the audit trail is intact, but no scan flip
+     * will happen.
+     */
+    @PostMapping("/{id}/joining-date")
+    @PreAuthorize("hasAnyRole('ERM', 'SUPER_ADMIN')")
+    public Map<String, Object> setJoiningDate(@PathVariable UUID id,
+                                               @RequestBody Map<String, String> body) {
+        InternLifecycle lc = internLifecycleRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "InternLifecycle not found: " + id));
+        String raw = body == null ? null : body.get("joiningDate");
+        java.time.LocalDate parsed = null;
+        if (raw != null && !raw.isBlank()) {
+            try {
+                parsed = java.time.LocalDate.parse(raw.trim());
+            } catch (java.time.format.DateTimeParseException ex) {
+                throw new BadRequestException(
+                        "joiningDate must be ISO yyyy-MM-dd (got: " + raw + ")");
+            }
+        }
+        lc.setJoiningDate(parsed);
+        internLifecycleRepository.save(lc);
+
+        // If the new date is today/past AND lifecycle is ready, try the
+        // synchronous flip so ERM sees the activation right away instead
+        // of waiting up to 10 minutes for the next scan.
+        if (parsed != null && !parsed.isAfter(java.time.LocalDate.now())) {
+            try {
+                User user = userRepository.findById(lc.getUserId()).orElse(null);
+                if (user != null) activationJob.tryActivateIfReady(user);
+            } catch (Exception ignored) {
+                /* non-fatal — the scan will retry */
+            }
+        }
+
+        Map<String, Object> resp = new LinkedHashMap<>();
+        resp.put("internLifecycleId", lc.getId());
+        resp.put("joiningDate", lc.getJoiningDate());
+        return resp;
+    }
+
     // ── Phase 5 — ERM wires trainer / evaluator / manager assignments ────
 
     @PostMapping("/{id}/assign-trainer")

@@ -2,7 +2,10 @@
 
 import { useTrainerDashboard } from '@/components/trainer/TrainerDashboardContext';
 import KPIGrid from '@/components/trainer/KPIGrid';
+import TrainerFocusStrip from '@/components/trainer/TrainerFocusStrip';
 import TodayMeetingsCard from '@/components/trainer/TodayMeetingsCard';
+import WeeklyTrackerSummaryCard from '@/components/trainer/weeklyTracker/WeeklyTrackerSummaryCard';
+import PendingDoubtsCard from '@/components/trainer/PendingDoubtsCard';
 import RecentActivityCard from '@/components/trainer/RecentActivityCard';
 import DashboardRefreshButton from '@/components/ui/DashboardRefreshButton';
 
@@ -48,12 +51,21 @@ export default function TrainerHomePage() {
         </p>
       )}
 
+      <TrainerFocusStrip
+        items={dashboard?.focusItems}
+        loading={dashboardLoading && !dashboard}
+      />
+
       <KPIGrid
         kpis={dashboard?.kpis ?? {}}
         loading={dashboardLoading && !dashboard}
       />
 
       <TodayMeetingsCard meetings={dashboard?.todayMeetings ?? []} />
+
+      <WeeklyTrackerSummaryCard />
+
+      <PendingDoubtsCard />
 
       <RecentActivityCard rows={dashboard?.recentActivity ?? []} />
 

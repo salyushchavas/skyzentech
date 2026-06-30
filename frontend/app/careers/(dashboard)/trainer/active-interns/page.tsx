@@ -77,6 +77,27 @@ function ActiveInternsInner() {
         err={err}
         periodLabel={formatPeriod(period)}
         detailHref={(id) => `/careers/trainer/active-interns/${id}`}
+        cellActions={{
+          // Project cell is actionable when a slot is empty (NO_PROJECTS
+          // or PARTIAL). Button takes the trainer to the multi-step
+          // assign-project wizard pre-filled with the intern + month.
+          projectAssignHref: (row) =>
+            `/careers/trainer/assign-project?internId=${row.internLifecycleId}`
+            + `&month=${period.year}-${String(period.month).padStart(2, '0')}`,
+          // KT cell is actionable when any project's KT isn't done.
+          // The "Mark KT done" modal lives on the intern detail page;
+          // we deep-link with ?kt={projectId} so the detail page auto-
+          // opens the matching modal — one click from the table to the
+          // open modal instead of "navigate then click again". When the
+          // slot's projectId is unknown (rare — null on unpersisted
+          // slots) we fall back to the plain detail page link.
+          ktDetailHref: (row, options) => {
+            const base = `/careers/trainer/active-interns/${row.internLifecycleId}`;
+            return options?.projectId
+              ? `${base}?kt=${encodeURIComponent(options.projectId)}`
+              : base;
+          },
+        }}
       />
     </div>
   );

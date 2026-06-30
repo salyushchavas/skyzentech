@@ -491,6 +491,18 @@ public class DocumentPacketService {
                     "Task is " + t.getStatus() + "; cannot review");
         }
 
+        // Pass 2 — verify-after-download. ACCEPT is server-gated on the
+        // existence of a recorded download for this task. REJECT and
+        // RESEND_REQUEST stay unconditional: rejecting an unread upload
+        // is a legitimate ERM action (e.g. "wrong document attached" can
+        // be decided from the file name + intent without opening the
+        // bytes). The download endpoint stamps last_downloaded_at +
+        // downloaded_by_id on every successful fetch.
+        if ("ACCEPT".equals(decision) && t.getLastDownloadedAt() == null) {
+            throw new ConflictException(
+                    "Download the submitted file before verifying.");
+        }
+
         ReasonCode rc = null;
         if (!"ACCEPT".equals(decision)) {
             if (req.reasonCode() == null) {
@@ -843,7 +855,9 @@ public class DocumentPacketService {
                 lifecycleId,
                 lc != null ? lc.getUserId() : null,
                 intern != null ? intern.getFullName() : null,
-                history);
+                history,
+                t.getLastDownloadedAt(),
+                t.getDownloadCount());
     }
 
     private long countOrZero(String sql, Object... params) {

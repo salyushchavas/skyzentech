@@ -72,6 +72,18 @@ public class DocumentTask {
     @Column(name = "last_downloaded_at")
     private Instant lastDownloadedAt;
 
+    /**
+     * UUID of the ERM user who most recently downloaded the upload. Set by
+     * the {@code /erm/document-review/tasks/{id}/file} endpoint together
+     * with {@link #lastDownloadedAt} and {@link #downloadCount}. Pass 2
+     * verify-after-download gate uses non-null {@code lastDownloadedAt} to
+     * authorize an ACCEPT decision — kept on the row (not on the user) so
+     * the "downloaded" state is per-document and survives across ERM
+     * agents.
+     */
+    @Column(name = "downloaded_by_id")
+    private UUID downloadedById;
+
     @Column(name = "submitted_at")
     private Instant submittedAt;
 

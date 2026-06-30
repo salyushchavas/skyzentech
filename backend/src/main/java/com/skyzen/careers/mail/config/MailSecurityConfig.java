@@ -14,6 +14,7 @@ import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import org.springframework.web.cors.CorsConfigurationSource;
 
 /**
  * Parallel security chain for the mail module. It is added ALONGSIDE Skyzen's
@@ -44,16 +45,47 @@ public class MailSecurityConfig {
     private final MailAccountRepository mailAccountRepository;
     private final MailAuthenticationEntryPoint mailAuthenticationEntryPoint;
     private final MailAccessDeniedHandler mailAccessDeniedHandler;
+    private final CorsConfigurationSource corsConfigurationSource;
 
     @Bean
     @Order(1)
     public SecurityFilterChain mailFilterChain(HttpSecurity http) throws Exception {
         http
                 .securityMatcher("/api/mail/**")
+                // CORS wired explicitly into THIS chain via the shared
+                // CorsConfigurationSource bean from CorsConfig. Without this
+                // the @Order(1) mail chain was processing requests before the
+                // global CorsFilter could attach Access-Control-Allow-Origin
+                // for cross-origin callers (live https://www.skyzentech.com
+                // hitting /api/mail/** directly on Railway, not via Vercel
+                // rewrite), producing the visible "blocked by CORS" failures.
+                // Wiring the source here adds Spring Security's own CorsFilter
+                // INSIDE this chain — preflight + response headers now use the
+                // SAME allowed-origins list as the careers chain (single
+                // source of truth at ${cors.allowed-origins} / CORS_ORIGINS).
+                .cors(c -> c.configurationSource(corsConfigurationSource))
                 .csrf(csrf -> csrf.disable())
                 .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
-                        // CORS preflight (the global CorsFilter sets the headers).
+                        // SSE fix — /api/mail/events returns an SseEmitter.
+                        // Spring Security 6's AuthorizationFilter defaults to
+                        // filtering ALL dispatcher types, including ASYNC. On
+                        // SSE completion / timeout / error Tomcat re-dispatches
+                        // the request through the filter chain; the
+                        // SecurityContext is empty on the async thread, so the
+                        // re-evaluation throws AccessDeniedException and Tomcat
+                        // can't render it (response is already committed),
+                        // surfacing as ERROR-level "Unable to handle the
+                        // Spring Security Exception because the response is
+                        // already committed" stack traces. Restricting the
+                        // AuthorizationFilter to the initial REQUEST dispatch
+                        // skips the spurious re-check on ASYNC/ERROR/FORWARD/
+                        // INCLUDE without weakening any real authorization
+                        // boundary — the initial request already enforced auth.
+                        .shouldFilterAllDispatcherTypes(false)
+                        // CORS preflight — http.cors() above also handles this,
+                        // but the explicit permitAll is kept as a belt-and-braces
+                        // guarantee (no behaviour change vs. before this fix).
                         .requestMatchers(HttpMethod.OPTIONS, "/api/mail/**").permitAll()
                         // Auth endpoints are open (login / refresh / logout).
                         .requestMatchers("/api/mail/auth/**").permitAll()

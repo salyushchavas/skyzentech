@@ -51,7 +51,8 @@ public class InterviewResponse {
     // which omits zoom_start_url + internal_notes.
 
     private String timezone;
-    private Long zoomMeetingId;
+    /** Phase 2 — String since meeting providers (Zoom/WebEx) differ on id shape. */
+    private String zoomMeetingId;
     private String zoomJoinUrl;
     /** HOST-ONLY — populated only when the caller is ERM/MANAGER/SUPER_ADMIN. */
     private String zoomStartUrl;

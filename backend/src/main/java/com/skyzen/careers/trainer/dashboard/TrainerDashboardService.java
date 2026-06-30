@@ -88,14 +88,115 @@ public class TrainerDashboardService {
         List<TodayMeetingRow> todayMeetings = loadTodayMeetings(caller, today);
         List<RecentActivityRow> recent = loadRecentActivity(caller);
         long unread = loadUnread(caller);
+        List<FocusItem> focusItems = buildFocusItems(caller, kpis, weekStart, weekEnd);
 
         return new TrainerDashboardResponse(
                 new Caller(firstName(caller), lastName(caller), primaryRole(caller)),
                 now,
                 kpis,
+                focusItems,
                 todayMeetings,
                 recent,
                 unread);
+    }
+
+    // ── "This week" focus strip ──────────────────────────────────────────
+
+    /**
+     * Compose the trainer's actionable workload for the current week into
+     * one ordered list. Two of the five counts (projects-to-assign and
+     * reviews-pending) already live in the KPI map — reused so the strip
+     * and the KPI cards can never disagree. Three new lightweight
+     * indexed counts cover sessions this week, KTs pending this month,
+     * and open doubts.
+     */
+    private List<FocusItem> buildFocusItems(User caller,
+                                            Map<TrainerKpiKey, KpiSnapshot> kpis,
+                                            LocalDate weekStart, LocalDate weekEnd) {
+        long sessionsThisWeek = countSessionsToActionThisWeek(caller, weekStart, weekEnd);
+        long ktPending = countKtPendingThisMonth(caller);
+        long projectsToAssign = kpis.get(TrainerKpiKey.ACTIVE_INTERNS) != null
+                ? kpis.get(TrainerKpiKey.ACTIVE_INTERNS).urgentCount() : 0L;
+        long reviewsPending = kpis.get(TrainerKpiKey.SUBMISSIONS_PENDING_REVIEW) != null
+                ? kpis.get(TrainerKpiKey.SUBMISSIONS_PENDING_REVIEW).count() : 0L;
+        long doubtsWaiting = countOpenDoubtsForTrainer(caller);
+
+        List<FocusItem> out = new ArrayList<>(5);
+        out.add(new FocusItem("SESSIONS_THIS_WEEK",
+                "Sessions to schedule/conduct this week",
+                sessionsThisWeek,
+                "/careers/trainer/weekly-tracker"));
+        out.add(new FocusItem("KT_PENDING",
+                "KTs pending",
+                ktPending,
+                "/careers/trainer/active-interns"));
+        out.add(new FocusItem("PROJECTS_TO_ASSIGN",
+                "Projects to assign",
+                projectsToAssign,
+                "/careers/trainer/active-interns"));
+        out.add(new FocusItem("REVIEWS_PENDING",
+                "Project reviews pending",
+                reviewsPending,
+                "/careers/trainer/pending-reviews"));
+        out.add(new FocusItem("DOUBTS_WAITING",
+                "Doubts waiting",
+                doubtsWaiting,
+                "/careers/trainer/doubts"));
+        return out;
+    }
+
+    /** Active interns who still need either a scheduled or conducted
+     *  weekly session for THIS WEEK. "Done" = a meeting whose
+     *  scheduled_for date lands inside [weekStart, weekEnd] with
+     *  status='COMPLETED'. Everyone else is in the trainer's queue. */
+    private long countSessionsToActionThisWeek(User caller,
+                                               LocalDate weekStart, LocalDate weekEnd) {
+        return countOrZero(
+                "SELECT COUNT(*) FROM intern_lifecycles il "
+                        + " WHERE il.active_status = 'ACTIVE' "
+                        + scopeClause(caller)
+                        + " AND NOT EXISTS ( "
+                        + "      SELECT 1 FROM weekly_meetings wm "
+                        + "       WHERE wm.intern_lifecycle_id = il.id "
+                        + "         AND wm.status = 'COMPLETED' "
+                        + "         AND wm.scheduled_for::date BETWEEN ? AND ? "
+                        + "    ) ",
+                appendArgs(scopeArgs(caller),
+                        java.sql.Date.valueOf(weekStart),
+                        java.sql.Date.valueOf(weekEnd)));
+    }
+
+    /** Projects for the current month whose KT step isn't done yet.
+     *  Per-project (not per-intern) so a trainer with two slots open on
+     *  one intern sees two pending KTs — matches what the active-interns
+     *  row chips render. */
+    private long countKtPendingThisMonth(User caller) {
+        String currentMonth = java.time.YearMonth.now(ZONE).toString();
+        return countOrZero(
+                "SELECT COUNT(*) FROM projects p "
+                        + "  JOIN intern_lifecycles il ON il.id = p.intern_lifecycle_id "
+                        + " WHERE il.active_status = 'ACTIVE' "
+                        + "   AND p.month_year = ? "
+                        + "   AND p.status <> 'CANCELLED' "
+                        + "   AND (p.kt_status IS NULL OR p.kt_status <> 'DONE') "
+                        + scopeClause(caller),
+                prependArg(scopeArgs(caller), currentMonth));
+    }
+
+    /** Open doubts addressed to this trainer — matches the openOnly
+     *  filter on /api/v1/trainer/doubts so the strip count equals the
+     *  doubts page count. SUPER_ADMIN sees all (no trainer filter). */
+    private long countOpenDoubtsForTrainer(User caller) {
+        if (caller.getRoles().contains(UserRole.SUPER_ADMIN)) {
+            return countOrZero(
+                    "SELECT COUNT(*) FROM doubt_requests "
+                            + " WHERE status IN ('PENDING','REPLIED','SESSION_SCHEDULED')");
+        }
+        return countOrZero(
+                "SELECT COUNT(*) FROM doubt_requests "
+                        + " WHERE trainer_user_id = ? "
+                        + "   AND status IN ('PENDING','REPLIED','SESSION_SCHEDULED')",
+                caller.getId());
     }
 
     // ── KPI computations ─────────────────────────────────────────────────

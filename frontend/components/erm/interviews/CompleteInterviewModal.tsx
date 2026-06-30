@@ -114,13 +114,13 @@ export default function CompleteInterviewModal({
                 className="mt-1 w-full rounded-md border border-slate-200 px-3 py-2 text-sm"
               >
                 <option value="">No recommendation</option>
-                <option value="STRONG_HIRE">Strong Hire</option>
                 <option value="HIRE">Hire</option>
-                <option value="NO_HIRE">No Hire</option>
-                <option value="STRONG_NO_HIRE">Strong No-Hire</option>
+                <option value="REJECT">Reject</option>
+                <option value="HOLD">Hold</option>
               </select>
               <p className="mt-1 text-[11px] text-slate-500">
-                Shown to the Manager when they decide. Does not set the hire decision itself.
+                Shown to the Manager when they decide. Advisory only —
+                the binding Hire/Reject/Hold decision is the Manager&rsquo;s.
               </p>
             </div>
 

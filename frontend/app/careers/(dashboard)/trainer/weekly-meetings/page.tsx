@@ -4,6 +4,7 @@ import { Suspense, useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import api from '@/lib/api';
+import WebexHostStartCard from '@/components/meeting/WebexHostStartCard';
 import { AlertTriangle, Calendar, CheckCircle2, Clock, Plus, RefreshCw, X, XCircle, AlertOctagon } from 'lucide-react';
 
 type InternRow = { internLifecycleId: string; fullName: string | null; employeeId: string | null };
@@ -16,7 +17,7 @@ type Meeting = {
   timezone: string | null;
   topic: string;
   agenda: string | null;
-  zoomMeetingId: number | null;
+  zoomMeetingId: string | null;
   zoomJoinUrl: string | null;
   zoomStartUrl: string | null;
   zoomPassword: string | null;
@@ -319,10 +320,13 @@ function MeetingActionModal({ meeting, interns, onClose, onChanged }: {
         <Row k="When" v={new Date(meeting.scheduledFor).toLocaleString()} />
         <Row k="Duration" v={`${meeting.durationMinutes} min`} />
         <Row k="Status" v={meeting.status} />
-        {meeting.zoomJoinUrl && (
-          <p className="text-xs">
-            Zoom: <a href={meeting.zoomJoinUrl} target="_blank" rel="noreferrer" className="text-brand-700 underline">{meeting.zoomJoinUrl}</a>
-          </p>
+        {meeting.zoomMeetingId && (
+          <div className="pt-1">
+            <WebexHostStartCard
+              providerMeetingId={meeting.zoomMeetingId}
+              startUrl={meeting.zoomStartUrl}
+            />
+          </div>
         )}
         <ZoomRegenerateBanner meeting={meeting} onRegenerated={onChanged} />
         {meeting.trainerNotes && (
@@ -581,11 +585,11 @@ function ZoomRegenerateBanner({ meeting, onRegenerated }: {
   }
 
   const title = updateFailed
-    ? 'Zoom meeting update failed on reschedule'
-    : 'Zoom link is missing';
+    ? 'Meeting update failed on reschedule'
+    : 'Meeting link is missing';
   const body = updateFailed
-    ? 'The stored Zoom meeting may now disagree with the new time. Regenerate to recreate it at the current schedule.'
-    : 'The original Zoom call failed when this meeting was created. Regenerate to attach a fresh link.';
+    ? 'The stored meeting may now disagree with the new time. Regenerate to recreate it at the current schedule.'
+    : 'The original meeting create call failed when this was scheduled. Regenerate to attach a fresh link.';
 
   return (
     <div className="rounded-md border border-amber-200 bg-amber-50 p-2.5 text-xs text-amber-900">

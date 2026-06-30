@@ -32,6 +32,7 @@ public enum VisaDateRequirement {
      */
     public static final Map<WorkAuthTrack, VisaDateRequirement> REQUIREMENT_BY_TRACK =
             Map.of(
+                    WorkAuthTrack.CITIZEN, NONE,
                     WorkAuthTrack.CPT, END_ONLY,
                     WorkAuthTrack.OPT, END_ONLY,
                     WorkAuthTrack.STEM_OPT, END_ONLY,

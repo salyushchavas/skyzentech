@@ -6,6 +6,8 @@ import com.skyzen.careers.entity.WeeklyMeeting;
 import com.skyzen.careers.erm.CommunicationTemplateService;
 import com.skyzen.careers.intern.OrgTeamResolver;
 import com.skyzen.careers.notification.EmailProvider;
+import com.skyzen.careers.notification.MeetingEmailHtmlBuilder;
+import com.skyzen.careers.notification.SchedulerMeetingEmailSender;
 import com.skyzen.careers.notification.UserNotificationDispatcher;
 import com.skyzen.careers.repository.InternLifecycleRepository;
 import com.skyzen.careers.repository.UserRepository;
@@ -41,6 +43,8 @@ public class TrainerMeetingNotificationDispatcher {
     private final EmailProvider emailProvider;
     private final UserNotificationDispatcher inApp;
     private final OrgTeamResolver orgTeamResolver;
+    private final SchedulerMeetingEmailSender schedulerEmail;
+    private final com.skyzen.careers.notification.InternNotificationService internNotifications;
 
     public void dispatchScheduled(WeeklyMeeting m, User trainer, String rescheduleNote) {
         fanOut(m, trainer, "WEEKLY_MEETING_SCHEDULED",
@@ -49,6 +53,38 @@ public class TrainerMeetingNotificationDispatcher {
                         ? "A new meeting is on your calendar."
                         : "Your meeting was rescheduled: " + rescheduleNote,
                 false);
+        sendTrainerHostEmail(m, trainer);
+    }
+
+    /**
+     * Email the trainer (the scheduler) with the meeting details + the
+     * Webex host key so they can claim host control after joining.
+     * Best-effort; failures are logged inside the sender.
+     */
+    private void sendTrainerHostEmail(WeeklyMeeting m, User trainer) {
+        if (m == null || trainer == null
+                || trainer.getEmail() == null || trainer.getEmail().isBlank()) {
+            return;
+        }
+        InternLifecycle lc = lifecycleRepository.findById(m.getInternLifecycleId()).orElse(null);
+        String internName = null;
+        if (lc != null && lc.getUserId() != null) {
+            internName = userRepository.findById(lc.getUserId())
+                    .map(User::getFullName).orElse(null);
+        }
+        String participantLabel = internName != null && !internName.isBlank()
+                ? "with " + internName : null;
+        schedulerEmail.send(
+                trainer.getEmail(),
+                firstName(trainer),
+                "Weekly meeting scheduled",
+                nz(m.getTopic()),
+                participantLabel,
+                m.getScheduledFor(),
+                m.getTimezone(),
+                m.getZoomJoinUrl(),
+                m.getZoomStartUrl(),
+                m.getZoomMeetingId());
     }
 
     public void dispatchCompleted(WeeklyMeeting m, User trainer) {
@@ -88,19 +124,36 @@ public class TrainerMeetingNotificationDispatcher {
         String meetingDateLocal = formatLocal(m);
         String topic = nz(m.getTopic());
 
-        // Intern — always email + in-app
+        // Intern — always internal mail + in-app
+        // Model A — system sends; body names the trainer.
         try {
-            Map<String, Object> vars = new LinkedHashMap<>();
-            vars.put("firstName", firstName(intern));
-            vars.put("trainerName", nz(trainer.getFullName()));
-            vars.put("meetingDateLocal", meetingDateLocal);
-            vars.put("timezone", nz(m.getTimezone()));
-            vars.put("topic", topic);
-            vars.put("agenda", nz(m.getAgenda()));
-            vars.put("zoomJoinUrl", nz(m.getZoomJoinUrl()));
-            renderAndSend(eventType, vars, intern);
+            String actorPhrase = trainer.getFullName() != null
+                    && !trainer.getFullName().isBlank()
+                    ? trainer.getFullName() + ", your Trainer,"
+                    : "Your Trainer";
+            String verb = switch (eventType) {
+                case "WEEKLY_MEETING_SCHEDULED" -> "has scheduled a weekly meeting";
+                case "WEEKLY_MEETING_COMPLETED" -> "logged notes from your weekly meeting";
+                case "WEEKLY_MEETING_MISSED"   -> "marked your weekly meeting missed";
+                case "WEEKLY_MEETING_CANCELLED" -> "cancelled your weekly meeting";
+                default -> "updated your weekly meeting";
+            };
+            String subject = inAppTitle + " by your Trainer: " + topic;
+            String plain = "Hi " + firstName(intern) + ",\n\n"
+                    + actorPhrase + " " + verb + ": \"" + topic + "\"."
+                    + (m.getScheduledFor() != null
+                        ? "\nWhen: " + meetingDateLocal + " (" + nz(m.getTimezone()) + ")"
+                        : "")
+                    + (m.getZoomJoinUrl() != null && !m.getZoomJoinUrl().isBlank()
+                        ? "\nJoin: " + m.getZoomJoinUrl() : "")
+                    + (m.getAgenda() != null && !m.getAgenda().isBlank()
+                        ? "\nAgenda: " + m.getAgenda() : "")
+                    + "\n\nOpen your weekly meetings: " + INTERN_PATH
+                    + "\n\n— Skyzen";
+            internNotifications.notifyIntern(intern.getId(), subject, plain, null);
             tryInApp(intern.getId(), eventType, intern.getId(),
-                    inAppTitle + ": " + topic, inAppBody, INTERN_PATH);
+                    inAppTitle + " by your Trainer: " + topic,
+                    actorPhrase + " " + verb + ".", INTERN_PATH);
         } catch (Exception e) {
             log.warn("[TrainerMeetingNotify] intern dispatch failed: {}", e.getMessage());
         }
@@ -149,9 +202,16 @@ public class TrainerMeetingNotificationDispatcher {
                     templateService.render(key, "EMAIL", vars);
             if (opt.isEmpty()) return;
             var rendered = opt.get();
-            emailProvider.sendRendered(recipient.getEmail(),
-                    rendered.subject() != null ? rendered.subject() : key,
-                    rendered.body() != null ? rendered.body() : "");
+            String subject = rendered.subject() != null ? rendered.subject() : key;
+            String plain = rendered.body() != null ? rendered.body() : "";
+            // Build an HTML twin with a styled Join button so the meeting
+            // link is a clickable button in HTML mail clients + the internal
+            // mail viewer. Plain text stays as the template rendered it for
+            // text-only clients.
+            Object joinUrlVar = vars.get("zoomJoinUrl");
+            String joinUrl = joinUrlVar == null ? null : joinUrlVar.toString();
+            String html = MeetingEmailHtmlBuilder.build(plain, joinUrl);
+            emailProvider.sendBrandedHtml(recipient.getEmail(), subject, plain, html);
         } catch (Exception e) {
             log.warn("[TrainerMeetingNotify] {} render failed: {}", key, e.getMessage());
         }

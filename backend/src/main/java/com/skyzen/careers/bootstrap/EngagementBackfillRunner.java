@@ -199,14 +199,26 @@ public class EngagementBackfillRunner implements CommandLineRunner {
     }
 
     /**
-     * Pick the candidate's accepted Offer for this application. Most recent
-     * by createdAt — historical applications may have had multiple offers and
-     * we pick the one that landed the deal.
+     * Pick the candidate's "the deal landed" Offer for this application. Most
+     * recent by createdAt — historical applications may have had multiple
+     * offers and we pick the one that completed.
+     *
+     * <p>Accepts both {@link OfferStatus#ACCEPTED} (the legacy click-to-accept
+     * flow via {@code OfferService.acceptInternal}) AND {@link
+     * OfferStatus#SIGNED} (the in-house IDMS sign flow via {@code
+     * OfferIdmsSigningService.finalizeIdmsSigning}). Same precedent as
+     * {@code InternActivationJob.tryActivateIfReady} which treats both as
+     * eligible. Restricting to ACCEPTED only would silently skip every
+     * IDMS-signed orphan — which was the original gap this backfill exists
+     * to repair.</p>
      */
+    @SuppressWarnings("deprecation") // OfferStatus.ACCEPTED is the legacy pre-IDMS value;
+                                     // historical rows still carry it and must be backfilled.
     private Offer pickAcceptedOffer(Application app) {
         return offerRepository
                 .findByApplicationIdOrderByCreatedAtDesc(app.getId()).stream()
-                .filter(o -> o.getStatus() == OfferStatus.ACCEPTED)
+                .filter(o -> o.getStatus() == OfferStatus.ACCEPTED
+                        || o.getStatus() == OfferStatus.SIGNED)
                 .max(Comparator.comparing(Offer::getCreatedAt,
                         Comparator.nullsLast(Comparator.naturalOrder())))
                 .orElse(null);

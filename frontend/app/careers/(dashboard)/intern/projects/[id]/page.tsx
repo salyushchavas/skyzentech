@@ -9,10 +9,15 @@ import {
   CheckCircle2,
   ChevronLeft,
   Clock,
+  Download,
   ExternalLink,
+  FileText,
   GitBranch,
   Github,
   GraduationCap,
+  LifeBuoy,
+  Mail,
+  MessageSquare,
   PencilLine,
   Plus,
   Send,
@@ -21,31 +26,15 @@ import {
 } from 'lucide-react';
 import api from '@/lib/api';
 import InternPageShell from '@/components/intern/InternPageShell';
+import ProjectStatusTracker, {
+  effectiveStatusFor,
+  effectiveStatusLabel,
+  effectiveStatusTone,
+} from '@/components/intern/ProjectStatusTracker';
 import type {
   AssignmentSummary,
-  ProjectAssignmentStatus,
   TrainerDecision,
 } from '../types';
-
-const STATUS_TONE: Record<ProjectAssignmentStatus, string> = {
-  ASSIGNED:       'bg-slate-100 text-slate-700',
-  IN_PROGRESS:    'bg-amber-100 text-amber-800',
-  SUBMITTED:      'bg-slate-100 text-slate-700',
-  RETURNED:       'bg-red-100 text-red-800',
-  TECH_APPROVED:  'bg-green-100 text-green-800',
-  PENDING_VIVA:   'bg-slate-100 text-slate-700',
-  COMPLETED:      'bg-green-100 text-green-800',
-};
-
-const STATUS_LABEL: Record<ProjectAssignmentStatus, string> = {
-  ASSIGNED:       'Assigned',
-  IN_PROGRESS:    'In progress',
-  SUBMITTED:      'Submitted — awaiting review',
-  RETURNED:       'Returned for revisions',
-  TECH_APPROVED:  'Tech approved',
-  PENDING_VIVA:   'Pending viva',
-  COMPLETED:      'Completed',
-};
 
 const DECISION_LABEL: Record<TrainerDecision, string> = {
   ACCEPT:           'Accepted',
@@ -85,14 +74,14 @@ export default function InternProjectDetailPage() {
 
   if (loading && !data) {
     return (
-      <InternPageShell title="Project">
+      <InternPageShell title="Project" hideTracker hideRightSidePanel>
         <div className="h-48 animate-pulse rounded-lg bg-slate-100" aria-hidden />
       </InternPageShell>
     );
   }
   if (err || !data) {
     return (
-      <InternPageShell title="Project">
+      <InternPageShell title="Project" hideTracker hideRightSidePanel>
         <BackLink />
         <p className="mt-4 rounded-md border border-red-200 bg-red-50 p-4 text-sm text-red-800">
           {err ?? 'Project not found'}
@@ -104,19 +93,51 @@ export default function InternProjectDetailPage() {
   const name = data.project?.name ?? 'Project';
 
   return (
-    <InternPageShell title={name} subtitle={data.project?.techStack ?? undefined}>
-      <BackLink />
-      <StatusBar a={data} />
-      <div className="mt-6 grid gap-6 lg:grid-cols-3">
-        <main className="lg:col-span-2 space-y-6">
+    <InternPageShell
+      title={name}
+      subtitle={data.project?.techStack ?? undefined}
+      hideTracker
+      hideRightSidePanel
+    >
+      {/* Compact title bar: back link + status chips in one row to
+          preserve vertical space. */}
+      <div className="mt-1 mb-3 flex flex-wrap items-center gap-x-3 gap-y-2">
+        <BackLink />
+        <StatusBar a={data} />
+      </div>
+
+      {/* Status tracker — same visual pattern as the application
+          stepper / intern journey bar. Hidden during ASSIGNED /
+          IN_PROGRESS (nothing in flight yet) to keep the
+          government-tracker affordance focused on the submit → review
+          → Q&A → completed pipeline. */}
+      {data.status !== 'ASSIGNED' && data.status !== 'IN_PROGRESS' && (
+        <div className="mb-3">
+          <ProjectStatusTracker assignment={data} />
+        </div>
+      )}
+
+      {/* One-frame layout on lg+: outer grid has bounded height + no
+          overflow; each column scrolls internally. Mobile keeps natural
+          flow + page scroll. */}
+      <div className="grid gap-4 lg:grid-cols-3 lg:h-[calc(100vh-190px)] lg:overflow-hidden">
+        <main className="lg:col-span-2 space-y-3 lg:h-full lg:min-h-0 lg:overflow-y-auto lg:pr-1">
           <DescriptionCard a={data} />
+          <ProjectFilesCard a={data} />
           <TrainerFeedbackCard a={data} />
           <SubmissionCard a={data} onChanged={(next) => setData(next)} />
+          {/* Help sits at the bottom of the left column so it's right
+              there while the intern is submitting, and it also fills
+              the gap below Submit-your-work that would otherwise leave
+              the column shorter than the right rail. */}
+          <NeedHelpCard a={data} />
         </main>
-        <aside className="space-y-6">
+        <aside className="space-y-3 lg:h-full lg:min-h-0 lg:overflow-y-auto lg:pr-1">
           <MetaCard a={data} />
+          <QaSessionCard a={data} />
           <KtCard a={data} />
           <RepositoryCard a={data} />
+          <YourTeamCard />
         </aside>
       </div>
     </InternPageShell>
@@ -137,24 +158,29 @@ function BackLink() {
 }
 
 function StatusBar({ a }: { a: AssignmentSummary }) {
-  const revisionRequested =
-    a.latestSubmission?.trainerDecision === 'REQUEST_REVISION';
-  const accepted = a.latestSubmission?.trainerDecision === 'ACCEPT';
+  // SINGLE source of truth — both the tracker and this top status pill
+  // derive from effectiveStatusFor so they can never disagree. The
+  // previous version showed BOTH the assignment-row label
+  // ("Submitted — awaiting review") and a standalone "Trainer accepted"
+  // pill at the same time, which contradicted each other once the
+  // trainer approved but the assignment row hadn't yet been mirrored.
+  const effective = effectiveStatusFor(a);
+  const showApprovedCheck =
+    effective === 'APPROVED'
+    || effective === 'QA_SCHEDULED'
+    || effective === 'QA_CONDUCTED'
+    || effective === 'COMPLETED';
   return (
-    <div className="mt-3 flex flex-wrap items-center gap-2">
-      <span className={'rounded-full px-2.5 py-0.5 text-xs font-semibold ' + STATUS_TONE[a.status]}>
-        {STATUS_LABEL[a.status]}
+    <div className="flex flex-wrap items-center gap-2">
+      <span
+        className={
+          'inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold '
+          + effectiveStatusTone(effective)
+        }
+      >
+        {showApprovedCheck && <CheckCircle2 className="h-3 w-3" />}
+        {effectiveStatusLabel(effective)}
       </span>
-      {revisionRequested && a.status !== 'RETURNED' && (
-        <span className="rounded-full bg-red-100 px-2.5 py-0.5 text-xs font-semibold text-red-800">
-          Trainer requested changes
-        </span>
-      )}
-      {accepted && (
-        <span className="inline-flex items-center gap-1 rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-semibold text-green-800">
-          <CheckCircle2 className="h-3 w-3" /> Trainer accepted
-        </span>
-      )}
       {a.dueDate && <DueChip iso={a.dueDate} submittedAt={a.submittedAt} />}
     </div>
   );
@@ -192,15 +218,15 @@ function DescriptionCard({ a }: { a: AssignmentSummary }) {
     return null;
   }
   return (
-    <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+    <section className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
       <h3 className="text-sm font-semibold text-slate-900">About this project</h3>
-      <dl className="mt-3 space-y-3">
+      <dl className="mt-2 space-y-2">
         {present.map((b) => (
           <div key={b.label}>
-            <dt className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+            <dt className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">
               {b.label}
             </dt>
-            <dd className="mt-0.5 whitespace-pre-wrap text-sm text-slate-700">
+            <dd className="mt-0.5 whitespace-pre-wrap text-[13px] leading-snug text-slate-700">
               {b.value}
             </dd>
           </div>
@@ -208,6 +234,91 @@ function DescriptionCard({ a }: { a: AssignmentSummary }) {
       </dl>
     </section>
   );
+}
+
+function ProjectFilesCard({ a }: { a: AssignmentSummary }) {
+  const files = a.project?.files ?? [];
+  const [busyId, setBusyId] = useState<string | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+
+  if (files.length === 0) return null;
+
+  async function downloadFile(fileId: string, fileName: string) {
+    setBusyId(fileId);
+    setErr(null);
+    try {
+      const res = await api.get(
+        `/api/v1/project-assignments/${a.id}/file`,
+        { params: { documentId: fileId }, responseType: 'blob' },
+      );
+      const blob = res.data as Blob;
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = fileName;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (e) {
+      const ax = e as { response?: { data?: { error?: string } } };
+      setErr(
+        ax.response?.data?.error
+          ?? (e instanceof Error ? e.message : 'Download failed'),
+      );
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  return (
+    <section className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+      <h3 className="text-sm font-semibold text-slate-900">
+        Project file{files.length === 1 ? '' : 's'}
+      </h3>
+      <p className="mt-0.5 text-[11px] text-slate-500">
+        Attached by your trainer.
+      </p>
+      <ul className="mt-2 space-y-1.5">
+        {files.map((f) => (
+          <li
+            key={f.id}
+            className="flex items-center justify-between gap-3 rounded-md border border-slate-200 bg-slate-50 px-3 py-2"
+          >
+            <span className="inline-flex min-w-0 items-center gap-2 text-sm text-slate-800">
+              <FileText className="h-4 w-4 shrink-0 text-slate-500" />
+              <span className="truncate" title={f.fileName}>{f.fileName}</span>
+              {f.fileSize != null && (
+                <span className="shrink-0 text-[11px] text-slate-500">
+                  · {formatFileSize(f.fileSize)}
+                </span>
+              )}
+            </span>
+            <button
+              type="button"
+              onClick={() => downloadFile(f.id, f.fileName)}
+              disabled={busyId === f.id}
+              className="inline-flex items-center gap-1 rounded-md border border-slate-200 bg-white px-2.5 py-1 text-xs font-semibold text-brand-700 hover:bg-brand-50 disabled:opacity-60"
+            >
+              <Download className="h-3 w-3" />
+              {busyId === f.id ? 'Downloading…' : 'Download'}
+            </button>
+          </li>
+        ))}
+      </ul>
+      {err && (
+        <p className="mt-2 rounded-md border border-red-200 bg-red-50 p-2 text-xs text-red-800">
+          {err}
+        </p>
+      )}
+    </section>
+  );
+}
+
+function formatFileSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
 function TrainerFeedbackCard({ a }: { a: AssignmentSummary }) {
@@ -221,7 +332,7 @@ function TrainerFeedbackCard({ a }: { a: AssignmentSummary }) {
     : decision === 'REQUEST_REVISION' ? 'border-red-200 bg-red-50 text-red-900'
     : 'border-amber-200 bg-amber-50 text-amber-900';
   return (
-    <section className={'rounded-lg border p-5 shadow-sm ' + tone}>
+    <section className={'rounded-lg border p-3 shadow-sm ' + tone}>
       <div className="flex items-center gap-2">
         {decision === 'ACCEPT'
           ? <CheckCircle2 className="h-4 w-4" />
@@ -229,17 +340,16 @@ function TrainerFeedbackCard({ a }: { a: AssignmentSummary }) {
         <h3 className="text-sm font-semibold">
           Feedback from trainer · {DECISION_LABEL[decision]}
         </h3>
+        <span className="ml-auto text-[10px] opacity-80">
+          v{sub.version}
+          {sub.reviewedByName ? ' · ' + sub.reviewedByName : ''}
+        </span>
       </div>
       {sub.trainerFeedback && (
-        <p className="mt-2 whitespace-pre-wrap text-sm">
+        <p className="mt-1.5 whitespace-pre-wrap text-[13px] leading-snug">
           {sub.trainerFeedback}
         </p>
       )}
-      <p className="mt-3 text-[11px] opacity-80">
-        On v{sub.version}
-        {sub.reviewedByName ? ' · ' + sub.reviewedByName : ''}
-        {sub.reviewedAt ? ' · ' + formatInstant(sub.reviewedAt) : ''}
-      </p>
     </section>
   );
 }
@@ -268,7 +378,7 @@ function SubmissionCard({
   }
 
   return (
-    <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+    <section className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
       <h3 className="text-sm font-semibold text-slate-900">
         {canSubmit
           ? (lastSent ? 'Re-submit your work' : 'Submit your work')
@@ -605,27 +715,26 @@ function SubmissionForm({
   }
 
   return (
-    <div className="mt-3 space-y-4">
+    <div className="mt-2 space-y-3">
       {isResubmit && (
-        <p className="rounded-md border border-red-200 bg-red-50 p-3 text-xs text-red-800">
-          The trainer requested changes on your previous submission. Update
-          your links / notes and re-submit.
+        <p className="rounded-md border border-red-200 bg-red-50 p-2 text-xs text-red-800">
+          The trainer requested changes — update your links / notes and re-submit.
         </p>
       )}
 
       <div>
-        <label className="text-sm font-medium text-slate-800">
+        <label className="text-xs font-medium text-slate-800">
           Deliverable links
+          <span className="ml-1 font-normal text-slate-500">
+            (https:// — repo, PR, demo, docs)
+          </span>
         </label>
-        <p className="mt-0.5 text-xs text-slate-500">
-          GitHub repo, pull request, deployed demo, docs — full https:// URLs.
-        </p>
-        <div className="mt-2 space-y-2">
+        <div className="mt-1.5 space-y-1.5">
           {links.map((l, i) => {
             const trimmed = l.trim();
             const invalid = trimmed !== '' && validateUrl(trimmed) !== null;
             return (
-              <div key={i} className="flex items-start gap-2">
+              <div key={i} className="flex items-start gap-1.5">
                 <div className="flex-1">
                   <input
                     type="url"
@@ -633,12 +742,12 @@ function SubmissionForm({
                     onChange={(e) => setLinkAt(i, e.target.value)}
                     placeholder="https://github.com/you/your-repo"
                     className={
-                      'w-full rounded-md border px-3 py-2 text-sm '
+                      'w-full rounded-md border px-2.5 py-1.5 text-sm '
                       + (invalid ? 'border-red-400' : 'border-slate-200')
                     }
                   />
                   {invalid && (
-                    <p className="mt-1 text-xs text-red-700">
+                    <p className="mt-0.5 text-[11px] text-red-700">
                       {validateUrl(trimmed)}
                     </p>
                   )}
@@ -648,9 +757,9 @@ function SubmissionForm({
                     type="button"
                     onClick={() => removeLink(i)}
                     aria-label="Remove link"
-                    className="mt-1 rounded-md border border-slate-200 p-2 text-slate-500 hover:bg-slate-50"
+                    className="mt-0.5 rounded-md border border-slate-200 p-1.5 text-slate-500 hover:bg-slate-50"
                   >
-                    <Trash2 className="h-4 w-4" />
+                    <Trash2 className="h-3.5 w-3.5" />
                   </button>
                 )}
               </div>
@@ -659,7 +768,7 @@ function SubmissionForm({
           <button
             type="button"
             onClick={addLink}
-            className="inline-flex items-center gap-1 text-xs font-medium text-brand-700 hover:underline"
+            className="inline-flex items-center gap-1 text-[11px] font-medium text-brand-700 hover:underline"
           >
             <Plus className="h-3 w-3" /> Add another link
           </button>
@@ -667,21 +776,21 @@ function SubmissionForm({
       </div>
 
       <div>
-        <label className="text-sm font-medium text-slate-800">
-          Notes <span className="text-xs font-normal text-slate-500">(optional)</span>
+        <label className="text-xs font-medium text-slate-800">
+          Notes <span className="font-normal text-slate-500">(optional)</span>
         </label>
         <textarea
           value={notes}
           onChange={(e) => setNotes(e.target.value)}
-          rows={4}
+          rows={2}
           maxLength={5000}
-          placeholder="What you built, anything you want the trainer to look at first, known gaps…"
-          className="mt-1 w-full resize-y rounded-md border border-slate-200 px-3 py-2 text-sm"
+          placeholder="What you built, what to look at first, known gaps…"
+          className="mt-1 w-full resize-y rounded-md border border-slate-200 px-2.5 py-1.5 text-sm"
         />
       </div>
 
       {err && (
-        <p className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-800">
+        <p className="rounded-md border border-red-200 bg-red-50 p-2 text-xs text-red-800">
           {err}
         </p>
       )}
@@ -691,9 +800,9 @@ function SubmissionForm({
           type="button"
           onClick={submit}
           disabled={busy || !hasContent || hasInvalidUrl}
-          className="inline-flex items-center gap-2 rounded-md bg-brand-700 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-800 disabled:opacity-60"
+          className="inline-flex items-center gap-1.5 rounded-md bg-brand-700 px-3 py-1.5 text-xs font-semibold text-white hover:bg-brand-800 disabled:opacity-60"
         >
-          <Send className="h-4 w-4" />
+          <Send className="h-3.5 w-3.5" />
           {busy
             ? (isResubmit ? 'Re-submitting…' : 'Submitting…')
             : (isResubmit ? 'Re-submit' : 'Submit')}
@@ -705,9 +814,11 @@ function SubmissionForm({
 
 function MetaCard({ a }: { a: AssignmentSummary }) {
   return (
-    <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm text-sm">
-      <h3 className="text-sm font-semibold text-slate-900">Details</h3>
-      <dl className="mt-3 space-y-2 text-xs">
+    <section className="rounded-lg border border-slate-200 bg-white p-3 shadow-sm">
+      <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+        Details
+      </h3>
+      <dl className="mt-2 space-y-1 text-xs">
         <Row k="Assigned" v={a.assignmentDate ? formatDate(a.assignmentDate) : '—'} />
         <Row k="Due" v={a.dueDate ? formatDate(a.dueDate) : '—'} />
         <Row k="Started" v={a.startedAt ? formatInstant(a.startedAt) : '—'} />
@@ -732,27 +843,245 @@ function Row({ k, v }: { k: string; v: string }) {
   );
 }
 
+/**
+ * Consolidates the three previously-scattered help affordances (Messages,
+ * Need help?, Stuck on this?) into one accent-toned card. Primary action
+ * is Raise-a-doubt (deep-links to the Doubts page with this project
+ * preselected); secondary is the message inbox.
+ */
+function NeedHelpCard({ a }: { a: AssignmentSummary }) {
+  const projectId = a.project?.id;
+  const doubtsHref = projectId
+    ? `/careers/intern/doubts?projectId=${projectId}&assignmentId=${a.id}`
+    : '/careers/intern/doubts';
+  return (
+    <section className="rounded-lg border border-brand-200 bg-brand-50 p-3 shadow-sm">
+      <div className="flex items-center gap-1.5">
+        <LifeBuoy className="h-3.5 w-3.5 text-brand-700" strokeWidth={2.2} />
+        <h3 className="text-xs font-semibold uppercase tracking-wide text-brand-800">
+          Need help?
+        </h3>
+      </div>
+      <p className="mt-1 text-[11px] text-brand-900/80">
+        Message your trainer or raise a doubt for a reply or a live session.
+      </p>
+      <div className="mt-2 flex flex-wrap gap-1.5">
+        <Link
+          href={doubtsHref}
+          className="inline-flex items-center gap-1 rounded-md bg-brand-700 px-2.5 py-1 text-[11px] font-semibold text-white hover:bg-brand-800"
+        >
+          Raise a doubt <ArrowRight className="h-3 w-3" />
+        </Link>
+        <Link
+          href="/careers/intern/messages"
+          className="inline-flex items-center gap-1 rounded-md border border-brand-300 bg-white px-2.5 py-1 text-[11px] font-semibold text-brand-800 hover:bg-brand-100"
+        >
+          <MessageSquare className="h-3 w-3" /> Message
+        </Link>
+      </div>
+    </section>
+  );
+}
+
+/**
+ * Compact contacts card. Reuses /api/v1/intern/right-panel — the same
+ * endpoint the global RightSidePanel polls — so the Trainer / Manager /
+ * Evaluator / ERM identity surfaces here without needing a parallel
+ * source. Avatar circle on the brand palette + email row on hover.
+ */
+interface TeamContact { name: string; email: string; role: string }
+function YourTeamCard() {
+  const [contacts, setContacts] = useState<TeamContact[] | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    api.get<{
+      contacts: {
+        erm?: TeamContact | null;
+        trainer?: TeamContact | null;
+        evaluator?: TeamContact | null;
+        manager?: TeamContact | null;
+      };
+    }>('/api/v1/intern/right-panel')
+      .then((res) => {
+        if (cancelled) return;
+        const c = res.data?.contacts ?? {};
+        const out: TeamContact[] = [];
+        if (c.trainer) out.push({ ...c.trainer, role: 'Trainer' });
+        if (c.manager) out.push({ ...c.manager, role: 'Manager' });
+        if (c.evaluator) out.push({ ...c.evaluator, role: 'Evaluator' });
+        if (c.erm) out.push({ ...c.erm, role: 'ERM' });
+        setContacts(out);
+      })
+      .catch(() => { if (!cancelled) setContacts([]); });
+    return () => { cancelled = true; };
+  }, []);
+
+  return (
+    <section className="rounded-lg border border-slate-200 bg-white p-3 shadow-sm">
+      <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+        Your team
+      </h3>
+      {contacts === null ? (
+        <div className="mt-1.5 h-10 animate-pulse rounded bg-slate-50" aria-hidden />
+      ) : contacts.length === 0 ? (
+        <p className="mt-1.5 text-[11px] text-slate-500">
+          Contacts will appear here once your team is assigned.
+        </p>
+      ) : (
+        <ul className="mt-1.5 space-y-1.5">
+          {contacts.map((c) => (
+            <li key={c.role} className="flex items-center gap-2">
+              <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-brand-100 text-[10px] font-semibold text-brand-800">
+                {teamInitials(c.name)}
+              </span>
+              <div className="min-w-0 flex-1">
+                <div className="flex items-baseline gap-1.5">
+                  <span className="truncate text-[11px] font-medium text-slate-900">
+                    {c.name}
+                  </span>
+                  <span className="text-[10px] uppercase tracking-wide text-slate-500">
+                    {c.role}
+                  </span>
+                </div>
+                <a
+                  href={`mailto:${c.email}`}
+                  className="inline-flex items-center gap-0.5 truncate text-[10px] text-brand-700 hover:underline"
+                  title={c.email}
+                >
+                  <Mail className="h-2.5 w-2.5 shrink-0" />
+                  <span className="truncate">{c.email}</span>
+                </a>
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
+  );
+}
+
+function teamInitials(name: string): string {
+  return name.trim().split(/\s+/).slice(0, 2)
+    .map((w) => w[0]?.toUpperCase() ?? '').join('');
+}
+
 function RepositoryCard({ a }: { a: AssignmentSummary }) {
   const repo = a.project?.repository;
   if (!repo?.repositoryUrl) return null;
   return (
-    <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
-      <h3 className="text-sm font-semibold text-slate-900">Repository</h3>
+    <section className="rounded-lg border border-slate-200 bg-white p-3 shadow-sm">
+      <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+        Repository
+      </h3>
       <a
         href={repo.repositoryUrl}
         target="_blank"
         rel="noreferrer"
-        className="mt-2 inline-flex items-center gap-1 break-all text-sm text-brand-700 hover:underline"
+        className="mt-1.5 inline-flex items-center gap-1 break-all text-xs text-brand-700 hover:underline"
       >
-        <Github className="h-4 w-4" />
+        <Github className="h-3.5 w-3.5" />
         {repo.repositoryName ?? repo.repositoryUrl}
         <ExternalLink className="h-3 w-3" />
       </a>
       {a.accessGranted === false && (
-        <p className="mt-2 text-xs text-amber-700">
-          Repository access not granted yet. Ask your trainer to invite you.
+        <p className="mt-1.5 text-[11px] text-amber-700">
+          Access not granted yet — ask your trainer.
         </p>
       )}
+    </section>
+  );
+}
+
+/**
+ * Q&A (viva) session card. Shows when the Evaluator has scheduled a
+ * Q&A session for this project. Surfaces the Zoom join link + time +
+ * who scheduled. Mirrors the KtCard layout. Pending state shown when
+ * the project has reached PENDING_VIVA but the Evaluator hasn't
+ * scheduled yet — so the intern knows what's next.
+ */
+function QaSessionCard({ a }: { a: AssignmentSummary }) {
+  const qa = a.qaSession;
+  const awaiting = a.status === 'PENDING_VIVA' && !qa;
+  if (!qa && !awaiting) return null;
+
+  if (awaiting) {
+    return (
+      <section className="rounded-lg border border-slate-200 bg-white p-3 shadow-sm">
+        <div className="flex items-center gap-1.5">
+          <MessageSquare className="h-3.5 w-3.5 text-slate-500" />
+          <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+            Q&amp;A session
+          </h3>
+          <span className="ml-auto rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-medium text-amber-800">
+            Awaiting Evaluator
+          </span>
+        </div>
+        <p className="mt-1.5 text-[11px] text-slate-500">
+          Your trainer approved the project. Your Evaluator will schedule a
+          Q&amp;A session — you&apos;ll be notified by email with the join link.
+        </p>
+      </section>
+    );
+  }
+  // qa is non-null past this point.
+  const hasJoin = !!qa!.zoomJoinUrl || !!qa!.meetingLink;
+  const isConducted = qa!.status === 'CONDUCTED';
+  return (
+    <section className="rounded-lg border border-slate-200 bg-white p-3 shadow-sm">
+      <div className="flex items-center gap-1.5">
+        <MessageSquare className="h-3.5 w-3.5 text-slate-500" />
+        <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+          Q&amp;A session
+        </h3>
+        <span className={
+          'ml-auto rounded-full px-2 py-0.5 text-[10px] font-medium '
+          + (isConducted
+              ? 'bg-emerald-100 text-emerald-800'
+              : 'bg-amber-100 text-amber-800')
+        }>
+          {isConducted ? 'Conducted — awaiting sign-off' : 'Scheduled'}
+        </span>
+      </div>
+
+      <div className="mt-2 rounded-md border border-brand-200 bg-brand-50 p-2">
+        <div className="flex flex-wrap items-baseline justify-between gap-1.5">
+          <p className="text-[10px] font-semibold uppercase tracking-wide text-brand-800">
+            Live Q&amp;A session
+          </p>
+          {qa!.scheduledAt && (
+            <p className="text-[10px] text-slate-700">
+              {new Date(qa!.scheduledAt).toLocaleString([], {
+                month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit',
+              })}
+              {qa!.durationMinutes ? ` · ${qa!.durationMinutes}m` : ''}
+            </p>
+          )}
+        </div>
+        {qa!.scheduledByName && (
+          <p className="mt-0.5 text-[10px] text-slate-600">
+            Scheduled by {qa!.scheduledByName}, your Evaluator
+          </p>
+        )}
+        {hasJoin && !isConducted && (
+          <a
+            href={(qa!.zoomJoinUrl ?? qa!.meetingLink) ?? '#'}
+            target="_blank"
+            rel="noreferrer noopener"
+            className="mt-1.5 inline-flex items-center gap-1 rounded-md bg-brand-700 px-2.5 py-1 text-[11px] font-semibold text-white hover:bg-brand-800"
+          >
+            <Video className="h-3 w-3" />
+            Join Meeting
+          </a>
+        )}
+        {isConducted && (
+          <p className="mt-1.5 text-[11px] text-emerald-800">
+            Session conducted. Your Evaluator will sign off with marks and
+            remarks — you&apos;ll be notified when the project is marked
+            Completed.
+          </p>
+        )}
+      </div>
     </section>
   );
 }
@@ -761,18 +1090,42 @@ function KtCard({ a }: { a: AssignmentSummary }) {
   const kt = a.project?.kt;
   if (!kt) return null; // Catalog-only, no assignment → KT is N/A.
   const done = kt.status === 'DONE';
+  const hasScheduledSession = !!kt.zoomMeetingId && !!kt.zoomJoinUrl;
+  // Compact branch — KT done. Once the trainer marks done we never
+  // surface the live Zoom join link again, even if the stored
+  // ktZoom* fields are still on the project row. The compact "KT
+  // done · {date} · {trainer}" pill IS the status. Notes (if the
+  // trainer added a summary) line-clamp under it.
+  if (done) {
+    return (
+      <section className="rounded-lg border border-green-200 bg-green-50 px-3 py-2 shadow-sm">
+        <div className="flex items-center gap-1.5 text-[11px] text-green-900">
+          <GraduationCap className="h-3.5 w-3.5 text-green-700" />
+          <span className="font-semibold">KT done</span>
+          <span className="text-green-800/80">
+            {kt.completedAt ? '· ' + formatInstant(kt.completedAt) : ''}
+            {kt.markedByName ? ' · ' + kt.markedByName : ''}
+          </span>
+        </div>
+        {kt.notes && (
+          <p className="mt-1 line-clamp-2 text-[11px] text-green-900/80">
+            {kt.notes}
+          </p>
+        )}
+      </section>
+    );
+  }
+  // Expanded branch — scheduled, in-progress, or not-yet-done. Keeps
+  // the Join button + scheduled time prominent.
   return (
-    <section className={
-      'rounded-lg border p-5 shadow-sm text-sm '
-      + (done
-          ? 'border-green-200 bg-green-50'
-          : 'border-slate-200 bg-white')
-    }>
-      <div className="flex items-center gap-2">
-        <GraduationCap className={'h-4 w-4 ' + (done ? 'text-green-700' : 'text-slate-500')} />
-        <h3 className="text-sm font-semibold text-slate-900">KT session</h3>
+    <section className="rounded-lg border border-slate-200 bg-white p-3 shadow-sm">
+      <div className="flex items-center gap-1.5">
+        <GraduationCap className="h-3.5 w-3.5 text-slate-500" />
+        <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+          KT session
+        </h3>
         <span className={
-          'ml-auto rounded-full px-2 py-0.5 text-[11px] font-medium '
+          'ml-auto rounded-full px-2 py-0.5 text-[10px] font-medium '
           + (done
               ? 'bg-green-100 text-green-800'
               : 'bg-slate-100 text-slate-700')
@@ -780,37 +1133,37 @@ function KtCard({ a }: { a: AssignmentSummary }) {
           {done ? 'Done' : 'Not done'}
         </span>
       </div>
-      {done ? (
-        <>
-          <p className="mt-2 text-xs text-slate-600">
-            Marked on {kt.completedAt ? formatInstant(kt.completedAt) : '—'}
-            {kt.markedByName ? ' · by ' + kt.markedByName : ''}
-          </p>
-          {kt.meetingLink && (
-            <a
-              href={kt.meetingLink}
-              target="_blank"
-              rel="noreferrer"
-              className="mt-2 inline-flex items-center gap-1 break-all text-xs text-brand-700 hover:underline"
-            >
-              <Video className="h-3 w-3" /> {kt.meetingLink}
-            </a>
-          )}
-          {kt.notes && (
-            <div className="mt-2 rounded-md border border-green-200 bg-white p-2">
-              <p className="text-[11px] font-semibold uppercase tracking-wide text-green-700">
-                Notes
+
+      {hasScheduledSession && (
+        <div className="mt-2 rounded-md border border-brand-200 bg-brand-50 p-2">
+          <div className="flex flex-wrap items-baseline justify-between gap-1.5">
+            <p className="text-[10px] font-semibold uppercase tracking-wide text-brand-800">
+              Live KT session
+            </p>
+            {kt.scheduledFor && (
+              <p className="text-[10px] text-slate-700">
+                {new Date(kt.scheduledFor).toLocaleString([], {
+                  month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit',
+                })}
+                {kt.durationMinutes ? ` · ${kt.durationMinutes}m` : ''}
               </p>
-              <p className="mt-1 whitespace-pre-wrap text-xs text-slate-700">
-                {kt.notes}
-              </p>
-            </div>
-          )}
-        </>
-      ) : (
-        <p className="mt-2 text-xs text-slate-500">
-          Your trainer will schedule a Knowledge Transfer session to walk
-          you through the project, then mark it done here.
+            )}
+          </div>
+          <a
+            href={kt.zoomJoinUrl ?? '#'}
+            target="_blank"
+            rel="noreferrer noopener"
+            className="mt-1.5 inline-flex items-center gap-1 rounded-md bg-brand-700 px-2.5 py-1 text-[11px] font-semibold text-white hover:bg-brand-800"
+          >
+            <Video className="h-3 w-3" />
+            Join Meeting
+          </a>
+        </div>
+      )}
+
+      {!done && !hasScheduledSession && (
+        <p className="mt-1.5 text-[11px] text-slate-500">
+          Your trainer will schedule a KT session and mark it done here.
         </p>
       )}
     </section>

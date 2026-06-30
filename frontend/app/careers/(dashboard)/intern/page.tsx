@@ -16,6 +16,7 @@ import RightSidePanel from '@/components/intern/RightSidePanel';
 import InactiveBanner from '@/components/exit/InactiveBanner';
 import ExitSummaryCard from '@/components/exit/ExitSummaryCard';
 import InternProfileCompletionCard from '@/components/intern/InternProfileCompletionCard';
+import UpcomingQaCard from '@/components/intern/UpcomingQaCard';
 import InternJourneyStepper, {
   currentMilestoneLabel,
 } from '@/components/intern/InternJourneyStepper';
@@ -101,6 +102,11 @@ export default function InternHomePage() {
           )}
 
           {data.selectionAck && <SelectionAckCard ack={data.selectionAck} />}
+
+          {/* Surfaces the next-scheduled Q&A session (if any) so the
+              intern can join from the dashboard without drilling into
+              the project detail page. Hidden when nothing is scheduled. */}
+          <UpcomingQaCard />
 
           <DoThisNextHero action={data.nextAction} />
 

@@ -52,6 +52,8 @@ public class ErmNewHireService {
     private final ApplicationEventPublisher eventPublisher;
     private final ObjectMapper objectMapper;
     private final JdbcTemplate jdbc;
+    private final OnboardingTrackerService onboardingTracker;
+    private final com.skyzen.careers.notification.InternNotificationService internNotifications;
 
     // ── List ───────────────────────────────────────────────────────────────
 
@@ -60,8 +62,14 @@ public class ErmNewHireService {
                                               int page, int pageSize) {
         Pageable pageable = PageRequest.of(
                 Math.max(0, page), Math.min(Math.max(1, pageSize), 100));
-        StringBuilder where = new StringBuilder(
-                " WHERE il.active_status = 'PROSPECTIVE' ");
+        // tab=all surfaces every signed-offer intern (PROSPECTIVE + ACTIVE)
+        // so the unified status table can show "Active" as a stage filter.
+        // The narrower tabs stay PROSPECTIVE-only since they're scoped to
+        // in-flight onboarding work that doesn't apply to activated interns.
+        boolean includeActive = "all".equalsIgnoreCase(tab);
+        StringBuilder where = new StringBuilder(includeActive
+                ? " WHERE il.active_status IN ('PROSPECTIVE', 'ACTIVE') "
+                : " WHERE il.active_status = 'PROSPECTIVE' ");
         List<Object> params = new ArrayList<>();
         if ("pending".equalsIgnoreCase(tab)) {
             // Legacy filter — pre-Phase-8.6.4 this surfaced interns waiting
@@ -126,13 +134,55 @@ public class ErmNewHireService {
                     rs.getString("evaluator_name"),
                     rs.getString("manager_name"),
                     rs.getBoolean("reporting_structure_complete"),
-                    rs.getBoolean("onboarding_assigned")));
+                    rs.getBoolean("onboarding_assigned"),
+                    // Tracker fields are filled in by enrichWithTrackerProgress
+                    // below — left null here so the row constructor stays a
+                    // pure projection of the SQL columns.
+                    null, null, null, null, null));
         } catch (Exception e) {
             log.warn("[ErmNewHire] list query failed: {}", e.getMessage());
         }
+        rows = enrichWithTrackerProgress(rows);
         Page<ErmOfferDtos.NewHireRow> p = new PageImpl<>(rows, pageable, total);
         return new ErmOfferDtos.NewHireListPage(p.getContent(), p.getNumber(),
                 p.getSize(), p.getTotalElements(), p.getTotalPages());
+    }
+
+    /**
+     * Per-row enrichment with onboarding-tracker progress so the list can
+     * render the "N/6 · needs X" badge. Best-effort: a per-row failure
+     * leaves the tracker fields null (older-client behaviour) without
+     * failing the whole list call.
+     *
+     * <p>Page size is bounded at 100 → ≤100 lifecycle lookups + tracker
+     * computations per call, which is fine for ERM-facing dashboards.</p>
+     */
+    private List<ErmOfferDtos.NewHireRow> enrichWithTrackerProgress(
+            List<ErmOfferDtos.NewHireRow> rows) {
+        if (rows == null || rows.isEmpty()) return rows;
+        List<ErmOfferDtos.NewHireRow> out = new ArrayList<>(rows.size());
+        for (ErmOfferDtos.NewHireRow r : rows) {
+            try {
+                InternLifecycle lc = lifecycleRepository.findById(r.internLifecycleId())
+                        .orElse(null);
+                if (lc == null) { out.add(r); continue; }
+                var t = onboardingTracker.computeForLifecycle(lc);
+                out.add(new ErmOfferDtos.NewHireRow(
+                        r.internLifecycleId(), r.internUserId(), r.internName(),
+                        r.internEmail(), r.employeeId(), r.signedAt(),
+                        r.tentativeStartDate(), r.trainerName(), r.evaluatorName(),
+                        r.managerName(), r.reportingStructureComplete(),
+                        r.onboardingAssigned(),
+                        t.stepsCompleted(), t.stepsTotal(),
+                        t.nextStepLabel(), t.canActivate(),
+                        t.currentStepId() == null ? null : t.currentStepId().name()));
+            } catch (Exception e) {
+                log.warn("[ErmNewHire] tracker enrich failed for {}: {}",
+                        r.internLifecycleId(), e.getMessage());
+                out.add(r);
+            }
+        }
+        return out;
     }
 
     // ── Detail ────────────────────────────────────────────────────────────
@@ -189,7 +239,18 @@ public class ErmNewHireService {
                 intern != null
                         && intern.getLifecycleStatus()
                                 == com.skyzen.careers.enums.InternLifecycleStatus.ONBOARDING_ACCEPTED
-                        && signedOffer != null);
+                        && signedOffer != null,
+                lc.getJoiningDate(),
+                intern != null
+                        && intern.getLifecycleStatus()
+                                == com.skyzen.careers.enums.InternLifecycleStatus.ONBOARDING_ACCEPTED,
+                // Mail bridge Phase 5 — surface the handover state +
+                // archived personal email so the ERM page can render the
+                // "Assign company email" section (PERSONAL + employeeId)
+                // or the status chip (PENDING_ACTIVATION / ACTIVATED).
+                intern != null && intern.getMailHandoverState() != null
+                        ? intern.getMailHandoverState().name() : null,
+                intern != null ? intern.getPersonalEmail() : null);
     }
 
     // ── Assign reporting structure (legacy — kept for one-off corrections) ─
@@ -222,11 +283,25 @@ public class ErmNewHireService {
                             + lc.getActiveStatus() + ")");
         }
         User trainer = requireRole(req.trainerUserId(), UserRole.TRAINER, "Trainer");
-        User evaluator = requireRole(req.evaluatorUserId(),
-                UserRole.REPORTING_MANAGER, "Evaluator");
+        // Accept EVALUATOR or REPORTING_MANAGER — mirrors the eligible
+        // list which unions both roles. Without this an admin who
+        // created an "Evaluator" with the EVALUATOR role wouldn't be
+        // assignable even though they appear in the picker.
+        User evaluator = requireAnyRole(req.evaluatorUserId(),
+                java.util.EnumSet.of(UserRole.EVALUATOR, UserRole.REPORTING_MANAGER),
+                "Evaluator");
         User manager = req.managerUserId() != null
                 ? requireRole(req.managerUserId(), UserRole.MANAGER, "Manager")
                 : null;
+
+        // Capture previous IDs so we can detect mid-engagement reassignments
+        // and notify the intern via internal mail. First-time assignments
+        // (previous == null) are part of onboarding and surface through the
+        // activation team-intro mail instead — we only ping when an existing
+        // staff role changes hands.
+        UUID prevTrainerId = lc.getTrainerId();
+        UUID prevEvaluatorId = lc.getEvaluatorId();
+        UUID prevManagerId = lc.getManagerId();
 
         lc.setTrainerId(trainer.getId());
         lc.setEvaluatorId(evaluator.getId());
@@ -253,7 +328,49 @@ public class ErmNewHireService {
         } catch (Exception e) {
             log.warn("[ErmNewHire] reporting structure event publish failed: {}", e.getMessage());
         }
+
+        // Tier A — mid-engagement reassignment notify (intern internal mail).
+        // Only fires when (a) lifecycle is ACTIVE (so the intern has a
+        // company mailbox the bridge can route to) and (b) the role
+        // actually changed hands (previous != null AND previous != new).
+        if ("ACTIVE".equals(lc.getActiveStatus()) && lc.getUserId() != null) {
+            notifyInternOfReassignment(lc.getUserId(), prevTrainerId, trainer.getId(),
+                    "Trainer", trainer);
+            notifyInternOfReassignment(lc.getUserId(), prevEvaluatorId, evaluator.getId(),
+                    "Evaluator", evaluator);
+            if (manager != null) {
+                notifyInternOfReassignment(lc.getUserId(), prevManagerId, manager.getId(),
+                        "Manager", manager);
+            }
+        }
         return detail(lifecycleId);
+    }
+
+    /**
+     * Send an intern internal-mail when a staff role's owner changes
+     * mid-engagement. Skips silently when this is a first-time assignment
+     * (previousId == null — covered by the activation team-intro mail) or
+     * when nothing actually changed (previousId.equals(newId)).
+     */
+    private void notifyInternOfReassignment(UUID internUserId, UUID previousId,
+                                             UUID newId, String roleWord, User newStaff) {
+        if (previousId == null) return;            // first-time assignment
+        if (previousId.equals(newId)) return;       // no change
+        if (newStaff == null) return;
+        try {
+            String newName = newStaff.getFullName() != null && !newStaff.getFullName().isBlank()
+                    ? newStaff.getFullName() : ("your new " + roleWord);
+            String subject = "Your " + roleWord + " has changed — meet " + newName;
+            String plain = "Hi,\n\n" + newName + " is now your " + roleWord
+                    + " at Skyzen. They'll pick up where the previous " + roleWord
+                    + " left off — feel free to reach out with anything in-flight."
+                    + "\n\nOpen your dashboard: /careers/intern"
+                    + "\n\n— Skyzen";
+            internNotifications.notifyIntern(internUserId, subject, plain, null);
+        } catch (Exception e) {
+            log.warn("[ErmNewHire] reassignment intern-mail failed (non-fatal) intern={} role={}: {}",
+                    internUserId, roleWord, e.getMessage());
+        }
     }
 
     /**
@@ -268,11 +385,12 @@ public class ErmNewHireService {
                 .orElseThrow(() -> new ResourceNotFoundException(
                         "InternLifecycle not found: " + lifecycleId));
         UUID previous = lc.getManagerId();
+        User newManager = null;
         if (managerUserId == null) {
             lc.setManagerId(null);
         } else {
-            User manager = requireRole(managerUserId, UserRole.MANAGER, "Manager");
-            lc.setManagerId(manager.getId());
+            newManager = requireRole(managerUserId, UserRole.MANAGER, "Manager");
+            lc.setManagerId(newManager.getId());
         }
         lifecycleRepository.save(lc);
 
@@ -283,6 +401,12 @@ public class ErmNewHireService {
         writeAudit(caller.getId(), lc.getUserId(),
                 "MANAGER_ASSIGNED", "InternLifecycle", lc.getId(),
                 before, after);
+
+        // Tier A — mid-engagement Manager reassignment notify.
+        if ("ACTIVE".equals(lc.getActiveStatus()) && lc.getUserId() != null && newManager != null) {
+            notifyInternOfReassignment(lc.getUserId(), previous, newManager.getId(),
+                    "Manager", newManager);
+        }
         return detail(lifecycleId);
     }
 
@@ -320,13 +444,47 @@ public class ErmNewHireService {
 
     @Transactional(readOnly = true)
     public List<ErmOfferDtos.UserStub> listEligible(UserRole role) {
-        List<User> users = userRepository.findByRole(role);
-        List<ErmOfferDtos.UserStub> out = new ArrayList<>();
-        for (User u : users) {
-            if (u == null || !Boolean.TRUE.equals(u.getActive())) continue;
-            int count = countAssignedInterns(u.getId(), role);
+        return listEligibleAny(java.util.EnumSet.of(role), role);
+    }
+
+    /**
+     * Union of users across multiple roles, de-duplicated. Used by the
+     * evaluator selector — admin can create staff with either
+     * {@link UserRole#EVALUATOR} OR {@link UserRole#REPORTING_MANAGER}
+     * (the codebase has historical overlap between the two for the
+     * evaluator function), so the eligible list must include both.
+     *
+     * @param roles roles to union
+     * @param countingRole role to use for the workload-hint join (the
+     *        intern_lifecycles column is keyed off this single role —
+     *        for evaluators we count by evaluator_id regardless of
+     *        which underlying role the user holds)
+     */
+    @Transactional(readOnly = true)
+    public List<ErmOfferDtos.UserStub> listEligibleAny(java.util.Set<UserRole> roles,
+                                                       UserRole countingRole) {
+        if (roles == null || roles.isEmpty()) return List.of();
+        java.util.Map<UUID, User> deduped = new java.util.LinkedHashMap<>();
+        for (UserRole r : roles) {
+            for (User u : userRepository.findByRole(r)) {
+                if (u == null || u.getId() == null) continue;
+                if (!Boolean.TRUE.equals(u.getActive())) continue;
+                deduped.putIfAbsent(u.getId(), u);
+            }
+        }
+        List<ErmOfferDtos.UserStub> out = new ArrayList<>(deduped.size());
+        for (User u : deduped.values()) {
+            int count = countAssignedInterns(u.getId(), countingRole);
+            // Surface the friendliest single role label — prefer the
+            // primary role the ERM expects to find here. Falls back to
+            // any matched role on the user if the primary isn't held.
+            String roleLabel = u.getRoles() != null && u.getRoles().contains(countingRole)
+                    ? countingRole.name()
+                    : roles.stream()
+                            .filter(r -> u.getRoles() != null && u.getRoles().contains(r))
+                            .findFirst().map(UserRole::name).orElse(countingRole.name());
             out.add(new ErmOfferDtos.UserStub(
-                    u.getId(), u.getFullName(), u.getEmail(), role.name(), count));
+                    u.getId(), u.getFullName(), u.getEmail(), roleLabel, count));
         }
         return out;
     }
@@ -354,12 +512,27 @@ public class ErmNewHireService {
     // ── Helpers ───────────────────────────────────────────────────────────
 
     private User requireRole(UUID userId, UserRole role, String label) {
+        return requireAnyRole(userId, java.util.EnumSet.of(role), label);
+    }
+
+    /**
+     * Accept-any-of-N variant of {@link #requireRole}. Used for the
+     * evaluator slot because admin can create accounts with either
+     * {@link UserRole#EVALUATOR} or {@link UserRole#REPORTING_MANAGER}
+     * (historical role overlap) — the assigned user need only hold one
+     * of them.
+     */
+    private User requireAnyRole(UUID userId, java.util.Set<UserRole> acceptable, String label) {
         User u = userRepository.findById(userId)
                 .orElseThrow(() -> new ResourceNotFoundException(
                         label + " user not found: " + userId));
-        if (u.getRoles() == null || !u.getRoles().contains(role)) {
+        if (u.getRoles() == null
+                || acceptable.stream().noneMatch(u.getRoles()::contains)) {
+            String roleList = acceptable.stream()
+                    .map(UserRole::name)
+                    .collect(java.util.stream.Collectors.joining(" or "));
             throw new BadRequestException(
-                    label + " must hold role " + role.name() + " (user " + userId + ")");
+                    label + " must hold role " + roleList + " (user " + userId + ")");
         }
         return u;
     }

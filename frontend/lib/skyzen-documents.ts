@@ -34,6 +34,7 @@ export type SkyzenDocumentKey =
   | 'DRIVERS_LICENSE_BACK'
   | 'STATE_ID_CARD'
   | 'SSN_CARD'
+  | 'I20_FORM'
   | 'I9_TRAVEL_HISTORY';
 
 export type SkyzenDocumentCategory =
@@ -60,6 +61,11 @@ export type SkyzenDocumentSpec = {
   /** Null when the doc has no fill-in template (mirrors the backend
    *  SkyzenDocument.publicUrl() null contract). */
   publicUrl: string | null;
+  /** Hidden from the AssignPacketModal but still a valid value on the
+   *  document_tasks.document_key CHECK constraint so historical packets
+   *  keep rendering. Removing a key from the enum would break existing
+   *  rows at the next boot-time CHECK sync. */
+  deprecated?: boolean;
 };
 
 function publicUrlFor(filename: string | null): string | null {
@@ -75,7 +81,8 @@ const SPECS: readonly SkyzenDocumentSpecInput[] = [
     description: 'IRS W-4 employee withholding certificate, 2026 version.' },
   { key: 'W9_FW9', title: 'W-9 (FW9)', category: 'TAX',
     sensitivity: 'FINANCIAL', filename: 'fw9.pdf',
-    description: 'IRS W-9 for contractor / 1099 tax information.' },
+    description: 'IRS W-9 for contractor / 1099 tax information.',
+    deprecated: true },
   { key: 'I9_FORM_2026', title: 'I-9 Form 2026', category: 'IMMIGRATION',
     sensitivity: 'GOVERNMENT_ID', filename: 'I-9 form_26.pdf',
     description: 'DHS I-9 employment eligibility, 2026 version.' },
@@ -104,10 +111,12 @@ const SPECS: readonly SkyzenDocumentSpecInput[] = [
     description: 'Offer letter template for software developer roles.' },
   { key: 'MSA_TEMPLATE', title: 'MSA Template', category: 'LEGAL',
     sensitivity: 'GENERAL', filename: 'EM_MSA_TEMPLATE.PDF',
-    description: 'Master Service Agreement template.' },
+    description: 'Master Service Agreement template.',
+    deprecated: true },
   { key: 'PO_TEMPLATE', title: 'PO Template', category: 'INFORMATIONAL',
     sensitivity: 'GENERAL', filename: 'EM_PO Template.pdf',
-    description: 'Purchase Order template.' },
+    description: 'Purchase Order template.',
+    deprecated: true },
   { key: 'LEAVE_OF_ABSENCE_FORM', title: 'Leave of Absence Form',
     category: 'EMPLOYMENT', sensitivity: 'GENERAL',
     filename: 'EM_LEAVE OF ABSENCE FORM.PDF',
@@ -154,7 +163,12 @@ const SPECS: readonly SkyzenDocumentSpecInput[] = [
   { key: 'SSN_CARD', title: 'SSN Card',
     category: 'IMMIGRATION', sensitivity: 'GOVERNMENT_ID', filename: null,
     description: 'Scan or clear photo of your Social Security card.' },
-  { key: 'I9_TRAVEL_HISTORY', title: 'I-9 Travel History',
+  { key: 'I20_FORM', title: 'I-20 (Student Visa)',
+    category: 'IMMIGRATION', sensitivity: 'GOVERNMENT_ID', filename: null,
+    description: 'Scan or clear photo of your most recent I-20 form '
+      + '(SEVIS Form I-20, Certificate of Eligibility for Nonimmigrant '
+      + 'Student Status). F-1 students only.' },
+  { key: 'I9_TRAVEL_HISTORY', title: 'Travel History',
     category: 'IMMIGRATION', sensitivity: 'GOVERNMENT_ID', filename: null,
     description: 'Scanned summary of your US entry/exit history for the I-9. '
       + 'Use the I-94 travel history PDF from i94.cbp.dhs.gov.' },

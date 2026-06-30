@@ -38,6 +38,7 @@ public class TrainerFeedbackNotificationDispatcher {
 
     private static final String INTERN_PROJECTS = "/careers/intern/projects";
     private static final String TRAINER_REVIEWS = "/careers/trainer/pending-reviews";
+    private static final String EVALUATOR_PENDING = "/careers/evaluator/pending-vivas";
     private static final String ERM_EXCEPTIONS = "/careers/erm/exception-records";
 
     private final UserRepository userRepository;
@@ -46,6 +47,7 @@ public class TrainerFeedbackNotificationDispatcher {
     private final EmailProvider emailProvider;
     private final UserNotificationDispatcher inApp;
     private final OrgTeamResolver orgTeamResolver;
+    private final com.skyzen.careers.notification.InternNotificationService internNotifications;
 
     public void dispatchFeedbackPublished(Project project,
                                            ProjectSubmission submission,
@@ -77,12 +79,41 @@ public class TrainerFeedbackNotificationDispatcher {
         vars.put("deepLink", dl);
 
         // ── Intern (always) ──────────────────────────────────────────────
+        // Model A — system sends; body names the trainer who published.
+        // ACCEPT now means "approved + routed to evaluator for Q&A" (the
+        // trainer no longer completes the project), so the intern-facing
+        // copy explicitly says the project is heading to evaluation.
         try {
-            renderAndSend("FEEDBACK_PUBLISHED", vars, intern);
+            String actorPhrase = trainer.getFullName() != null
+                    && !trainer.getFullName().isBlank()
+                    ? trainer.getFullName() + ", your Trainer,"
+                    : "Your Trainer";
+            String projectTitle = nz(project.getTitle());
+            String reviewNotes = submission != null && submission.getTrainerFeedback() != null
+                    ? submission.getTrainerFeedback() : "";
+            boolean isAccept = "ACCEPT".equals(decision);
+            String subject = isAccept
+                    ? "Project approved by your Trainer — going to evaluation: " + projectTitle
+                    : "Project feedback by your Trainer: " + projectTitle;
+            String openingLine = isAccept
+                    ? actorPhrase + " has approved your project \""
+                            + projectTitle
+                            + "\". It's now scheduled for an Evaluator Q&A session — "
+                            + "the Evaluator will reach out with a meeting time and "
+                            + "sign final completion after the session."
+                    : actorPhrase + " has shared feedback on your project \""
+                            + projectTitle + "\": " + label + ".";
+            String plain = "Hi " + firstName(intern) + ",\n\n"
+                    + openingLine
+                    + (!reviewNotes.isBlank() ? "\n\nNotes: " + reviewNotes : "")
+                    + "\n\nOpen the project: " + dl
+                    + "\n\n— Skyzen";
+            internNotifications.notifyIntern(intern.getId(), subject, plain, null);
             inApp.dispatch(intern.getId(), "FEEDBACK_PUBLISHED",
                     intern.getId(),
-                    "Project feedback: " + project.getTitle(),
-                    label + (submission != null && submission.getTrainerFeedback() != null
+                    subject,
+                    actorPhrase + " " + label
+                        + (submission != null && submission.getTrainerFeedback() != null
                             ? " — " + truncate(submission.getTrainerFeedback(), 120) : ""),
                     dl, true);
         } catch (Exception e) {
@@ -90,14 +121,30 @@ public class TrainerFeedbackNotificationDispatcher {
                     e.getMessage());
         }
 
-        // ── Evaluator + Manager (in-app cue) ─────────────────────────────
-        // Evaluator resolves through OrgTeamResolver so the org-wide
-        // singleton (DEFAULT_EVALUATOR_EMAIL) gets the cue when the
-        // per-intern evaluator_id was never stamped. Manager stays
-        // direct — genuinely per-intern.
-        for (UUID staff : new UUID[]{orgTeamResolver.resolveEvaluatorId(lc), lc.getManagerId()}) {
-            if (staff == null) continue;
-            tryInApp(staff, "FEEDBACK_PUBLISHED", intern.getId(),
+        // ── Evaluator (auto-route on ACCEPT) ──────────────────────────────
+        // On ACCEPT the project's status is now PENDING_VIVA — auto-route
+        // to the evaluator's queue with a Q&A-specific subject + deep link
+        // to the project so the evaluator can schedule the session
+        // immediately. Other decisions keep the existing trainer-cue
+        // posture (informational only, no action required).
+        UUID evaluatorId = orgTeamResolver.resolveEvaluatorId(lc);
+        if (evaluatorId != null) {
+            if ("ACCEPT".equals(decision)) {
+                String evalTitle = "Q&A session needed — " + intern.getFullName();
+                String evalBody = "Project \"" + nz(project.getTitle())
+                        + "\" was approved by " + nz(trainer.getFullName())
+                        + " and is awaiting your Q&A session + final approval.";
+                tryInApp(evaluatorId, "PROJECT_PENDING_VIVA", intern.getId(),
+                        evalTitle, evalBody, EVALUATOR_PENDING);
+            } else {
+                tryInApp(evaluatorId, "FEEDBACK_PUBLISHED", intern.getId(),
+                        label + " — " + intern.getFullName(),
+                        project.getTitle(), TRAINER_REVIEWS);
+            }
+        }
+        // Manager cue stays direct and informational on every decision.
+        if (lc.getManagerId() != null) {
+            tryInApp(lc.getManagerId(), "FEEDBACK_PUBLISHED", intern.getId(),
                     label + " — " + intern.getFullName(),
                     project.getTitle(), TRAINER_REVIEWS);
         }
@@ -145,7 +192,7 @@ public class TrainerFeedbackNotificationDispatcher {
     private static String humanLabel(String decision) {
         if (decision == null) return "Feedback";
         return switch (decision) {
-            case "ACCEPT" -> "Project accepted";
+            case "ACCEPT" -> "Approved — Q&A pending";
             case "REQUEST_REVISION" -> "Revision requested";
             case "ESCALATE" -> "Escalated";
             case "NO_ACTION_YET" -> "Reviewed (no action yet)";

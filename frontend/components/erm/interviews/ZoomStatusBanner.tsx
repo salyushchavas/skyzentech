@@ -74,6 +74,14 @@ export default function ZoomStatusBanner({ interview, onUpdated }: Props) {
   const [err, setErr] = useState<string | null>(null);
 
   const status = interview.zoomStatus ?? 'UNKNOWN';
+
+  // Suppress the banner when the meeting was created cleanly. The host
+  // start card directly below already says "Start Meeting (Host)" with
+  // the URL — the "Zoom meeting created" banner above it is redundant
+  // and just adds chrome. Failure / missing-config states still render
+  // because those are the only times ERM has something to act on.
+  if (status === 'OK') return null;
+
   const cfg = TONE_BY_STATUS[status];
 
   // Regenerate is meaningful only while the interview is open AND the
@@ -82,7 +90,7 @@ export default function ZoomStatusBanner({ interview, onUpdated }: Props) {
   // server-side config.
   const canRegenerate =
     interview.status === 'SCHEDULED'
-    && (status === 'CREATE_FAILED' || status === 'UPDATE_FAILED' || status === 'OK');
+    && (status === 'CREATE_FAILED' || status === 'UPDATE_FAILED');
 
   async function regenerate() {
     setBusy(true);

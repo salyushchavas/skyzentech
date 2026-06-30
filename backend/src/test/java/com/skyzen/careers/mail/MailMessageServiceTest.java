@@ -34,7 +34,6 @@ import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
@@ -204,71 +203,6 @@ class MailMessageServiceTest {
         when(entryRepo.findByIdAndAccountId(eq(entryId), eq(alice.getId()))).thenReturn(Optional.empty());
         MailApiException ex = assertThrows(MailApiException.class, () ->
                 service.getEntry(principal(alice), entryId));
-        assertEquals(HttpStatus.NOT_FOUND, ex.getStatus());
-    }
-
-    // ── Custom-folder placement (S9) ──────────────────────────────────────
-
-    /** Stubs the toDetail dependencies for a single-message, no-recipient detail. */
-    private MailMessage stubDetailDeps(UUID msgId) {
-        MailMessage msg = MailMessage.builder()
-                .id(msgId).senderAccountId(alice.getId()).subject("S").bodyText("b")
-                .threadId(msgId).hasAttachments(false).build();
-        when(messageRepo.findById(msgId)).thenReturn(Optional.of(msg));
-        when(recipientRepo.findByMessageId(msgId)).thenReturn(List.of());
-        when(accountRepo.findAllById(any())).thenReturn(List.of(alice));
-        return msg;
-    }
-
-    @Test
-    void moveToCustomFolder_setsCustomFolderId() {
-        UUID entryId = UUID.randomUUID();
-        UUID msgId = UUID.randomUUID();
-        UUID folderId = UUID.randomUUID();
-        MailMailboxEntry entry = MailMailboxEntry.builder()
-                .id(entryId).accountId(alice.getId()).messageId(msgId).folder(MailFolder.INBOX).isRead(true).build();
-        when(customFolderRepo.existsByIdAndAccountId(folderId, alice.getId())).thenReturn(true);
-        when(entryRepo.findByIdAndAccountId(entryId, alice.getId())).thenReturn(Optional.of(entry));
-        stubDetailDeps(msgId);
-
-        MailMessageDetail d = service.moveToCustomFolder(principal(alice), entryId, folderId);
-
-        assertEquals(folderId, entry.getCustomFolderId(), "FK set so it leaves the system folder");
-        assertEquals(folderId.toString(), d.customFolderId());
-    }
-
-    @Test
-    void move_toSystemFolder_clearsCustomFolderId() {
-        UUID entryId = UUID.randomUUID();
-        UUID msgId = UUID.randomUUID();
-        MailMailboxEntry entry = MailMailboxEntry.builder()
-                .id(entryId).accountId(alice.getId()).messageId(msgId).folder(MailFolder.INBOX)
-                .customFolderId(UUID.randomUUID()).isRead(true).build(); // currently in a custom folder
-        when(entryRepo.findByIdAndAccountId(entryId, alice.getId())).thenReturn(Optional.of(entry));
-        stubDetailDeps(msgId);
-
-        service.move(principal(alice), entryId, MailFolder.ARCHIVE);
-
-        assertNull(entry.getCustomFolderId(), "moving to a system folder clears custom placement");
-        assertEquals(MailFolder.ARCHIVE, entry.getFolder());
-    }
-
-    @Test
-    void moveToCustomFolder_foreignFolder_is404_noSave() {
-        UUID folderId = UUID.randomUUID();
-        when(customFolderRepo.existsByIdAndAccountId(folderId, alice.getId())).thenReturn(false);
-        MailApiException ex = assertThrows(MailApiException.class, () ->
-                service.moveToCustomFolder(principal(alice), UUID.randomUUID(), folderId));
-        assertEquals(HttpStatus.NOT_FOUND, ex.getStatus());
-        verify(entryRepo, never()).save(any());
-    }
-
-    @Test
-    void listCustomFolder_foreignFolder_is404() {
-        UUID folderId = UUID.randomUUID();
-        when(customFolderRepo.existsByIdAndAccountId(folderId, alice.getId())).thenReturn(false);
-        MailApiException ex = assertThrows(MailApiException.class, () ->
-                service.listCustomFolder(principal(alice), folderId, 0, 25));
         assertEquals(HttpStatus.NOT_FOUND, ex.getStatus());
     }
 

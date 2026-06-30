@@ -8,9 +8,9 @@ import com.skyzen.careers.exception.BadRequestException;
 import com.skyzen.careers.exception.ConflictException;
 import com.skyzen.careers.exception.ForbiddenException;
 import com.skyzen.careers.exception.ResourceNotFoundException;
-import com.skyzen.careers.integration.zoom.ZoomMeetingRequest;
-import com.skyzen.careers.integration.zoom.ZoomMeetingResponse;
-import com.skyzen.careers.integration.zoom.ZoomService;
+import com.skyzen.careers.integration.meeting.MeetingProvider;
+import com.skyzen.careers.integration.meeting.MeetingRequest;
+import com.skyzen.careers.integration.meeting.MeetingResponse;
 import com.skyzen.careers.repository.InternLifecycleRepository;
 import com.skyzen.careers.repository.UserRepository;
 import com.skyzen.careers.repository.WeeklyMeetingRepository;
@@ -46,7 +46,7 @@ public class WeeklyMeetingService {
     private final WeeklyMeetingRepository meetingRepository;
     private final InternLifecycleRepository lifecycleRepository;
     private final UserRepository userRepository;
-    private final ZoomService zoomService;
+    private final MeetingProvider meetingProvider;
     private final TrainerScopeGuard trainerScopeGuard;
 
     // ── Trainer commands ────────────────────────────────────────────────────
@@ -76,24 +76,25 @@ public class WeeklyMeetingService {
         String tz = (timezone == null || timezone.isBlank()) ? "UTC" : timezone;
 
         // Create the Zoom meeting (best-effort).
-        Long zoomId = null;
+        String zoomId = null;
         String joinUrl = null;
         String startUrl = null;
         String password = null;
-        if (zoomService.isReady()) {
+        if (meetingProvider.isReady()) {
             try {
                 String hostId = actor.getZoomEmail() != null && !actor.getZoomEmail().isBlank()
                         ? actor.getZoomEmail() : "me";
-                ZoomMeetingResponse z = zoomService.createMeeting(
-                        new ZoomMeetingRequest(hostId, topic, scheduledFor, duration, tz, agenda));
-                zoomId = z.meetingId();
+                MeetingResponse z = meetingProvider.createMeeting(
+                        new MeetingRequest(hostId, topic, scheduledFor, duration, tz, agenda));
+                zoomId = z.providerMeetingId();
                 joinUrl = z.joinUrl();
                 startUrl = z.startUrl();
                 password = z.password();
-                log.info("[WeeklyMeeting] Zoom meeting created id={} for lifecycle={}",
-                        zoomId, lc.getId());
+                log.info("[WeeklyMeeting] {} meeting created id={} for lifecycle={}",
+                        meetingProvider.providerName(), zoomId, lc.getId());
             } catch (Exception e) {
-                log.warn("[WeeklyMeeting] Zoom create failed (non-fatal): {}", e.getMessage());
+                log.warn("[WeeklyMeeting] {} create failed (non-fatal): {}",
+                        meetingProvider.providerName(), e.getMessage());
             }
         }
 
@@ -178,10 +179,10 @@ public class WeeklyMeetingService {
         }
         m.setScheduledFor(newScheduledFor);
         // Branch 1 — existing Zoom meeting: PATCH and persist the outcome.
-        if (m.getZoomMeetingId() != null && zoomService.isReady()) {
+        if (m.getZoomMeetingId() != null && meetingProvider.isReady()) {
             try {
-                zoomService.updateMeeting(m.getZoomMeetingId(),
-                        new ZoomMeetingRequest(null, m.getTopic(), m.getScheduledFor(),
+                meetingProvider.updateMeeting(m.getZoomMeetingId(),
+                        new MeetingRequest(null, m.getTopic(), m.getScheduledFor(),
                                 m.getDurationMinutes(), m.getTimezone(), m.getAgenda()));
                 m.setZoomUpdateFailed(false);
                 m.setZoomLastError(null);
@@ -194,7 +195,7 @@ public class WeeklyMeetingService {
                 m.setZoomUpdateFailed(true);
                 m.setZoomLastError(truncate(e.getMessage()));
             }
-        } else if (m.getZoomMeetingId() == null && zoomService.isReady()) {
+        } else if (m.getZoomMeetingId() == null && meetingProvider.isReady()) {
             // Branch 2 — null-id fall-through. The original schedule's Zoom
             // create failed; try to attach a fresh meeting now. Mirrors the
             // ERM-interview reschedule pattern.
@@ -232,20 +233,20 @@ public class WeeklyMeetingService {
                             + "from the other occurrences). Cancel and re-schedule "
                             + "the series instead.");
         }
-        if (!zoomService.isReady()) {
-            if (zoomService.isForceDisabled()) {
+        if (!meetingProvider.isReady()) {
+            String provider = meetingProvider.providerName();
+            if (meetingProvider.isForceDisabled()) {
                 throw new ConflictException(
-                        "Zoom is force-disabled (ZOOM_ENABLED=false). "
+                        "Meeting provider '" + provider + "' is force-disabled. "
                                 + "Unset the kill-switch to use the configured credentials.");
             }
             throw new ConflictException(
-                    "Zoom is not configured — ZOOM_ACCOUNT_ID / ZOOM_CLIENT_ID / "
-                            + "ZOOM_CLIENT_SECRET are not set on the server.");
+                    "Meeting provider '" + provider + "' is not configured on the server.");
         }
         // Delete first so we don't orphan the old meeting on Zoom.
         if (m.getZoomMeetingId() != null) {
             try {
-                zoomService.deleteMeeting(m.getZoomMeetingId());
+                meetingProvider.deleteMeeting(m.getZoomMeetingId());
             } catch (Exception e) {
                 log.warn("[WeeklyMeeting] Zoom delete failed during regenerate for {}: {}",
                         m.getId(), e.getMessage());
@@ -277,10 +278,10 @@ public class WeeklyMeetingService {
                 && !host.getZoomEmail().isBlank()
                 ? host.getZoomEmail() : "me";
         try {
-            ZoomMeetingResponse z = zoomService.createMeeting(
-                    new ZoomMeetingRequest(hostKey, m.getTopic(), m.getScheduledFor(),
+            MeetingResponse z = meetingProvider.createMeeting(
+                    new MeetingRequest(hostKey, m.getTopic(), m.getScheduledFor(),
                             m.getDurationMinutes(), m.getTimezone(), m.getAgenda()));
-            m.setZoomMeetingId(z.meetingId());
+            m.setZoomMeetingId(z.providerMeetingId());
             m.setZoomJoinUrl(z.joinUrl());
             m.setZoomStartUrl(z.startUrl());
             m.setZoomPassword(z.password());
@@ -320,6 +321,21 @@ public class WeeklyMeetingService {
             m.setTrainerNotes(trainerNotes.trim());
         }
         return meetingRepository.save(m);
+    }
+
+    /**
+     * Lightweight mark-done variant for the weekly-sessions tracker
+     * pill. Reuses {@link #complete} (same guards, same audit-log
+     * shape) but accepts an optional short note — synthesizes a
+     * default when blank so the tracker's one-click "Mark done" doesn't
+     * require typing a 50-char incident report.
+     */
+    @Transactional
+    public WeeklyMeeting completeQuick(UUID meetingId, String trainerNote, User actor) {
+        String note = trainerNote == null || trainerNote.isBlank()
+                ? "Marked done from weekly-sessions tracker."
+                : trainerNote.trim();
+        return complete(meetingId, note, actor);
     }
 
     /** Trainer Phase 3 — manual mark-missed by the host trainer when the
@@ -384,9 +400,9 @@ public class WeeklyMeetingService {
         boolean isSeriesParent = "WEEKLY".equals(m.getRecurrence());
         boolean isStandalone = m.getRecurrenceParentId() == null && m.getRecurrence() == null;
         if (m.getZoomMeetingId() != null && (isSeriesParent || isStandalone)
-                && zoomService.isReady()) {
+                && meetingProvider.isReady()) {
             try {
-                zoomService.deleteMeeting(m.getZoomMeetingId());
+                meetingProvider.deleteMeeting(m.getZoomMeetingId());
             } catch (Exception e) {
                 log.warn("[WeeklyMeeting] Zoom delete failed (non-fatal) for {}: {}",
                         m.getId(), e.getMessage());

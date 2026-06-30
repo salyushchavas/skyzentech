@@ -11,6 +11,7 @@ package com.skyzen.careers.enums;
  * downstream compliance routing only.
  */
 public enum WorkAuthTrack {
+    CITIZEN,
     CPT,
     OPT,
     STEM_OPT,

@@ -25,4 +25,6 @@ public interface InternEvaluationRepository extends JpaRepository<InternEvaluati
     boolean existsByInternIdAndStatusIn(UUID internId, Collection<String> statuses);
 
     Optional<InternEvaluation> findByLinkedProjectId(UUID linkedProjectId);
+
+    Optional<InternEvaluation> findFirstByZoomMeetingId(String zoomMeetingId);
 }

@@ -6,7 +6,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import AuthLayout from '@/components/dashboard/AuthLayout';
 import { useAuth } from '@/lib/auth-context';
 import { BRAND } from '@/lib/brand';
-import { getDashboardForUser } from '@/lib/role-routing';
+import { getDashboardForUser, returnToIsAllowedForUser } from '@/lib/role-routing';
 
 export default function LoginPage() {
   return (
@@ -39,7 +39,15 @@ function LoginInner() {
     try {
       const user = await login(email, password);
       const returnTo = safeReturnTo();
-      router.replace(returnTo ?? getDashboardForUser(user));
+      // Defense-in-depth against a stale {@code ?returnTo} sneaking in
+      // (the sign-out race previously stamped the prior role's path).
+      // Honour returnTo ONLY when the freshly authenticated user has
+      // the role required to render it; otherwise drop it and land on
+      // the role's own dashboard.
+      const target = returnTo && returnToIsAllowedForUser(returnTo, user)
+        ? returnTo
+        : getDashboardForUser(user);
+      router.replace(target);
     } catch (err: any) {
       const msg = err?.response?.data?.error ?? 'Login failed';
       setError(msg);

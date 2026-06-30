@@ -37,7 +37,7 @@ export default function HireApprovalDetailPage() {
 
   useEffect(() => { void load(); }, [load]);
 
-  async function decide(action: 'approve' | 'reject') {
+  async function decide(action: 'approve' | 'reject' | 'hold') {
     if (!interviewId) return;
     if (action === 'reject') {
       const ok = confirm('Reject this hire? The candidate will be marked REJECTED and the ERM will be notified.');
@@ -50,7 +50,14 @@ export default function HireApprovalDetailPage() {
         `/api/v1/manager/hire-approvals/${interviewId}/${action}`,
         note.trim() ? { note: note.trim() } : {},
       );
-      router.push('/careers/manager/hire-approvals');
+      // Hold stays revisitable — reload the same page so the manager sees
+      // the HOLD banner with the option to change to Hire/Reject later.
+      // Hire/Reject are final — bounce back to the queue.
+      if (action === 'hold') {
+        await load();
+      } else {
+        router.push('/careers/manager/hire-approvals');
+      }
     } catch (e) {
       const ax = e as { response?: { data?: { error?: string } }; message?: string };
       setActionErr(ax.response?.data?.error ?? ax.message ?? 'Failed');
@@ -77,7 +84,11 @@ export default function HireApprovalDetailPage() {
     );
   }
 
+  // Final decisions lock the action panel; HOLD is non-final — the
+  // panel re-renders with a HOLD banner above the buttons so the
+  // manager can revisit and change to Hire/No-Hire.
   const decided = d.managerHireDecision === 'APPROVED' || d.managerHireDecision === 'REJECTED';
+  const onHold = d.managerHireDecision === 'HOLD';
 
   return (
     <div className="mx-auto max-w-5xl space-y-4 p-6">
@@ -191,6 +202,24 @@ export default function HireApprovalDetailPage() {
               <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-500">
                 Hire decision
               </h3>
+              {onHold && (
+                <div className="mt-3 rounded-md border border-amber-200 bg-amber-50 p-2 text-xs text-amber-900">
+                  <p className="font-semibold">On hold</p>
+                  {d.managerHireDecisionAt && (
+                    <p className="mt-0.5 text-[11px]">
+                      Paused {new Date(d.managerHireDecisionAt).toLocaleString()}
+                    </p>
+                  )}
+                  {d.managerHireDecisionNote && (
+                    <p className="mt-1 whitespace-pre-line">
+                      {d.managerHireDecisionNote}
+                    </p>
+                  )}
+                  <p className="mt-1 text-[11px]">
+                    No emails sent, lifecycle unchanged. Hire or No-Hire when ready.
+                  </p>
+                </div>
+              )}
               <label className="mt-3 block text-xs font-medium text-slate-700">
                 Note (optional)
               </label>
@@ -216,6 +245,14 @@ export default function HireApprovalDetailPage() {
                 </button>
                 <button
                   type="button"
+                  onClick={() => decide('hold')}
+                  disabled={submitting}
+                  className="w-full rounded-md border border-amber-300 bg-white px-3 py-2 text-sm font-semibold text-amber-700 hover:bg-amber-50 disabled:opacity-60"
+                >
+                  {onHold ? 'Update hold' : 'Hold'}
+                </button>
+                <button
+                  type="button"
                   onClick={() => decide('reject')}
                   disabled={submitting}
                   className="w-full rounded-md border border-red-300 bg-white px-3 py-2 text-sm font-semibold text-red-700 hover:bg-red-50 disabled:opacity-60"
@@ -224,9 +261,9 @@ export default function HireApprovalDetailPage() {
                 </button>
               </div>
               <p className="mt-3 text-[11px] text-slate-500">
-                Approving sets the candidate to SELECTED and unblocks the
-                ERM&rsquo;s Send Offer action. Rejecting marks the
-                application REJECTED.
+                Hire = SELECTED + unblocks Send Offer. Hold = pause (no
+                emails, no lifecycle change; revisit anytime).
+                No-Hire = REJECTED.
               </p>
             </section>
           )}

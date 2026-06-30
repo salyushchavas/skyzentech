@@ -173,7 +173,7 @@ export interface EvaluatorEvaluationDetail {
   timezone: string | null;
   zoomJoinUrl: string | null;
   zoomStartUrl: string | null;
-  zoomMeetingId: number | null;
+  zoomMeetingId: string | null;
   technicalSkillsScore: number | null;
   communicationScore: number | null;
   professionalismScore: number | null;

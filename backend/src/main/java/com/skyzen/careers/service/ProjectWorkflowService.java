@@ -230,11 +230,12 @@ public class ProjectWorkflowService {
         if (actor == null) throw new ForbiddenException("Authentication required.");
         if (isSuperAdmin(actor)) return;
         if (actor.getRoles() != null
-                && actor.getRoles().contains(UserRole.REPORTING_MANAGER)) {
+                && (actor.getRoles().contains(UserRole.EVALUATOR)
+                    || actor.getRoles().contains(UserRole.REPORTING_MANAGER))) {
             return;
         }
         throw new ForbiddenException(
-                "Only REPORTING_MANAGER or SUPER_ADMIN may act here.");
+                "Only EVALUATOR, REPORTING_MANAGER, or SUPER_ADMIN may act here.");
     }
 
     private static boolean isSuperAdmin(User u) {

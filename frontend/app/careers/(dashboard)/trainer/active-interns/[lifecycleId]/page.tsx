@@ -1,12 +1,14 @@
 'use client';
 
 import { Component, useCallback, useEffect, useState, type ErrorInfo, type ReactNode } from 'react';
-import { useParams } from 'next/navigation';
+import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import api from '@/lib/api';
 import StateBadge from '@/components/trainer/StateBadge';
 import ProjectSlotIndicator from '@/components/trainer/ProjectSlotIndicator';
 import ReportingStructureBadge from '@/components/trainer/ReportingStructureBadge';
+import WebexHostStartCard from '@/components/meeting/WebexHostStartCard';
+import WeeklyTrackerGrid from '@/components/trainer/weeklyTracker/WeeklyTrackerGrid';
 import type {
   ActiveInternDetail,
   RecentMeetingRow,
@@ -25,8 +27,34 @@ export default function ActiveInternDetailPage() {
   // value is neither a Promise nor a Context.
   const params = useParams<{ lifecycleId: string }>();
   const lifecycleId = params?.lifecycleId ?? '';
+  const sp = useSearchParams();
+  const router = useRouter();
   const [d, setD] = useState<ActiveInternDetail | null>(null);
   const [err, setErr] = useState<string | null>(null);
+  // One-shot: capture ?kt={projectId} on first render so even if Next
+  // strips it later (or React re-renders before we consume it) the
+  // child RecentProjectItem still gets the auto-open signal. After
+  // we've read it, strip the param from the URL so a refresh or
+  // back-navigation doesn't re-open the modal unintentionally.
+  const [autoOpenKtProjectId] = useState<string | null>(
+    () => sp?.get('kt') ?? null,
+  );
+  useEffect(() => {
+    if (autoOpenKtProjectId == null) return;
+    const remaining = new URLSearchParams(sp?.toString() ?? '');
+    remaining.delete('kt');
+    const qs = remaining.toString();
+    if (typeof window !== 'undefined') {
+      router.replace(
+        window.location.pathname + (qs ? '?' + qs : ''),
+        { scroll: false },
+      );
+    }
+    // Run once on mount; sp/router refs are stable enough for this
+    // one-shot cleanup. eslint-react-hooks would otherwise insist on
+    // adding them and re-firing on every render, which is wrong here.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const load = useCallback(async () => {
     if (!lifecycleId) return;
@@ -156,6 +184,11 @@ export default function ActiveInternDetailPage() {
         </Card>
       </div>
 
+      {/* Weekly-sessions tracker for this intern — month grid with
+          Schedule / Mark-done actions per week. Sits above the
+          2-column card grid so the strip has full horizontal room. */}
+      <WeeklyTrackerGrid internLifecycleId={lifecycleId} compact />
+
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <CardWithCta
           title="Recent projects"
@@ -173,6 +206,7 @@ export default function ActiveInternDetailPage() {
                     p={p}
                     internUserId={d.intern?.userId ?? null}
                     onChanged={() => void load()}
+                    autoOpenKt={autoOpenKtProjectId === p.id}
                   />
                 </RowErrorBoundary>
               ))}
@@ -334,10 +368,22 @@ function Empty() {
 }
 
 function RecentProjectItem({
-  p, internUserId, onChanged,
-}: { p: RecentProjectRow; internUserId: string | null; onChanged: () => void }) {
-  const [ktOpen, setKtOpen] = useState(false);
+  p, internUserId, onChanged, autoOpenKt,
+}: {
+  p: RecentProjectRow;
+  internUserId: string | null;
+  onChanged: () => void;
+  /** Set true when the parent received ?kt={p.id} on the URL — the
+   *  Mark-KT-done modal opens on mount so the trainer arrives in one
+   *  click from the active-interns table KT button. One-shot: the
+   *  parent strips the query param after the first read so a refresh
+   *  doesn't re-open the modal. */
+  autoOpenKt?: boolean;
+}) {
+  const [ktOpen, setKtOpen] = useState(autoOpenKt ?? false);
+  const [ktScheduleOpen, setKtScheduleOpen] = useState(false);
   const ktDone = p.ktStatus === 'DONE';
+  const hasScheduledSession = !!p.ktZoomMeetingId;
   return (
     <li className="rounded-md border border-slate-100 p-2 text-xs">
       <div className="flex items-baseline justify-between">
@@ -382,6 +428,17 @@ function RecentProjectItem({
           />
           <button
             type="button"
+            onClick={() => setKtScheduleOpen(true)}
+            className="rounded-md border border-slate-200 px-2 py-0.5 text-[10px] font-medium text-slate-700 hover:bg-slate-50"
+            title={hasScheduledSession
+              ? 'Reschedule the KT Zoom session'
+              : 'Schedule a live KT Zoom session — intern is notified, '
+                + 'trainer gets the host link'}
+          >
+            {hasScheduledSession ? 'Reschedule KT' : 'Schedule KT session'}
+          </button>
+          <button
+            type="button"
             onClick={() => setKtOpen(true)}
             className="rounded-md border border-slate-200 px-2 py-0.5 text-[10px] font-medium text-slate-700 hover:bg-slate-50"
           >
@@ -389,6 +446,39 @@ function RecentProjectItem({
           </button>
         </div>
       </div>
+
+      {/* Scheduled KT session block — appears when a Zoom meeting exists
+          for this project AND KT isn't done yet. Mirrors the
+          WeeklyMeeting host card pattern: show the date + meeting id,
+          then the WebexHostStartCard which fetches a fresh start_url on
+          demand (~2h zak expiry). Once the trainer marks KT done the
+          host-link surface disappears (status is captured by the
+          "KT: Done · {date}" pill above + the symmetric intern-side
+          compact pill); the underlying ktZoom* fields stay on the row
+          for audit but are never re-exposed as a live link. */}
+      {hasScheduledSession && !ktDone && (
+        <div className="mt-2 rounded-md border border-slate-200 bg-slate-50 p-2">
+          <div className="flex flex-wrap items-baseline justify-between gap-2">
+            <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">
+              KT session scheduled
+            </span>
+            {p.ktScheduledFor && (
+              <span className="text-[10px] text-slate-700">
+                {new Date(p.ktScheduledFor).toLocaleString()}
+                {p.ktTimezone ? ` (${p.ktTimezone})` : ''}
+                {p.ktDurationMinutes ? ` · ${p.ktDurationMinutes} min` : ''}
+              </span>
+            )}
+          </div>
+          <div className="mt-1.5">
+            <WebexHostStartCard
+              providerMeetingId={p.ktZoomMeetingId ?? null}
+              startUrl={p.ktZoomStartUrl ?? null}
+            />
+          </div>
+        </div>
+      )}
+
       {ktOpen && (
         <KtMarkModal
           projectId={p.id}
@@ -396,6 +486,19 @@ function RecentProjectItem({
           alreadyDone={ktDone}
           onClose={() => setKtOpen(false)}
           onSaved={() => { setKtOpen(false); onChanged(); }}
+        />
+      )}
+      {ktScheduleOpen && (
+        <KtScheduleModal
+          projectId={p.id}
+          projectTitle={p.title}
+          existing={hasScheduledSession ? {
+            scheduledFor: p.ktScheduledFor ?? null,
+            durationMinutes: p.ktDurationMinutes ?? null,
+            timezone: p.ktTimezone ?? null,
+          } : null}
+          onClose={() => setKtScheduleOpen(false)}
+          onSaved={() => { setKtScheduleOpen(false); onChanged(); }}
         />
       )}
     </li>
@@ -870,6 +973,191 @@ function validateUrl(s: string): string | null {
   } catch {
     return 'Not a valid URL';
   }
+}
+
+/**
+ * Schedule a live KT Zoom session for a project. Mirrors the weekly-
+ * meeting schedule modal: date/time + duration + timezone + optional
+ * topic/agenda. Backend creates the Zoom meeting and notifies the
+ * intern (internal mail + in-app) with the join URL. Trainer gets a
+ * separate host-link email.
+ *
+ * Independent of Mark KT done — re-opening this modal after a session
+ * is on the calendar pre-fills the existing values and re-creates the
+ * Zoom meeting on save (the old one is left orphaned — rare enough we
+ * skip a delete/handshake).
+ */
+function KtScheduleModal({
+  projectId, projectTitle, existing, onClose, onSaved,
+}: {
+  projectId: string;
+  projectTitle: string | null;
+  existing: {
+    scheduledFor: string | null;
+    durationMinutes: number | null;
+    timezone: string | null;
+  } | null;
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  // Format helpers — datetime-local input wants 'YYYY-MM-DDTHH:mm'.
+  function toLocalInput(iso: string | null): string {
+    if (!iso) return '';
+    const d = new Date(iso);
+    const pad = (n: number) => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
+      + `T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  }
+  const browserTz = (() => {
+    try { return Intl.DateTimeFormat().resolvedOptions().timeZone; }
+    catch { return 'UTC'; }
+  })();
+
+  const [localDt, setLocalDt] = useState(toLocalInput(existing?.scheduledFor ?? null));
+  const [durationMin, setDurationMin] = useState<number>(
+    existing?.durationMinutes ?? 30,
+  );
+  const [timezone, setTimezone] = useState<string>(
+    existing?.timezone ?? browserTz,
+  );
+  const [topic, setTopic] = useState('');
+  const [agenda, setAgenda] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  async function submit() {
+    if (!localDt) { setErr('Pick a date and time'); return; }
+    setBusy(true);
+    setErr(null);
+    try {
+      // datetime-local has no tz suffix; treat as local time and
+      // convert to an ISO instant. The user-selected `timezone` is
+      // sent separately for display formatting; the actual schedule
+      // semantics live in the instant.
+      const isoInstant = new Date(localDt).toISOString();
+      await api.post(`/api/v1/projects/${projectId}/kt-schedule`, {
+        scheduledFor: isoInstant,
+        durationMinutes: durationMin,
+        timezone,
+        topic: topic.trim() || null,
+        agenda: agenda.trim() || null,
+      });
+      onSaved();
+    } catch (e: any) {
+      setErr(e?.response?.data?.error
+        ?? e?.message ?? 'Schedule KT failed');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4">
+      <div className="w-full max-w-md rounded-lg bg-white p-5 shadow-xl">
+        <h3 className="text-base font-semibold text-slate-900">
+          {existing ? 'Reschedule KT session' : 'Schedule KT session'}
+        </h3>
+        <p className="mt-1 text-xs text-slate-500">
+          {projectTitle ? `For project "${projectTitle}". ` : ''}
+          Backend creates a Zoom meeting; the intern is notified with the
+          join link, and you&rsquo;ll get the host start link in a
+          separate email. Independent of Mark&nbsp;KT&nbsp;done.
+        </p>
+        <div className="mt-4 space-y-3">
+          <div>
+            <label className="text-xs font-medium text-slate-800">
+              Date + time*
+            </label>
+            <input
+              type="datetime-local"
+              value={localDt}
+              onChange={(e) => setLocalDt(e.target.value)}
+              className="mt-1 w-full rounded-md border border-slate-200 px-3 py-2 text-sm"
+            />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-xs font-medium text-slate-800">
+                Duration
+              </label>
+              <select
+                value={durationMin}
+                onChange={(e) => setDurationMin(Number(e.target.value))}
+                className="mt-1 w-full rounded-md border border-slate-200 px-3 py-2 text-sm"
+              >
+                <option value={15}>15 min</option>
+                <option value={30}>30 min</option>
+                <option value={45}>45 min</option>
+                <option value={60}>60 min</option>
+                <option value={90}>90 min</option>
+                <option value={120}>120 min</option>
+              </select>
+            </div>
+            <div>
+              <label className="text-xs font-medium text-slate-800">
+                Timezone
+              </label>
+              <input
+                type="text"
+                value={timezone}
+                onChange={(e) => setTimezone(e.target.value)}
+                placeholder="Asia/Kolkata"
+                className="mt-1 w-full rounded-md border border-slate-200 px-3 py-2 text-sm"
+              />
+            </div>
+          </div>
+          <div>
+            <label className="text-xs font-medium text-slate-800">
+              Topic <span className="text-slate-500">(optional)</span>
+            </label>
+            <input
+              type="text"
+              value={topic}
+              onChange={(e) => setTopic(e.target.value)}
+              maxLength={200}
+              placeholder={`KT Session — ${projectTitle ?? 'your project'}`}
+              className="mt-1 w-full rounded-md border border-slate-200 px-3 py-2 text-sm"
+            />
+          </div>
+          <div>
+            <label className="text-xs font-medium text-slate-800">
+              Agenda <span className="text-slate-500">(optional)</span>
+            </label>
+            <textarea
+              value={agenda}
+              onChange={(e) => setAgenda(e.target.value)}
+              rows={3}
+              maxLength={2000}
+              placeholder="What you'll walk the intern through…"
+              className="mt-1 w-full resize-y rounded-md border border-slate-200 px-3 py-2 text-sm"
+            />
+          </div>
+          {err && (
+            <p className="rounded-md border border-red-200 bg-red-50 p-2 text-xs text-red-800">
+              {err}
+            </p>
+          )}
+        </div>
+        <div className="mt-5 flex justify-end gap-2">
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-md border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={submit}
+            disabled={busy || !localDt}
+            className="rounded-md bg-brand-700 px-3 py-1.5 text-xs font-semibold text-white hover:bg-brand-800 disabled:opacity-60"
+          >
+            {busy ? 'Scheduling…' : (existing ? 'Reschedule' : 'Schedule')}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 function RecentMeetingItem({ m }: { m: RecentMeetingRow }) {

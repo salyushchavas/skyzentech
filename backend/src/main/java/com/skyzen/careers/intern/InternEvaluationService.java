@@ -15,9 +15,9 @@ import com.skyzen.careers.exception.BadRequestException;
 import com.skyzen.careers.exception.ConflictException;
 import com.skyzen.careers.exception.ForbiddenException;
 import com.skyzen.careers.exception.ResourceNotFoundException;
-import com.skyzen.careers.integration.zoom.ZoomMeetingRequest;
-import com.skyzen.careers.integration.zoom.ZoomMeetingResponse;
-import com.skyzen.careers.integration.zoom.ZoomService;
+import com.skyzen.careers.integration.meeting.MeetingProvider;
+import com.skyzen.careers.integration.meeting.MeetingRequest;
+import com.skyzen.careers.integration.meeting.MeetingResponse;
 import com.skyzen.careers.repository.AuditLogRepository;
 import com.skyzen.careers.repository.EvaluationAmendmentRepository;
 import com.skyzen.careers.repository.InternEvaluationRepository;
@@ -61,7 +61,7 @@ public class InternEvaluationService {
     private final InternLifecycleRepository lifecycleRepository;
     private final UserRepository userRepository;
     private final AuditLogRepository auditLogRepository;
-    private final ZoomService zoomService;
+    private final MeetingProvider meetingProvider;
     private final ApplicationEventPublisher eventPublisher;
     private final ObjectMapper objectMapper;
     private final com.skyzen.careers.service.LifecycleAccessPolicy lifecycleAccessPolicy;
@@ -165,19 +165,19 @@ public class InternEvaluationService {
         eval.setDurationMinutes(duration);
         eval.setTimezone(tz);
 
-        if (zoomService.isReady()) {
+        if (meetingProvider.isReady()) {
             try {
                 String hostId = actor.getZoomEmail() != null && !actor.getZoomEmail().isBlank()
                         ? actor.getZoomEmail() : "me";
                 String topic = "Skyzen evaluation — " + eval.getEvaluationType();
-                ZoomMeetingResponse z = zoomService.createMeeting(
-                        new ZoomMeetingRequest(hostId, topic, scheduledFor, duration, tz, null));
-                eval.setZoomMeetingId(z.meetingId());
+                MeetingResponse z = meetingProvider.createMeeting(
+                        new MeetingRequest(hostId, topic, scheduledFor, duration, tz, null));
+                eval.setZoomMeetingId(z.providerMeetingId());
                 eval.setZoomJoinUrl(z.joinUrl());
                 eval.setZoomStartUrl(z.startUrl());
                 eval.setZoomPassword(z.password());
                 log.info("[Evaluation] Zoom created id={} for eval={}",
-                        z.meetingId(), eval.getId());
+                        z.providerMeetingId(), eval.getId());
             } catch (Exception e) {
                 log.warn("[Evaluation] Zoom create failed (non-fatal) for {}: {}",
                         eval.getId(), e.getMessage());
@@ -210,10 +210,10 @@ public class InternEvaluationService {
         if (newDurationMinutes != null) {
             eval.setDurationMinutes(Math.max(15, Math.min(120, newDurationMinutes)));
         }
-        if (eval.getZoomMeetingId() != null && zoomService.isReady()) {
+        if (eval.getZoomMeetingId() != null && meetingProvider.isReady()) {
             try {
-                zoomService.updateMeeting(eval.getZoomMeetingId(),
-                        new ZoomMeetingRequest(null,
+                meetingProvider.updateMeeting(eval.getZoomMeetingId(),
+                        new MeetingRequest(null,
                                 "Skyzen evaluation — " + eval.getEvaluationType(),
                                 eval.getScheduledFor(), eval.getDurationMinutes(),
                                 eval.getTimezone(), null));
@@ -357,9 +357,9 @@ public class InternEvaluationService {
             throw new ConflictException(
                     "Cannot cancel from status " + eval.getStatus());
         }
-        if (eval.getZoomMeetingId() != null && zoomService.isReady()) {
+        if (eval.getZoomMeetingId() != null && meetingProvider.isReady()) {
             try {
-                zoomService.deleteMeeting(eval.getZoomMeetingId());
+                meetingProvider.deleteMeeting(eval.getZoomMeetingId());
             } catch (Exception e) {
                 log.warn("[Evaluation] Zoom delete failed: {}", e.getMessage());
             }

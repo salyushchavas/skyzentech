@@ -80,6 +80,7 @@ public class OfferIdmsSigningService {
     private final com.skyzen.careers.erm.CommunicationTemplateService templateService;
     private final com.skyzen.careers.notification.EmailProvider emailProvider;
     private final ReportingStructureAutoLinker reportingStructureAutoLinker;
+    private final com.skyzen.careers.service.EngagementService engagementService;
 
     @Value("${app.frontend.base-url:https://www.skyzentech.com}")
     private String frontendBaseUrl;
@@ -398,6 +399,23 @@ public class OfferIdmsSigningService {
             application.setStatusUpdatedAt(now);
             if (actorId != null) application.setStatusUpdatedBy(actorId);
             applicationRepository.save(application);
+        }
+
+        // Phase 3 step 3 parity — IDMS signing is the in-house equivalent of
+        // OfferService.acceptInternal:301. That sibling path already calls
+        // createForAcceptedOffer here; the IDMS path historically didn't,
+        // which left every IDMS-signed intern with no Engagement row and
+        // silently broke every downstream feature keyed on engagement_id
+        // (projects, timesheets, compliance, evaluations). The call is
+        // idempotent (early findByOfferId check in createForAcceptedOffer)
+        // and runs in REQUIRES_NEW, so a creation blip never rolls back the
+        // signing/employee-id work above. Same belt-and-braces try/catch
+        // shape as acceptInternal.
+        try {
+            engagementService.createForAcceptedOffer(saved, actor);
+        } catch (Exception e) {
+            log.warn("Failed to create engagement for IDMS-signed offer {}: {}",
+                    saved.getId(), e.getMessage(), e);
         }
 
         writeAudit("Offer", saved.getId(), "SIGNED_VIA_IDMS",

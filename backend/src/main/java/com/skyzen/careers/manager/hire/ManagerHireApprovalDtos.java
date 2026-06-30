@@ -30,7 +30,11 @@ public final class ManagerHireApprovalDtos {
             Integer technicalScore,
             Integer communicationScore,
             Integer culturalFitScore,
-            String overallRecommendation
+            String overallRecommendation,
+            /** PENDING | HOLD — final APPROVED/REJECTED rows never appear
+             *  in the queue. Lets the row badge distinguish a fresh
+             *  pending review from a previously-parked HOLD. */
+            String managerHireDecision
     ) {}
 
     public record HireApprovalListPage(

@@ -15,10 +15,13 @@ import com.skyzen.careers.enums.EngagementStatus;
 import com.skyzen.careers.enums.WorkAuthTrack;
 import com.skyzen.careers.exception.BadRequestException;
 import com.skyzen.careers.enums.UserRole;
+import com.skyzen.careers.enums.OfferStatus;
+import com.skyzen.careers.exception.ResourceNotFoundException;
 import com.skyzen.careers.notification.NotificationService;
 import com.skyzen.careers.repository.AuditLogRepository;
 import com.skyzen.careers.repository.EngagementRepository;
 import com.skyzen.careers.repository.I9FormRepository;
+import com.skyzen.careers.repository.OfferRepository;
 import com.skyzen.careers.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -62,6 +65,7 @@ public class EngagementService {
     private final ObjectMapper objectMapper;
     private final NotificationService notificationService;
     private final I9FormRepository i9FormRepository;
+    private final OfferRepository offerRepository;
 
     /**
      * Phase 3 step 3 — spin up an Engagement at OFFER_ACCEPTED. Snapshots the
@@ -126,6 +130,81 @@ public class EngagementService {
                 engagement.getId(), offer.getId(), trackSnapshot, offer.getStartDate());
         return engagement;
     }
+
+    /**
+     * Targeted SUPER_ADMIN-only repair — create the missing Engagement for a
+     * single intern identified by email. Reuses {@link #createForAcceptedOffer}
+     * verbatim so there's no second Engagement-creation path. Idempotent: if
+     * an Engagement already exists for the picked offer, returns it with
+     * {@code created=false}; never duplicates a row.
+     *
+     * <p>Resolves the user's most-recent {@link OfferStatus#SIGNED} or
+     * {@link OfferStatus#ACCEPTED} offer via {@code
+     * findByApplication_Candidate_User_IdOrderByCreatedAtDesc} — the same
+     * source-of-truth {@link com.skyzen.careers.intern.InternActivationJob}
+     * uses for its activation gate. SIGNED is the IDMS in-house signing
+     * outcome; ACCEPTED is the deprecated legacy click-to-accept value still
+     * carried by historical rows. Both qualify the intern for an
+     * Engagement.</p>
+     *
+     * <p>This is a manual surgical tool — distinct from {@link
+     * com.skyzen.careers.bootstrap.EngagementBackfillRunner}, which is a
+     * boot-time bulk sweep gated on {@code app.engagement.backfill-enabled}.
+     * Use this when one user is stuck and you'd rather not toggle the boot
+     * flag + restart twice.</p>
+     */
+    @Transactional
+    public HealResult healForUserEmail(String email) {
+        if (email == null || email.isBlank()) {
+            throw new BadRequestException("email is required");
+        }
+        String lookup = email.trim();
+        User user = userRepository.findByEmail(lookup)
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "No user found for email: " + lookup));
+
+        java.util.List<Offer> offers = offerRepository
+                .findByApplication_Candidate_User_IdOrderByCreatedAtDesc(user.getId());
+        @SuppressWarnings("deprecation") // OfferStatus.ACCEPTED is the legacy pre-IDMS value;
+                                         // historical rows still carry it and remain eligible.
+        Offer pick = offers.stream()
+                .filter(o -> o.getStatus() == OfferStatus.SIGNED
+                        || o.getStatus() == OfferStatus.ACCEPTED)
+                .findFirst()
+                .orElse(null);
+        if (pick == null) {
+            return new HealResult(lookup, null, null, false,
+                    "No SIGNED or ACCEPTED offer found for user " + user.getId()
+                            + " — nothing to heal.");
+        }
+
+        // Pre-check the unique constraint so we can report created=false
+        // cleanly. createForAcceptedOffer's own findByOfferId guard would
+        // return the existing row either way, but we want the caller to
+        // know which case happened.
+        java.util.Optional<Engagement> existing =
+                engagementRepository.findByOfferId(pick.getId());
+        if (existing.isPresent()) {
+            Engagement e = existing.get();
+            return new HealResult(lookup, e.getId(), e.getStatus(), false,
+                    "Engagement already exists for offer " + pick.getId());
+        }
+
+        Engagement created = createForAcceptedOffer(pick, null); // SYSTEM actor
+        if (created == null) {
+            return new HealResult(lookup, null, null, false,
+                    "createForAcceptedOffer returned null — offer " + pick.getId()
+                            + " is missing application/candidate/entity.");
+        }
+        log.info("[EngagementHeal] created engagement {} for user {} from offer {} (status={})",
+                created.getId(), user.getId(), pick.getId(), pick.getStatus());
+        return new HealResult(lookup, created.getId(), created.getStatus(), true,
+                "Created engagement for offer " + pick.getId() + " (status=" + pick.getStatus() + ")");
+    }
+
+    /** Outcome of {@link #healForUserEmail}. */
+    public record HealResult(String email, UUID engagementId, EngagementStatus status,
+                              boolean created, String message) {}
 
     private void writeCreateAudit(Engagement engagement, UUID actorId) {
         Map<String, Object> afterJson = new LinkedHashMap<>();

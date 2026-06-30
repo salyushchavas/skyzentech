@@ -77,6 +77,19 @@ public class InternLifecycle {
     @Column(name = "tentative_start_date")
     private java.time.LocalDate tentativeStartDate;
 
+    /**
+     * ERM-set activation switch (Pass 2). Distinct from
+     * {@link #tentativeStartDate} (which is the offer letter's
+     * intention): joining_date is the committed activation switch the
+     * ERM sets after onboarding docs are accepted. {@link
+     * com.skyzen.careers.intern.InternActivationJob#tryActivateIfReady}
+     * requires this to be non-null AND {@code <= today} before flipping
+     * the lifecycle to ACTIVE_INTERN. Null means "ERM hasn't committed
+     * yet — keep waiting".
+     */
+    @Column(name = "joining_date")
+    private java.time.LocalDate joiningDate;
+
     /** True when trainer_id + evaluator_id + manager_id are all populated. */
     @Column(name = "reporting_structure_complete", nullable = false)
     @Builder.Default
@@ -103,6 +116,17 @@ public class InternLifecycle {
 
     @Column(name = "i9_section2_notes", columnDefinition = "text")
     private String i9Section2Notes;
+
+    // ── Onboarding tracker (Phase: ERM gated tracker) ───────────────────────
+
+    /**
+     * Set when the ERM clicks "Notify trainer + manager" on the onboarding
+     * tracker (step 4 of the selected→active flow). Drives the tracker's
+     * DONE/CURRENT state for that step. Hibernate auto-DDL adds the column
+     * on next boot since {@code spring.jpa.hibernate.ddl-auto=update}.
+     */
+    @Column(name = "team_notified_at")
+    private Instant teamNotifiedAt;
 
     @Column(nullable = false, updatable = false)
     private Instant createdAt;

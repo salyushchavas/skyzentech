@@ -15,12 +15,27 @@ public record TrainerDashboardResponse(
         Caller caller,
         Instant asOf,
         Map<TrainerKpiKey, KpiSnapshot> kpis,
+        /** "This week" focus strip — actionable workload condensed into
+         *  ≤5 clickable items the trainer can triage in a glance. Zero
+         *  items are still returned so the frontend can render "all
+         *  caught up" deterministically. */
+        List<FocusItem> focusItems,
         List<TodayMeetingRow> todayMeetings,
         List<RecentActivityRow> recentActivity,
         long unreadNotifications
 ) {
 
     public record Caller(String firstName, String lastName, String role) {}
+
+    /** One actionable workload item for the trainer-home focus strip.
+     *  Frontend hides items with {@code count == 0}; if every item is
+     *  zero, the strip renders an "all caught up" pill instead. */
+    public record FocusItem(
+            String key,
+            String label,
+            long count,
+            String actionUrl
+    ) {}
 
     public record KpiSnapshot(
             TrainerKpiKey key,

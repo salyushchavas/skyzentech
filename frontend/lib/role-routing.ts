@@ -31,3 +31,37 @@ export function getDashboardForUser(user: User): string {
   if (ordered) return ROLE_DASHBOARDS[ordered];
   return ROLE_DASHBOARDS[user.roles[0]] ?? '/careers/login';
 }
+
+/**
+ * Role required to access a given /careers/* sub-path. Used to validate
+ * a {@code returnTo} hint at login time — if the freshly authenticated
+ * user has no role for the requested path, we drop the returnTo and
+ * land them on their own dashboard instead. Belt-and-braces for the
+ * sign-out race that previously stamped {@code ?returnTo=<old-role-page>}
+ * onto the login URL.
+ */
+const PATH_PREFIX_ROLES: ReadonlyArray<[string, UserRole]> = [
+  ['/careers/admin',            'SUPER_ADMIN'],
+  ['/careers/erm',              'ERM'],
+  ['/careers/manager',          'MANAGER'],
+  ['/careers/reporting-manager','REPORTING_MANAGER'],
+  ['/careers/trainer',          'TRAINER'],
+  ['/careers/evaluator',        'EVALUATOR'],
+  ['/careers/intern',           'INTERN'],
+];
+
+/**
+ * True when the path is safe to redirect the freshly authenticated user
+ * to. Falls back to a permissive {@code true} for paths that don't map
+ * to a known role prefix (e.g. {@code /careers/jobs}).
+ */
+export function returnToIsAllowedForUser(returnTo: string, user: User): boolean {
+  for (const [prefix, role] of PATH_PREFIX_ROLES) {
+    if (returnTo === prefix
+        || returnTo.startsWith(prefix + '/')
+        || returnTo.startsWith(prefix + '?')) {
+      return user.roles?.includes(role) ?? false;
+    }
+  }
+  return true;
+}

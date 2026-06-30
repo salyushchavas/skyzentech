@@ -115,16 +115,6 @@ export default function MailClient() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [refreshCounts, loadCustomFolders]);
 
-  // Close the mobile folder drawer on Escape.
-  useEffect(() => {
-    if (!drawerOpen) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setDrawerOpen(false);
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [drawerOpen]);
-
   useEffect(() => {
     let cancelled = false;
     setListLoading(true);

@@ -7,11 +7,14 @@ import com.skyzen.careers.dto.project.catalog.ProjectAssignmentResponse;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.skyzen.careers.entity.Candidate;
+import com.skyzen.careers.entity.Document;
 import com.skyzen.careers.entity.Engagement;
 import com.skyzen.careers.entity.Project;
 import com.skyzen.careers.entity.ProjectAssignment;
 import com.skyzen.careers.entity.ProjectSubmission;
 import com.skyzen.careers.entity.User;
+import com.skyzen.careers.intern.DocumentVaultService;
+import com.skyzen.careers.repository.DocumentRepository;
 import com.skyzen.careers.enums.EngagementStatus;
 import com.skyzen.careers.enums.ProjectAssignmentStatus;
 import com.skyzen.careers.enums.UserRole;
@@ -68,9 +71,13 @@ public class ProjectAssignmentService {
     private final GitHubService gitHubService;
     private final LifecycleAccessPolicy lifecycleAccessPolicy;
     private final ProjectSubmissionRepository projectSubmissionRepository;
+    private final com.skyzen.careers.repository.QaSessionRepository qaSessionRepository;
     private final InternLifecycleRepository internLifecycleRepository;
     private final ApplicationEventPublisher eventPublisher;
     private final ObjectMapper objectMapper;
+    private final com.skyzen.careers.notification.InternNotificationService internNotifications;
+    private final DocumentRepository documentRepository;
+    private final DocumentVaultService documentVault;
 
     private static final TypeReference<List<String>> STRING_LIST = new TypeReference<>() {};
 
@@ -148,6 +155,29 @@ public class ProjectAssignmentService {
                         a.getId(), internId, "CREATED"));
                 log.info("[ProjectAssignmentService] assigned project={} intern={} by={} id={}",
                         project.getId(), internId, actor.getId(), a.getId());
+
+                // Tier A — internal mail to the active intern. notifyIntern
+                // gates on ACTIVE + mailbox ACTIVATED, so pre-active or
+                // not-yet-handed-over interns skip silently.
+                try {
+                    String projectTitle = project.getName() != null
+                            ? project.getName()
+                            : (project.getTitle() != null ? project.getTitle() : "your new project");
+                    String due = a.getDueDate() != null ? " due " + a.getDueDate() : "";
+                    String actorPhrase = actor != null && actor.getFullName() != null
+                            && !actor.getFullName().isBlank()
+                            ? actor.getFullName() + ", your Trainer,"
+                            : "Your Trainer";
+                    String subject = "New project assigned by your Trainer: " + projectTitle;
+                    String plain = "Hi,\n\n" + actorPhrase + " has assigned you a new project: \""
+                            + projectTitle + "\"" + due + "."
+                            + "\n\nOpen your projects: /careers/intern/projects"
+                            + "\n\n— Skyzen";
+                    internNotifications.notifyIntern(internId, subject, plain, null);
+                } catch (Exception ex) {
+                    log.warn("[ProjectAssignmentService] catalog-assign intern-mail failed (non-fatal) intern={}: {}",
+                            internId, ex.getMessage());
+                }
             } catch (Exception e) {
                 failures.add(new AssignProjectResultResponse.Failure(
                         internId, e.getMessage()));
@@ -219,6 +249,34 @@ public class ProjectAssignmentService {
         projectAssignmentRepository.save(a);
         log.info("[ProjectAssignmentService] access granted assignment={} by={} invitationId={}",
                 assignmentId, actor.getId(), invitationId);
+
+        // Tier A — interns frequently miss GitHub's own invitation email and
+        // then hit a 400 on startAssignment. Send a Skyzen-side internal-mail
+        // confirmation pointing them at the GitHub invitation. notifyIntern
+        // gates on ACTIVE + mailbox ACTIVATED, so it skips when the intern
+        // isn't yet at that point.
+        try {
+            Project p = projectRepository.findById(a.getProjectId()).orElse(null);
+            String projectTitle = p != null
+                    ? (p.getName() != null ? p.getName()
+                        : (p.getTitle() != null ? p.getTitle() : "your project"))
+                    : "your project";
+            String actorPhrase = actor != null && actor.getFullName() != null
+                    && !actor.getFullName().isBlank()
+                    ? actor.getFullName() + ", your Trainer,"
+                    : "Your Trainer";
+            String subject = "Repo access granted by your Trainer — '" + projectTitle + "'";
+            String plain = "Hi,\n\n" + actorPhrase + " has granted you GitHub repository "
+                    + "access for the project: \"" + projectTitle + "\"."
+                    + "\n\nAccept the GitHub invitation in your inbox (subject usually "
+                    + "starts with \"@<your GitHub handle> invited you\") before you "
+                    + "start the assignment from /careers/intern/projects."
+                    + "\n\n— Skyzen";
+            internNotifications.notifyIntern(a.getInternId(), subject, plain, null);
+        } catch (Exception ex) {
+            log.warn("[ProjectAssignmentService] access-granted intern-mail failed (non-fatal) assignment={}: {}",
+                    assignmentId, ex.getMessage());
+        }
         return mapWithGraph(List.of(a)).get(0);
     }
 
@@ -690,6 +748,33 @@ public class ProjectAssignmentService {
                 if (top.getReviewedById() != null) userIds.add(top.getReviewedById());
             }
         }
+        // Bulk-fetch the active QaSession per project (SCHEDULED or
+        // CONDUCTED only — COMPLETED / RETURNED sessions are history,
+        // not a join-now signal). Tracker + dashboard surface the
+        // Zoom join link from this.
+        Map<UUID, com.skyzen.careers.entity.QaSession> activeQaByProject = new HashMap<>();
+        if (!projectIds.isEmpty()) {
+            try {
+                List<com.skyzen.careers.entity.QaSession> active = qaSessionRepository
+                        .findByProjectIdsAndStatusIn(projectIds, List.of(
+                                com.skyzen.careers.enums.QaSessionStatus.SCHEDULED,
+                                com.skyzen.careers.enums.QaSessionStatus.CONDUCTED));
+                for (com.skyzen.careers.entity.QaSession s : active) {
+                    UUID pid = s.getProject() != null ? s.getProject().getId() : null;
+                    if (pid == null) continue;
+                    // Sorted DESC by scheduledAt — first hit wins; later
+                    // duplicates (re-schedules) silently skipped here so
+                    // the intern only ever sees the newest session.
+                    activeQaByProject.putIfAbsent(pid, s);
+                    if (s.getScheduledBy() != null) {
+                        userIds.add(s.getScheduledBy().getId());
+                    }
+                }
+            } catch (Exception e) {
+                log.warn("[ProjectAssignment] bulk QaSession fetch failed "
+                        + "(non-fatal): {}", e.getMessage());
+            }
+        }
         Map<UUID, User> users = userRepository.findAllById(userIds).stream()
                 .collect(Collectors.toMap(User::getId, u -> u));
         // Bulk-fetch repository links so per-row mapping doesn't N+1.
@@ -707,6 +792,28 @@ public class ProjectAssignmentService {
         if (!ktMarkerIds.isEmpty()) {
             for (User u : userRepository.findAllById(ktMarkerIds)) {
                 users.putIfAbsent(u.getId(), u);
+            }
+        }
+
+        // Bulk-resolve trainer-attached project files. Trainer's attach path
+        // stashes the Document UUID into project.resource_links_json as a
+        // single-element JSON array (see TrainerProjectAssignmentService.
+        // attachProjectFile). Pre-resolve all referenced documents in one
+        // query so the per-row mapping doesn't N+1, and drop soft-deleted
+        // rows on the way through.
+        Map<UUID, List<UUID>> projectToDocIds = new HashMap<>();
+        Set<UUID> allDocIds = new java.util.HashSet<>();
+        for (Project p : projects.values()) {
+            List<UUID> ids = extractResourceDocIds(p.getResourceLinksJson());
+            if (!ids.isEmpty()) {
+                projectToDocIds.put(p.getId(), ids);
+                allDocIds.addAll(ids);
+            }
+        }
+        Map<UUID, Document> docsById = new HashMap<>();
+        if (!allDocIds.isEmpty()) {
+            for (Document d : documentRepository.findAllById(allDocIds)) {
+                if (d.getDeletedAt() == null) docsById.put(d.getId(), d);
             }
         }
 
@@ -744,6 +851,14 @@ public class ProjectAssignmentService {
             ProjectAssignmentResponse.KtSummary ktSummary = p == null
                     ? null
                     : buildKtSummary(p, users);
+            com.skyzen.careers.entity.QaSession activeQa = p != null
+                    ? activeQaByProject.get(p.getId()) : null;
+            ProjectAssignmentResponse.QaSummary qaSummary = activeQa == null
+                    ? null
+                    : buildQaSummary(activeQa, users);
+            List<ProjectAssignmentResponse.ProjectFileRef> projectFiles = p == null
+                    ? null
+                    : toProjectFileRefs(projectToDocIds.get(p.getId()), docsById);
             return new ProjectAssignmentResponse(
                     r.getId(),
                     p == null ? null : new ProjectAssignmentResponse.ProjectRef(
@@ -760,7 +875,8 @@ public class ProjectAssignmentService {
                             p.getStartDate(),
                             p.getDueDate(),
                             repoSummary,
-                            ktSummary),
+                            ktSummary,
+                            projectFiles),
                     userRef(intern),
                     userRef(assignedBy),
                     r.getAssignmentDate(),
@@ -774,10 +890,37 @@ public class ProjectAssignmentService {
                     r.getSubmittedAt(),
                     r.getSubmissionNotes(),
                     latest,
+                    qaSummary,
                     r.getCreatedAt(),
                     r.getUpdatedAt()
             );
         }).toList();
+    }
+
+    /**
+     * Intern-safe projection of the active QaSession. Mirrors the
+     * KtSummary builder — intern gets join URL + time + duration +
+     * who scheduled, NEVER the host start URL (that field is host-only).
+     */
+    private static ProjectAssignmentResponse.QaSummary buildQaSummary(
+            com.skyzen.careers.entity.QaSession s, Map<UUID, User> users) {
+        if (s == null) return null;
+        String scheduledByName = null;
+        if (s.getScheduledBy() != null) {
+            User u = users.get(s.getScheduledBy().getId());
+            scheduledByName = u != null ? u.getFullName()
+                    : s.getScheduledBy().getFullName();
+        }
+        return new ProjectAssignmentResponse.QaSummary(
+                s.getId(),
+                s.getStatus() != null ? s.getStatus().name() : null,
+                s.getScheduledAt(),
+                s.getSessionDurationMinutes(),
+                s.getSessionTimezone(),
+                s.getMeetingLink(),
+                s.getZoomMeetingId(),
+                s.getZoomJoinUrl(),
+                scheduledByName);
     }
 
     private static ProjectAssignmentResponse.KtSummary buildKtSummary(Project p, Map<UUID, User> users) {
@@ -796,7 +939,97 @@ public class ProjectAssignmentService {
                 p.getKtCompletedAt(),
                 p.getKtMeetingLink(),
                 p.getKtNotes(),
-                markedByName);
+                markedByName,
+                // Live KT session (Zoom) — intern-safe fields only. The
+                // host start URL is deliberately NOT surfaced; intern
+                // sees join-only via the existing role-based pattern.
+                p.getKtZoomMeetingId(),
+                p.getKtZoomJoinUrl(),
+                p.getKtScheduledFor(),
+                p.getKtDurationMinutes(),
+                p.getKtTimezone());
+    }
+
+    /**
+     * Parse {@code project.resource_links_json} into the list of attached
+     * Document UUIDs. The trainer attach path writes a single-element JSON
+     * array of UUID strings (see TrainerProjectAssignmentService.
+     * attachProjectFile); future multi-file support can extend the array
+     * without changing this reader. Returns empty on null / blank / parse
+     * errors / shape mismatches — the field is best-effort, not load-bearing.
+     */
+    private List<UUID> extractResourceDocIds(String resourceLinksJson) {
+        if (resourceLinksJson == null || resourceLinksJson.isBlank()) return List.of();
+        try {
+            List<?> raw = objectMapper.readValue(resourceLinksJson, List.class);
+            List<UUID> out = new ArrayList<>(raw.size());
+            for (Object o : raw) {
+                if (o == null) continue;
+                try {
+                    out.add(UUID.fromString(o.toString()));
+                } catch (IllegalArgumentException ignored) {
+                    // legacy entries may be plain URL strings — skip
+                }
+            }
+            return out;
+        } catch (Exception e) {
+            return List.of();
+        }
+    }
+
+    private static List<ProjectAssignmentResponse.ProjectFileRef> toProjectFileRefs(
+            List<UUID> ids, Map<UUID, Document> docsById) {
+        if (ids == null || ids.isEmpty()) return null;
+        List<ProjectAssignmentResponse.ProjectFileRef> out = new ArrayList<>(ids.size());
+        for (UUID id : ids) {
+            Document d = docsById.get(id);
+            if (d == null) continue;
+            out.add(new ProjectAssignmentResponse.ProjectFileRef(
+                    d.getId(), d.getFileName(), d.getMimeType(), d.getFileSize()));
+        }
+        return out.isEmpty() ? null : out;
+    }
+
+    /** Trainer-uploaded project file payload returned to the controller for streaming. */
+    public record DownloadedProjectFile(UUID documentId, String fileName, String mimeType, byte[] bytes) {}
+
+    /**
+     * Download a trainer-uploaded project file for an assignment. The
+     * project file's Document row is owned by the trainer, so the vault's
+     * standard owner-or-staff RBAC would reject the intern. We instead
+     * authorize on the assignment row: the owning intern (or staff) may
+     * download. Resolves the Document UUID from
+     * {@code project.resource_links_json} (first entry), then reads bytes
+     * via {@link DocumentVaultService#readDocumentBytesNoAuth(UUID)}.
+     */
+    @Transactional
+    public DownloadedProjectFile downloadProjectFile(UUID assignmentId, UUID documentId, User caller) {
+        ProjectAssignment a = loadAssignment(assignmentId);
+        if (caller == null) throw new ForbiddenException("Authentication required");
+        boolean isOwner = a.getInternId() != null && a.getInternId().equals(caller.getId());
+        boolean isStaff = caller.getRoles() != null
+                && (caller.getRoles().contains(UserRole.TRAINER)
+                    || caller.getRoles().contains(UserRole.SUPER_ADMIN));
+        if (!isOwner && !isStaff) {
+            throw new ForbiddenException("Not authorised to download this project's file");
+        }
+        Project project = projectRepository.findById(a.getProjectId())
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "Project not found: " + a.getProjectId()));
+        List<UUID> docIds = extractResourceDocIds(project.getResourceLinksJson());
+        if (docIds.isEmpty()) {
+            throw new ResourceNotFoundException("No file attached to this project");
+        }
+        UUID targetDocId = documentId != null ? documentId : docIds.get(0);
+        if (!docIds.contains(targetDocId)) {
+            // Guards against passing a doc UUID that belongs to some OTHER
+            // project — the assignment scope check above must be the only
+            // gate on which document this caller can pull.
+            throw new ForbiddenException("Document is not attached to this project");
+        }
+        Document doc = documentVault.loadDocumentNoAuth(targetDocId);
+        byte[] bytes = documentVault.readDocumentBytesNoAuth(targetDocId);
+        return new DownloadedProjectFile(doc.getId(), doc.getFileName(), doc.getMimeType(), bytes);
     }
 
     private static ProjectAssignmentResponse.UserRef userRef(User u) {

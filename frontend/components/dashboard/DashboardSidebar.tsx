@@ -7,6 +7,7 @@ import {
   AlertTriangle,
   BarChart3,
   Briefcase,
+  ChevronRight,
   ClipboardCheck,
   FileSignature,
   FileText,
@@ -17,6 +18,7 @@ import {
   Home,
   Inbox,
   LayoutDashboard,
+  LifeBuoy,
   ListChecks,
   Lock,
   LogOut,
@@ -48,6 +50,12 @@ interface StaffLink {
    * links omit it and always render plain.
    */
   moduleKey?: keyof InternModulesMap;
+  /**
+   * Optional nested sub-items. Rendered indented under the parent; the
+   * parent auto-expands when any child route is active. Children are
+   * not expected to carry their own children (one level of nesting).
+   */
+  children?: StaffLink[];
 }
 
 // Six-role taxonomy. INTERN's 12-item sidebar is the doc-specified order from
@@ -65,6 +73,7 @@ const STAFF_ROLE_LINKS: Record<UserRole, StaffLink[]> = {
     { icon: Star,           label: 'Evaluations',       href: '/careers/intern/evaluations', moduleKey: 'evaluations' },
     { icon: FileText,       label: 'Documents',         href: '/careers/intern/documents',   moduleKey: 'documents' },
     { icon: MessagesSquare, label: 'Messages',          href: '/careers/intern/messages',    moduleKey: 'messages' },
+    { icon: LifeBuoy,       label: 'Doubts',            href: '/careers/intern/doubts',      moduleKey: 'doubts' },
     { icon: HelpCircle,     label: 'Help',              href: '/careers/intern/help',        moduleKey: 'help' },
   ],
   TRAINER: [
@@ -79,7 +88,9 @@ const STAFF_ROLE_LINKS: Record<UserRole, StaffLink[]> = {
   MANAGER: [
     { icon: LayoutDashboard, label: 'Manager Dashboard', href: '/careers/manager' },
   ],
-  // ERM Control Dashboard doc — 14 items in exact order.
+  // ERM Control Dashboard. "New Hire List" is now a parent with three
+  // onboarding-doc sub-items (Document Packets, Review Queue, I-9/E-Verify);
+  // the parent route stays /careers/erm/new-hire.
   ERM: [
     { icon: Home,           label: 'Home',                 href: '/careers/erm' },
     { icon: Inbox,          label: 'Application Inbox',    href: '/careers/erm/applications' },
@@ -87,10 +98,15 @@ const STAFF_ROLE_LINKS: Record<UserRole, StaffLink[]> = {
     { icon: Video,          label: 'Interviews',           href: '/careers/erm/interviews' },
     { icon: Gavel,          label: 'Decision Center',      href: '/careers/erm/decision-center' },
     { icon: FileSignature,  label: 'Offers / IDMS',        href: '/careers/erm/offers' },
-    { icon: UserPlus,       label: 'New Hire List',        href: '/careers/erm/new-hire' },
-    { icon: Package,        label: 'Document Packets',     href: '/careers/erm/document-packets' },
-    { icon: ClipboardCheck, label: 'Review Queue',         href: '/careers/erm/document-review' },
-    { icon: ShieldCheck,    label: 'I-9 / E-Verify Tracker', href: '/careers/erm/compliance' },
+    {
+      icon: UserPlus, label: 'New Hire List', href: '/careers/erm/new-hire',
+      children: [
+        { icon: Package,        label: 'Document Packets',   href: '/careers/erm/document-packets' },
+        { icon: ClipboardCheck, label: 'Review Queue',       href: '/careers/erm/document-review' },
+        { icon: ShieldCheck,    label: 'I-9 / E-Verify',     href: '/careers/erm/compliance' },
+      ],
+    },
+    { icon: FolderArchive,  label: 'Document Gallery',     href: '/careers/erm/document-gallery' },
     { icon: Users,          label: 'Active Interns',       href: '/careers/erm/active-interns' },
     { icon: Hammer,         label: 'Timesheets',           href: '/careers/erm/timesheets' },
     { icon: AlertTriangle,  label: 'Escalations',          href: '/careers/erm/escalations' },
@@ -117,6 +133,7 @@ const MODULE_UNLOCK_MODE: Partial<Record<keyof InternModulesMap, string>> = {
   myProjects: 'Active Intern',
   timesheets: 'Active Intern',
   evaluations: 'Active Intern',
+  doubts: 'Active Intern',
   messages: 'Applicant',
 };
 
@@ -125,6 +142,18 @@ function pickActiveByRoute(pathname: string, routes: string[]): string | null {
     .filter((r) => pathname === r || pathname.startsWith(r + '/'))
     .sort((a, b) => b.length - a.length);
   return matches[0] ?? null;
+}
+
+/** Flatten a one-level-nested link list into the full route set used for
+ *  pickActiveByRoute. Parent + every child are eligible to win the
+ *  deepest-prefix match. */
+function flattenRoutes(links: StaffLink[]): string[] {
+  const out: string[] = [];
+  for (const l of links) {
+    out.push(l.href);
+    if (l.children) for (const c of l.children) out.push(c.href);
+  }
+  return out;
 }
 
 interface Props {
@@ -175,6 +204,10 @@ export default function DashboardSidebar({ onNavigate }: Props) {
       </div>
 
       <div className="space-y-1 border-t border-slate-200 px-3 py-3">
+        {/* Mail bridge Phase 5 (revised) — the sidebar Mailbox link
+            moved to a topbar peek (TopBarMailbox) beside the bell +
+            profile, gated on the user actually having a linked
+            mailbox. Sidebar no longer carries a Mailbox entry. */}
         {user && <SignOutButton variant="sidebar" onAfter={onNavigate} />}
         <Link
           href="/"
@@ -199,68 +232,128 @@ function StaffNav({
   onNavigate?: () => void;
   internModules: InternModulesMap | null;
 }) {
-  const activeHref = pickActiveByRoute(
-    pathname,
-    links.map((l) => l.href),
-  );
+  const activeHref = pickActiveByRoute(pathname, flattenRoutes(links));
   return (
     <ul className="space-y-1">
-      {links.map((link) => {
-        const Icon = link.icon;
-        const active = link.href === activeHref;
-        const moduleState = link.moduleKey && internModules
-          ? internModules[link.moduleKey]
-          : null;
-
-        if (moduleState && !moduleState.visible) return null;
-
-        const locked = Boolean(moduleState?.locked);
-        const readOnly = Boolean(moduleState?.readOnly);
-
-        if (locked) {
-          const unlockMode = link.moduleKey
-            ? MODULE_UNLOCK_MODE[link.moduleKey]
-            : undefined;
-          return (
-            <li key={link.href}>
-              <span
-                title={unlockMode ? `Unlocks at ${unlockMode}` : 'Locked'}
-                aria-disabled="true"
-                className="relative flex cursor-not-allowed items-center gap-3 rounded-md px-3 py-2 text-sm font-medium text-slate-400 opacity-60"
-              >
-                <Icon className="h-[18px] w-[18px]" strokeWidth={2} />
-                <span className="flex-1">{link.label}</span>
-                <Lock className="h-3.5 w-3.5" strokeWidth={2} aria-hidden />
-              </span>
-            </li>
-          );
-        }
-
-        return (
-          <li key={link.href}>
-            <Link
-              href={link.href}
-              onClick={onNavigate}
-              className={
-                'relative flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2 '
-                + (active
-                  ? 'bg-slate-100 text-slate-900 before:absolute before:left-0 before:top-1/2 before:h-5 before:w-0.5 before:-translate-y-1/2 before:rounded-r before:bg-brand-700'
-                  : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900')
-              }
-              aria-current={active ? 'page' : undefined}
-            >
-              <Icon className="h-[18px] w-[18px]" strokeWidth={2} />
-              <span className="flex-1">{link.label}</span>
-              {readOnly && (
-                <span className="text-[10px] uppercase tracking-wide text-slate-400">
-                  view only
-                </span>
-              )}
-            </Link>
-          </li>
-        );
-      })}
+      {links.map((link) => (
+        <NavItem
+          key={link.href}
+          link={link}
+          activeHref={activeHref}
+          onNavigate={onNavigate}
+          internModules={internModules}
+        />
+      ))}
     </ul>
+  );
+}
+
+function NavItem({
+  link,
+  activeHref,
+  onNavigate,
+  internModules,
+}: {
+  link: StaffLink;
+  activeHref: string | null;
+  onNavigate?: () => void;
+  internModules: InternModulesMap | null;
+}) {
+  const Icon = link.icon;
+  const active = link.href === activeHref;
+  const moduleState = link.moduleKey && internModules
+    ? internModules[link.moduleKey]
+    : null;
+
+  if (moduleState && !moduleState.visible) return null;
+
+  const locked = Boolean(moduleState?.locked);
+  const readOnly = Boolean(moduleState?.readOnly);
+  const hasChildren = !!link.children && link.children.length > 0;
+  // Expand the section whenever the active route is the parent or any
+  // of its children — keeps the user in context without an explicit
+  // toggle. (We don't ship a manual collapse today; if needed later,
+  // promote this to local state seeded from the same condition.)
+  const sectionActive = hasChildren
+    && (active || link.children!.some((c) => c.href === activeHref));
+
+  if (locked) {
+    const unlockMode = link.moduleKey
+      ? MODULE_UNLOCK_MODE[link.moduleKey]
+      : undefined;
+    return (
+      <li>
+        <span
+          title={unlockMode ? `Unlocks at ${unlockMode}` : 'Locked'}
+          aria-disabled="true"
+          className="relative flex cursor-not-allowed items-center gap-3 rounded-md px-3 py-2 text-sm font-medium text-slate-400 opacity-60"
+        >
+          <Icon className="h-[18px] w-[18px]" strokeWidth={2} />
+          <span className="flex-1">{link.label}</span>
+          <Lock className="h-3.5 w-3.5" strokeWidth={2} aria-hidden />
+        </span>
+      </li>
+    );
+  }
+
+  return (
+    <li>
+      <Link
+        href={link.href}
+        onClick={onNavigate}
+        className={
+          'relative flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2 '
+          + (active
+            ? 'bg-slate-100 text-slate-900 before:absolute before:left-0 before:top-1/2 before:h-5 before:w-0.5 before:-translate-y-1/2 before:rounded-r before:bg-brand-700'
+            : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900')
+        }
+        aria-current={active ? 'page' : undefined}
+      >
+        <Icon className="h-[18px] w-[18px]" strokeWidth={2} />
+        <span className="flex-1">{link.label}</span>
+        {hasChildren && (
+          <ChevronRight
+            aria-hidden
+            className={
+              'h-3.5 w-3.5 text-slate-400 transition-transform '
+              + (sectionActive ? 'rotate-90' : '')
+            }
+            strokeWidth={2}
+          />
+        )}
+        {readOnly && (
+          <span className="text-[10px] uppercase tracking-wide text-slate-400">
+            view only
+          </span>
+        )}
+      </Link>
+      {hasChildren && sectionActive && (
+        <ul className="mt-1 ml-4 space-y-1 border-l border-slate-200 pl-2">
+          {link.children!.map((child) => {
+            const ChildIcon = child.icon;
+            const childActive = child.href === activeHref;
+            return (
+              <li key={child.href}>
+                <Link
+                  href={child.href}
+                  onClick={onNavigate}
+                  className={
+                    'relative flex items-center gap-2 rounded-md px-3 py-1.5 text-[13px] font-medium transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2 '
+                    + (childActive
+                      ? 'bg-slate-100 text-slate-900 before:absolute before:left-0 before:top-1/2 before:h-4 before:w-0.5 before:-translate-y-1/2 before:rounded-r before:bg-brand-700'
+                      : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900')
+                  }
+                  aria-current={childActive ? 'page' : undefined}
+                >
+                  <ChildIcon className="h-4 w-4" strokeWidth={2} />
+                  <span className="flex-1">{child.label}</span>
+                </Link>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </li>
   );
 }
 

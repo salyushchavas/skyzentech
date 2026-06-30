@@ -72,9 +72,16 @@ public class Interview {
     @Builder.Default
     private String timezone = "UTC";
 
-    /** Zoom meeting numeric id (null when zoom.enabled=false or Zoom call failed). */
-    @Column(name = "zoom_meeting_id")
-    private Long zoomMeetingId;
+    /**
+     * Meeting provider id (null when no provider is enabled or the create
+     * call failed). String-typed since Phase 2 of the WebEx migration —
+     * Zoom returns numeric ids stored as decimal strings; WebEx returns
+     * opaque alphanumeric ids. Column name kept as {@code zoom_meeting_id}
+     * for back-compat; the column TYPE was widened from BIGINT to
+     * VARCHAR(64) by SchemaFixupRunner.
+     */
+    @Column(name = "zoom_meeting_id", length = 64)
+    private String zoomMeetingId;
 
     /** Applicant-safe Zoom join URL. */
     @Column(name = "zoom_join_url", columnDefinition = "TEXT")

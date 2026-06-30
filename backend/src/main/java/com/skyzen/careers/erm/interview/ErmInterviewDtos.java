@@ -89,7 +89,7 @@ public final class ErmInterviewDtos {
             String zoomJoinUrl,
             String zoomStartUrl,             // ERM/interviewer only
             String zoomPassword,             // ERM/interviewer only
-            Long zoomMeetingId,
+            String zoomMeetingId,            // Phase 2 — String since meeting providers differ on id shape
             /** Phase: surfaces the most recent Zoom outcome so the UI can
              *  render a clear banner + Regenerate action when needed. */
             ZoomStatus zoomStatus,

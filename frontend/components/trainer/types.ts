@@ -41,10 +41,20 @@ export interface RecentActivityRow {
   deepLink: string | null;
 }
 
+export interface FocusItem {
+  key: string;
+  label: string;
+  count: number;
+  actionUrl: string;
+}
+
 export interface TrainerDashboardResponse {
   caller: { firstName: string; lastName: string; role: string };
   asOf: string;
   kpis: Partial<Record<TrainerKpiKey, KpiSnapshot>>;
+  /** "This week" focus strip — ≤5 actionable items. Zero-count items
+   *  are returned and hidden client-side; all-zero renders "all caught up". */
+  focusItems: FocusItem[];
   todayMeetings: TodayMeetingRow[];
   recentActivity: RecentActivityRow[];
   unreadNotifications: number;
@@ -213,6 +223,16 @@ export interface RecentProjectRow {
   ktStatus: 'NOT_DONE' | 'DONE' | null;
   ktCompletedAt: string | null;
   ktMeetingLink: string | null;
+  /** Live KT Zoom session — populated when the trainer scheduled one.
+   *  Null when no session is on the calendar. The session and the
+   *  ktStatus=DONE mark are INDEPENDENT — trainer can mark done without
+   *  ever scheduling, or schedule but not mark done. */
+  ktZoomMeetingId?: string | null;
+  ktZoomJoinUrl?: string | null;
+  ktZoomStartUrl?: string | null;
+  ktScheduledFor?: string | null;
+  ktDurationMinutes?: number | null;
+  ktTimezone?: string | null;
 }
 
 export interface RecentMeetingRow {

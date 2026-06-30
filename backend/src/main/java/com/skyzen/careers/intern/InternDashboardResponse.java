@@ -67,6 +67,7 @@ public record InternDashboardResponse(
             ModuleState evaluations,
             ModuleState documents,
             ModuleState messages,
+            ModuleState doubts,
             ModuleState help
     ) {}
 

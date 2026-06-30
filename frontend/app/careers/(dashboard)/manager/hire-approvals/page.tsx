@@ -126,6 +126,11 @@ function Row({ r }: { r: HireApprovalRow }) {
         <Link href={href} className="text-sm font-medium text-brand-800 hover:underline">
           {r.candidateName ?? '—'}
         </Link>
+        {r.managerHireDecision === 'HOLD' && (
+          <span className="ml-2 rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold text-amber-800">
+            ON HOLD
+          </span>
+        )}
         {r.candidateEmail && (
           <p className="text-[11px] text-slate-500">{r.candidateEmail}</p>
         )}

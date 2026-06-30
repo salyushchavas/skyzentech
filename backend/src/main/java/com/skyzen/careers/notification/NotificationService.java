@@ -77,6 +77,7 @@ public class NotificationService {
     private final UserRepository userRepository;
     private final UserNotificationDispatcher userNotificationDispatcher;
     private final InternLifecycleRepository internLifecycleRepository;
+    private final InternNotificationService internNotifications;
 
     /**
      * Operations recipient for "offer accepted" notifications. Configure as a
@@ -742,6 +743,30 @@ public class NotificationService {
                 "Submit your timesheet for the week of " + weekStart + ".",
                 INTERN_DASH + "/timesheets",
                 null, null, null);
+
+        // Tier A — sendTimesheetDue above is a typed EmailProvider method
+        // that bypasses BridgingEmailProvider and reaches the intern's
+        // personal Gmail. For ACTIVE interns we ALSO land the reminder in
+        // their company mailbox via notifyIntern (bridge-routed). Pre-active
+        // interns skip silently inside the helper. Idempotency for the
+        // weekly send is already guaranteed by the alreadySent check above.
+        try {
+            UUID internUserId = applicantUserIdFromCandidate(c);
+            if (internUserId != null) {
+                String subject = "Reminder: your timesheet for the week of "
+                        + weekStart + " is due";
+                String plain = "Hi,\n\nThis is a reminder to submit your timesheet "
+                        + "for the week of " + weekStart + ". Approval can take a "
+                        + "couple of business days, so submitting today keeps the "
+                        + "week's hours on track."
+                        + "\n\nOpen your timesheets: " + INTERN_DASH + "/timesheets"
+                        + "\n\n— Skyzen";
+                internNotifications.notifyIntern(internUserId, subject, plain, null);
+            }
+        } catch (Exception e) {
+            log.warn("[NotificationService] TIMESHEET_DUE internal-mail failed (non-fatal) "
+                    + "engagement={}: {}", engagement.getId(), e.getMessage());
+        }
     }
 
     /** Project assigned — event-triggered, intern recipient. */
@@ -1110,12 +1135,23 @@ public class NotificationService {
             }
         }
 
+        // Mail bridge Phase 2 — publish the sender role into a thread-scoped
+        // context immediately before the send executes so BridgingEmailProvider
+        // can stamp the right "from" address (erm@ / trainer@ / ...) on the
+        // internal-mail copy when the recipient is ACTIVATED. ALWAYS cleared
+        // in finally — a Tomcat-pooled thread must never carry a stale value
+        // into the next request. No behaviour change here: the wrapper falls
+        // back to the raw SMTP provider for every recipient who isn't
+        // ACTIVATED (which is everyone today).
+        NotificationSenderContext.set(NotificationSenderRoles.forEvent(eventType));
         try {
             sendFn.run();
         } catch (Exception e) {
             log.warn("Notification {} for {} ({}) failed (non-fatal): {}",
                     eventType, targetId, recipient, e.getMessage());
             return;
+        } finally {
+            NotificationSenderContext.clear();
         }
 
         // Best-effort ledger + audit. A race that double-sends still only

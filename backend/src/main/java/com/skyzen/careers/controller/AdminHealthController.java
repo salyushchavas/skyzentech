@@ -34,8 +34,8 @@ import java.util.Map;
 public class AdminHealthController {
 
     private final GitHubService gitHubService;
-    private final ZoomService zoomService;
     private final S3StorageService s3StorageService;
+    private final ZoomService zoomService;
 
     @GetMapping("/github")
     @PreAuthorize("hasRole('SUPER_ADMIN')")
@@ -52,43 +52,6 @@ public class AdminHealthController {
                 : Instant.ofEpochSecond(snap.rateLimitResetAtEpochSeconds()).toString());
         if (snap.error() != null) {
             body.put("error", snap.error());
-        }
-        return body;
-    }
-
-    /**
-     * Live Zoom probe — calls {@code GET /users/me} with the configured
-     * Server-to-Server OAuth credentials. {@code authenticated=true} means
-     * the token works AND the host email is resolvable.
-     */
-    @GetMapping("/zoom")
-    @PreAuthorize("hasRole('SUPER_ADMIN')")
-    public Map<String, Object> zoom() {
-        Map<String, Object> body = new LinkedHashMap<>();
-        body.put("enabled", zoomService.isReady());
-        body.put("credentialsPresent", zoomService.hasCredentials());
-        body.put("forceDisabled", zoomService.isForceDisabled());
-        if (!zoomService.isReady()) {
-            body.put("authenticated", false);
-            if (zoomService.isForceDisabled()) {
-                body.put("error",
-                        "Zoom is force-disabled (ZOOM_ENABLED=false). Unset the var "
-                                + "or set it to true to use the configured credentials.");
-            } else {
-                body.put("error",
-                        "Zoom credentials missing — set ZOOM_ACCOUNT_ID, "
-                                + "ZOOM_CLIENT_ID, ZOOM_CLIENT_SECRET on Railway from "
-                                + "a Server-to-Server OAuth app with meeting:write scope.");
-            }
-            return body;
-        }
-        try {
-            String host = zoomService.probeUsersMe();
-            body.put("authenticated", host != null);
-            body.put("host", host);
-        } catch (Exception e) {
-            body.put("authenticated", false);
-            body.put("error", e.getMessage());
         }
         return body;
     }
@@ -147,7 +110,44 @@ public class AdminHealthController {
         return body;
     }
 
-    // The legacy DocuSign health probe was removed when signing moved
-    // to the in-house IDMS flow (signing is local — no external endpoint
-    // to probe). GitHub + Zoom + S3 probes above remain.
+    /**
+     * Live Zoom probe — calls {@code GET /users/me} via the configured
+     * Server-to-Server OAuth credentials. The token is acquired (or
+     * reused from cache) and the call's response email is surfaced.
+     */
+    @GetMapping("/zoom")
+    @PreAuthorize("hasRole('SUPER_ADMIN')")
+    public Map<String, Object> zoom() {
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("enabled", zoomService.isReady());
+        body.put("credentialsPresent", zoomService.hasCredentials());
+        body.put("forceDisabled", zoomService.isForceDisabled());
+        if (!zoomService.isReady()) {
+            body.put("authenticated", false);
+            if (zoomService.isForceDisabled()) {
+                body.put("error",
+                        "Zoom is force-disabled (ZOOM_ENABLED=false). Unset the var "
+                                + "or set it to true to use the configured credentials.");
+            } else {
+                body.put("error",
+                        "Zoom credentials missing — set ZOOM_ACCOUNT_ID, ZOOM_CLIENT_ID, "
+                                + "ZOOM_CLIENT_SECRET on Railway from a Server-to-Server "
+                                + "OAuth app with the meeting:write scope.");
+            }
+            return body;
+        }
+        try {
+            String email = zoomService.probeUsersMe();
+            body.put("authenticated", email != null);
+            body.put("hostEmail", email);
+            body.put("probedAt", Instant.now().toString());
+        } catch (Exception e) {
+            body.put("authenticated", false);
+            body.put("error", e.getMessage());
+            String last = zoomService.getLastProbeError();
+            if (last != null) body.put("lastStartupProbeError", last);
+        }
+        return body;
+    }
+
 }

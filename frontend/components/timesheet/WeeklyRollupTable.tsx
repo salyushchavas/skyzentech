@@ -169,7 +169,7 @@ export default function WeeklyRollupTable({
                     <th key={c.weekStart} className="px-2 py-2 text-center">
                       <div>W{c.weekNumber}</div>
                       <div className="text-[10px] font-normal lowercase text-slate-400">
-                        {fmtRange(c.weekStart, c.daysInMonth.length)}
+                        {fmtRange(c.weekStart)}
                       </div>
                     </th>
                   ))}
@@ -400,7 +400,7 @@ function CellExpanded({
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
           <p className="text-sm font-semibold text-slate-900">
-            Week {cell.weekNumber} · {fmtRange(cell.weekStart, 5)} · {row.fullName}
+            Week {cell.weekNumber} · {fmtRange(cell.weekStart)} · {row.fullName}
           </p>
           <div className="mt-1 flex flex-wrap items-center gap-2 text-[11px] text-slate-600">
             <StatusChip status={cell.status} />
@@ -528,15 +528,13 @@ function CellExpanded({
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
-function fmtRange(weekStart: string, daysInMonth: number): string {
+function fmtRange(weekStart: string): string {
   try {
     const d = new Date(weekStart + 'T00:00:00');
     const end = new Date(d);
     end.setDate(d.getDate() + 4);
     const fmt = (x: Date) => x.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-    return daysInMonth < 5
-      ? `${fmt(d)}–${fmt(end)} · partial`
-      : `${fmt(d)}–${fmt(end)}`;
+    return `${fmt(d)}–${fmt(end)}`;
   } catch { return weekStart; }
 }
 

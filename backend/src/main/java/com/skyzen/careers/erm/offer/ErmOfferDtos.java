@@ -133,7 +133,20 @@ public final class ErmOfferDtos {
             String evaluatorName,
             String managerName,
             boolean reportingStructureComplete,
-            boolean onboardingAssigned
+            boolean onboardingAssigned,
+            /** ERM onboarding-tracker progress — populated by {@link
+             *  com.skyzen.careers.erm.newhire.ErmNewHireService#list}. Null
+             *  for older clients reading historical responses. */
+            Integer stepsCompleted,
+            Integer stepsTotal,
+            String nextStepLabel,
+            Boolean canActivate,
+            /** Name of the current {@link com.skyzen.careers.erm.newhire
+             *  .OnboardingTrackerDtos.StepId}, or null when all six are
+             *  done. Drives the unified status-table's Stage badge +
+             *  Next-action deep-link without bouncing the frontend off
+             *  the tracker endpoint per row. */
+            String currentStepId
     ) {}
 
     public record NewHireListPage(
@@ -168,7 +181,28 @@ public final class ErmOfferDtos {
              *  User.lifecycleStatus is ONBOARDING_ACCEPTED AND a SIGNED offer
              *  exists. Never true before document verification completes, so
              *  the override can never skip onboarding. */
-            boolean canActivateNow
+            boolean canActivateNow,
+            /** ERM Pass 2 — ERM-set committed activation switch (distinct
+             *  from the offer's {@code tentativeStartDate}). Null when ERM
+             *  hasn't committed yet. Once set + {@code <= today}, the
+             *  next scheduled scan (or a synchronous activation hook)
+             *  flips the intern to ACTIVE_INTERN. */
+            LocalDate joiningDate,
+            /** True when the lifecycle is at ONBOARDING_ACCEPTED (docs
+             *  accepted). The UI uses this to enable the joining-date
+             *  control — ERM commits the date only after docs pass. */
+            boolean docsAccepted,
+            /** Mail bridge Phase 5 — enum name (PERSONAL | PENDING_ACTIVATION |
+             *  ACTIVATED) so the ERM intern-detail page can render the
+             *  handover section without an extra round-trip. Mirrors
+             *  {@code com.skyzen.careers.enums.MailHandoverState}. */
+            String mailHandoverState,
+            /** Mail bridge Phase 5 — the user's original personal Gmail,
+             *  archived during the email swap. Null while still PERSONAL
+             *  (no swap has happened yet). The ERM page uses this to
+             *  confirm "credentials emailed to <personal email>" without
+             *  exposing it from any other endpoint. */
+            String personalEmail
     ) {}
 
     public record UserStub(

@@ -11,6 +11,7 @@ import {
 } from 'lucide-react';
 import api from '@/lib/api';
 import InternPageShell from '@/components/intern/InternPageShell';
+import TimesheetStatusTracker from '@/components/intern/TimesheetStatusTracker';
 import PeriodPicker, {
   formatPeriod,
   usePeriodFromUrl,
@@ -198,12 +199,6 @@ function WeekCard({
           <h3 className="text-sm font-semibold text-slate-900">
             Week {entry.weekNumber} · {fmtDate(entry.weekStart)}–{fmtDate(addDays(entry.weekStart, 4))}
           </h3>
-          {entry.daysInMonth.length < 5 && (
-            <p className="text-[11px] text-slate-500">
-              Partial week — only the {entry.daysInMonth.length} weekday
-              {entry.daysInMonth.length === 1 ? '' : 's'} that fall in this month are shown.
-            </p>
-          )}
         </div>
         <StatusPill status={status} />
       </header>
@@ -212,6 +207,16 @@ function WeekCard({
         <div className="mt-3 rounded-md border border-red-200 bg-red-50 p-2 text-xs text-red-900">
           <p className="font-semibold">Returned for correction</p>
           <p className="mt-0.5 whitespace-pre-wrap">{t.reviewNote}</p>
+        </div>
+      )}
+
+      {/* Status tracker — only meaningful once the intern has submitted
+          the week (DRAFT is the pre-submit baseline; the tracker would
+          show empty steps with nothing actionable). Mirrors the
+          application-tracker visual via StepperHorizontal. */}
+      {status !== 'DRAFT' && (
+        <div className="mt-3">
+          <TimesheetStatusTracker status={status} />
         </div>
       )}
 

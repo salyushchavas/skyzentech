@@ -45,7 +45,13 @@ export default function AssignPacketModal({
   const grouped = useMemo(() => {
     const out = new Map<SkyzenDocumentCategory, SkyzenDocumentSpec[]>();
     for (const c of SKYZEN_DOCUMENT_CATEGORIES) out.set(c, []);
-    for (const d of SKYZEN_DOCUMENTS) out.get(d.category)!.push(d);
+    // Deprecated docs are kept in SKYZEN_DOCUMENTS so historical packets
+    // still resolve their key → title/category, but they're hidden from
+    // new packet assignment so ERM stops handing them out.
+    for (const d of SKYZEN_DOCUMENTS) {
+      if (d.deprecated) continue;
+      out.get(d.category)!.push(d);
+    }
     return out;
   }, []);
 

@@ -1036,7 +1036,7 @@ public class SchemaFixupRunner implements CommandLineRunner {
                             + "  timezone VARCHAR(50) NOT NULL DEFAULT 'UTC',"
                             + "  topic VARCHAR(200) NOT NULL,"
                             + "  agenda TEXT,"
-                            + "  zoom_meeting_id BIGINT,"
+                            + "  zoom_meeting_id VARCHAR(64),"
                             + "  zoom_join_url TEXT,"
                             + "  zoom_start_url TEXT,"
                             + "  zoom_password VARCHAR(40),"
@@ -1059,22 +1059,38 @@ public class SchemaFixupRunner implements CommandLineRunner {
             log.warn("weekly_meetings table ensure failed (non-fatal): {}", e.getMessage(), e);
         }
 
-        // weekly_meetings.zoom_meeting_id — pre-Hibernate schema drift fix.
-        // Some older production rows have this column as numeric/text type
-        // (likely numeric(19,0) from a long-ago JPA default) which
-        // Hibernate's ddl-auto=update cannot auto-cast to BIGINT —
-        // surfaces as PSQLException "column cannot be cast automatically
-        // to type bigint" on every boot. Non-fatal for Hibernate (logs +
-        // continues) but the column type never gets fixed without this
-        // explicit USING cast. Idempotent: when already BIGINT, Postgres
-        // detects no-op.
+        // weekly_meetings.zoom_meeting_id — was BIGINT; Phase 2 of the WebEx
+        // migration widens it to VARCHAR(64) so a single column carries either
+        // Zoom's numeric id (stored as a decimal string) or WebEx's opaque
+        // alphanumeric id. Hibernate's ddl-auto=update can't safely cast
+        // BIGINT -> VARCHAR on its own — needs an explicit USING cast. Same
+        // idempotent pattern as the previous BIGINT cast: a no-op on tables
+        // already VARCHAR.
         try {
             jdbcTemplate.execute(
                     "ALTER TABLE weekly_meetings ALTER COLUMN zoom_meeting_id "
-                            + "TYPE BIGINT USING zoom_meeting_id::bigint");
-            log.info("Ensured weekly_meetings.zoom_meeting_id is BIGINT.");
+                            + "TYPE VARCHAR(64) USING zoom_meeting_id::text");
+            log.info("Ensured weekly_meetings.zoom_meeting_id is VARCHAR(64).");
         } catch (Exception e) {
-            log.warn("weekly_meetings.zoom_meeting_id BIGINT cast failed (non-fatal): {}",
+            log.warn("weekly_meetings.zoom_meeting_id VARCHAR cast failed (non-fatal): {}",
+                    e.getMessage());
+        }
+        try {
+            jdbcTemplate.execute(
+                    "ALTER TABLE interviews ALTER COLUMN zoom_meeting_id "
+                            + "TYPE VARCHAR(64) USING zoom_meeting_id::text");
+            log.info("Ensured interviews.zoom_meeting_id is VARCHAR(64).");
+        } catch (Exception e) {
+            log.warn("interviews.zoom_meeting_id VARCHAR cast failed (non-fatal): {}",
+                    e.getMessage());
+        }
+        try {
+            jdbcTemplate.execute(
+                    "ALTER TABLE intern_evaluations ALTER COLUMN zoom_meeting_id "
+                            + "TYPE VARCHAR(64) USING zoom_meeting_id::text");
+            log.info("Ensured intern_evaluations.zoom_meeting_id is VARCHAR(64).");
+        } catch (Exception e) {
+            log.warn("intern_evaluations.zoom_meeting_id VARCHAR cast failed (non-fatal): {}",
                     e.getMessage());
         }
 
@@ -1200,7 +1216,7 @@ public class SchemaFixupRunner implements CommandLineRunner {
                             + "  scheduled_for TIMESTAMP,"
                             + "  duration_minutes INTEGER,"
                             + "  timezone VARCHAR(50),"
-                            + "  zoom_meeting_id BIGINT,"
+                            + "  zoom_meeting_id VARCHAR(64),"
                             + "  zoom_join_url TEXT,"
                             + "  zoom_start_url TEXT,"
                             + "  zoom_password VARCHAR(40),"
@@ -1347,9 +1363,12 @@ public class SchemaFixupRunner implements CommandLineRunner {
                     "ALTER TABLE interviews ADD COLUMN IF NOT EXISTS internal_notes TEXT");
             jdbcTemplate.execute(
                     "ALTER TABLE interviews ADD COLUMN IF NOT EXISTS prep_instructions TEXT");
-            // zoom_meeting_id added in Phase 0 — kept here defensively.
+            // zoom_meeting_id added in Phase 0; widened to VARCHAR(64) in
+            // WebEx-migration Phase 2 (the ALTER TYPE block above is the
+            // converter for existing BIGINT columns; this defensive
+            // ADD-IF-NOT-EXISTS now uses VARCHAR so a fresh DB matches).
             jdbcTemplate.execute(
-                    "ALTER TABLE interviews ADD COLUMN IF NOT EXISTS zoom_meeting_id BIGINT");
+                    "ALTER TABLE interviews ADD COLUMN IF NOT EXISTS zoom_meeting_id VARCHAR(64)");
             // applicant_visible_notes added in Phase 0 — defensive.
             jdbcTemplate.execute(
                     "ALTER TABLE interviews ADD COLUMN IF NOT EXISTS applicant_visible_notes TEXT");
@@ -1430,6 +1449,26 @@ public class SchemaFixupRunner implements CommandLineRunner {
         // managerHireDecision PENDING → APPROVED/REJECTED to gate the
         // existing SELECTED → ack → offer chain.
         ensureManagerHireDecisionColumns();
+
+        // ERM Pass 2 columns:
+        //   document_tasks.downloaded_by_id  — verify-after-download gate
+        //   intern_lifecycles.joining_date   — ERM-set activation switch
+        // Both nullable, both idempotent ADD COLUMN IF NOT EXISTS.
+        ensureErmPass2Columns();
+
+        // Mail bridge Phase 1 — additive columns on users to track the
+        // intern → employee mailbox handover. Nothing reads or writes
+        // these yet; the column floor lets later phases ship without a
+        // separate schema patch. All idempotent ADD COLUMN IF NOT EXISTS.
+        ensureMailBridgeColumns();
+
+        // Scorecard overall_recommendation — collapsed from the legacy
+        // 4-bucket set (STRONG_HIRE / HIRE / NO_HIRE / STRONG_NO_HIRE)
+        // to the 3-bucket Hire/Reject/Hold to mirror the binding manager
+        // decision (still independent — overall_recommendation is purely
+        // advisory). Idempotent one-shot UPDATE; rows already on the new
+        // values are no-ops on subsequent boots.
+        remapOverallRecommendation();
     }
 
     /**
@@ -1602,6 +1641,148 @@ public class SchemaFixupRunner implements CommandLineRunner {
      * Idempotent: ADD COLUMN IF NOT EXISTS + the UPDATE only touches
      * rows where managerHireDecision is still null.
      */
+    /**
+     * ERM Pass 2 — two new nullable columns gated server-side.
+     * <ul>
+     *   <li>{@code document_tasks.downloaded_by_id} — stamped together
+     *       with the existing {@code last_downloaded_at} +
+     *       {@code download_count} when the ERM hits the per-task
+     *       download endpoint. The Pass 2 verify-after-download gate
+     *       rejects an ACCEPT decision when {@code last_downloaded_at}
+     *       is null, so a fresh deploy with the existing columns +
+     *       this new {@code downloaded_by_id} can enforce the rule
+     *       without a data migration.</li>
+     *   <li>{@code intern_lifecycles.joining_date} — ERM-set DATE,
+     *       distinct from the offer's {@code tentative_start_date}.
+     *       {@link com.skyzen.careers.intern.InternActivationJob}
+     *       requires this to be non-null AND {@code <= today} before
+     *       it flips the lifecycle to {@code ACTIVE_INTERN}.</li>
+     * </ul>
+     * Both ALTERs are idempotent ADD COLUMN IF NOT EXISTS.
+     */
+    private void ensureErmPass2Columns() {
+        try {
+            jdbcTemplate.execute(
+                    "ALTER TABLE document_tasks ADD COLUMN IF NOT EXISTS "
+                            + "downloaded_by_id UUID");
+            log.debug("[SchemaFixup] ensured document_tasks.downloaded_by_id");
+        } catch (Exception e) {
+            log.warn("[SchemaFixup] add document_tasks.downloaded_by_id "
+                    + "failed (non-fatal): {}", e.getMessage());
+        }
+        try {
+            jdbcTemplate.execute(
+                    "ALTER TABLE intern_lifecycles ADD COLUMN IF NOT EXISTS "
+                            + "joining_date DATE");
+            log.debug("[SchemaFixup] ensured intern_lifecycles.joining_date");
+        } catch (Exception e) {
+            log.warn("[SchemaFixup] add intern_lifecycles.joining_date "
+                    + "failed (non-fatal): {}", e.getMessage());
+        }
+    }
+
+    /**
+     * Mail bridge Phase 1 — additive columns on {@code users} for the
+     * intern → employee mailbox handover. Nothing reads or writes these
+     * yet; the column floor lets the dispatcher land in a later phase
+     * without a separate schema patch. All four are idempotent
+     * {@code ADD COLUMN IF NOT EXISTS}.
+     *
+     * <ul>
+     *   <li>{@code mail_account_id UUID} — one-way link to
+     *       {@code mail_accounts.id}; no FK constraint.</li>
+     *   <li>{@code mail_handover_state VARCHAR(24) NOT NULL DEFAULT 'PERSONAL'}
+     *       — mirrors {@link com.skyzen.careers.enums.MailHandoverState}.
+     *       The DEFAULT lets existing rows backfill cleanly when the column
+     *       is first added (same trick as {@code users.active} +
+     *       {@code users.email_verified}).</li>
+     *   <li>{@code mail_handover_at TIMESTAMPTZ} — flip timestamp.</li>
+     *   <li>{@code personal_email VARCHAR(255)} — archive of the original
+     *       Gmail once login email is swapped to the company address.</li>
+     * </ul>
+     */
+    private void ensureMailBridgeColumns() {
+        try {
+            jdbcTemplate.execute(
+                    "ALTER TABLE users ADD COLUMN IF NOT EXISTS "
+                            + "mail_account_id UUID");
+            log.debug("[SchemaFixup] ensured users.mail_account_id");
+        } catch (Exception e) {
+            log.warn("[SchemaFixup] add users.mail_account_id "
+                    + "failed (non-fatal): {}", e.getMessage());
+        }
+        try {
+            jdbcTemplate.execute(
+                    "ALTER TABLE users ADD COLUMN IF NOT EXISTS "
+                            + "mail_handover_state VARCHAR(24) NOT NULL "
+                            + "DEFAULT 'PERSONAL'");
+            log.debug("[SchemaFixup] ensured users.mail_handover_state");
+        } catch (Exception e) {
+            log.warn("[SchemaFixup] add users.mail_handover_state "
+                    + "failed (non-fatal): {}", e.getMessage());
+        }
+        try {
+            jdbcTemplate.execute(
+                    "ALTER TABLE users ADD COLUMN IF NOT EXISTS "
+                            + "mail_handover_at TIMESTAMPTZ");
+            log.debug("[SchemaFixup] ensured users.mail_handover_at");
+        } catch (Exception e) {
+            log.warn("[SchemaFixup] add users.mail_handover_at "
+                    + "failed (non-fatal): {}", e.getMessage());
+        }
+        try {
+            jdbcTemplate.execute(
+                    "ALTER TABLE users ADD COLUMN IF NOT EXISTS "
+                            + "personal_email VARCHAR(255)");
+            log.debug("[SchemaFixup] ensured users.personal_email");
+        } catch (Exception e) {
+            log.warn("[SchemaFixup] add users.personal_email "
+                    + "failed (non-fatal): {}", e.getMessage());
+        }
+    }
+
+    /**
+     * One-shot remap of {@code interviews.overall_recommendation} from
+     * the legacy four-bucket set to the new {@code HIRE | REJECT | HOLD}
+     * tri-state. Idempotent — subsequent boots find zero matching rows
+     * and the {@code UPDATE} returns 0. No CHECK constraint to rebuild
+     * (the column is a plain {@code VARCHAR(20)}); the application-side
+     * validator in {@code ErmInterviewService} is the source of truth.
+     *
+     * <p>Mapping:</p>
+     * <ul>
+     *   <li>STRONG_HIRE      → HIRE</li>
+     *   <li>NO_HIRE          → REJECT</li>
+     *   <li>STRONG_NO_HIRE   → REJECT</li>
+     * </ul>
+     * HIRE rows stay HIRE; HOLD rows (none today) stay HOLD.
+     */
+    private void remapOverallRecommendation() {
+        try {
+            int hire = jdbcTemplate.update(
+                    "UPDATE interviews SET overall_recommendation = 'HIRE' "
+                            + "WHERE overall_recommendation = 'STRONG_HIRE'");
+            int reject1 = jdbcTemplate.update(
+                    "UPDATE interviews SET overall_recommendation = 'REJECT' "
+                            + "WHERE overall_recommendation = 'NO_HIRE'");
+            int reject2 = jdbcTemplate.update(
+                    "UPDATE interviews SET overall_recommendation = 'REJECT' "
+                            + "WHERE overall_recommendation = 'STRONG_NO_HIRE'");
+            if (hire + reject1 + reject2 > 0) {
+                log.info("[SchemaFixup] overall_recommendation remap: "
+                                + "STRONG_HIRE→HIRE={}, NO_HIRE→REJECT={}, "
+                                + "STRONG_NO_HIRE→REJECT={}",
+                        hire, reject1, reject2);
+            } else {
+                log.debug("[SchemaFixup] overall_recommendation remap: no-op "
+                        + "(no legacy values present).");
+            }
+        } catch (Exception e) {
+            log.warn("[SchemaFixup] overall_recommendation remap failed "
+                    + "(non-fatal): {}", e.getMessage());
+        }
+    }
+
     private void ensureManagerHireDecisionColumns() {
         try {
             jdbcTemplate.execute(

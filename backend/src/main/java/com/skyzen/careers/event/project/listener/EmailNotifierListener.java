@@ -1,17 +1,24 @@
 package com.skyzen.careers.event.project.listener;
 
+import com.skyzen.careers.entity.Candidate;
 import com.skyzen.careers.entity.Project;
+import com.skyzen.careers.entity.User;
+import com.skyzen.careers.event.project.ProjectCompletedEvent;
 import com.skyzen.careers.event.project.ProjectMarkedPendingVivaEvent;
 import com.skyzen.careers.event.project.ProjectReturnedForRevisionsEvent;
 import com.skyzen.careers.event.project.ProjectSubmittedEvent;
 import com.skyzen.careers.event.project.ProjectTechApprovedEvent;
+import com.skyzen.careers.notification.InternNotificationService;
 import com.skyzen.careers.notification.NotificationService;
 import com.skyzen.careers.repository.ProjectRepository;
+import com.skyzen.careers.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.event.TransactionPhase;
 import org.springframework.transaction.event.TransactionalEventListener;
+
+import java.util.UUID;
 
 /**
  * Fans out emails for the two-role workflow transitions.
@@ -26,6 +33,12 @@ import org.springframework.transaction.event.TransactionalEventListener;
  * <p>Best-effort end-to-end: any send failure is caught + logged; the
  * domain transition has already committed and downstream state is
  * unaffected.</p>
+ *
+ * <p>The {@link NotificationService} typed-method sends bypass the
+ * {@code BridgingEmailProvider} and land in the intern's personal Gmail —
+ * so for ACTIVE interns we ALSO call {@link InternNotificationService#notifyIntern}
+ * which routes through the bridge to their company mailbox. Pre-active
+ * interns skip the internal-mail path silently (gated inside notifyIntern).</p>
  */
 @Component
 @RequiredArgsConstructor
@@ -34,6 +47,8 @@ public class EmailNotifierListener {
 
     private final ProjectRepository projectRepository;
     private final NotificationService notificationService;
+    private final InternNotificationService internNotifications;
+    private final UserRepository userRepository;
 
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     public void onSubmitted(ProjectSubmittedEvent event) {
@@ -61,6 +76,12 @@ public class EmailNotifierListener {
                     .orElse(null);
             if (project == null) return;
             notificationService.sendProjectTechApproved(project);
+            notifyInternInternalMail(project, event.getApproverUserId(),
+                    "Trainer",
+                    "Your project '" + safeTitle(project) + "' passed technical review",
+                    actorPhrase -> actorPhrase + " has approved your project \""
+                            + safeTitle(project) + "\". Tech review complete — your "
+                            + "Reporting Manager will schedule the viva next.");
         } catch (Exception e) {
             log.warn("PROJECT_TECH_APPROVED email failed (non-fatal) for {}: {}",
                     event.getProjectId(), e.getMessage());
@@ -75,6 +96,14 @@ public class EmailNotifierListener {
                     .orElse(null);
             if (project == null) return;
             notificationService.sendProjectReturnedForRevisions(project, event.getReason());
+            String reasonLine = event.getReason() != null && !event.getReason().isBlank()
+                    ? " Reason: " + event.getReason() : "";
+            notifyInternInternalMail(project, event.getReviewerUserId(),
+                    "Reviewer",
+                    "Project '" + safeTitle(project) + "' returned for revisions",
+                    actorPhrase -> actorPhrase + " returned \"" + safeTitle(project)
+                            + "\" for changes." + reasonLine
+                            + " Iterate and re-submit when ready.");
         } catch (Exception e) {
             log.warn("PROJECT_RETURNED_FOR_REVISIONS email failed (non-fatal) for {}: {}",
                     event.getProjectId(), e.getMessage());
@@ -89,9 +118,108 @@ public class EmailNotifierListener {
                     .orElse(null);
             if (project == null) return;
             notificationService.sendProjectPendingViva(project);
+            notifyInternInternalMail(project, event.getReportingManagerUserId(),
+                    "Reporting Manager",
+                    "Your project '" + safeTitle(project) + "' is ready for viva",
+                    actorPhrase -> actorPhrase + " marked \"" + safeTitle(project)
+                            + "\" ready for the viva. Watch your inbox for the "
+                            + "schedule and prepare to present.");
         } catch (Exception e) {
             log.warn("PROJECT_PENDING_VIVA email failed (non-fatal) for {}: {}",
                     event.getProjectId(), e.getMessage());
         }
+    }
+
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+    public void onCompleted(ProjectCompletedEvent event) {
+        if (event == null) return;
+        try {
+            Project project = projectRepository.findByIdWithGraph(event.getProjectId())
+                    .orElse(null);
+            if (project == null) return;
+            // Both ProjectService.complete (legacy, TE actor) and
+            // ProjectWorkflowService.completeAfterViva (two-role, RM actor)
+            // publish ProjectCompletedEvent. Resolve the actor's primary
+            // role dynamically so wording matches the flow that fired.
+            String roleWord = resolveRoleWord(event.getClosedByUserId(), "Reporting Manager");
+            notifyInternInternalMail(project, event.getClosedByUserId(),
+                    roleWord,
+                    "Project '" + safeTitle(project) + "' completed",
+                    actorPhrase -> actorPhrase + " has marked \"" + safeTitle(project)
+                            + "\" complete. Nice work — your post-project "
+                            + "evaluation will follow shortly.");
+        } catch (Exception e) {
+            log.warn("PROJECT_COMPLETED internal-mail failed (non-fatal) for {}: {}",
+                    event.getProjectId(), e.getMessage());
+        }
+    }
+
+    /**
+     * Compose + send a Model A internal-mail to the active intern. Gated on
+     * ACTIVE+ACTIVATED inside {@link InternNotificationService#notifyIntern}
+     * so calling for pre-active interns is a no-op (no error). The actor
+     * role label is the caller's responsibility (TE/Trainer for
+     * tech-approval + first-stage return; RM/Reporting Manager for
+     * pending-viva + completed).
+     */
+    private void notifyInternInternalMail(Project project, UUID actorUserId,
+                                           String roleWord, String subject,
+                                           java.util.function.Function<String, String> bodyBuilder) {
+        UUID internUserId = internUserId(project);
+        if (internUserId == null) return;
+        String actorPhrase = resolveActorPhrase(actorUserId, roleWord);
+        String body = "Hi,\n\n" + bodyBuilder.apply(actorPhrase)
+                + "\n\nOpen your projects: /careers/intern/projects"
+                + "\n\n— Skyzen";
+        internNotifications.notifyIntern(internUserId, subject, body, null);
+    }
+
+    private UUID internUserId(Project project) {
+        Candidate intern = project.getIntern();
+        if (intern == null || intern.getUser() == null) return null;
+        return intern.getUser().getId();
+    }
+
+    private String resolveActorPhrase(UUID actorUserId, String roleWord) {
+        if (actorUserId != null) {
+            try {
+                User actor = userRepository.findById(actorUserId).orElse(null);
+                if (actor != null && actor.getFullName() != null
+                        && !actor.getFullName().isBlank()) {
+                    return actor.getFullName() + ", your " + roleWord + ",";
+                }
+            } catch (Exception ignored) { }
+        }
+        return "Your " + roleWord;
+    }
+
+    /**
+     * Pick a friendly role label from the actor's primary role. Used by
+     * onCompleted where both the legacy TE-driven path and the two-role
+     * RM-driven path publish the same event and need different wording.
+     */
+    private String resolveRoleWord(UUID actorUserId, String fallback) {
+        if (actorUserId == null) return fallback;
+        try {
+            User actor = userRepository.findById(actorUserId).orElse(null);
+            if (actor == null || actor.getRoles() == null || actor.getRoles().isEmpty()) {
+                return fallback;
+            }
+            return switch (actor.getRoles().iterator().next()) {
+                case TRAINER -> "Trainer";
+                case REPORTING_MANAGER -> "Reporting Manager";
+                case MANAGER -> "Manager";
+                case ERM -> "ERM";
+                case SUPER_ADMIN -> "Admin";
+                default -> fallback;
+            };
+        } catch (Exception ignored) {
+            return fallback;
+        }
+    }
+
+    private static String safeTitle(Project p) {
+        return p == null || p.getTitle() == null || p.getTitle().isBlank()
+                ? "your project" : p.getTitle();
     }
 }

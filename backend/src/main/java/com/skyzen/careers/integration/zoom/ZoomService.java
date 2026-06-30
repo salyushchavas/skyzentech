@@ -3,6 +3,9 @@ package com.skyzen.careers.integration.zoom;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.skyzen.careers.integration.meeting.MeetingProvider;
+import com.skyzen.careers.integration.meeting.MeetingRequest;
+import com.skyzen.careers.integration.meeting.MeetingResponse;
 import jakarta.annotation.PostConstruct;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
@@ -52,7 +55,9 @@ import java.util.concurrent.locks.ReentrantLock;
  */
 @Service
 @Slf4j
-public class ZoomService {
+public class ZoomService implements MeetingProvider {
+
+    private static final String PROVIDER_NAME = "zoom";
 
     private static final Duration REFRESH_WINDOW = Duration.ofSeconds(60);
     private static final String OAUTH_URL = "https://zoom.us/oauth/token";
@@ -165,7 +170,83 @@ public class ZoomService {
         return node.path("email").asText(null);
     }
 
-    // ── Meeting CRUD ────────────────────────────────────────────────────────
+    // ── MeetingProvider interface adapters ───────────────────────────────────
+    //
+    // Thin wrappers that translate the provider-agnostic {@link MeetingRequest}
+    // / {@link MeetingResponse} contract into the existing Long-based Zoom
+    // methods. The legacy public methods (createMeeting(ZoomMeetingRequest)
+    // etc.) stay UNCHANGED — existing consumers keep compiling and running
+    // unchanged. New consumers (post-WebEx phase) inject MeetingProvider and
+    // use these adapter methods instead.
+
+    @Override
+    public String providerName() { return PROVIDER_NAME; }
+
+    @Override
+    public String probe() throws Exception {
+        return probeUsersMe();
+    }
+
+    @Override
+    public MeetingResponse createMeeting(MeetingRequest req) {
+        ZoomMeetingResponse z = createMeeting(toZoomRequest(req));
+        return toMeetingResponse(z);
+    }
+
+    @Override
+    public MeetingResponse updateMeeting(String providerMeetingId, MeetingRequest req) {
+        long mid = parseProviderId(providerMeetingId);
+        ZoomMeetingResponse z = updateMeeting(mid, toZoomRequest(req));
+        return toMeetingResponse(z);
+    }
+
+    @Override
+    public MeetingResponse getMeeting(String providerMeetingId) {
+        long mid = parseProviderId(providerMeetingId);
+        ZoomMeetingResponse z = getMeeting(mid);
+        return toMeetingResponse(z);
+    }
+
+    @Override
+    public void deleteMeeting(String providerMeetingId) {
+        deleteMeeting(parseProviderId(providerMeetingId));
+    }
+
+    private static ZoomMeetingRequest toZoomRequest(MeetingRequest req) {
+        // Zoom's hostUserId accepts either an email or the literal "me" — the
+        // generic MeetingRequest's hostEmail covers both shapes (consumer
+        // passes "me" when no per-host email is set; otherwise the email).
+        String hostUserId = (req.hostEmail() == null || req.hostEmail().isBlank())
+                ? "me" : req.hostEmail();
+        return new ZoomMeetingRequest(
+                hostUserId, req.topic(), req.startTime(),
+                req.durationMinutes(), req.timezone(), req.agenda());
+    }
+
+    private MeetingResponse toMeetingResponse(ZoomMeetingResponse z) {
+        if (z == null) return null;
+        return new MeetingResponse(
+                PROVIDER_NAME,
+                String.valueOf(z.meetingId()),
+                z.joinUrl(),
+                z.startUrl(),
+                z.password(),
+                z.hostEmail());
+    }
+
+    private static long parseProviderId(String providerMeetingId) {
+        if (providerMeetingId == null || providerMeetingId.isBlank()) {
+            throw new IllegalArgumentException("providerMeetingId is required");
+        }
+        try {
+            return Long.parseLong(providerMeetingId.trim());
+        } catch (NumberFormatException nfe) {
+            throw new IllegalArgumentException(
+                    "Zoom providerMeetingId must be numeric: " + providerMeetingId);
+        }
+    }
+
+    // ── Meeting CRUD (legacy Long-based — unchanged) ─────────────────────────
 
     public ZoomMeetingResponse createMeeting(ZoomMeetingRequest req) {
         ensureReady();
@@ -348,8 +429,45 @@ public class ZoomService {
             body.put("agenda", req.agenda());
         }
         ObjectNode settings = body.putObject("settings");
-        settings.put("join_before_host", false);
-        settings.put("waiting_room", true);
+        // Waiting room OFF + join-before-host ON so the intern enters
+        // directly without sitting on a host-admission lobby. The host
+        // (ERM/trainer/evaluator) still starts the meeting via start_url
+        // when they're ready; if the intern arrives first they're
+        // already inside the room.
+        //
+        // meeting_authentication=false: guests can join without a Zoom
+        // account. When a guest joins via the web client they're prompted
+        // for their name on Zoom's join landing page — this is the
+        // mechanism that makes participants identifiable. (Setting it to
+        // true would force every joiner to sign into Zoom, which is the
+        // opposite of what we want.)
+        //
+        // IMPORTANT LIMITATION the operator should know about:
+        //   Zoom can ONLY prompt joiners who arrive via the web client
+        //   without being signed in. Joiners on the native Zoom app who
+        //   are signed in will use their Zoom account display name and
+        //   skip the prompt — Zoom doesn't expose a per-meeting setting
+        //   to override that. So:
+        //     - If interns share / are signed in to the company Zoom
+        //       account on their devices, they will all show as the
+        //       company name regardless of these settings.
+        //     - Reliable fix is org-side: each person uses their own
+        //       Zoom account, signs out before joining, or joins via
+        //       browser without the desktop app installed.
+        //   The locked-in code-side alternative is Zoom's registrant
+        //   flow (per-participant POST /v2/meetings/{id}/registrants
+        //   with a name + email; returns a per-registrant join URL
+        //   whose name is locked). Not implemented here — significantly
+        //   more invasive than these per-meeting settings.
+        //
+        // Zoom account-level Waiting Room can be locked ON at the
+        // account tier and override the per-meeting waiting_room=false
+        // — confirm Zoom Admin > Settings > Meeting > In Meeting
+        // (Advanced) > Waiting Room is OFF (or unlocked) for this
+        // account.
+        settings.put("join_before_host", true);
+        settings.put("waiting_room", false);
+        settings.put("meeting_authentication", false);
         settings.put("mute_upon_entry", true);
         return body;
     }

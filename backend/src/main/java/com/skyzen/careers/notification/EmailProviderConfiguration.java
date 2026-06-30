@@ -52,8 +52,16 @@ public class EmailProviderConfiguration {
     @Value("${app.mail.brand-url:https://www.skyzentech.com}")
     private String brandUrl;
 
-    @Bean
-    public EmailProvider emailProvider(JavaMailSender mailSender, BrandConfig brand) {
+    /**
+     * Bean name is {@code rawEmailProvider} so the mail-bridge wrapper
+     * ({@link BridgingEmailProvider}, marked {@code @Primary}) can inject
+     * this raw provider via {@code @Qualifier("rawEmailProvider")} while
+     * remaining the default {@link EmailProvider} that every other caller
+     * receives. The interface signature is unchanged; nothing else needs
+     * to know about the bridge.
+     */
+    @Bean("rawEmailProvider")
+    public EmailProvider rawEmailProvider(JavaMailSender mailSender, BrandConfig brand) {
         if (isBlank(mailHost) || isBlank(mailUsername)) {
             log.warn("SMTP not configured (spring.mail.host / spring.mail.username missing) — "
                     + "falling back to LogEmailProvider. Emails will be logged, not sent. "

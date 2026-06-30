@@ -113,6 +113,19 @@ export interface NewHireRow {
   managerName: string | null;
   reportingStructureComplete: boolean;
   onboardingAssigned: boolean;
+  /** Onboarding-tracker progress per row (null on older clients). */
+  stepsCompleted: number | null;
+  stepsTotal: number | null;
+  nextStepLabel: string | null;
+  canActivate: boolean | null;
+  /** Current step id from OnboardingTrackerDtos.StepId, null when all done. */
+  currentStepId:
+    | 'DOCS_ASSIGNED'
+    | 'DOCS_VERIFIED'
+    | 'TEAM_NOTIFIED'
+    | 'MAIL_AND_JOINING'
+    | 'ACTIVATE'
+    | null;
 }
 
 export interface NewHireListPage {
@@ -155,4 +168,21 @@ export interface NewHireDetail {
    *  ONBOARDING_ACCEPTED with a signed offer; gates the "Activate now"
    *  ERM override so it can never skip document verification. */
   canActivateNow: boolean;
+  /** ERM Pass 2 — committed activation switch (distinct from the offer's
+   *  tentativeStartDate). Null until ERM sets it. Once set + ≤ today,
+   *  the next scheduled scan flips the intern to ACTIVE_INTERN. */
+  joiningDate: string | null;
+  /** True when lifecycle = ONBOARDING_ACCEPTED. The new-hire UI uses
+   *  this to enable the "Set joining date" control — ERM commits the
+   *  date only after docs are accepted. */
+  docsAccepted: boolean;
+  /** Mail bridge Phase 5 — enum name from the backend. Drives the
+   *  "Assign company email" section: PERSONAL+employeeId shows the
+   *  button; PENDING_ACTIVATION shows an "awaiting activation" chip;
+   *  ACTIVATED shows an "active" chip. Null when the backend doesn't
+   *  surface it (legacy/old clients). */
+  mailHandoverState: 'PERSONAL' | 'PENDING_ACTIVATION' | 'ACTIVATED' | null;
+  /** Mail bridge Phase 5 — archived personal Gmail captured during
+   *  the email swap. Null pre-swap. */
+  personalEmail: string | null;
 }

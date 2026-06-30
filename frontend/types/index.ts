@@ -29,7 +29,7 @@ export type UserRole =
 // Phase 1.4 — candidate's neutral self-attestation on expected work-auth
 // track. NO documents are collected at this stage; this is candidate self-
 // reporting only and drives downstream compliance routing (Phase 3).
-export type WorkAuthTrack = 'CPT' | 'OPT' | 'STEM_OPT' | 'OTHER';
+export type WorkAuthTrack = 'CITIZEN' | 'CPT' | 'OPT' | 'STEM_OPT' | 'OTHER';
 
 /**
  * Mirrors backend DegreeLevel enum. Phase 1.5 expanded the original
@@ -1586,6 +1586,9 @@ export interface QaSession {
   internName?: string;
   scheduledAt: IsoDateTime;
   meetingLink?: string;
+  zoomMeetingId?: string;
+  zoomJoinUrl?: string;
+  zoomStartUrl?: string;
   status: QaSessionStatus;
   questionsAsked?: string;
   internResponses?: string;
@@ -1604,6 +1607,10 @@ export interface ScheduleQaSessionRequest {
   projectId: Uuid;
   scheduledAt: IsoDateTime;
   meetingLink?: string;
+  durationMinutes?: number;
+  timezone?: string;
+  topic?: string;
+  agenda?: string;
 }
 
 // === Day-by-day timesheet ===================================================

@@ -53,8 +53,9 @@ import java.util.UUID;
  *
  * <p>Decision semantics:</p>
  * <ul>
- *   <li>{@code ACCEPT} → project.status=COMPLETED, fires
- *       FEEDBACK_PUBLISHED.</li>
+ *   <li>{@code ACCEPT} → project.status=PENDING_VIVA (auto-routed to the
+ *       evaluator for the Q&amp;A session + final approval — the trainer
+ *       APPROVES, the evaluator COMPLETES), fires FEEDBACK_PUBLISHED.</li>
  *   <li>{@code REQUEST_REVISION} → project.status=RETURNED, intern sees
  *       {@code trainerFeedback} verbatim, fires FEEDBACK_PUBLISHED.</li>
  *   <li>{@code ESCALATE} → upserts a TRAINER_ESCALATION
@@ -83,6 +84,8 @@ public class TrainerProjectReviewService {
 
     private final ProjectSubmissionRepository submissionRepository;
     private final ProjectRepository projectRepository;
+    private final com.skyzen.careers.repository.ProjectAssignmentRepository
+            projectAssignmentRepository;
     private final ProjectAssignmentEventLogRepository eventLogRepository;
     private final InternLifecycleRepository lifecycleRepository;
     private final UserRepository userRepository;
@@ -258,12 +261,27 @@ public class TrainerProjectReviewService {
         String prevStatus = p.getStatus() != null ? p.getStatus().name() : null;
         switch (decision) {
             case "ACCEPT" -> {
-                p.setStatus(ProjectStatus.COMPLETED);
-                p.setCompletedAt(Instant.now());
+                // Trainer "Review & approve" routes the project to the
+                // evaluator's queue for the Q&A session + final approval.
+                // The trainer APPROVES; the evaluator COMPLETES (via
+                // QaSessionService.signOff → ProjectWorkflowService
+                // .completeAfterViva). completedAt is intentionally NOT
+                // stamped here — only the evaluator's final sign-off
+                // sets it.
+                p.setStatus(ProjectStatus.PENDING_VIVA);
                 p.setReviewNotes(s.getTrainerFeedback());
                 p.setReviewedBy(caller);
                 p.setReviewedAt(Instant.now());
                 projectRepository.save(p);
+                // Mirror the decision into the project_assignments row
+                // the intern reads from /api/v1/project-assignments/mine.
+                // Without this mirror, ProjectAssignment.status stayed
+                // SUBMITTED while Project.status was PENDING_VIVA — the
+                // intern's tracker + status pills disagreed with the
+                // workflow (showed "Trainer review" forever even though
+                // the trainer had already approved).
+                mirrorAssignmentStatus(p.getId(),
+                        com.skyzen.careers.enums.ProjectAssignmentStatus.PENDING_VIVA);
             }
             case "REQUEST_REVISION" -> {
                 p.setStatus(ProjectStatus.RETURNED);
@@ -276,6 +294,8 @@ public class TrainerProjectReviewService {
                     p.setDueDate(p.getDueDate().plusDays(7));
                 }
                 projectRepository.save(p);
+                mirrorAssignmentStatus(p.getId(),
+                        com.skyzen.careers.enums.ProjectAssignmentStatus.RETURNED);
             }
             case "ESCALATE" -> {
                 // Project status stays SUBMITTED so it's visible to the
@@ -328,6 +348,46 @@ public class TrainerProjectReviewService {
             }
         }
         return getDetail(submissionId, caller);
+    }
+
+    // ── Mirror trainer decision → ProjectAssignment.status ───────────────
+
+    /**
+     * Mirror the trainer's decision into every active ProjectAssignment
+     * row for this project so the intern's
+     * {@code /api/v1/project-assignments/mine} response stays in sync
+     * with the workflow state on {@code Project.status}. Without the
+     * mirror, the intern's tracker + status pills disagree with the
+     * actual project state (e.g. project moved to PENDING_VIVA but the
+     * assignment row still says SUBMITTED).
+     *
+     * <p>Idempotent + best-effort: skips rows already in the target
+     * status; a write failure logs at WARN and never breaks the
+     * trainer's submit-feedback call.</p>
+     */
+    private void mirrorAssignmentStatus(
+            UUID projectId,
+            com.skyzen.careers.enums.ProjectAssignmentStatus target) {
+        if (projectId == null || target == null) return;
+        try {
+            var rows = projectAssignmentRepository
+                    .findByProjectIdOrderByAssignmentDateDescCreatedAtDesc(projectId);
+            for (var a : rows) {
+                if (a.getStatus() == target) continue;
+                // COMPLETED is a terminal state on the assignment row —
+                // never roll it back via a trainer-decision mirror.
+                if (a.getStatus()
+                        == com.skyzen.careers.enums.ProjectAssignmentStatus.COMPLETED) {
+                    continue;
+                }
+                a.setStatus(target);
+                projectAssignmentRepository.save(a);
+            }
+        } catch (Exception e) {
+            log.warn("[TrainerReview] mirror assignment status to {} failed "
+                    + "(non-fatal) for project {}: {}",
+                    target, projectId, e.getMessage());
+        }
     }
 
     // ── ESCALATE: TRAINER_ESCALATION ExceptionRecord upsert ──────────────
@@ -450,7 +510,9 @@ public class TrainerProjectReviewService {
 
     private static String decisionToEventType(String d) {
         return switch (d) {
-            case "ACCEPT" -> "COMPLETED";
+            // ACCEPT routes to PENDING_VIVA (evaluator Q&A), not COMPLETED —
+            // the evaluator's final approval emits COMPLETED downstream.
+            case "ACCEPT" -> "TRAINER_APPROVED_PENDING_VIVA";
             case "REQUEST_REVISION" -> "REVISION_REQUESTED";
             case "ESCALATE" -> "ESCALATED";
             default -> "REVIEWED";

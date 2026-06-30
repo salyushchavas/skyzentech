@@ -15,6 +15,7 @@ import RescheduleModal from '@/components/erm/interviews/RescheduleModal';
 import CancelModal from '@/components/erm/interviews/CancelModal';
 import ChangeInterviewerModal from '@/components/erm/interviews/ChangeInterviewerModal';
 import ZoomStatusBanner from '@/components/erm/interviews/ZoomStatusBanner';
+import WebexHostStartCard from '@/components/meeting/WebexHostStartCard';
 import type { InterviewDetail } from '@/components/erm/interviews/types';
 import type { OfferListPage, OfferRow } from '@/components/erm/offers/types';
 import {
@@ -190,26 +191,22 @@ export default function InterviewDetailPage() {
                   <p className="mt-2 text-sm text-slate-700">
                     Interviewer: <b>{data.interviewer?.fullName ?? '—'}</b>
                   </p>
-                  {data.zoomJoinUrl && (
-                    <p className="mt-1 text-xs text-slate-600 break-all">
-                      Join link:{' '}
-                      <a className="text-brand-700 underline" href={data.zoomJoinUrl} target="_blank" rel="noreferrer">
-                        {data.zoomJoinUrl}
-                      </a>
-                    </p>
-                  )}
+                  {/* ERM is the host — show ONLY the host start link.
+                      The participant join URL is intentionally NOT
+                      surfaced here; the applicant sees it on their own
+                      /careers/intern/interviews page. */}
                   {data.zoomPassword && (
                     <p className="mt-1 text-xs text-slate-600">
                       Passcode: <span className="font-mono">{data.zoomPassword}</span>
                     </p>
                   )}
-                  {data.zoomStartUrl && (
-                    <p className="mt-1 text-xs text-slate-600 break-all">
-                      Host link (ERM-only):{' '}
-                      <a className="text-brand-700 underline" href={data.zoomStartUrl} target="_blank" rel="noreferrer">
-                        {data.zoomStartUrl}
-                      </a>
-                    </p>
+                  {data.zoomMeetingId && (
+                    <div className="mt-3">
+                      <WebexHostStartCard
+                        providerMeetingId={data.zoomMeetingId}
+                        startUrl={data.zoomStartUrl}
+                      />
+                    </div>
                   )}
                   <ZoomStatusBanner interview={data} onUpdated={setData} />
                   {data.prepInstructions && (

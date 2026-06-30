@@ -8,6 +8,7 @@ import com.skyzen.careers.entity.DocumentTask;
 import com.skyzen.careers.entity.Document;
 import com.skyzen.careers.exception.ResourceNotFoundException;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -23,6 +24,7 @@ import java.util.UUID;
 @RestController
 @RequestMapping("/api/v1/erm")
 @RequiredArgsConstructor
+@Slf4j
 public class DocumentPacketController {
 
     private final DocumentPacketService service;
@@ -132,6 +134,22 @@ public class DocumentPacketController {
         Document meta = documentRepository.findById(t.getUploadedFileId()).orElse(null);
         String name = meta != null && meta.getFileName() != null
                 ? meta.getFileName() : "upload";
+        // Pass 2 verify-after-download gate — record the fetch on the row
+        // so reviewTask() can later assert "this document has been pulled
+        // for review at least once" before authorizing ACCEPT. Stamp is
+        // best-effort: a DB hiccup here must NOT block the download
+        // itself (the bytes are already read; the gate would just stay
+        // closed until the next successful fetch).
+        try {
+            Integer cur = t.getDownloadCount();
+            t.setDownloadCount((cur == null ? 0 : cur) + 1);
+            t.setLastDownloadedAt(java.time.Instant.now());
+            t.setDownloadedById(caller == null ? null : caller.getId());
+            taskRepository.save(t);
+        } catch (Exception e) {
+            log.warn("[DocumentReview] download-stamp failed (non-fatal) "
+                    + "for task {}: {}", id, e.getMessage());
+        }
         return ResponseEntity.ok()
                 .header(HttpHeaders.CONTENT_DISPOSITION,
                         "attachment; filename=\"" + name + "\"")

@@ -109,7 +109,7 @@ export interface InterviewDetail {
   zoomJoinUrl: string | null;
   zoomStartUrl: string | null;
   zoomPassword: string | null;
-  zoomMeetingId: number | null;
+  zoomMeetingId: string | null;
   zoomStatus: ZoomStatus;
   /** Truncated Zoom error message — null for non-staff or when no error. */
   zoomErrorMessage: string | null;

@@ -154,6 +154,26 @@ public class TrainerWeeklyMeetingController {
         return toDto(m);
     }
 
+    /**
+     * Weekly-sessions tracker pill — one-click mark-done. Accepts an
+     * optional short note (synthesizes a default when blank) so the
+     * trainer doesn't have to type a 50-char incident report from the
+     * tracker. The full {@code /complete} endpoint above is still the
+     * canonical path for detailed post-meeting summaries.
+     */
+    public record QuickCompleteRequest(String notes) {}
+
+    @PostMapping("/{id}/quick-complete")
+    @PreAuthorize("hasAnyRole('TRAINER', 'SUPER_ADMIN')")
+    public Map<String, Object> quickComplete(@PathVariable UUID id,
+                                              @RequestBody(required = false) QuickCompleteRequest req,
+                                              @AuthenticationPrincipal User caller) {
+        WeeklyMeeting m = meetingService.completeQuick(
+                id, req != null ? req.notes() : null, caller);
+        notifier.dispatchCompleted(m, caller);
+        return toDto(m);
+    }
+
     @PostMapping("/{id}/mark-missed")
     @PreAuthorize("hasAnyRole('TRAINER', 'SUPER_ADMIN')")
     public Map<String, Object> markMissed(@PathVariable UUID id,

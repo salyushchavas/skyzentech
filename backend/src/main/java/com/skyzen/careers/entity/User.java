@@ -226,6 +226,47 @@ public class User {
     @Column(name = "tos_version", length = 32)
     private String tosVersion;
 
+    // ── Mail bridge (Phase 1 — additive, dormant) ──────────────────────────
+    // These four columns are written/read by NOTHING yet. They lay the
+    // groundwork for the intern → employee mail handover. Behaviour is
+    // unchanged until later phases wire the dispatcher. See
+    // MAIL_BRIDGE_SURVEY.md and com.skyzen.careers.enums.MailHandoverState.
+
+    /**
+     * One-way link to the user's company mailbox in {@code mail_accounts}.
+     * Null while the user is still on personal Gmail (the default). No JPA
+     * relation — kept as a bare UUID column so a {@code DELETE} on
+     * {@code mail_accounts} doesn't cascade through JPA and no foreign-key
+     * constraint surprises a future mail-side cleanup.
+     */
+    @Column(name = "mail_account_id")
+    private UUID mailAccountId;
+
+    /**
+     * Where the user sits in the intern → employee mailbox handover. Always
+     * starts {@code PERSONAL}; ERM transitions to {@code PENDING_ACTIVATION}
+     * on mailbox assignment, and the user moves to {@code ACTIVATED} once
+     * they sign in to the company mailbox. See {@link com.skyzen.careers.enums.MailHandoverState}.
+     */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "mail_handover_state", nullable = false, length = 24,
+            columnDefinition = "varchar(24) not null default 'PERSONAL'")
+    @Builder.Default
+    private com.skyzen.careers.enums.MailHandoverState mailHandoverState =
+            com.skyzen.careers.enums.MailHandoverState.PERSONAL;
+
+    /** Stamp when {@code mailHandoverState} flipped to {@code ACTIVATED}. */
+    @Column(name = "mail_handover_at")
+    private Instant mailHandoverAt;
+
+    /**
+     * The user's original personal Gmail, archived once the login
+     * {@code email} is swapped to their company address. Null while
+     * {@code email} still holds the personal Gmail (i.e. pre-Phase-2).
+     */
+    @Column(name = "personal_email", length = 255)
+    private String personalEmail;
+
     @Column(nullable = false, updatable = false)
     private Instant createdAt;
 

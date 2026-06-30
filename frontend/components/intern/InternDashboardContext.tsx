@@ -54,6 +54,7 @@ export interface InternModulesMap {
   evaluations: InternModuleState;
   documents: InternModuleState;
   messages: InternModuleState;
+  doubts: InternModuleState;
   help: InternModuleState;
 }
 

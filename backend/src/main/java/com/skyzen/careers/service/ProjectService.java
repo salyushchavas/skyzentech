@@ -92,6 +92,7 @@ public class ProjectService {
     private final AuditLogRepository auditLogRepository;
     private final ObjectMapper objectMapper;
     private final com.skyzen.careers.notification.NotificationService notificationService;
+    private final com.skyzen.careers.notification.InternNotificationService internNotifications;
     private final org.springframework.context.ApplicationEventPublisher eventPublisher;
 
     // ── Supervisor: allocate ────────────────────────────────────────────────
@@ -155,6 +156,57 @@ public class ProjectService {
             notificationService.sendProjectAssigned(saved);
         } catch (Exception e) {
             log.warn("PROJECT_ASSIGNED notify failed (non-fatal) for {}: {}",
+                    saved.getId(), e.getMessage());
+        }
+        // Phase: Employee internal-mail — sendProjectAssigned above is a
+        // TYPED EmailProvider method that BridgingEmailProvider does NOT
+        // intercept (only sendRendered/sendBrandedHtml are bridged). So
+        // the intern's company mailbox wouldn't see this event via the
+        // legacy supervisor path. notifyIntern routes through the bridge
+        // explicitly and is gated on activeStatus='ACTIVE' + mailbox
+        // ACTIVATED — safe to call always; skips silently for pre-active
+        // interns and for trainer-side assignments that ALSO trigger
+        // ProjectNotificationDispatcher (which renders + bridges its own
+        // intern email, so the trainer path stays single-sent).
+        try {
+            UUID internUserId = intern.getUser() != null ? intern.getUser().getId() : null;
+            if (internUserId != null) {
+                String projectTitle = saved.getTitle() != null ? saved.getTitle() : "your project";
+                String due = saved.getDueDate() != null ? " due " + saved.getDueDate() : "";
+                // Actor + role per Model A: "<Name>, your <Role>, ...". On the
+                // legacy supervisor path the assigner can be any of TRAINER /
+                // MANAGER / REPORTING_MANAGER / SUPER_ADMIN; resolve a friendly
+                // role label from their first role, defaulting to "Supervisor".
+                String actorPhrase = "Your team";
+                String roleWord = "Supervisor";
+                if (actor != null) {
+                    if (actor.getRoles() != null && !actor.getRoles().isEmpty()) {
+                        UserRole firstRole = actor.getRoles().iterator().next();
+                        roleWord = switch (firstRole) {
+                            case TRAINER -> "Trainer";
+                            case MANAGER -> "Manager";
+                            case REPORTING_MANAGER -> "Reporting Manager";
+                            case ERM -> "ERM";
+                            case SUPER_ADMIN -> "Admin";
+                            default -> "Supervisor";
+                        };
+                    }
+                    if (actor.getFullName() != null && !actor.getFullName().isBlank()) {
+                        actorPhrase = actor.getFullName() + ", your " + roleWord + ",";
+                    } else {
+                        actorPhrase = "Your " + roleWord;
+                    }
+                }
+                String body = actorPhrase + " has assigned you a new project: \""
+                        + projectTitle + "\"" + due + "."
+                        + "\n\nOpen your projects: /careers/intern/projects"
+                        + "\n\n— Skyzen";
+                internNotifications.notifyIntern(internUserId,
+                        "New project assigned by your " + roleWord + ": " + projectTitle,
+                        body, null);
+            }
+        } catch (Exception e) {
+            log.warn("PROJECT_ASSIGNED internal-mail notify failed (non-fatal) for {}: {}",
                     saved.getId(), e.getMessage());
         }
         return toResponse(saved);
@@ -245,6 +297,34 @@ public class ProjectService {
             log.warn("PROJECT_RETURNED notify failed (non-fatal) for {}: {}",
                     saved.getId(), e.getMessage());
         }
+        // Tier A — typed notificationService.sendProjectReturned uses
+        // sendProjectReturned which bypasses BridgingEmailProvider, so the
+        // intern's company mailbox wouldn't see it. notifyIntern routes
+        // through the bridge for ACTIVE interns.
+        try {
+            UUID internUserId = saved.getIntern() != null
+                    && saved.getIntern().getUser() != null
+                    ? saved.getIntern().getUser().getId() : null;
+            if (internUserId != null) {
+                String title = saved.getTitle() != null ? saved.getTitle() : "your project";
+                String reviewNotes = saved.getReviewNotes();
+                String actorPhrase = actor != null && actor.getFullName() != null
+                        && !actor.getFullName().isBlank()
+                        ? actor.getFullName() + ", your Trainer,"
+                        : "Your Trainer";
+                String subject = "Project '" + title + "' returned by your Trainer";
+                String body = "Hi,\n\n" + actorPhrase + " returned \"" + title
+                        + "\" for changes."
+                        + (reviewNotes != null && !reviewNotes.isBlank()
+                            ? "\n\nReview notes: " + reviewNotes : "")
+                        + "\n\nOpen the project: /careers/intern/projects/" + saved.getId()
+                        + "\n\n— Skyzen";
+                internNotifications.notifyIntern(internUserId, subject, body, null);
+            }
+        } catch (Exception e) {
+            log.warn("PROJECT_RETURNED internal-mail failed (non-fatal) for {}: {}",
+                    saved.getId(), e.getMessage());
+        }
         return toResponse(saved);
     }
 
@@ -281,6 +361,12 @@ public class ProjectService {
             log.warn("PROJECT_COMPLETED notify failed (non-fatal) for {}: {}",
                     saved.getId(), e.getMessage());
         }
+        // Tier A — intern internal-mail is handled by
+        // EmailNotifierListener.onCompleted on the ProjectCompletedEvent
+        // we publish below. That listener resolves the actor's role
+        // dynamically (Trainer here on the legacy path, Reporting Manager
+        // on the two-role viva path) so both flows produce correct
+        // Model-A wording without duplicating the send.
 
         // Two-role workflow prerequisite — emit ProjectCompletedEvent from
         // BOTH paths (this legacy single-reviewer complete + the

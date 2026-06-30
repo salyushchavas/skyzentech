@@ -89,10 +89,6 @@ function CreateInterviewPageInner() {
             </p>
           )}
 
-          <p className="mb-4 rounded-md border border-slate-200 bg-slate-50 p-3 text-xs text-slate-600">
-            You'll be the interviewer for this session. The Zoom meeting is created on your account.
-          </p>
-
           <div className="space-y-4">
             <div className="grid grid-cols-2 gap-3">
               <div>

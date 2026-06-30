@@ -7,6 +7,8 @@ import com.skyzen.careers.entity.User;
 import com.skyzen.careers.erm.CommunicationTemplateService;
 import com.skyzen.careers.intern.OrgTeamResolver;
 import com.skyzen.careers.notification.EmailProvider;
+import com.skyzen.careers.notification.MeetingEmailHtmlBuilder;
+import com.skyzen.careers.notification.SchedulerMeetingEmailSender;
 import com.skyzen.careers.notification.UserNotificationDispatcher;
 import com.skyzen.careers.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
@@ -36,6 +38,8 @@ public class EvaluationNotificationFanout {
     private final EmailProvider emailProvider;
     private final CommunicationTemplateService templateService;
     private final OrgTeamResolver orgTeamResolver;
+    private final SchedulerMeetingEmailSender schedulerEmail;
+    private final com.skyzen.careers.notification.InternNotificationService internNotifications;
 
     @Value("${app.frontend.base-url:https://www.skyzentech.com}")
     private String frontendBaseUrl;
@@ -44,6 +48,8 @@ public class EvaluationNotificationFanout {
         User intern = userRepo.findById(lc.getUserId()).orElse(null);
         if (intern == null) return;
         String firstName = firstName(intern);
+        String tz = ev.getTimezone() != null && !ev.getTimezone().isBlank()
+                ? ev.getTimezone() : "UTC";
         String date = ev.getScheduledFor() != null
                 ? DATE_FMT.format(ev.getScheduledFor().atZone(ZoneId.of("UTC")))
                 : "TBD";
@@ -51,20 +57,29 @@ public class EvaluationNotificationFanout {
                 ? evaluator.getFullName() : "your Evaluator";
         String deepLink = link("/careers/intern/evaluations");
 
-        // Email — intern
-        Map<String, Object> vars = new LinkedHashMap<>();
-        vars.put("firstName", firstName);
-        vars.put("evaluationType", "monthly");
-        vars.put("evaluatorName", evaluatorName);
-        vars.put("scheduledDateLocal", date);
-        vars.put("timezone", ev.getTimezone() != null ? ev.getTimezone() : "UTC");
-        vars.put("zoomLink", ev.getZoomJoinUrl() != null ? ev.getZoomJoinUrl() : "(link will follow)");
-        renderAndEmail("EVALUATION_SCHEDULED", intern, vars);
+        // Intern — Model A: system sends; body names the evaluator + role
+        String actorPhrase = evaluator != null && evaluator.getFullName() != null
+                && !evaluator.getFullName().isBlank()
+                ? evaluator.getFullName() + ", your Evaluator,"
+                : "Your Evaluator";
+        try {
+            String subject = "Evaluation scheduled by your Evaluator";
+            String plain = "Hi " + firstName + ",\n\n"
+                    + actorPhrase + " has scheduled your monthly evaluation for "
+                    + date + " (" + tz + ")."
+                    + (ev.getZoomJoinUrl() != null && !ev.getZoomJoinUrl().isBlank()
+                        ? "\n\nJoin: " + ev.getZoomJoinUrl() : "")
+                    + "\n\nOpen your evaluations: " + deepLink
+                    + "\n\n— Skyzen";
+            internNotifications.notifyIntern(intern.getId(), subject, plain, null);
+        } catch (Exception e) {
+            log.warn("[EvaluatorFanout] intern scheduled mail failed: {}", e.getMessage());
+        }
 
         // In-app — intern
         tryInApp(intern.getId(), "EVALUATION_SCHEDULED", intern.getId(),
-                "Evaluation scheduled",
-                evaluatorName + " has scheduled your monthly evaluation for " + date,
+                "Evaluation scheduled by your Evaluator",
+                actorPhrase + " has scheduled your monthly evaluation for " + date,
                 deepLink);
 
         // CC fan-out — ERM + Manager + Trainer (in-app only; email kept terse)
@@ -72,32 +87,57 @@ public class EvaluationNotificationFanout {
                 "Monthly evaluation scheduled for " + safeName(intern),
                 evaluatorName + " · " + date,
                 "/careers/erm/active-interns");
+
+        // Email — evaluator (scheduler), with the Webex host key so they
+        // can claim host control after joining. Best-effort; failures are
+        // logged inside the sender. Skipped when no zoom join url exists
+        // (creation must have failed before this fan-out fired).
+        if (evaluator != null) {
+            String participantLabel = "with " + safeName(intern) + " (intern)";
+            schedulerEmail.send(
+                    evaluator.getEmail(),
+                    firstName(evaluator),
+                    "Evaluation scheduled",
+                    "Monthly evaluation",
+                    participantLabel,
+                    ev.getScheduledFor(),
+                    ev.getTimezone(),
+                    ev.getZoomJoinUrl(),
+                    ev.getZoomStartUrl(),
+                    ev.getZoomMeetingId());
+        }
     }
 
     public void evaluationPublished(InternEvaluation ev, InternLifecycle lc, User evaluator) {
         User intern = userRepo.findById(lc.getUserId()).orElse(null);
         if (intern == null) return;
         String firstName = firstName(intern);
-        String evaluatorName = evaluator != null && evaluator.getFullName() != null
-                ? evaluator.getFullName() : "your Evaluator";
         String summary = "Overall " + (ev.getOverallScore() != null ? ev.getOverallScore() : "—")
                 + " / 5 · " + (ev.getRecommendation() != null
                         ? ev.getRecommendation().replace('_', ' ').toLowerCase()
                         : "no recommendation");
         String deepLink = link("/careers/intern/evaluations/" + ev.getId());
 
-        Map<String, Object> vars = new LinkedHashMap<>();
-        vars.put("firstName", firstName);
-        vars.put("evaluatorName", evaluatorName);
-        vars.put("evaluationType", "monthly");
-        vars.put("ackDays", "5");
-        vars.put("summaryLine", summary);
-        vars.put("deepLink", deepLink);
-        renderAndEmail("EVALUATION_PUBLISHED", intern, vars);
+        // Intern — Model A: system sends; body names the evaluator + role
+        String actorPhrase = evaluator != null && evaluator.getFullName() != null
+                && !evaluator.getFullName().isBlank()
+                ? evaluator.getFullName() + ", your Evaluator,"
+                : "Your Evaluator";
+        try {
+            String subject = "Your Evaluator published your evaluation";
+            String plain = "Hi " + firstName + ",\n\n"
+                    + actorPhrase + " published your monthly evaluation."
+                    + "\n\n" + summary
+                    + "\n\nOpen it to acknowledge: " + deepLink
+                    + "\n\n— Skyzen";
+            internNotifications.notifyIntern(intern.getId(), subject, plain, null);
+        } catch (Exception e) {
+            log.warn("[EvaluatorFanout] intern published mail failed: {}", e.getMessage());
+        }
 
         tryInApp(intern.getId(), "EVALUATION_PUBLISHED", intern.getId(),
-                "Your evaluation is ready",
-                evaluatorName + " published your monthly evaluation. "
+                "Your Evaluator published your evaluation",
+                actorPhrase + " published your monthly evaluation. "
                         + "Open it to acknowledge.",
                 deepLink);
 
@@ -191,9 +231,15 @@ public class EvaluationNotificationFanout {
             Optional<CommunicationTemplateService.Rendered> r =
                     templateService.render(key, "EMAIL", vars);
             if (r.isEmpty()) return;
-            emailProvider.sendRendered(recipient.getEmail(),
-                    r.get().subject() != null ? r.get().subject() : key,
-                    r.get().body() != null ? r.get().body() : "");
+            String subject = r.get().subject() != null ? r.get().subject() : key;
+            String plain = r.get().body() != null ? r.get().body() : "";
+            // HTML twin with a styled Join button for evaluation meetings
+            // that carry a join URL. No-op when the template doesn't put
+            // a zoomJoinUrl in vars (e.g. text-only "evaluation finalized").
+            Object joinUrlVar = vars.get("zoomJoinUrl");
+            String joinUrl = joinUrlVar == null ? null : joinUrlVar.toString();
+            String html = MeetingEmailHtmlBuilder.build(plain, joinUrl);
+            emailProvider.sendBrandedHtml(recipient.getEmail(), subject, plain, html);
         } catch (Exception e) {
             log.warn("[EvaluatorFanout] {} render failed: {}", key, e.getMessage());
         }
@@ -313,6 +359,27 @@ public class EvaluationNotificationFanout {
                     "I-983 submitted to DSO for " + safeName(intern),
                     method, "/careers/erm/active-interns");
         }
+
+        // Tier A — federal compliance peace-of-mind: notify the intern
+        // via internal mail so the DSO submission has a permanent record
+        // in their company mailbox. Actor is typically ERM.
+        try {
+            String actorPhrase = actor != null && actor.getFullName() != null
+                    && !actor.getFullName().isBlank()
+                    ? actor.getFullName() + ", your ERM,"
+                    : "Your ERM";
+            String subject = "Your I-983 was submitted to your DSO";
+            String plain = "Hi,\n\n" + actorPhrase + " has submitted your I-983 "
+                    + "evaluation to your DSO."
+                    + "\nSubmission method: " + method + "."
+                    + "\n\nKeep this confirmation for your STEM-OPT records."
+                    + "\nOpen your I-983: " + deepLink
+                    + "\n\n— Skyzen";
+            internNotifications.notifyIntern(intern.getId(), subject, plain, null);
+        } catch (Exception e) {
+            log.warn("[EvaluatorFanout] I-983 DSO submitted intern-mail failed (non-fatal): {}",
+                    e.getMessage());
+        }
     }
 
     public void i983Amended(I983Evaluation ev, InternLifecycle lc, User evaluator,
@@ -331,5 +398,27 @@ public class EvaluationNotificationFanout {
                 "I-983 amended for " + safeName(intern),
                 summary + " · DSO submission reset",
                 "/careers/erm/active-interns");
+
+        // Tier A — re-signature required is a high-action prompt; surface
+        // it in the intern's company mailbox alongside the in-app cue so
+        // it isn't lost in the bell stream.
+        try {
+            String actorPhrase = evaluator != null && evaluator.getFullName() != null
+                    && !evaluator.getFullName().isBlank()
+                    ? evaluator.getFullName() + ", your Evaluator,"
+                    : "Your Evaluator";
+            String subject = "Your I-983 was updated — please re-sign";
+            String plain = "Hi,\n\n" + actorPhrase + " has updated your I-983 "
+                    + "evaluation. Your previous signature has been reset, so "
+                    + "please review the changes and re-sign before the DSO "
+                    + "submission window."
+                    + "\n\nWhat changed: " + summary
+                    + "\n\nOpen your I-983: " + deepLink
+                    + "\n\n— Skyzen";
+            internNotifications.notifyIntern(intern.getId(), subject, plain, null);
+        } catch (Exception e) {
+            log.warn("[EvaluatorFanout] I-983 amended intern-mail failed (non-fatal): {}",
+                    e.getMessage());
+        }
     }
 }

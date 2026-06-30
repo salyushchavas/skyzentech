@@ -15,6 +15,14 @@ import java.util.UUID;
 public interface QaSessionRepository extends JpaRepository<QaSession, UUID> {
 
     /**
+     * Authorization lookup for {@code /api/v1/meetings/{id}/host-start} —
+     * the controller refuses to proxy a fresh Zoom start_url unless the
+     * caller's meeting id maps to one of our own meeting rows. Mirrors
+     * {@code DoubtRequestRepository.findFirstByZoomMeetingId}.
+     */
+    Optional<QaSession> findFirstByZoomMeetingId(String zoomMeetingId);
+
+    /**
      * Full fetch graph for a single session — project + engagement + RM +
      * intern user — so the service / DTO mapper never lazy-loads after the
      * transaction closes.
@@ -67,4 +75,20 @@ public interface QaSessionRepository extends JpaRepository<QaSession, UUID> {
             + "WHERE s.status IN :statuses "
             + "ORDER BY s.scheduledAt ASC")
     List<QaSession> findAllByStatusInWithGraph(@Param("statuses") List<QaSessionStatus> statuses);
+
+    /**
+     * Intern's pending-Q&A surface — sessions whose project is in the
+     * given list and whose status is in the given set, newest scheduled
+     * first. Used by {@code ProjectAssignmentService.mapWithGraph} to
+     * surface the join link + scheduled time on each intern's project
+     * row in one round-trip rather than N+1.
+     */
+    @Query("SELECT s FROM QaSession s "
+            + "LEFT JOIN FETCH s.scheduledBy sb "
+            + "WHERE s.project.id IN :projectIds "
+            + "  AND s.status IN :statuses "
+            + "ORDER BY s.scheduledAt DESC")
+    List<QaSession> findByProjectIdsAndStatusIn(
+            @Param("projectIds") java.util.Collection<UUID> projectIds,
+            @Param("statuses") List<QaSessionStatus> statuses);
 }

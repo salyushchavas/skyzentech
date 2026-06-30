@@ -256,6 +256,45 @@ public class Project {
     @Column(name = "kt_marked_by_id")
     private java.util.UUID ktMarkedById;
 
+    // ── KT Zoom session — scheduling parity with WeeklyMeeting.
+    // Trainer schedules a live KT session: backend calls MeetingProvider
+    // .createMeeting and stashes the Zoom links here so the intern can
+    // join and the trainer can start as host. Mark-KT-done remains a
+    // separate, always-available action (it doesn't require a scheduled
+    // session — trust the trainer).
+    //
+    // Hibernate ddl-auto=update adds these columns on next boot; no
+    // manual migration. All fields are nullable so existing rows
+    // (created before this phase) keep loading.
+
+    /** Provider meeting id (Zoom returns numeric; we store as String
+     *  for parity with WeeklyMeeting.zoom_meeting_id). */
+    @Column(name = "kt_zoom_meeting_id", length = 64)
+    private String ktZoomMeetingId;
+
+    /** Intern-safe join URL (the public attendee link). */
+    @Column(name = "kt_zoom_join_url", columnDefinition = "TEXT")
+    private String ktZoomJoinUrl;
+
+    /** Host-only start URL. NEVER exposed to interns. zak token in this
+     *  URL expires ~2h after create — the host-start endpoint re-fetches
+     *  on demand so the trainer's "Start as Host" button is always live. */
+    @Column(name = "kt_zoom_start_url", columnDefinition = "TEXT")
+    private String ktZoomStartUrl;
+
+    /** When the KT session is scheduled to occur. */
+    @Column(name = "kt_scheduled_for")
+    private Instant ktScheduledFor;
+
+    /** Session length in minutes. Defaults to 30 when not specified. */
+    @Column(name = "kt_duration_minutes")
+    private Integer ktDurationMinutes;
+
+    /** IANA timezone for the schedule (e.g. {@code Asia/Kolkata}).
+     *  Defaults to UTC if missing. */
+    @Column(name = "kt_timezone", length = 50)
+    private String ktTimezone;
+
     @UpdateTimestamp
     @Column(name = "updated_at", nullable = false)
     private Instant updatedAt;

@@ -3,6 +3,11 @@ package com.skyzen.careers.service;
 import com.skyzen.careers.dto.project.catalog.CatalogProjectResponse;
 import com.skyzen.careers.dto.project.catalog.CreateCatalogProjectRequest;
 import com.skyzen.careers.dto.project.catalog.KtMarkRequest;
+import com.skyzen.careers.dto.project.catalog.KtScheduleRequest;
+import com.skyzen.careers.integration.meeting.MeetingProvider;
+import com.skyzen.careers.integration.meeting.MeetingRequest;
+import com.skyzen.careers.integration.meeting.MeetingResponse;
+import com.skyzen.careers.notification.SchedulerMeetingEmailSender;
 import com.skyzen.careers.entity.InternLifecycle;
 import com.skyzen.careers.entity.Project;
 import com.skyzen.careers.entity.User;
@@ -47,7 +52,10 @@ public class ProjectCatalogService {
             repositoryLinkRepository;
     private final InternLifecycleRepository internLifecycleRepository;
     private final UserNotificationDispatcher userNotificationDispatcher;
+    private final com.skyzen.careers.notification.InternNotificationService internNotifications;
     private final TrainerScopeGuard trainerScopeGuard;
+    private final MeetingProvider meetingProvider;
+    private final SchedulerMeetingEmailSender schedulerEmail;
 
     @Transactional
     public CatalogProjectResponse createCatalogProject(
@@ -137,6 +145,174 @@ public class ProjectCatalogService {
         return toResponse(project, creator);
     }
 
+    /**
+     * Schedule a live KT session: creates a Zoom meeting via the
+     * shared {@link MeetingProvider} and stores host + join URLs on
+     * the project, then dispatches a KT_SCHEDULED notification fan-out
+     * (intern internal-mail + in-app, plus a host-link email to the
+     * trainer). Mirrors {@code WeeklyMeetingService.schedule} so KT and
+     * weekly meetings behave identically end-to-end.
+     *
+     * <p>Independent of {@link #markKtDone} — the trainer can mark KT
+     * done at any time without scheduling a session first (trust the
+     * trainer per the brief). Re-scheduling overwrites the previous
+     * session's links (previous Zoom is left orphaned; rare enough we
+     * skip a delete + retry handshake).</p>
+     */
+    @Transactional
+    public CatalogProjectResponse scheduleKt(UUID projectId, KtScheduleRequest req, User caller) {
+        if (caller == null) throw new ForbiddenException("Authentication required");
+        if (req == null || req.scheduledFor() == null || req.scheduledFor().isBlank()) {
+            throw new BadRequestException("scheduledFor is required");
+        }
+        Project project = projectRepository.findById(projectId)
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "Project not found: " + projectId));
+        if (project.getInternLifecycleId() == null) {
+            throw new ConflictException(
+                    "KT cannot be scheduled — this project isn't assigned to an intern yet.");
+        }
+        ensureTrainerForProject(project, caller);
+
+        Instant scheduledFor;
+        try {
+            scheduledFor = Instant.parse(req.scheduledFor().trim());
+        } catch (Exception e) {
+            throw new BadRequestException(
+                    "scheduledFor must be an ISO-8601 instant (e.g. 2026-07-15T14:00:00Z)");
+        }
+        if (scheduledFor.isBefore(Instant.now().minusSeconds(300))) {
+            throw new BadRequestException("scheduledFor must be in the future");
+        }
+        int duration = req.durationMinutes() == null ? 30
+                : Math.max(15, Math.min(180, req.durationMinutes()));
+        String tz = (req.timezone() == null || req.timezone().isBlank())
+                ? "UTC" : req.timezone();
+        String projectLabel = labelFor(project);
+        String topic = (req.topic() != null && !req.topic().isBlank())
+                ? req.topic().trim()
+                : "KT Session — " + projectLabel;
+        String agenda = req.agenda() != null ? req.agenda() : null;
+
+        // Best-effort Zoom create — same pattern as WeeklyMeetingService.
+        String zoomId = null;
+        String joinUrl = null;
+        String startUrl = null;
+        if (meetingProvider.isReady()) {
+            try {
+                String hostId = caller.getZoomEmail() != null && !caller.getZoomEmail().isBlank()
+                        ? caller.getZoomEmail() : "me";
+                MeetingResponse z = meetingProvider.createMeeting(
+                        new MeetingRequest(hostId, topic, scheduledFor, duration, tz, agenda));
+                zoomId = z.providerMeetingId();
+                joinUrl = z.joinUrl();
+                startUrl = z.startUrl();
+                log.info("[KtSchedule] {} meeting created id={} for project={}",
+                        meetingProvider.providerName(), zoomId, project.getId());
+            } catch (Exception e) {
+                log.warn("[KtSchedule] {} create failed (non-fatal); KT row still persists: {}",
+                        meetingProvider.providerName(), e.getMessage());
+            }
+        }
+
+        project.setKtZoomMeetingId(zoomId);
+        project.setKtZoomJoinUrl(joinUrl);
+        project.setKtZoomStartUrl(startUrl);
+        project.setKtScheduledFor(scheduledFor);
+        project.setKtDurationMinutes(duration);
+        project.setKtTimezone(tz);
+        project = projectRepository.save(project);
+
+        dispatchKtScheduledNotification(project, caller, topic);
+        log.info("[ProjectCatalogService] KT scheduled project={} for {} by={}",
+                project.getId(), scheduledFor, caller.getId());
+        User creator = resolveCreator(project.getCreatedById());
+        return toResponse(project, creator);
+    }
+
+    /**
+     * Fan-out for KT_SCHEDULED: intern gets in-app + internal mail with
+     * the join button; trainer gets the host-link email (mirrors the
+     * weekly-meeting pattern).
+     */
+    private void dispatchKtScheduledNotification(Project project, User trainer, String topic) {
+        try {
+            UUID lifecycleId = project.getInternLifecycleId();
+            if (lifecycleId == null) return;
+            InternLifecycle lc = internLifecycleRepository.findById(lifecycleId).orElse(null);
+            if (lc == null || lc.getUserId() == null) return;
+            User intern = userRepository.findById(lc.getUserId()).orElse(null);
+            if (intern == null) return;
+
+            String projectLabel = labelFor(project);
+            String when = project.getKtScheduledFor() != null
+                    ? project.getKtScheduledFor().toString() : "TBD";
+            String tz = project.getKtTimezone() != null ? project.getKtTimezone() : "UTC";
+
+            // Actor + role per Model A: "<Name>, your Trainer, ..."
+            String actorPhrase = trainer != null && trainer.getFullName() != null
+                    ? trainer.getFullName() + ", your Trainer,"
+                    : "Your Trainer";
+
+            // Intern: in-app
+            try {
+                userNotificationDispatcher.dispatch(intern.getId(), "KT_SCHEDULED",
+                        trainer != null ? trainer.getId() : null,
+                        "KT session scheduled by your Trainer — " + projectLabel,
+                        actorPhrase + " scheduled a KT session for " + projectLabel
+                                + " on " + when + " (" + tz + ").",
+                        "/careers/intern/projects", true);
+            } catch (Exception e) {
+                log.warn("[KtSchedule] in-app dispatch failed: {}", e.getMessage());
+            }
+
+            // Intern: internal mail (active interns with ACTIVATED mailbox only)
+            String body = actorPhrase + " scheduled a KT session for \"" + projectLabel
+                    + "\" on " + when + " (" + tz + "), "
+                    + (project.getKtDurationMinutes() != null
+                        ? project.getKtDurationMinutes() : 30)
+                    + " min."
+                    + (project.getKtZoomJoinUrl() != null
+                        ? "\n\nJoin link: " + project.getKtZoomJoinUrl() : "")
+                    + "\n\nOpen your projects: /careers/intern/projects"
+                    + "\n\n— Skyzen";
+            internNotifications.notifyIntern(intern.getId(),
+                    "KT session scheduled by your Trainer — " + projectLabel, body, null);
+
+            // Trainer: host-link email (mirrors WeeklyMeeting trainer email).
+            if (trainer != null && trainer.getEmail() != null && !trainer.getEmail().isBlank()) {
+                String participantLabel = "with " + (intern.getFullName() != null
+                        ? intern.getFullName() : "the intern");
+                schedulerEmail.send(
+                        trainer.getEmail(),
+                        firstName(trainer),
+                        "KT session scheduled",
+                        topic != null ? topic : ("KT Session — " + projectLabel),
+                        participantLabel,
+                        project.getKtScheduledFor(),
+                        project.getKtTimezone(),
+                        project.getKtZoomJoinUrl(),
+                        project.getKtZoomStartUrl(),
+                        project.getKtZoomMeetingId());
+            }
+        } catch (Exception e) {
+            log.warn("[ProjectCatalogService] KT-scheduled notify failed (non-fatal): {}",
+                    e.getMessage());
+        }
+    }
+
+    private static String labelFor(Project project) {
+        if (project.getName() != null && !project.getName().isBlank()) return project.getName();
+        if (project.getTitle() != null && !project.getTitle().isBlank()) return project.getTitle();
+        return "your project";
+    }
+
+    private static String firstName(User u) {
+        if (u == null || u.getFullName() == null) return "there";
+        String[] parts = u.getFullName().trim().split("\\s+", 2);
+        return parts.length > 0 && !parts[0].isEmpty() ? parts[0] : "there";
+    }
+
     private void ensureTrainerForProject(Project project, User caller) {
         // Delegate ownership check to the shared TrainerScopeGuard so KT
         // mark-done and the project-assign endpoints share one model
@@ -165,6 +341,26 @@ public class ProjectCatalogService {
             userNotificationDispatcher.dispatch(internUserId, "KT_DONE",
                     project.getKtMarkedById(), title, body,
                     "/careers/intern/projects", false);
+            // Phase: Employee internal-mail — also land this event in the
+            // intern's company mailbox. The helper short-circuits when the
+            // intern isn't activeStatus='ACTIVE' OR doesn't have a
+            // mailHandoverState=ACTIVATED mailbox; safe to call always.
+            //
+            // Actor + role per Model A: "<Name>, your Trainer, ...". The
+            // trainer is the user who marked KT done (project.kt_marked_by_id).
+            User actor = project.getKtMarkedById() != null
+                    ? userRepository.findById(project.getKtMarkedById()).orElse(null)
+                    : null;
+            String actorPhrase = actor != null && actor.getFullName() != null
+                    ? actor.getFullName() + ", your Trainer,"
+                    : "Your Trainer";
+            String mailSubject = "KT marked complete by your Trainer — " + projectLabel;
+            String mailPlain = actorPhrase + " marked KT done for "
+                    + projectLabel + "."
+                    + (project.getKtMeetingLink() != null && !project.getKtMeetingLink().isBlank()
+                        ? " The KT meeting link is available on the project page." : "")
+                    + "\n\nOpen your projects: /careers/intern/projects\n\n— Skyzen";
+            internNotifications.notifyIntern(internUserId, mailSubject, mailPlain, null);
         } catch (Exception e) {
             log.warn("[ProjectCatalogService] KT-done notify failed (non-fatal): {}",
                     e.getMessage());
@@ -331,7 +527,17 @@ public class ProjectCatalogService {
                 p.getKtCompletedAt(),
                 p.getKtMeetingLink(),
                 p.getKtNotes(),
-                markedByName);
+                markedByName,
+                // Live KT session (Zoom) — null when not yet scheduled.
+                // zoomStartUrl is host-only; the trainer-facing detail
+                // page sees it, intern-side surfaces must strip it
+                // before serialisation.
+                p.getKtZoomMeetingId(),
+                p.getKtZoomJoinUrl(),
+                p.getKtZoomStartUrl(),
+                p.getKtScheduledFor(),
+                p.getKtDurationMinutes(),
+                p.getKtTimezone());
     }
 
     private CatalogProjectResponse toResponseWithCount(Project p, User creator) {
