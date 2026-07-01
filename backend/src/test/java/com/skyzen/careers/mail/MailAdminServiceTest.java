@@ -194,6 +194,47 @@ class MailAdminServiceTest {
     }
 
     @Test
+    void setRole_strandedSuperOnDeactivatedDomain_notCountedAsFallback_is409() {
+        // Regression (last-super-admin lockout): the only OTHER super-admin lives on
+        // a DEACTIVATED domain, so it cannot log in and is not a valid fallback.
+        // Demoting the last REACHABLE super must be blocked (409) — the guard must
+        // NOT count the stranded super.
+        MailDomain deadDomain = MailDomain.builder()
+                .id(UUID.randomUUID()).name("dead.com").active(false).build();
+        MailAccount reachable = account(domainA, "root", MailRole.SUPER_ADMIN, MailAccountStatus.ACTIVE);
+        MailAccount stranded = account(deadDomain, "ghost", MailRole.SUPER_ADMIN, MailAccountStatus.ACTIVE);
+        stubActor(reachable);
+        // Both rows are ACTIVE status (so the lock query returns them); the stranded
+        // one is unreachable only because its DOMAIN is deactivated.
+        when(accountRepository.lockByRoleAndStatus(MailRole.SUPER_ADMIN, MailAccountStatus.ACTIVE))
+                .thenReturn(List.of(reachable, stranded));
+
+        MailApiException ex = assertThrows(MailApiException.class, () ->
+                service.setRole(principalFor(reachable), reachable.getId(), MailRole.USER));
+        assertEquals(HttpStatus.CONFLICT, ex.getStatus());
+        assertEquals("MAIL_LAST_SUPER_ADMIN", ex.getCode());
+        assertEquals(MailRole.SUPER_ADMIN, reachable.getRole(), "role must be unchanged when blocked");
+        verify(accountRepository, never()).save(any());
+    }
+
+    @Test
+    void setRole_secondSuperOnActiveDomain_isValidFallback_allowsDemotion() {
+        // No false-positive: a genuine second super-admin on an ACTIVE domain IS a
+        // valid fallback, so demoting one super still succeeds (the stricter guard
+        // changes nothing for currently-valid operations).
+        MailAccount superA = account(domainA, "root", MailRole.SUPER_ADMIN, MailAccountStatus.ACTIVE);
+        MailAccount superB = account(domainB, "root2", MailRole.SUPER_ADMIN, MailAccountStatus.ACTIVE);
+        stubActor(superA);
+        when(accountRepository.lockByRoleAndStatus(MailRole.SUPER_ADMIN, MailAccountStatus.ACTIVE))
+                .thenReturn(List.of(superA, superB)); // both on ACTIVE domains
+
+        service.setRole(principalFor(superA), superA.getId(), MailRole.USER);
+
+        assertEquals(MailRole.USER, superA.getRole(), "demotion allowed when an active-domain fallback exists");
+        verify(accountRepository).save(superA);
+    }
+
+    @Test
     void suspend_user_revokesTokens_andSetsSuspended() {
         MailAccount actor = account(domainA, "admin", MailRole.SUPER_ADMIN, MailAccountStatus.ACTIVE);
         MailAccount target = account(domainA, "user", MailRole.USER, MailAccountStatus.ACTIVE);

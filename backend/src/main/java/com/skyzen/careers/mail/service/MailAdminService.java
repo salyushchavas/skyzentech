@@ -383,7 +383,14 @@ public class MailAdminService {
         }
         List<MailAccount> activeSupers =
                 accountRepository.lockByRoleAndStatus(MailRole.SUPER_ADMIN, MailAccountStatus.ACTIVE);
-        boolean anyOther = activeSupers.stream().anyMatch(a -> !a.getId().equals(target.getId()));
+        // A super-admin stranded on a DEACTIVATED domain cannot log in (login only
+        // resolves accounts on an active domain), so it is NOT a valid fallback —
+        // counting it would permit demoting/suspending the last REACHABLE super and
+        // cause total lockout. Mirror the sibling domain-deactivation guard's
+        // active-domain check. (Locking query unchanged; only the count is tightened.)
+        boolean anyOther = activeSupers.stream()
+                .anyMatch(a -> !a.getId().equals(target.getId())
+                        && Boolean.TRUE.equals(a.getDomain().getActive()));
         if (!anyOther) {
             throw new MailApiException(HttpStatus.CONFLICT,
                     "Cannot remove the last active super-admin", "MAIL_LAST_SUPER_ADMIN");
